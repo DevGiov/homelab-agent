@@ -1,0 +1,41 @@
+# Docker Compose produzione homelab-agent (CT 125)
+# Backend FastAPI + Frontend statico servito da nginx (con proxy /v1 verso il backend).
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agent-backend
+    ports:
+      - "8090:8090"
+    env_file:
+      - ./backend/.env
+    environment:
+      CHECKPOINT_DB_PATH: /data/checkpoints.db
+    volumes:
+      - agent_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: /v1
+    container_name: agent-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  agent_data:
