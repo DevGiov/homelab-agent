@@ -150,6 +150,28 @@ docker compose -f docker-compose.dev.yml up --build
 # Backend: http://localhost:8090/v1 — Frontend: http://localhost:5173
 ```
 
+## Deploy con Docker (produzione)
+
+Lo stack prod usa `docker-compose.prod.yml`: backend FastAPI + frontend compilato e servito da nginx (con proxy `/v1/` e SSE senza buffering).
+
+```bash
+# 1. Clona il repo e configura l'ambiente
+cd homelab-agent
+cp backend/.env.example backend/.env
+# modifica backend/.env con i tuoi valori (API_SECRET_KEY, CORS_ORIGINS, URL servizi...)
+
+# 2. Build e avvio
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 3. Verifica
+curl http://localhost:8090/v1/health          # {"status":"ok"}
+curl http://localhost/                        # frontend UI
+```
+
+Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio compose `backend`, porta interna 8090). Per HTTPS metti un reverse proxy davanti (es. Nginx Proxy Manager) puntando alla porta 80 del container frontend.
+
+**Importante**: se accedi all'UI tramite un dominio proxato, aggiungi quell'origine (con schema) a `CORS_ORIGINS` nel `backend/.env`, altrimenti il browser bloccherà le chiamate API con "Disallowed CORS origin".
+
 ## Endpoint principali
 
 | Metodo | Path | Descrizione |
