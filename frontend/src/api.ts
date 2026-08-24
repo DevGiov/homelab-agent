@@ -4,8 +4,29 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/v1';
 
 // --- Fase 4: API key globale (localStorage, configurabile dall'utente) ---
 const API_KEY_STORAGE = 'main_agent_api_key';
+
+// Chiave iniettata a runtime da /config.json (generato dall'entrypoint Docker)
+let _configApiKey = '';
+
+/**
+ * Carica la API key da /config.json (servito da nginx a runtime).
+ * Deve essere chiamata una volta all'avvio dell'app, prima del primo render.
+ * Se il file non esiste (es. dev locale senza Docker), fallisce silenziosamente.
+ */
+export async function initApiConfig(): Promise<void> {
+  try {
+    const res = await fetch('/config.json', { cache: 'no-store' });
+    if (res.ok) {
+      const cfg = await res.json();
+      if (cfg.apiKey) _configApiKey = cfg.apiKey;
+    }
+  } catch {
+    // In dev (Vite) /config.json non esiste — nessun problema
+  }
+}
+
 export function getApiKey(): string {
-  return localStorage.getItem(API_KEY_STORAGE) || '';
+  return localStorage.getItem(API_KEY_STORAGE) || _configApiKey;
 }
 export function setApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE, key.trim());

@@ -6,6 +6,7 @@ dist/
 # Build
 build/
 *.local
+config.json
 
 # Logs
 *.log

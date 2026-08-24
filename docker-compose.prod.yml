@@ -1,5 +1,6 @@
 # Docker Compose produzione homelab-agent (CT 125)
 # Backend FastAPI + Frontend statico servito da nginx (con proxy /v1 verso il backend).
+# La API_SECRET_KEY condivisa è letta dal file .env nella root del progetto.
 
 services:
   backend:
@@ -32,6 +33,9 @@ services:
     container_name: agent-frontend
     ports:
       - "80:80"
+    environment:
+      # Iniettata a runtime dall'entrypoint per generare /config.json
+      API_SECRET_KEY: ${API_SECRET_KEY}
     depends_on:
       backend:
         condition: service_healthy
