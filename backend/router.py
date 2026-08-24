@@ -11,7 +11,7 @@ logger = logging.getLogger("router")
 LLAMA_CPP_URL = config.LLAMA_CPP_URL.rstrip('/')
 DEFAULT_MODEL = config.DEFAULT_MODEL
 
-def classify_mode(user_input: str, force_mode: str = None) -> str:
+def classify_mode(user_input: str, force_mode: str = None, model: str = None) -> str:
     """
     Classifies user input into one of 4 modes: 'chat', 'ask', 'act', 'plan'.
     Supports force_mode override, neural classification, and robust rule-matching fallback.
@@ -53,7 +53,7 @@ Risposta (solo chat, ask, act o plan):"""
 
     url = f"{LLAMA_CPP_URL.rstrip('/')}/chat/completions"
     payload = {
-        "model": DEFAULT_MODEL,
+        "model": model or DEFAULT_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 64,
         "temperature": 0.0,

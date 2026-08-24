@@ -366,7 +366,7 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
             old_messages = clean_messages[:-keep] if len(clean_messages) > keep else clean_messages
             if old_messages:
                 logger.info(f"Generazione summary incrementale per thread '{thread_id}' su {len(old_messages)} vecchi messaggi...")
-                summary = _generate_summary(old_messages)
+                summary = _generate_summary(old_messages, model=state.get("model"))
                 if summary:
                     if agent_id:
                         letta_client.save_archival_memory(agent_id, key=summary_key, value=summary)
@@ -402,7 +402,8 @@ def mode_router_node(state: AgentState) -> AgentState:
     """Classifies user task into one of 4 modes: chat, ask, act, plan."""
     task = state.get("task", "")
     force_mode = state.get("force_mode")
-    classified = router.classify_mode(task, force_mode=force_mode)
+    model = state.get("model")
+    classified = router.classify_mode(task, force_mode=force_mode, model=model)
     logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}'")
     return {"mode": classified}
 
@@ -633,7 +634,7 @@ def execute_rollback_for_step(log: ExecutionLog, tools_catalog: list[dict]) -> b
         return False
 
 
-def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str, error_context: str) -> Optional[str]:
+def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str, error_context: str, model: Optional[str] = None) -> Optional[str]:
     """
     Usa l'LLM per generare un piano di rollback contestuale quando quello dichiarativo non basta.
     """
@@ -656,7 +657,7 @@ def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str
     
     Piano di rollback:"""
 
-    plan_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in rollback di operazioni di infrastruttura Proxmox.", max_tokens=512, temperature=0.3)
+    plan_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in rollback di operazioni di infrastruttura Proxmox.", max_tokens=512, temperature=0.3, model=model)
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 
@@ -755,7 +756,7 @@ def execute_plan_node(state: AgentState) -> AgentState:
         if failed_rollbacks:
             exec_lines.append("\n### 🤖 LLM-based Rollback Planning:\n")
             error_ctx = "Step non reversibili o rollback dichiarativo non completato"
-            llm_plan = generate_rollback_plan_with_llm(execution_log, task, error_ctx)
+            llm_plan = generate_rollback_plan_with_llm(execution_log, task, error_ctx, model=state.get("model"))
             if llm_plan:
                 exec_lines.append(f"```\n{llm_plan}\n```")
                 exec_lines.append("\n⚠️ **Piano LLM generato: esegui manualmente i passaggi sopra se necessario.**")
@@ -1041,7 +1042,7 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
     return f"**Esito elaborazione tool**: `{tool_name}`\n\n{raw_data}"
 
 
-def extract_salient_facts(task: str, response: str, memory_context: str) -> List[str]:
+def extract_salient_facts(task: str, response: str, memory_context: str, model: Optional[str] = None) -> List[str]:
     """
     Estrae fatti salienti dalla conversazione per il salvataggio in memoria archivistica.
     """
@@ -1061,7 +1062,7 @@ def extract_salient_facts(task: str, response: str, memory_context: str) -> List
     
     Fatti salienti (elenca massimo 5 punti concisi, uno per riga):"""
 
-    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=300, temperature=0.3)
+    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=300, temperature=0.3, model=model)
     raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
     if not raw:
         return []
@@ -1110,7 +1111,7 @@ def respond_node(state: AgentState) -> AgentState:
 
     # 2. Estrazione fatti salienti e salvataggio in Archival Memory (Task 4.3)
     try:
-        facts = extract_salient_facts(task, formatted, memory_context)
+        facts = extract_salient_facts(task, formatted, memory_context, model=state.get("model"))
         if facts:
             logger.info(f"Fatti salienti estratti ({len(facts)}): {facts}")
             if agent_id:
