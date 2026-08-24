@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, Upload, Trash2, Search, FileText, RefreshCw, Loader2, Brain, Plus, Tag } from 'lucide-react';
+import { BookOpen, Upload, Trash2, Search, FileText, RefreshCw, Loader2, Brain, Plus } from 'lucide-react';
 import {
   listKbDocuments,
   uploadKbDocument,

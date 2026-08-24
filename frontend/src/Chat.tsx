@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Shield } from 'lucide-react';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff } from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
