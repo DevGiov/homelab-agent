@@ -81,7 +81,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       mode: AgentMode | undefined,
       execute: boolean,
       reasoningBudget?: number,
-      model?: string
+      model?: string,
+      incognito?: boolean
     ) => {
       setChatError(null);
       isSendingRef.current = true;
@@ -129,6 +130,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             execute,
             reasoning_budget: reasoningBudget,
             model,
+            incognito,
           },
           (reasoningDelta) => {
             setThreadMessagesMap((prev) => {

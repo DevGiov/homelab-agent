@@ -25,8 +25,12 @@ from providers import (
     set_active_provider,
 )
 from schemas import (
+    AddMemoryRequest,
     ChatRequest,
     ChatResponse,
+    ClearMemoryResponse,
+    MemoryItem,
+    MemoryListResponse,
     ProviderInfo,
     ProviderModelsResponse,
     ProvidersResponse,
@@ -77,7 +81,7 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None) -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
@@ -91,7 +95,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "mode": "",
         "plan": {},
         "tool_result": None,
-        "final_response": ""
+        "final_response": "",
+        "incognito": incognito
     }
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
@@ -121,8 +126,9 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             reasoning_content=reasoning_content
         )
 
-        # Salva atomico del turno nello store SQLite
-        thread_store.save_turn(effective_thread_id, task, resp.model_dump())
+        # Salva atomico del turno nello store SQLite solo se non in modalità incognito
+        if not incognito:
+            thread_store.save_turn(effective_thread_id, task, resp.model_dump())
 
         return resp
 
@@ -205,29 +211,29 @@ def _limit(rate: str):
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
@@ -241,7 +247,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "mode": "",
         "plan": {},
         "tool_result": None,
-        "final_response": ""
+        "final_response": "",
+        "incognito": incognito
     }
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
@@ -272,7 +279,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 rollback_trace=rollback_trace,
                 reasoning_content=reasoning_content
             )
-            thread_store.save_turn(effective_thread_id, task, resp.model_dump())
+            if not incognito:
+                thread_store.save_turn(effective_thread_id, task, resp.model_dump())
             q.put({"type": "final", "response": resp.model_dump()})
         except Exception as e:
             q.put({"type": "error", "error": str(e)})
@@ -296,7 +304,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 @api.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
+    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
 
 @api.get("/v1/audit", dependencies=[Depends(verify_api_key)])
 async def get_audit_log(limit: int = 100, thread_id: Optional[str] = None):
@@ -497,4 +505,81 @@ async def deny_request(request_id: str):
     if req is None:
         raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
     return {"request_id": request_id, "status": "denied", "tool_name": req.tool_name}
+
+
+# --- Gestione Memoria (Fase 4.3 & Controllo Frontend) ---
+
+@api.get("/v1/memory", response_model=MemoryListResponse, dependencies=[Depends(verify_api_key)])
+async def get_memories(kind: Optional[str] = "fact", limit: int = 100, offset: int = 0):
+    """Restituisce i fatti salienti salvati nella memoria vettoriale."""
+    import vector_store
+    items = vector_store.list_memories(kind=kind, limit=limit, offset=offset)
+    total = vector_store.count_memory(kind=kind)
+    return {"memories": items, "total": total}
+
+@api.post("/v1/memory", response_model=MemoryItem, dependencies=[Depends(verify_api_key)])
+async def add_single_memory(req: AddMemoryRequest):
+    """Aggiunge manualmente un fatto alla memoria vettoriale a lungo termine."""
+    import vector_store
+    row_id = vector_store.add_memory(
+        content=req.content,
+        kind=req.kind,
+        thread_id=req.thread_id,
+        metadata=req.metadata
+    )
+    if row_id is None:
+        raise HTTPException(status_code=400, detail="Impossibile aggiungere il fatto alla memoria")
+    return {
+        "id": row_id,
+        "kind": req.kind,
+        "thread_id": req.thread_id,
+        "content": req.content,
+        "metadata": req.metadata or {},
+        "created_at": None
+    }
+
+@api.delete("/v1/memory/{memory_id}", dependencies=[Depends(verify_api_key)])
+async def delete_single_memory(memory_id: int):
+    """Elimina un singolo fatto saliente per ID."""
+    import vector_store
+    success = vector_store.delete_memory(memory_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Fatto con ID {memory_id} non trovato")
+    return {"status": "deleted", "id": memory_id}
+
+@api.delete("/v1/memory", response_model=ClearMemoryResponse, dependencies=[Depends(verify_api_key)])
+async def clear_all_memory(kind: Optional[str] = None):
+    """
+    Cancella l'intera memoria:
+    1. Svuota la tabella vettoriale SQLite (vec_memory e vec_memory_idx)
+    2. Cancella tutti gli agent Letta su CT 102
+    3. Rimuove i file locali di summary e fatti salienti in backend/memory/
+    """
+    import glob
+    import os
+    import vector_store
+
+    deleted_vec = vector_store.clear_all_memories(kind=kind)
+    deleted_letta = 0
+    try:
+        deleted_letta = letta_client.delete_all_threads()
+    except Exception:
+        pass
+
+    # Rimuovi file locali di summary e fatti salienti
+    mem_dir = "/opt/homelab-agent/memory" if os.path.exists("/opt/homelab-agent/memory") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
+    if os.path.exists(mem_dir):
+        for pattern in ["salient_facts_*.txt", "summary_*.txt"]:
+            for fpath in glob.glob(os.path.join(mem_dir, pattern)):
+                try:
+                    os.remove(fpath)
+                except Exception:
+                    pass
+
+    return {
+        "deleted_count": deleted_vec,
+        "letta_cleared": True,
+        "message": f"Memoria azzerata con successo ({deleted_vec} record vettoriali, {deleted_letta} agent Letta eliminati)."
+    }
+
 

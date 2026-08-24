@@ -202,3 +202,77 @@ def count_memory(kind: Optional[str] = None) -> int:
         return n
     except Exception:
         return 0
+
+
+def delete_memory(memory_id: int) -> bool:
+    """Elimina un singolo record di memoria vettoriale per id."""
+    try:
+        conn = _get_conn()
+        conn.execute("DELETE FROM vec_memory_idx WHERE rowid = ?", (memory_id,))
+        cur = conn.execute("DELETE FROM vec_memory WHERE id = ?", (memory_id,))
+        conn.commit()
+        conn.close()
+        return cur.rowcount > 0
+    except Exception as e:
+        logger.warning(f"delete_memory {memory_id} fallito: {e}")
+        return False
+
+
+def clear_all_memories(kind: Optional[str] = None) -> int:
+    """Svuota tutti i record di memoria vettoriale (o per kind)."""
+    try:
+        conn = _get_conn()
+        if kind:
+            rows = conn.execute("SELECT id FROM vec_memory WHERE kind = ?", (kind,)).fetchall()
+            for r in rows:
+                conn.execute("DELETE FROM vec_memory_idx WHERE rowid = ?", (r[0],))
+            cur = conn.execute("DELETE FROM vec_memory WHERE kind = ?", (kind,))
+        else:
+            conn.execute("DELETE FROM vec_memory_idx")
+            cur = conn.execute("DELETE FROM vec_memory")
+        conn.commit()
+        conn.close()
+        return cur.rowcount
+    except Exception as e:
+        logger.warning(f"clear_all_memories fallito: {e}")
+        return 0
+
+
+def list_memories(
+    kind: Optional[str] = "fact",
+    limit: int = 100,
+    offset: int = 0
+) -> List[Dict[str, Any]]:
+    """Restituisce la lista di memorie ordinate per data decrescente."""
+    try:
+        conn = _get_conn()
+        sql = "SELECT id, kind, thread_id, content, metadata_json, created_at FROM vec_memory"
+        params: List[Any] = []
+        if kind:
+            sql += " WHERE kind = ?"
+            params.append(kind)
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
+
+        items = []
+        for r in rows:
+            meta = {}
+            if r[4]:
+                try:
+                    meta = json.loads(r[4])
+                except Exception:
+                    pass
+            items.append({
+                "id": r[0],
+                "kind": r[1],
+                "thread_id": r[2],
+                "content": r[3],
+                "metadata": meta,
+                "created_at": str(r[5]) if r[5] else None,
+            })
+        return items
+    except Exception as e:
+        logger.warning(f"list_memories fallito: {e}")
+        return []

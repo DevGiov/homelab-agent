@@ -222,6 +222,32 @@ def delete_thread(agent_id: str) -> bool:
         return False
 
 
+def list_agents() -> list:
+    """Lists all Letta agents."""
+    if not LETTA_URL:
+        return []
+    try:
+        with httpx.Client(follow_redirects=True) as client:
+            r = client.get(f"{LETTA_URL}/v1/agents/", headers=HEADERS, timeout=DEFAULT_TIMEOUT)
+            if r.status_code == 200:
+                data = r.json()
+                return data if isinstance(data, list) else []
+    except Exception as e:
+        logger.warning(f"Failed to list Letta agents: {e}")
+    return []
+
+
+def delete_all_threads() -> int:
+    """Deletes all Letta agents/threads. Returns count of deleted agents."""
+    agents = list_agents()
+    deleted = 0
+    for ag in agents:
+        aid = ag.get("id")
+        if aid and delete_thread(aid):
+            deleted += 1
+    return deleted
+
+
 import math
 from collections import defaultdict
 

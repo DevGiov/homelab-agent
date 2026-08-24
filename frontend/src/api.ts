@@ -54,6 +54,7 @@ export interface ChatRequest {
   reasoning_budget_tokens?: number;
   execute?: boolean;
   model?: string;
+  incognito?: boolean;
 }
 
 export interface ExecutionTraceItem {
@@ -337,4 +338,55 @@ export async function setDefaultProvider(
   const res = await api.put('/providers/default', { provider, model });
   return res.data;
 }
+
+// --- Memory Management ---
+
+export interface MemoryItem {
+  id: number;
+  kind: string;
+  thread_id?: string | null;
+  content: string;
+  metadata?: Record<string, any>;
+  created_at?: string | null;
+}
+
+export interface MemoryListResponse {
+  memories: MemoryItem[];
+  total: number;
+}
+
+export interface ClearMemoryResponse {
+  deleted_count: number;
+  letta_cleared: boolean;
+  message: string;
+}
+
+export async function getMemories(kind: string = 'fact', limit: number = 100, offset: number = 0): Promise<MemoryListResponse> {
+  const res = await api.get<MemoryListResponse>('/memory', {
+    params: { kind, limit, offset },
+  });
+  return res.data;
+}
+
+export async function addMemory(content: string, kind: string = 'fact', thread_id?: string): Promise<MemoryItem> {
+  const res = await api.post<MemoryItem>('/memory', {
+    content,
+    kind,
+    thread_id,
+  });
+  return res.data;
+}
+
+export async function deleteMemory(memoryId: number): Promise<{ status: string; id: number }> {
+  const res = await api.delete<{ status: string; id: number }>(`/memory/${memoryId}`);
+  return res.data;
+}
+
+export async function clearAllMemory(kind?: string): Promise<ClearMemoryResponse> {
+  const res = await api.delete<ClearMemoryResponse>('/memory', {
+    params: kind ? { kind } : undefined,
+  });
+  return res.data;
+}
+
 

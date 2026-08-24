@@ -102,6 +102,7 @@ class AgentState(TypedDict):
     rollback_trace: Optional[List[Dict[str, Any]]]
     final_response: str
     reasoning_content: Optional[str]
+    incognito: Optional[bool]
 
 
 client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
@@ -293,17 +294,18 @@ def _format_metamcp_tools_catalog() -> str:
     return "\n".join(lines)
 
 def intake_node(state: AgentState) -> AgentState:
-    """Receives the task and settings, and appends user message to JSONL file memory."""
+    """Receives the task and settings, and appends user message to JSONL file memory if not incognito."""
     thread_id = state.get("thread_id")
     task = state.get("task", "")
-    if thread_id and task:
+    incognito = state.get("incognito", False)
+    if thread_id and task and not incognito:
         _append_message_to_file(thread_id, "user", task)
     return state
 
 def retrieve_memory_node(state: AgentState) -> AgentState:
-    """Retrieves relevant memory context combining sliding window + incremental summary + semantic recall."""
+    """Retrieves relevant memory context combining sliding window + incremental summary + semantic recall. Skipped in incognito mode."""
     thread_id = state.get("thread_id")
-    if not thread_id:
+    if not thread_id or state.get("incognito"):
         return {"memory_context": None, "agent_id": None}
 
     agent_id = letta_client.create_thread(thread_id)
@@ -1092,7 +1094,9 @@ def respond_node(state: AgentState) -> AgentState:
             direct_ans = plan.get("direct_answer", "")
             formatted = f"[Mode: {mode.upper()}]\n{direct_ans}"
 
-    if thread_id and formatted:
+    incognito = state.get("incognito", False)
+
+    if thread_id and formatted and not incognito:
         _append_message_to_file(thread_id, "assistant", formatted)
 
     # 1. Logging dello span di monitoraggio (Task 4.2)
@@ -1109,33 +1113,39 @@ def respond_node(state: AgentState) -> AgentState:
     )
     log_span(span)
 
-    # 2. Estrazione fatti salienti e salvataggio in Archival Memory (Task 4.3)
-    try:
-        facts = extract_salient_facts(task, formatted, memory_context, model=state.get("model"))
-        if facts:
-            logger.info(f"Fatti salienti estratti ({len(facts)}): {facts}")
-            if agent_id:
-                for fact in facts:
-                    letta_client.save_archival_memory(agent_id, fact)
-            # File system fallback for salient facts
-            facts_file = Path(__file__).parent / "memory" / f"salient_facts_{thread_id}.txt"
-            with open(facts_file, "a", encoding="utf-8") as f:
-                for fact in facts:
-                    f.write(f"- {fact}\n")
-            # --- Fase 2.1: indicizza i fatti nel vector store per recall semantico cross-thread ---
-            try:
-                from vector_store import add_memory
-                for fact in facts:
-                    add_memory(fact, kind="fact", thread_id=thread_id, metadata={"source": "salient_facts"})
-            except Exception as ve:
-                logger.warning(f"Indicizzazione vector store fallita (non bloccante): {ve}")
-    except Exception as e:
-        logger.warning(f"Errore durante l'estrazione o il salvataggio dei fatti salienti: {e}")
+    # 2. Estrazione fatti salienti e salvataggio in Archival Memory (Task 4.3) - Skipped in incognito mode
+    if not incognito:
+        try:
+            facts = extract_salient_facts(task, formatted, memory_context, model=state.get("model"))
+            if facts:
+                logger.info(f"Fatti salienti estratti ({len(facts)}): {facts}")
+                if agent_id:
+                    for fact in facts:
+                        letta_client.save_archival_memory(agent_id, fact)
+                # File system fallback for salient facts
+                facts_file = Path(__file__).parent / "memory" / f"salient_facts_{thread_id}.txt"
+                with open(facts_file, "a", encoding="utf-8") as f:
+                    for fact in facts:
+                        f.write(f"- {fact}\n")
+                # --- Fase 2.1: indicizza i fatti nel vector store per recall semantico cross-thread ---
+                try:
+                    from vector_store import add_memory
+                    for fact in facts:
+                        add_memory(fact, kind="fact", thread_id=thread_id, metadata={"source": "salient_facts"})
+                except Exception as ve:
+                    logger.warning(f"Indicizzazione vector store fallita (non bloccante): {ve}")
+        except Exception as e:
+            logger.warning(f"Errore durante l'estrazione o il salvataggio dei fatti salienti: {e}")
+    else:
+        logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti e salvataggio memoria saltati.")
 
     return {"final_response": formatted}
 
 def commit_memory_node(state: AgentState) -> AgentState:
-    """Commits task and final response to Letta thread in a single atomic turn to prevent duplicate responses."""
+    """Commits task and final response to Letta thread in a single atomic turn to prevent duplicate responses. Skipped in incognito."""
+    if state.get("incognito"):
+        return state
+
     agent_id = state.get("agent_id")
     final_response = state.get("final_response", "")
     task = state.get("task", "")

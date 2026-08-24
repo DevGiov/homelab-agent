@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box } from 'lucide-react';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Shield } from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
@@ -14,7 +14,8 @@ interface ChatProps {
     mode: AgentMode | undefined,
     execute: boolean,
     reasoningBudget?: number,
-    model?: string
+    model?: string,
+    incognito?: boolean
   ) => Promise<void>;
   isLoading: boolean;
   error: string | null;
@@ -39,6 +40,7 @@ export const Chat: React.FC<ChatProps> = ({
   const [reasoningBudget, setReasoningBudget] = useState<number | undefined>(undefined);
   const [selectedModel, setSelectedModel] = useState<string>('default');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isIncognito, setIsIncognito] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,7 +74,7 @@ export const Chat: React.FC<ChatProps> = ({
 
     const modeToPass = selectedMode === 'auto' ? undefined : selectedMode;
     const modelToPass = selectedModel === 'default' ? undefined : selectedModel;
-    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass);
+    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass, isIncognito);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -88,6 +90,25 @@ export const Chat: React.FC<ChatProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden relative">
+      {/* Incognito Banner */}
+      {isIncognito && (
+        <div className="bg-purple-950/80 border-b border-purple-800/50 px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] text-purple-200 z-20 shrink-0">
+          <div className="flex items-center gap-2 truncate">
+            <EyeOff size={13} className="text-purple-400 shrink-0 animate-pulse" />
+            <span className="truncate">
+              <strong>Modalità Incognito attiva:</strong> memoria a lungo termine disabilitata. Nessun fatto verrà richiamato né salvato.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsIncognito(false)}
+            className="text-purple-300 hover:text-white underline text-[10px] ml-2 shrink-0 cursor-pointer"
+          >
+            Disattiva
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="h-14 border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between z-10 shrink-0">
         <div className="flex items-center gap-2.5">
@@ -323,6 +344,21 @@ export const Chat: React.FC<ChatProps> = ({
       {/* Input Bar */}
       <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col gap-2">
         <div className="max-w-4xl mx-auto w-full flex justify-end gap-2 items-center flex-wrap">
+          {/* Incognito Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsIncognito(!isIncognito)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer shadow-sm ${
+              isIncognito
+                ? 'bg-purple-950 border-purple-500 text-purple-200 shadow-purple-950/50 ring-1 ring-purple-500/50'
+                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+            }`}
+            title={isIncognito ? 'Modalità Incognito attiva (nessun fatto salvato)' : 'Attiva Modalità Incognito (disabilita estrazione e memoria)'}
+          >
+            <EyeOff size={12} className={isIncognito ? 'text-purple-400' : 'text-slate-400 shrink-0'} />
+            <span className="text-[11px] font-sans">{isIncognito ? 'Incognito ON' : 'Incognito'}</span>
+          </button>
+
           {/* Model Selector Dropdown */}
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] gap-1.5 text-slate-400 hover:border-slate-700 w-max shadow-sm">
             <Box size={12} className="text-emerald-400 shrink-0" />
