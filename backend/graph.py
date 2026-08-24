@@ -90,6 +90,7 @@ class AgentState(TypedDict):
     thread_id: Optional[str]
     force_mode: Optional[str]
     reasoning_budget: Optional[int]
+    model: Optional[str]
     execute: Optional[bool]
     agent_id: Optional[str]
     memory_context: Optional[str]
@@ -98,6 +99,7 @@ class AgentState(TypedDict):
     plan_structure: Optional[Dict[str, Any]]
     tool_result: Optional[Any]
     execution_trace: Optional[List[Dict[str, Any]]]
+    rollback_trace: Optional[List[Dict[str, Any]]]
     final_response: str
     reasoning_content: Optional[str]
 
@@ -153,7 +155,7 @@ def _read_messages_from_file(thread_id: str) -> List[Dict[str, Any]]:
         logger.warning(f"Errore lettura file memoria {filepath}: {e}")
     return messages
 
-def _generate_summary(messages: List[Dict[str, Any]]) -> str:
+def _generate_summary(messages: List[Dict[str, Any]], model: Optional[str] = None) -> str:
     """Genera un riassunto di una lista di messaggi mediante LLM."""
     text = "\n".join([f"{'User' if 'user' in str(m.get('message_type','')).lower() else 'Assistant'}: {m.get('content', '')}" for m in messages])
     prompt = f"""Riassumi la seguente conversazione in massimo 5 frasi, mantenendo:
@@ -166,15 +168,17 @@ Conversazione:
 {text}
 
 Riassunto:"""
-    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3)
+    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, model=model)
     summary = summary_res.get("content", "") if isinstance(summary_res, dict) else ""
     return summary.strip() if summary else ""
 
-def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, temperature: float = 0.3, reasoning_budget: int = -1) -> dict:
+def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, temperature: float = 0.3, reasoning_budget: int = -1, model: Optional[str] = None) -> dict:
     messages = []
 
-    # Capability detection
-    model_name_lower = config.DEFAULT_MODEL.lower()
+    # Capability detection based on effective model
+    provider = get_provider()
+    effective_model = model or getattr(provider, "default_model", "") or config.DEFAULT_MODEL
+    model_name_lower = effective_model.lower()
     supports_reasoning = any(x in model_name_lower for x in ["qwen", "deepseek", "r1", "o1", "o3", "mistral", "think", "reason"])
 
     enable_thinking = (reasoning_budget != 0) and supports_reasoning
@@ -193,15 +197,16 @@ def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, te
     stream_callback = (lambda ev: q.put(ev)) if q else None
 
     # Fase 1.1: delega al provider abstraction
-    return get_provider().chat(
+    return provider.chat(
         messages,
+        model=model,
         max_tokens=max_tokens,
         temperature=temperature,
         reasoning_budget=reasoning_budget,
         stream_callback=stream_callback,
     )
 
-def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_tokens: int = 4096, temperature: float = 0.0, max_retries: int = 3, reasoning_budget: int = -1) -> Optional[Any]:
+def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_tokens: int = 4096, temperature: float = 0.0, max_retries: int = 3, reasoning_budget: int = -1, model: Optional[str] = None) -> Optional[Any]:
     """
     Chiama l'LLM richiedendo output conforme allo schema Pydantic.
     Effettua parsing + validazione con retry mirato ed iniezione dell'errore.
@@ -225,7 +230,7 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
                 f"Correggi e rispondi di nuovo SOLO con il JSON valido."
             )
 
-        raw_res = _call_llm(current_prompt, system_prompt=schema_prompt, max_tokens=max_tokens, temperature=temperature, reasoning_budget=reasoning_budget)
+        raw_res = _call_llm(current_prompt, system_prompt=schema_prompt, max_tokens=max_tokens, temperature=temperature, reasoning_budget=reasoning_budget, model=model)
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
             continue
@@ -416,14 +421,15 @@ def chat_graph_node(state: AgentState) -> AgentState:
 
     policy = get_mode_policy("chat")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
+    model = state.get("model")
 
     loop_res = run_agent_loop(
         task=task,
         mode="chat",
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget)
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
     )
 
     ans = loop_res.get("final_response", "")
@@ -444,14 +450,15 @@ def ask_graph_node(state: AgentState) -> AgentState:
 
     policy = get_mode_policy("ask")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
+    model = state.get("model")
 
     loop_res = run_agent_loop(
         task=task,
         mode="ask",
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget)
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
     )
 
     ans = loop_res.get("final_response", "")
@@ -802,6 +809,7 @@ def act_graph_node(state: AgentState) -> AgentState:
 
     policy = get_mode_policy("act")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
+    model = state.get("model")
 
     memory_context = state.get("memory_context") or ""
     loop_res = run_agent_loop(
@@ -809,8 +817,8 @@ def act_graph_node(state: AgentState) -> AgentState:
         mode="act",
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget)
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
     )
 
     ans = loop_res.get("final_response", "")
@@ -824,6 +832,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     """Subgraph for detailed multi-step planning (simulation/dry-run & JSON plan generation)."""
     task = state.get("task", "")
     memory_context = state.get("memory_context") or ""
+    model = state.get("model")
 
     policy = get_mode_policy("plan")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
@@ -835,7 +844,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "Rispondi SOLAMENTE con la lista numerata dei passaggi di esecuzione."
     )
 
-    llm_plan_res = _call_llm(task, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget)
+    llm_plan_res = _call_llm(task, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model)
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -863,7 +872,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "  ]\n"
         "}"
     )
-    json_resp_res = _call_llm(task, system_prompt=json_prompt, max_tokens=600, temperature=0.1)
+    json_resp_res = _call_llm(task, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model)
     json_resp = json_resp_res.get("content", "") if isinstance(json_resp_res, dict) else ""
     plan_structure = None
     if json_resp:

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # --- LLM ---
     default_model: str = Field(default="Qwen3.6-35B-HugeCtx", alias="DEFAULT_MODEL")
     llama_cpp_url: str = Field(default="http://192.168.1.159:8080/v1", alias="LLAMA_CPP_URL")
+    ollama_url: str = Field(default="", alias="OLLAMA_URL")
 
     # --- Letta ---
     letta_url: str = Field(default="http://192.168.1.177:8083", alias="LETTA_URL")
@@ -69,6 +70,7 @@ METAMCP_URL_HTTP = _settings.metamcp_url_http
 METAMCP_API_KEY = _settings.metamcp_api_key
 DEFAULT_MODEL = _settings.default_model
 LLAMA_CPP_URL = _settings.llama_cpp_url
+OLLAMA_URL = _settings.ollama_url
 LETTA_URL = _settings.letta_url
 LETTA_API_KEY = _settings.letta_api_key
 CHECKPOINT_DB_PATH = _settings.checkpoint_db_path

@@ -23,6 +23,7 @@ class LLMProvider(ABC):
     """Interfaccia base per i provider LLM OpenAI-compatible."""
 
     name: str = "base"
+    default_model: str = ""
 
     @abstractmethod
     def chat(
@@ -41,6 +42,11 @@ class LLMProvider(ABC):
     @abstractmethod
     def health(self) -> bool:
         """Ping rapido del provider."""
+        ...
+
+    @abstractmethod
+    def list_models(self) -> List[str]:
+        """Lista dei modelli disponibili per questo provider."""
         ...
 
 
@@ -147,6 +153,29 @@ class OpenAICompatProvider(LLMProvider):
         except Exception:
             return False
 
+    def list_models(self) -> List[str]:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                res = client.get(f"{self.base_url}/models")
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, dict):
+                    if "data" in data and isinstance(data["data"], list):
+                        ids = [str(m["id"]) for m in data["data"] if isinstance(m, dict) and "id" in m]
+                        if ids:
+                            return ids
+                    if "models" in data and isinstance(data["models"], list):
+                        ids = [str(m.get("id") or m.get("name")) for m in data["models"] if isinstance(m, dict)]
+                        if ids:
+                            return ids
+                elif isinstance(data, list):
+                    ids = [str(m.get("id") or m.get("name", m)) for m in data if isinstance(m, (dict, str))]
+                    if ids:
+                        return ids
+        except Exception as e:
+            logger.warning(f"[{self.name}] Failed to list models: {e}")
+        return [self.default_model] if self.default_model else []
+
 
 class OllamaProvider(LLMProvider):
     """Adapter per Ollama via API nativa (/api/chat)."""
@@ -211,10 +240,25 @@ class OllamaProvider(LLMProvider):
         except Exception:
             return False
 
+    def list_models(self) -> List[str]:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                res = client.get(f"{self.base_url}/api/tags")
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, dict) and "models" in data:
+                    names = [str(m["name"]) for m in data["models"] if isinstance(m, dict) and "name" in m]
+                    if names:
+                        return names
+        except Exception as e:
+            logger.warning(f"[{self.name}] Failed to list models: {e}")
+        return [self.default_model] if self.default_model else []
+
 
 # --- Registry dei provider configurabili ---
 
 _PROVIDERS: Dict[str, LLMProvider] = {}
+_ACTIVE_PROVIDER_NAME: str = "llamacpp"
 
 
 def _register_default_providers():
@@ -223,19 +267,66 @@ def _register_default_providers():
     )
     ollama_url = getattr(config, "OLLAMA_URL", "")
     if ollama_url:
-        _PROVIDERS["ollama"] = OllamaProvider(ollama_url, getattr(config, "OLLAMA_MODEL", config.DEFAULT_MODEL))
+        _PROVIDERS["ollama"] = OllamaProvider(
+            ollama_url, getattr(config, "OLLAMA_MODEL", config.DEFAULT_MODEL)
+        )
 
 
 _register_default_providers()
 
 
 def get_provider(name: Optional[str] = None) -> LLMProvider:
-    """Restituisce il provider richiesto o quello di default."""
+    """Restituisce il provider richiesto o quello attivo/default."""
     if name and name in _PROVIDERS:
         return _PROVIDERS[name]
-    return _PROVIDERS["llamacpp"]
+    if _ACTIVE_PROVIDER_NAME in _PROVIDERS:
+        return _PROVIDERS[_ACTIVE_PROVIDER_NAME]
+    return _PROVIDERS.get("llamacpp") or next(iter(_PROVIDERS.values()))
+
+
+def get_active_provider_name() -> str:
+    return _ACTIVE_PROVIDER_NAME
+
+
+def get_active_model_name() -> str:
+    provider = get_provider()
+    return provider.default_model
+
+
+def set_active_provider(provider_name: str, model_name: Optional[str] = None) -> Dict[str, Any]:
+    global _ACTIVE_PROVIDER_NAME
+    if provider_name not in _PROVIDERS:
+        raise ValueError(f"Provider '{provider_name}' non registrato. Disponibili: {list(_PROVIDERS.keys())}")
+    _ACTIVE_PROVIDER_NAME = provider_name
+    if model_name:
+        _PROVIDERS[provider_name].default_model = model_name
+    return {
+        "active_provider": _ACTIVE_PROVIDER_NAME,
+        "active_model": _PROVIDERS[_ACTIVE_PROVIDER_NAME].default_model
+    }
+
+
+def list_providers_info() -> List[Dict[str, Any]]:
+    """Restituisce informazioni su tutti i provider registrati."""
+    info = []
+    for name, p in _PROVIDERS.items():
+        info.append({
+            "name": name,
+            "is_default": name == _ACTIVE_PROVIDER_NAME,
+            "healthy": p.health(),
+            "default_model": p.default_model
+        })
+    return info
+
+
+def list_provider_models(provider_name: str) -> List[str]:
+    """Elenca i modelli disponibili per un dato provider."""
+    if provider_name not in _PROVIDERS:
+        raise ValueError(f"Provider '{provider_name}' non registrato")
+    return _PROVIDERS[provider_name].list_models()
 
 
 def list_providers() -> Dict[str, bool]:
-    """Stato health di tutti i provider registrati."""
+    """Stato health di tutti i provider registrati (retrocompatibilità)."""
     return {name: p.health() for name, p in _PROVIDERS.items()}
+

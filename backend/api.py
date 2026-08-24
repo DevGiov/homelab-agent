@@ -17,7 +17,22 @@ import config
 import letta_client
 import thread_store
 from graph import build_graph, stream_queue
-from schemas import ChatRequest, ChatResponse, ThreadSummary
+from providers import (
+    get_active_model_name,
+    get_active_provider_name,
+    list_provider_models,
+    list_providers_info,
+    set_active_provider,
+)
+from schemas import (
+    ChatRequest,
+    ChatResponse,
+    ProviderInfo,
+    ProviderModelsResponse,
+    ProvidersResponse,
+    SetDefaultProviderRequest,
+    ThreadSummary,
+)
 
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
 config.get_settings().validate_security()
@@ -62,13 +77,14 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None) -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
         "reasoning_budget": reasoning_budget,
+        "model": model,
         "execute": execute,
         "agent_id": None,
         "memory_context": None,
@@ -147,6 +163,37 @@ async def status():
         "providers": providers_status,
     }
 
+# --- Gestione Provider e Modelli LLM ---
+
+@api.get("/v1/providers", response_model=ProvidersResponse, dependencies=[Depends(verify_api_key)])
+async def get_providers():
+    """Restituisce la lista di provider registrati con health e modello attivo."""
+    return ProvidersResponse(
+        active_provider=get_active_provider_name(),
+        active_model=get_active_model_name(),
+        providers=[ProviderInfo(**p) for p in list_providers_info()]
+    )
+
+@api.get("/v1/providers/{name}/models", response_model=ProviderModelsResponse, dependencies=[Depends(verify_api_key)])
+async def get_provider_models(name: str):
+    """Elenca i modelli disponibili per il provider specificato."""
+    try:
+        models = list_provider_models(name)
+        return ProviderModelsResponse(provider=name, models=models)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore recupero modelli provider '{name}': {e}")
+
+@api.put("/v1/providers/default", dependencies=[Depends(verify_api_key)])
+async def set_default_provider_endpoint(req: SetDefaultProviderRequest):
+    """Imposta il provider e/o il modello di default a runtime."""
+    try:
+        res = set_active_provider(req.provider, req.model)
+        return {"status": "ok", **res}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 def _limit(rate: str):
     """Decorator di rate limiting condizionale (no-op se slowapi non è installato)."""
     if _RATE_LIMIT_ENABLED and limiter:
@@ -158,35 +205,36 @@ def _limit(rate: str):
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
         "reasoning_budget": reasoning_budget,
+        "model": model,
         "execute": execute,
         "agent_id": None,
         "memory_context": None,
@@ -248,7 +296,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 @api.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget)
+    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model)
 
 @api.get("/v1/audit", dependencies=[Depends(verify_api_key)])
 async def get_audit_log(limit: int = 100, thread_id: Optional[str] = None):

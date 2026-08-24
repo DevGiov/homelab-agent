@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain } from 'lucide-react';
-import type { FormattedMessage, AgentMode } from './api';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box } from 'lucide-react';
+import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -9,7 +9,13 @@ import ReasoningBlock from './components/ReasoningBlock';
 interface ChatProps {
   currentThreadId: string | null;
   messages: FormattedMessage[];
-  onSendMessage: (input: string, mode: AgentMode | undefined, execute: boolean, reasoningBudget?: number) => Promise<void>;
+  onSendMessage: (
+    input: string,
+    mode: AgentMode | undefined,
+    execute: boolean,
+    reasoningBudget?: number,
+    model?: string
+  ) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   onClearError: () => void;
@@ -31,9 +37,26 @@ export const Chat: React.FC<ChatProps> = ({
   const [selectedMode, setSelectedMode] = useState<AgentMode | 'auto'>('auto');
   const [execute, setExecute] = useState<boolean>(true);
   const [reasoningBudget, setReasoningBudget] = useState<number | undefined>(undefined);
+  const [selectedModel, setSelectedModel] = useState<string>('default');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    getProviders()
+      .then((data) => {
+        const activeProv = data.active_provider;
+        if (activeProv) {
+          getProviderModels(activeProv)
+            .then((mList) => {
+              setAvailableModels(mList);
+            })
+            .catch((err) => console.warn('Errore caricamento modelli chat:', err));
+        }
+      })
+      .catch((err) => console.warn('Errore caricamento provider chat:', err));
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,7 +71,8 @@ export const Chat: React.FC<ChatProps> = ({
     if (!input.trim() || isLoading) return;
 
     const modeToPass = selectedMode === 'auto' ? undefined : selectedMode;
-    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget);
+    const modelToPass = selectedModel === 'default' ? undefined : selectedModel;
+    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -298,7 +322,25 @@ export const Chat: React.FC<ChatProps> = ({
 
       {/* Input Bar */}
       <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col gap-2">
-        <div className="max-w-4xl mx-auto w-full flex justify-end">
+        <div className="max-w-4xl mx-auto w-full flex justify-end gap-2 items-center flex-wrap">
+          {/* Model Selector Dropdown */}
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] gap-1.5 text-slate-400 hover:border-slate-700 w-max shadow-sm">
+            <Box size={12} className="text-emerald-400 shrink-0" />
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-transparent text-[11px] text-slate-300 focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate font-mono"
+              title="Modello LLM Override"
+            >
+              <option value="default" className="bg-slate-900 text-slate-200 font-sans">Modello: Default</option>
+              {availableModels.map((m) => (
+                <option key={m} value={m} className="bg-slate-900 text-slate-200 font-mono">
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Reasoning Budget Dropdown */}
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] gap-1.5 text-slate-400 hover:border-slate-700 w-max shadow-sm">
             <Brain size={12} className="text-purple-400 shrink-0" />

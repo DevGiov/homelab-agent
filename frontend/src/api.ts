@@ -53,6 +53,7 @@ export interface ChatRequest {
   reasoning_budget?: number;
   reasoning_budget_tokens?: number;
   execute?: boolean;
+  model?: string;
 }
 
 export interface ExecutionTraceItem {
@@ -298,3 +299,42 @@ export async function searchKb(query: string, k: number = 5): Promise<KbSearchRe
   const res = await api.get<{ results: KbSearchResult[] }>('/kb/search', { params: { query, k } });
   return res.data.results;
 }
+
+// --- Provider & Model Management ---
+
+export interface ProviderInfo {
+  name: string;
+  is_default: boolean;
+  healthy: boolean;
+  default_model: string;
+}
+
+export interface ProvidersResponse {
+  active_provider: string;
+  active_model: string;
+  providers: ProviderInfo[];
+}
+
+export interface ProviderModelsResponse {
+  provider: string;
+  models: string[];
+}
+
+export async function getProviders(): Promise<ProvidersResponse> {
+  const res = await api.get<ProvidersResponse>('/providers');
+  return res.data;
+}
+
+export async function getProviderModels(providerName: string): Promise<string[]> {
+  const res = await api.get<ProviderModelsResponse>(`/providers/${encodeURIComponent(providerName)}/models`);
+  return res.data.models;
+}
+
+export async function setDefaultProvider(
+  provider: string,
+  model?: string
+): Promise<{ status: string; active_provider: string; active_model: string }> {
+  const res = await api.put('/providers/default', { provider, model });
+  return res.data;
+}
+

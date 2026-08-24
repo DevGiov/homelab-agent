@@ -80,7 +80,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       input: string,
       mode: AgentMode | undefined,
       execute: boolean,
-      reasoningBudget?: number
+      reasoningBudget?: number,
+      model?: string
     ) => {
       setChatError(null);
       isSendingRef.current = true;
@@ -127,6 +128,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             force_mode: mode,
             execute,
             reasoning_budget: reasoningBudget,
+            model,
           },
           (reasoningDelta) => {
             setThreadMessagesMap((prev) => {

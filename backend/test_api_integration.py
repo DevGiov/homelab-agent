@@ -105,6 +105,39 @@ class TestApiEndpoints(unittest.TestCase):
         r = self.client.post("/v1/approvals/apr_inesistente/approve")
         self.assertEqual(r.status_code, 404)
 
+    def test_providers_endpoints(self):
+        # 1. Get providers list
+        r = self.client.get("/v1/providers")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertIn("active_provider", data)
+        self.assertIn("active_model", data)
+        self.assertIn("providers", data)
+        self.assertTrue(len(data["providers"]) > 0)
+        prov_names = [p["name"] for p in data["providers"]]
+        self.assertIn("llamacpp", prov_names)
+
+        # 2. Get provider models
+        r = self.client.get("/v1/providers/llamacpp/models")
+        self.assertEqual(r.status_code, 200)
+        mdata = r.json()
+        self.assertEqual(mdata["provider"], "llamacpp")
+        self.assertIn("models", mdata)
+
+        # 3. Set default provider and model
+        r = self.client.put("/v1/providers/default", json={
+            "provider": "llamacpp",
+            "model": "test-model-custom"
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["active_provider"], "llamacpp")
+        self.assertEqual(r.json()["active_model"], "test-model-custom")
+
+        # 4. Inexistent provider error
+        r = self.client.get("/v1/providers/nonexistent_provider_xyz/models")
+        self.assertEqual(r.status_code, 404)
+
+
 
 class TestAgentLoopWithMocks(unittest.TestCase):
     """Test dell'agent loop con LLM e registry mockati (Fase 5.2)."""
