@@ -97,5 +97,17 @@ class TestMemoryAPI(unittest.TestCase):
             self.assertEqual(list_res.json()["total"], 0)
 
 
+    def test_search_memory(self):
+        self.client.post("/v1/memory", json={"content": "Il container LXC usa Debian 12", "kind": "fact"})
+        self.client.post("/v1/memory", json={"content": "IP del gateway è 192.168.1.1", "kind": "fact"})
+
+        search_res = self.client.get("/v1/memory/search?query=Debian&kind=fact")
+        self.assertEqual(search_res.status_code, 200)
+        results = search_res.json()["results"]
+        self.assertGreater(len(results), 0)
+        self.assertIn("Debian", results[0]["content"])
+
+
 if __name__ == "__main__":
     unittest.main()
+

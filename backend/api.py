@@ -517,6 +517,16 @@ async def get_memories(kind: Optional[str] = "fact", limit: int = 100, offset: i
     total = vector_store.count_memory(kind=kind)
     return {"memories": items, "total": total}
 
+@api.get("/v1/memory/search", dependencies=[Depends(verify_api_key)])
+async def search_memories_endpoint(query: str, kind: Optional[str] = None, k: int = 5):
+    """Esegue una ricerca semantica nel Vector Store (fatti e/o documenti KB)."""
+    import vector_store
+    if not query.strip():
+        return {"results": []}
+    hits = vector_store.search_memory(query.strip(), k=k, kind=kind)
+    return {"results": hits}
+
+
 @api.post("/v1/memory", response_model=MemoryItem, dependencies=[Depends(verify_api_key)])
 async def add_single_memory(req: AddMemoryRequest):
     """Aggiunge manualmente un fatto alla memoria vettoriale a lungo termine."""

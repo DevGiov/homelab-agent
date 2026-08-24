@@ -389,4 +389,26 @@ export async function clearAllMemory(kind?: string): Promise<ClearMemoryResponse
   return res.data;
 }
 
+export interface MemorySearchResult {
+  id: number;
+  kind: string;
+  thread_id?: string | null;
+  content: string;
+  metadata?: Record<string, any>;
+  distance: number;
+  score: number;
+}
+
+export async function searchMemories(
+  query: string,
+  kind?: string,
+  k: number = 5
+): Promise<MemorySearchResult[]> {
+  const res = await api.get<{ results: MemorySearchResult[] }>('/memory/search', {
+    params: { query, kind, k },
+  });
+  return res.data.results || [];
+}
+
+
 

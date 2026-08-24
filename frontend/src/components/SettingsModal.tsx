@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   AlertTriangle,
+  Search,
 } from 'lucide-react';
 import {
   getApiKey,
@@ -57,6 +58,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const [totalMemories, setTotalMemories] = useState<number>(0);
   const [loadingMemories, setLoadingMemories] = useState<boolean>(false);
   const [newFactInput, setNewFactInput] = useState<string>('');
+  const [filterQuery, setFilterQuery] = useState<string>('');
   const [isAddingFact, setIsAddingFact] = useState<boolean>(false);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
   const [isClearingMemory, setIsClearingMemory] = useState<boolean>(false);
@@ -379,6 +381,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 </button>
               </form>
 
+              {/* Filter search bar */}
+              <div className="relative flex items-center">
+                <Search size={12} className="absolute left-2.5 text-slate-500" />
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Filtra fatti per parola chiave (es. Debian, IP, LXC)..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
               {/* Memory List */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 max-h-56 overflow-y-auto space-y-2">
                 {loadingMemories && memories.length === 0 ? (
@@ -390,8 +404,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   <div className="text-center py-6 text-xs text-slate-500">
                     Nessun fatto memorizzato. L'agente estrae automaticamente preferenze e informazioni durante le chat.
                   </div>
+                ) : memories.filter((m) => !filterQuery.trim() || m.content.toLowerCase().includes(filterQuery.toLowerCase())).length === 0 ? (
+                  <div className="text-center py-4 text-xs text-slate-500 italic">
+                    Nessun fatto corrisponde a "{filterQuery}".
+                  </div>
                 ) : (
-                  memories.map((mem) => (
+                  memories
+                    .filter((m) => !filterQuery.trim() || m.content.toLowerCase().includes(filterQuery.toLowerCase()))
+                    .map((mem) => (
                     <div
                       key={mem.id}
                       className="group flex items-start justify-between gap-2 p-2 bg-slate-900/80 hover:bg-slate-900 border border-slate-800/80 rounded-lg text-xs transition"
