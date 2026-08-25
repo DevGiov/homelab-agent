@@ -96,6 +96,13 @@ def run_agent_loop(
         )
 
         if not call_llm_structured_fn:
+            if call_llm_fn:
+                direct_system_prompt = base_system_prompt + "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano."
+                direct_prompt = f"Richiesta: '{task}'\nContesto memoria:\n{memory_context or ''}"
+                syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
+                syn_ans = syn_res.get("content", "") if isinstance(syn_res, dict) else (syn_res or "")
+                reasoning_content = syn_res.get("reasoning_content", "") if isinstance(syn_res, dict) else ""
+                return {"final_response": syn_ans or "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}
             break
 
         selection = call_llm_structured_fn(

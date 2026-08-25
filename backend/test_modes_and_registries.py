@@ -14,11 +14,11 @@ from registry.manager import get_registry_manager
 class TestModesAndRegistries(unittest.TestCase):
     def test_mode_policies(self):
         chat_p = get_mode_policy("chat")
-        self.assertEqual(chat_p.max_tool_calls, 0)
-        self.assertEqual(len(chat_p.allowed_registries), 0)
+        self.assertEqual(chat_p.max_tool_calls, 1)
+        self.assertIn("web", chat_p.allowed_registries)
 
         ask_p = get_mode_policy("ask")
-        self.assertEqual(ask_p.max_tool_calls, 2)
+        self.assertEqual(ask_p.max_tool_calls, 3)
         self.assertIn("web", ask_p.allowed_registries)
         self.assertIn("code", ask_p.allowed_registries)
 
@@ -51,8 +51,8 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertFalse(res.get("sandboxed"))
 
     def test_agent_loop_chat_mode(self):
-        def dummy_llm(prompt, system_prompt=None):
-            return "Ciao! Risposta chat mock."
+        def dummy_llm(prompt, system_prompt=None, reasoning_budget=-1):
+            return {"content": "Ciao! Risposta chat mock.", "reasoning_content": ""}
 
         res = run_agent_loop(
             task="Ciao chi sei?",
