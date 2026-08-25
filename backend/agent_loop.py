@@ -13,10 +13,28 @@ logger = logging.getLogger("agent_loop")
 
 
 def is_tools_discovery_query(query: str) -> bool:
-    """Verifica se l'utente sta chiedendo informazioni sui tool o server MCP disponibili."""
+    """Verifica se l'utente sta chiedendo informazioni sui tool o server MCP disponibili.
+
+    ATTENZIONE: deve essere una DOMANDA SUL CATALOGO (es. "quali tool hai?"),
+    NON un task che menziona i tool come mezzo (es. "cerca X usando il web search").
+    """
     q = query.lower().strip()
+
+    # Marker di TASK: se presenti, la query è un'azione da eseguire, non una
+    # domanda sul catalogo — anche se menziona "tool"/"web search".
+    task_markers = [
+        "dammi", "cerca", "trova", "usando", "utilizzando", "utilizza", "usa ",
+        "informazioni su", "notizie", "analizza", "esegui", "crea ", "lancia",
+        "aggiornate", "aggiornati", "latest",
+    ]
+    if any(m in q for m in task_markers):
+        return False
+
     has_target = any(k in q for k in ["mcp", "tool", "tools", "strumenti", "capacità", "funzioni", "comandi"])
-    has_intent = any(k in q for k in ["quali", "quale", "elenco", "elenca", "lista", "mostra", "verifica", "accesso", "disposizione", "disponibili", "cosa puoi fare", "a che"])
+    has_intent = any(k in q for k in [
+        "quali", "quale", "elenco", "elenca", "lista dei", "lista dei tool",
+        "mostra i", "mostrami i", "cosa puoi fare", "hai a disposizione", "di che tool",
+    ])
     return has_target and has_intent
 
 
