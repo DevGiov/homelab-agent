@@ -171,6 +171,12 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         mgr = get_registry_manager()
         orig_exec = mgr.execute_tool
         orig_par = mgr.execute_tools_parallel
+        orig_tools = mgr.get_tools_for_mode
+
+        mgr.get_tools_for_mode = lambda regs: [
+            {"name": "list_containers", "description": "mock", "parameters": {"type": "object", "properties": {}}},
+            {"name": "stop_container", "description": "mock", "parameters": {"type": "object", "properties": {}}}
+        ]
         mgr.execute_tool = lambda name, args, regs, **kw: (
             calls.append(name) or {"ok": True}
         )
@@ -185,6 +191,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         finally:
             mgr.execute_tool = orig_exec
             mgr.execute_tools_parallel = orig_par
+            mgr.get_tools_for_mode = orig_tools
         return res, calls
 
     def test_direct_answer(self):
@@ -200,8 +207,6 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         s2 = FakeSel(); s2.tool_needed=True; s2.tool_name="list_containers"; s2.arguments={}; s2.reasoning="b"; s2.final_answer=None; s2.parallel_calls=None
         res, calls = self._run_loop([s1, s2])
         # list_containers è safe/read-only: la seconda chiamata deve usare la cache.
-        # Nota: il registry manager è globale, quindi chiamate da altri test possono comparire;
-        # verifichiamo che ci sia ALMENO uno step cached e non più di una esecuzione reale in questo run.
         cached_steps = [t for t in res["execution_trace"] if t.get("cached")]
         self.assertGreaterEqual(len(cached_steps), 1)
         self.assertEqual(cached_steps[0]["tool_name"], "list_containers")
@@ -222,7 +227,11 @@ class TestAgentLoopWithMocks(unittest.TestCase):
                 return {"ok": True}
 
         orig_registries = dict(mgr._registries)
+        orig_tools = mgr.get_tools_for_mode
         mgr._registries["metamcp"] = FakeMetaMCPRegistry()
+        mgr.get_tools_for_mode = lambda regs: [
+            {"name": "stop_container", "description": "fake", "parameters": {"type": "object", "properties": {}}}
+        ]
 
         FakeSel = type("S", (), {})
         s1 = FakeSel(); s1.tool_needed=True; s1.tool_name="stop_container"; s1.arguments={"vmid": 1}; s1.reasoning=""; s1.final_answer=None; s1.parallel_calls=None
@@ -245,6 +254,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         finally:
             mgr._registries.clear()
             mgr._registries.update(orig_registries)
+            mgr.get_tools_for_mode = orig_tools
 
         approval_steps = [t for t in res["execution_trace"] if t.get("approval_required")]
         self.assertGreaterEqual(len(approval_steps), 1)

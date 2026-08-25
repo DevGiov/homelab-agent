@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -8,8 +9,8 @@ from mcp_client import MetaMCPClient
 
 logger = logging.getLogger("tool_catalog")
 
-_catalog_cache = {"data": None, "timestamp": 0}
-CACHE_TTL_SECONDS = 300  # 5 minuti
+_catalog_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
+CACHE_TTL_SECONDS = 120  # 2 minuti per rilevare tempestivamente nuovi tool
 
 ROLLBACK_DECLARATIONS = {
     "proxmox-mcp__allocate_ip": {
@@ -58,6 +59,7 @@ ROLLBACK_DECLARATIONS = {
     "exec_lxc_command": {"reversible": False},
 }
 
+
 def get_rollback_info(tool_name: str) -> dict:
     """Recupera info di rollback per un tool, se dichiarato."""
     if not tool_name:
@@ -69,17 +71,20 @@ def get_rollback_info(tool_name: str) -> dict:
         return ROLLBACK_DECLARATIONS[clean_name]
     return {"reversible": False}
 
-def get_tool_catalog(force_refresh: bool = False) -> list[dict]:
+
+def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
     """
-    Recupera il catalogo tool da MetaMCP via list_tools (SSE/REST) o OpenAPI, con cache TTL 5m.
+    Recupera il catalogo tool 100% DINAMICO da MetaMCP (Streamable HTTP / SSE / OpenAPI).
+    Mantiene una cache TTL di 2 minuti ed effettua auto-refresh.
     Ogni entry: {"name": str, "description": str, "parameters": dict, "rollback_info": dict}
     """
     now = time.time()
     if not force_refresh and _catalog_cache["data"] and (now - _catalog_cache["timestamp"] < CACHE_TTL_SECONDS):
         return _catalog_cache["data"]
 
-    tools = []
-    # 1. Prova via MetaMCPClient list_tools (SSE/REST MCP protocol)
+    tools: List[Dict[str, Any]] = []
+
+    # 1. Recupero dinamico via MetaMCPClient (Streamable HTTP / SSE protocol)
     try:
         mcp = MetaMCPClient(config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
         raw_tools = mcp.list_tools()
@@ -89,15 +94,18 @@ def get_tool_catalog(force_refresh: bool = False) -> list[dict]:
                     name = t.get("name", "")
                     desc = t.get("description", "")
                     params = t.get("inputSchema") or t.get("parameters") or {"type": "object", "properties": {}}
-                    tools.append({
-                        "name": name,
-                        "description": desc,
-                        "parameters": params
-                    })
+                    if name:
+                        tools.append({
+                            "name": name,
+                            "description": desc,
+                            "parameters": params
+                        })
+            if tools:
+                logger.info(f"Scoperti dinamicamente {len(tools)} tool da MetaMCP via protocollo MCP")
     except Exception as e:
-        logger.warning(f"Chiamata SSE/MCP list_tools fallita: {e}")
+        logger.warning(f"Discovery dinamica MCP tools fallita: {e}")
 
-    # 2. Fallback OpenAPI se list_tools è vuoto
+    # 2. Fallback OpenAPI se list_tools non ha restituito tool
     if not tools:
         base_http = getattr(config, "METAMCP_URL_HTTP", "http://192.168.1.175:12008").rstrip('/')
         url = f"{base_http}/api/openapi.json"
@@ -107,26 +115,28 @@ def get_tool_catalog(force_refresh: bool = False) -> list[dict]:
             if res.status_code == 200:
                 openapi = res.json()
                 tools = _parse_openapi_to_tools(openapi)
+                if tools:
+                    logger.info(f"Scoperti dinamicamente {len(tools)} tool da MetaMCP via OpenAPI")
         except Exception as e:
-            logger.warning(f"Impossibile recuperare OpenAPI da MetaMCP ({e})")
+            logger.debug(f"Impossibile recuperare OpenAPI da MetaMCP ({e})")
 
     if tools:
         for t in tools:
             t["rollback_info"] = get_rollback_info(t.get("name", ""))
-        # Fase 3.1: metadata di rischio/categoria per ogni tool
         from guardrails import enrich_catalog_with_metadata
         tools = enrich_catalog_with_metadata(tools)
         _catalog_cache["data"] = tools
         _catalog_cache["timestamp"] = now
-        logger.info(f"Catalogo tool aggiornato: {len(tools)} tool disponibili")
         return tools
 
+    # Resilienza: se MetaMCP è temporaneamente non raggiungibile, usa l'ultimo catalogo valido in cache
     cached = _catalog_cache["data"] or []
     for t in cached:
         t["rollback_info"] = get_rollback_info(t.get("name", ""))
     return cached
 
-def _parse_openapi_to_tools(openapi: dict) -> list[dict]:
+
+def _parse_openapi_to_tools(openapi: dict) -> List[Dict[str, Any]]:
     """Estrae {name, description, parameters} da uno schema OpenAPI."""
     tools = []
     paths = openapi.get("paths", {})
@@ -144,8 +154,9 @@ def _parse_openapi_to_tools(openapi: dict) -> list[dict]:
                     })
     return tools
 
-def format_catalog_for_prompt(tools: list[dict]) -> str:
-    """Formatta il catalogo in modo compatto per il prompt LLM."""
+
+def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
+    """Formatta il catalogo dinamico in modo compatto per il prompt LLM."""
     lines = []
     for t in tools:
         params_dict = t.get("parameters", {})
@@ -153,3 +164,58 @@ def format_catalog_for_prompt(tools: list[dict]) -> str:
         params_summary = ", ".join(props.keys()) if isinstance(props, dict) else ""
         lines.append(f"- `{t['name']}`: {t['description']} (args: {params_summary or 'nessuno'})")
     return "\n".join(lines)
+
+
+def format_dynamic_catalog_response(tools: List[Dict[str, Any]]) -> str:
+    """Raggruppa e formatta dinamicamente i tool scoperti per la visualizzazione all'utente."""
+    if not tools:
+        return "Al momento nessun tool o server MCP è registrato o raggiungibile."
+
+    categories: Dict[str, List[str]] = {
+        "📦 Proxmox LXC Container Management": [],
+        "🌐 IPAM & Rete": [],
+        "🛡️ DNS (Pi-hole)": [],
+        "🔀 Reverse Proxy (Nginx Proxy Manager)": [],
+        "⚙️ Automazione & Service Bootstrap": [],
+        "💻 Host & Command Execution": [],
+        "🔍 Ricerca Web & Dati": [],
+        "🧠 Memoria Semantica & Conversazionale": [],
+        "🛠️ Altri Tool MCP": []
+    }
+
+    for t in tools:
+        name = t.get("name", "")
+        desc = t.get("description", "")
+        nl = name.lower()
+        tag = f"`{name}` - {desc}" if desc else f"`{name}`"
+
+        if any(x in nl for x in ["container", "lxc", "snapshot", "template", "vmid", "resize"]):
+            categories["📦 Proxmox LXC Container Management"].append(tag)
+        elif any(x in nl for x in ["ip", "ipam", "reservation", "allocate"]):
+            categories["🌐 IPAM & Rete"].append(tag)
+        elif any(x in nl for x in ["pihole", "dns", "domain"]):
+            categories["🛡️ DNS (Pi-hole)"].append(tag)
+        elif any(x in nl for x in ["npm", "proxy", "host", "ssl", "cert"]):
+            categories["🔀 Reverse Proxy (Nginx Proxy Manager)"].append(tag)
+        elif any(x in nl for x in ["bootstrap", "service", "agy"]):
+            categories["⚙️ Automazione & Service Bootstrap"].append(tag)
+        elif any(x in nl for x in ["exec", "command", "storage", "log", "task", "status", "python"]):
+            categories["💻 Host & Command Execution"].append(tag)
+        elif any(x in nl for x in ["search", "web", "google", "ddg"]):
+            categories["🔍 Ricerca Web & Dati"].append(tag)
+        elif any(x in nl for x in ["memory", "fact", "recall", "knowledge"]):
+            categories["🧠 Memoria Semantica & Conversazionale"].append(tag)
+        else:
+            categories["🛠️ Altri Tool MCP"].append(tag)
+
+    total_count = len(tools)
+    lines = [f"Ho accesso a **{total_count} tool** registrati nell'ecosistema MCP e di sistema:\n"]
+
+    for cat_name, items in categories.items():
+        if items:
+            lines.append(f"### {cat_name}")
+            for it in items:
+                lines.append(f"- {it}")
+            lines.append("")
+
+    return "\n".join(lines).strip()

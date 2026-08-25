@@ -260,38 +260,11 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
     return None
 
 def _format_metamcp_tools_catalog() -> str:
-    tools_by_cat = {
-        "📦 Proxmox LXC Container Management": [
-            "`proxmox-mcp__list_containers`", "`proxmox-mcp__get_container_status`", "`proxmox-mcp__list_templates`",
-            "`proxmox-mcp__create_lxc_from_template`", "`proxmox-mcp__start_container`", "`proxmox-mcp__stop_container`",
-            "`proxmox-mcp__resize_lxc_disk`", "`proxmox-mcp__update_lxc_resources`", "`proxmox-mcp__create_lxc_snapshot`",
-            "`proxmox-mcp__rollback_lxc_snapshot`", "`proxmox-mcp__list_lxc_snapshots`", "`proxmox-mcp__import_existing_lxc`",
-            "`proxmox-mcp__wait_for_container`"
-        ],
-        "🌐 IPAM (IP Management)": [
-            "`proxmox-mcp__allocate_ip`", "`proxmox-mcp__release_ip`", "`proxmox-mcp__list_ip_reservations`"
-        ],
-        "🛡️ DNS (Pi-hole)": [
-            "`proxmox-mcp__list_pihole_dns_records`", "`proxmox-mcp__add_pihole_dns_record`", "`proxmox-mcp__delete_pihole_dns_record`"
-        ],
-        "🔀 Nginx Proxy Manager (NPM)": [
-            "`proxmox-mcp__list_npm_proxy_hosts`", "`proxmox-mcp__create_npm_proxy_host`", "`proxmox-mcp__delete_npm_proxy_host`"
-        ],
-        "⚙️ Service Bootstrap (Agy)": [
-            "`proxmox-mcp__run_agy_bootstrap`", "`proxmox-mcp__generate_agy_prompt_tool`", "`proxmox-mcp__create_service`",
-            "`proxmox-mcp__create_service_dry_run`", "`proxmox-mcp__run_host_agy`", "`proxmox-mcp__generate_host_agy_prompt`"
-        ],
-        "💻 Host & Command Execution": [
-            "`proxmox-mcp__exec_lxc_command`", "`proxmox-mcp__exec_host_command`", "`proxmox-mcp__get_lxc_service_logs`",
-            "`proxmox-mcp__get_storage_status`", "`proxmox-mcp__get_task_status`", "`proxmox-mcp__get_task_log`"
-        ]
-    }
-
-    lines = ["Ho accesso a **34 tool** registrati su MetaMCP per la gestione automatizzata dell'infrastruttura Proxmox Homelab:\n"]
-    for cat, tlist in tools_by_cat.items():
-        lines.append(f"### {cat}")
-        lines.append(", ".join(tlist) + "\n")
-    return "\n".join(lines)
+    from registry.manager import get_registry_manager
+    from tool_catalog import format_dynamic_catalog_response
+    manager = get_registry_manager()
+    all_tools = manager.get_tools_for_mode(["metamcp", "web", "code", "memory"])
+    return format_dynamic_catalog_response(all_tools)
 
 def intake_node(state: AgentState) -> AgentState:
     """Receives the task and settings, and appends user message to JSONL file memory if not incognito."""
