@@ -97,7 +97,7 @@ def run_agent_loop(
 
         if not call_llm_structured_fn:
             if call_llm_fn:
-                direct_system_prompt = base_system_prompt + "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano."
+                direct_system_prompt = base_system_prompt + "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano. Se la richiesta riguarda eventi recenti o dati che non puoi conoscere con certezza, dillo esplicitamente invece di inventare informazioni."
                 direct_prompt = f"Richiesta: '{task}'\nContesto memoria:\n{memory_context or ''}"
                 syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
                 syn_ans = syn_res.get("content", "") if isinstance(syn_res, dict) else (syn_res or "")
@@ -125,7 +125,7 @@ def run_agent_loop(
                 summary_system_prompt = base_system_prompt + (
                     "Sei in fase di sintesi finale dopo aver eseguito le azioni con i tool.\n"
                     "Il tuo compito è sintetizzare le informazioni ottenute dai tool in una risposta fluida, completa, dettagliata ed esaustiva in italiano.\n"
-                    "Presenta i dati in modo chiaro e strutturato."
+                    "Presenta i dati in modo chiaro e strutturato. Rispondi in prosa naturale (nessun JSON): questa è la risposta finale per l'utente."
                 )
                 obs_text = "\n".join(history_observations)
                 if len(obs_text) > config.TRUNCATION_LIMIT:
@@ -148,7 +148,11 @@ def run_agent_loop(
             # 3. Se la richiesta non richiede tool (es. domande concettuali), generiamo una risposta diretta
             elif call_llm_fn:
                 direct_system_prompt = base_system_prompt + (
-                    "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano."
+                    "Sei in fase di dialogo diretto con l'utente.\n"
+                    "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano.\n"
+                    "IMPORTANTE: se la richiesta riguarda eventi recenti, notizie, date o fatti che potrebbero essere cambiati dopo il tuo training, "
+                    "NON rispondere dalla memoria interna: dichiara che per dati aggiornati serve una ricerca e suggerisci di riprovare in modalità ask/act "
+                    "(oppure, se disponibile, indica che verrà usato web_search al prossimo turno)."
                 )
                 direct_prompt = (
                     f"Rispondi in modo completo, chiaro ed esaustivo alla seguente richiesta dell'utente in italiano.\n"
@@ -281,7 +285,8 @@ def run_agent_loop(
         summary_prompt = (
             f"Task utente: '{task}'\n\n"
             f"Storico azioni eseguite:\n{obs_text}\n\n"
-            f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano."
+            f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
+            f"Rispondi in prosa naturale (nessun JSON): questa è la risposta per l'utente."
         )
         syn_res = call_llm_fn(summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget)
         final_ans = syn_res.get("content", "") if syn_res else "Operazione completata."

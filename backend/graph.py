@@ -221,6 +221,8 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
     )
 
     last_error = None
+    effective_max_tokens = max_tokens
+    MAX_TOKENS_CAP = 16384
     for attempt in range(1, max_retries + 1):
         current_prompt = prompt
         if last_error:
@@ -231,14 +233,18 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
                 f"Correggi e rispondi di nuovo SOLO con il JSON valido."
             )
 
-        raw_res = _call_llm(current_prompt, system_prompt=schema_prompt, max_tokens=max_tokens, temperature=temperature, reasoning_budget=reasoning_budget, model=model)
+        raw_res = _call_llm(current_prompt, system_prompt=schema_prompt, max_tokens=effective_max_tokens, temperature=temperature, reasoning_budget=reasoning_budget, model=model)
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
             continue
 
         raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
         if not raw:
-            last_error = "Risposta testuale vuota"
+            # Contenuto vuoto = quasi sempre il reasoning che ha esaurito il budget token
+            # prima di emettere il JSON (finish_reason=length). Raddoppia max_tokens.
+            last_error = f"Risposta testuale vuota (probabile troncamento con max_tokens={effective_max_tokens}): riduci il reasoning ed emetti subito il JSON."
+            effective_max_tokens = min(effective_max_tokens * 2, MAX_TOKENS_CAP)
+            logger.warning(f"Tentativo {attempt}/{max_retries}: contenuto vuoto, escalation max_tokens a {effective_max_tokens}")
             continue
 
         from text_utils import strip_thinking
