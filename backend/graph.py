@@ -21,8 +21,9 @@ from providers import get_provider
 
 stream_queue = contextvars.ContextVar("stream_queue", default=None)
 
-from agent_loop import run_agent_loop
+from agent_loop import is_tools_discovery_query, run_agent_loop
 from mode_policy import get_mode_policy
+from text_utils import clean_synthesis_content
 from tool_catalog import get_rollback_info, get_tool_catalog
 
 logging.basicConfig(level=logging.INFO)
@@ -184,7 +185,11 @@ def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, te
 
     enable_thinking = (reasoning_budget != 0) and supports_reasoning
     if enable_thinking:
-        thinking_instruction = "IMPORTANT: Se devi ragionare, fallo liberamente. Il sistema processerà automaticamente il tuo reasoning_content."
+        thinking_instruction = (
+            "IMPORTANTE: Il sistema di inferenza gestisce automaticamente il tuo processo di ragionamento tramite il meccanismo nativo di thinking. "
+            "NON includere processi di pensiero, analisi intermedie, note di self-correction o passi di ragionamento nel testo della tua risposta. "
+            "La tua risposta deve contenere SOLO il contenuto finale destinato all'utente."
+        )
         if system_prompt:
             system_prompt = f"{system_prompt}\n\n{thinking_instruction}"
         else:
@@ -397,7 +402,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     if any(kw in task_lower for kw in ["chi sei", "presentati", "chi sei tu"]):
         ans = "Sono l'agente AI del tuo homelab Proxmox. Posso gestire i container LXC, allocare IP con IPAM, gestire i record DNS Pi-hole, configurare Nginx Proxy Manager (NPM), cercare notizie web ed eseguire codice in sandbox."
         return {"plan": {"mode": "chat", "tool_needed": False, "direct_answer": ans}, "final_response": ans}
-    elif any(kw in task_lower for kw in ["tool", "strument", "accesso", "cosa puoi fare", "proxmox"]) and ("qual" in task_lower or "quali" in task_lower or "cosa" in task_lower or "lista" in task_lower):
+    elif is_tools_discovery_query(task):
         ans = _format_metamcp_tools_catalog()
         return {"plan": {"mode": "chat", "tool_needed": False, "direct_answer": ans}, "final_response": ans}
 
@@ -426,7 +431,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
     task_lower = task.lower()
     memory_context = state.get("memory_context") or ""
 
-    if any(kw in task_lower for kw in ["tool", "strument", "accesso", "cosa puoi fare", "proxmox"]) and ("qual" in task_lower or "quali" in task_lower or "cosa" in task_lower or "lista" in task_lower):
+    if is_tools_discovery_query(task):
         ans = _format_metamcp_tools_catalog()
         return {"plan": {"mode": "ask", "tool_needed": False, "direct_answer": ans}, "final_response": ans}
 

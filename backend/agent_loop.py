@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import config
 from mode_policy import get_mode_policy
 from registry.manager import get_registry_manager
+from text_utils import clean_synthesis_content
 from tool_catalog import format_catalog_for_prompt, format_dynamic_catalog_response
 from tool_schemas import ToolSelection, validate_tool_args
 
@@ -79,8 +80,9 @@ def run_agent_loop(
             )
             ans_res = call_llm_fn(task, system_prompt=sys_prompt, reasoning_budget=policy.reasoning_budget)
             if ans_res:
-                ans = ans_res.get("content", "")
+                raw_ans = ans_res.get("content", "")
                 reasoning = ans_res.get("reasoning_content", "")
+                ans = clean_synthesis_content(raw_ans) or raw_ans
                 return {"final_response": ans, "execution_trace": [], "reasoning_content": reasoning}
         return {"final_response": f"Ho ricevuto la tua richiesta: '{task}'.", "execution_trace": [], "reasoning_content": None}
 
@@ -156,12 +158,11 @@ def run_agent_loop(
                     f"Se sono stati usati tool di ricerca (es. web_search), cita e spiega le informazioni trovate in modo chiaro e completo."
                 )
                 syn_res = call_llm_fn(summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget) if call_llm_fn else None
-                syn_ans = syn_res.get("content", "") if syn_res else ""
+                raw_syn = syn_res.get("content", "") if syn_res else ""
                 reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
-                final_ans = syn_ans.strip() if (syn_ans and syn_ans.strip()) else (
-                    selection.reasoning if (selection and selection.reasoning) else (
-                        "Il modello ha effettuato il ragionamento ma non ha generato una risposta finale." if reasoning_content else "Operazione completata con successo."
-                    )
+                syn_ans = clean_synthesis_content(raw_syn)
+                final_ans = syn_ans if syn_ans else (
+                    "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
                 )
             # 3. Se la richiesta non richiede tool (es. domande concettuali), generiamo una risposta diretta
             elif call_llm_fn:
@@ -178,15 +179,14 @@ def run_agent_loop(
                     f"Contesto memoria:\n{memory_context or ''}"
                 )
                 syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
-                syn_ans = syn_res.get("content", "") if syn_res else ""
+                raw_syn = syn_res.get("content", "") if syn_res else ""
                 reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
-                final_ans = syn_ans.strip() if (syn_ans and syn_ans.strip()) else (
-                    selection.reasoning if (selection and selection.reasoning) else (
-                        "Il modello ha effettuato il ragionamento ma non ha generato una risposta finale." if reasoning_content else "Richiesta completata."
-                    )
+                syn_ans = clean_synthesis_content(raw_syn)
+                final_ans = syn_ans if syn_ans else (
+                    "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
                 )
             else:
-                final_ans = selection.reasoning if (selection and selection.reasoning) else "Richiesta completata."
+                final_ans = "Richiesta completata."
                 reasoning_content = None
 
             return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
@@ -307,8 +307,9 @@ def run_agent_loop(
             f"Rispondi in prosa naturale (nessun JSON): questa è la risposta per l'utente."
         )
         syn_res = call_llm_fn(summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget)
-        final_ans = syn_res.get("content", "") if syn_res else "Operazione completata."
+        raw_ans = syn_res.get("content", "") if syn_res else ""
         reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
+        final_ans = clean_synthesis_content(raw_ans) or "Operazione completata."
         return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
 
     return {"final_response": "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": None}
