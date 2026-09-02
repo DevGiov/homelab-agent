@@ -13,23 +13,45 @@ _USER_AGENT = (
 )
 _SEARCH_TIMEOUT = 12
 
+# Engines that are actually enabled on our SearXNG instance (general/web category)
+_SEARXNG_ENGINES = os.environ.get(
+    "SEARXNG_ENGINES",
+    "google,bing,duckduckgo,brave,startpage",
+)
+
 def get_searxng_url() -> Optional[str]:
     """Retrieve SEARXNG_URL from env, defaulting to local IP if not set."""
     url = os.environ.get("SEARXNG_URL", "http://192.168.1.161:8080")
     return url.rstrip("/") if url else None
 
-def search_searxng_api(query: str, count: int = 8, time_filter: Optional[str] = None) -> List[Dict[str, str]]:
-    """Search using SearXNG JSON API."""
+def search_searxng_api(
+    query: str,
+    count: int = 8,
+    time_filter: Optional[str] = None,
+    language: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """Search using SearXNG JSON API.
+
+    Args:
+        query: Search query string.
+        count: Max number of results to return.
+        time_filter: One of 'day', 'week', 'month', 'year'.
+        language: Language code for results (e.g. 'en', 'it'). None uses SearXNG default.
+    """
     url = get_searxng_url()
     if not url:
         return []
 
-    params = {
+    params: Dict[str, str] = {
         "q": query,
         "format": "json",
-        "engines": "bing,duckduckgo,google,mojeek,presearch",
-        "safesearch": "0"
+        "engines": _SEARXNG_ENGINES,
+        "categories": "general",
+        "safesearch": "0",
     }
+
+    if language:
+        params["language"] = language
 
     if time_filter:
         time_map = {"day": "day", "week": "week", "month": "month", "year": "year"}
@@ -37,14 +59,20 @@ def search_searxng_api(query: str, count: int = 8, time_filter: Optional[str] = 
             params["time_range"] = time_map[time_filter]
 
     try:
-        res = requests.get(f"{url}/search", params=params, headers={"User-Agent": _USER_AGENT}, timeout=_SEARCH_TIMEOUT)
+        logger.info(f"SearXNG request: q={query!r}  lang={language}  engines={_SEARXNG_ENGINES}")
+        res = requests.get(
+            f"{url}/search",
+            params=params,
+            headers={"User-Agent": _USER_AGENT},
+            timeout=_SEARCH_TIMEOUT,
+        )
         if res.status_code != 200:
             logger.warning(f"SearXNG returned {res.status_code}")
             return []
 
         data = res.json()
         results = []
-        for item in data.get("results", [])[:count * 2]: # Get more for ranking
+        for item in data.get("results", [])[:count * 2]:  # Get more for ranking
             link = item.get("url", "")
             title = item.get("title", "")
             if not link or not title:
@@ -53,7 +81,8 @@ def search_searxng_api(query: str, count: int = 8, time_filter: Optional[str] = 
                 "title": title,
                 "url": link,
                 "snippet": item.get("content", ""),
-                "age": item.get("publishedDate", None)
+                "age": item.get("publishedDate", None),
+                "engine": item.get("engine", ""),
             })
         logger.info(f"SearXNG returned {len(results)} results for: {query}")
         return results
@@ -63,12 +92,19 @@ def search_searxng_api(query: str, count: int = 8, time_filter: Optional[str] = 
 
 
 def search_ddgs_library(query: str, count: int = 8, time_filter: Optional[str] = None) -> List[Dict[str, str]]:
-    """Search using the ddgs library (duckduckgo fallback)."""
+    """Search using the ddgs library (duckduckgo fallback).
+
+    Supports both the new 'ddgs' package name and the legacy 'duckduckgo_search' name.
+    """
+    DDGS = None
     try:
         from ddgs import DDGS
     except ImportError:
-        logger.warning("ddgs package not installed; skipping DDGS provider")
-        return []
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            logger.warning("Neither 'ddgs' nor 'duckduckgo_search' package installed; skipping DDGS provider")
+            return []
 
     timelimit = None
     if time_filter:

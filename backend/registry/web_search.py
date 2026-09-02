@@ -14,91 +14,107 @@ from registry.search_content import (
     get_tldr,
 )
 
-# Import new modules
 from registry.search_providers import (
     search_ddgs_library,
     search_duckduckgo_api,
     search_duckduckgo_html,
     search_searxng_api,
 )
-from registry.search_ranking import rank_search_results
+from registry.search_ranking import (
+    filter_irrelevant_results,
+    rank_search_results,
+)
 
 logger = logging.getLogger("web_search_registry")
 
 _MAX_FETCH_PAGES = 5
 _MAX_CONTENT_CHARS = 3000
 _MAX_WORKERS = 4
+_MIN_SATISFACTORY_RESULTS = 3
 
-# Keywords that signal the query is about news/current events
-_NEWS_KEYWORDS = [
-    "news", "notizie", "latest", "ultime", "ultima", "ultimo", "aggiornamenti",
-    "aggiornate", "recenti", "recent", "updates", "breaking", "launched",
-    "launch", "status", "partita", "partito",
-]
+# ── Language strategy ────────────────────────────────────────────────
+_PRIMARY_LANG = os.environ.get("SEARCH_PRIMARY_LANG", "en")
+_FALLBACK_LANG = os.environ.get("SEARCH_FALLBACK_LANG", "it")
 
-def _is_news_query(query: str) -> bool:
-    q_lc = query.lower()
-    return any(kw in q_lc for kw in _NEWS_KEYWORDS)
 
-def _simplify_query(query: str) -> str:
-    noise = [
-        "latest", "recent", "new", "current", "breaking",
-        "news", "updates", "status", "information",
-        "ultime", "ultima", "ultimo", "notizie", "aggiornamenti",
-        "informazioni", "recenti", "aggiornate",
-        "launched", "launch", "partita", "partito",
-        "mission", "missione", "date", "details",
-        "and", "the", "about", "sulle", "sugli", "sullo", "sulla",
-        "dammi", "give", "me", "informazioni",
-    ]
-    words = query.split()
-    cleaned = [w for w in words if w.lower() not in noise]
-    result = " ".join(cleaned).strip()
-    return result if len(result) > 2 else query
+def _deduplicate_by_url(results: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    seen = set()
+    unique = []
+    for r in results:
+        u = r.get("url", "").rstrip("/")
+        if u and u not in seen:
+            seen.add(u)
+            unique.append(r)
+    return unique
 
-def _search_with_fallback(query: str, count: int = 8, time_filter: Optional[str] = None) -> List[Dict[str, str]]:
-    """Search with multi-tier provider fallback chain."""
-    is_news = _is_news_query(query)
 
-    # 1. Primary: SearXNG (if available and configured)
-    logger.info(f"Trying SearXNG for: {query}")
-    results = search_searxng_api(query, count=count, time_filter=time_filter)
+def _search_with_fallback(
+    query: str,
+    count: int = 8,
+    time_filter: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """Search with multi-tier provider fallback chain and bilingual retry.
+
+    Strategy:
+      1. SearXNG (primary language, e.g. en)
+      2. If < 3 relevant results, retry SearXNG (fallback language, e.g. it)
+      3. If still < 3 relevant results, call DDGS library
+      4. If still empty, DDG HTML scraping
+      5. Last resort: DDG Instant Answer API
+    """
+    accumulated: List[Dict[str, str]] = []
+
+    # ── 1. Primary: SearXNG (primary language) ───────────────────────
+    logger.info(f"Trying SearXNG ({_PRIMARY_LANG}) for: {query}")
+    results = search_searxng_api(query, count=count, time_filter=time_filter, language=_PRIMARY_LANG)
     if results:
-        return results
+        relevant = filter_irrelevant_results(query, results)
+        if len(relevant) >= _MIN_SATISFACTORY_RESULTS:
+            return relevant
+        accumulated.extend(relevant)
+    else:
+        logger.info("SearXNG primary language returned 0 raw results")
 
-    # Small delay
-    time.sleep(1.0)
+    # ── 2. Retry SearXNG with fallback language ──────────────────────
+    if _FALLBACK_LANG and _FALLBACK_LANG != _PRIMARY_LANG:
+        time.sleep(0.3)
+        logger.info(f"Trying SearXNG ({_FALLBACK_LANG}) for: {query}")
+        results = search_searxng_api(query, count=count, time_filter=time_filter, language=_FALLBACK_LANG)
+        if results:
+            relevant = filter_irrelevant_results(query, results)
+            accumulated.extend(relevant)
+            accumulated = _deduplicate_by_url(accumulated)
+            if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
+                return accumulated
 
-    # 2. Fallback: DDGS Library
+    # ── 3. Fallback / Supplement: DDGS Library ───────────────────────
     logger.info(f"Trying DDGS library for: {query}")
-    results = search_ddgs_library(query, count=count, time_filter=time_filter)
-    if results:
-        return results
+    ddgs_results = search_ddgs_library(query, count=count, time_filter=time_filter)
+    if ddgs_results:
+        relevant = filter_irrelevant_results(query, ddgs_results)
+        chosen = relevant if relevant else ddgs_results
+        accumulated.extend(chosen)
+        accumulated = _deduplicate_by_url(accumulated)
+        if accumulated:
+            return accumulated
 
-    # 3. Fallback: DDG HTML scraping
-    time.sleep(1.0)
-    logger.info("Trying DDG HTML fallback")
-    results = search_duckduckgo_html(query, count=count)
-    if results:
-        return results
-
-    # 4. Query reformulation
-    simplified = _simplify_query(query)
-    if simplified.lower() != query.lower() and len(simplified) > 2:
-        logger.info(f"Retrying with simplified query: '{simplified}'")
-        time.sleep(1.0)
-        results = search_searxng_api(simplified, count=count)
-        if results: return results
+    # ── 4. Fallback: DDG HTML scraping ───────────────────────────────
+    if not accumulated:
         time.sleep(0.5)
-        results = search_ddgs_library(simplified, count=count)
-        if results: return results
-        time.sleep(0.5)
-        results = search_duckduckgo_html(simplified, count=count)
-        if results: return results
+        logger.info("Trying DDG HTML fallback")
+        html_results = search_duckduckgo_html(query, count=count)
+        if html_results:
+            relevant = filter_irrelevant_results(query, html_results)
+            accumulated.extend(relevant if relevant else html_results)
 
-    # 5. Last resort: DDG API
-    logger.info("All search methods failed, trying DDG Instant Answer API")
-    return search_duckduckgo_api(query)
+    # ── 5. Last resort: DDG Instant Answer API ───────────────────────
+    if not accumulated:
+        logger.info("Trying DDG Instant Answer API")
+        api_results = search_duckduckgo_api(query)
+        if api_results:
+            accumulated.extend(api_results)
+
+    return _deduplicate_by_url(accumulated)
 
 
 class WebSearchRegistry(BaseToolRegistry):
@@ -111,10 +127,10 @@ class WebSearchRegistry(BaseToolRegistry):
             {
                 "name": "web_search",
                 "description": (
-                    "Esegue una ricerca web completa (Google, Bing, DDG tramite SearXNG): "
+                    "Esegue una ricerca web completa (Google, Bing, Brave, DDG tramite SearXNG e motori aggregati): "
                     "scarica il contenuto delle pagine trovate, estrae tabelle, liste e testo "
                     "restituendo un report strutturato e classificato per rilevanza. "
-                    "NON aggiungere anni passati nella query a meno che l'utente non lo richieda esplicitamente."
+                    "Usa query naturali e concise senza aggiungere anni arbitrari a meno che l'utente non lo richieda esplicitamente."
                 ),
                 "parameters": {
                     "type": "object",
@@ -209,8 +225,8 @@ class WebSearchRegistry(BaseToolRegistry):
                 # Tables
                 if content.get("tables"):
                     output_parts.append("Tables Found:")
-                    for table in content["tables"][:3]: # Limit to first 3 tables
-                        for row in table[:10]: # Limit to first 10 rows
+                    for table in content["tables"][:3]:  # Limit to first 3 tables
+                        for row in table[:10]:  # Limit to first 10 rows
                             output_parts.append(" | ".join(row))
                         if len(table) > 10:
                             output_parts.append(" ... [more rows truncated]")
