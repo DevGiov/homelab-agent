@@ -46,6 +46,24 @@ api.interceptors.request.use((config) => {
 
 export type AgentMode = 'chat' | 'ask' | 'act' | 'plan';
 
+export interface WebPrefetchSource {
+  title: string;
+  url: string;
+  snippet?: string;
+  score?: number;
+  engine?: string;
+}
+
+export interface WebPrefetchData {
+  query: string;
+  success: boolean;
+  provider_used?: string;
+  latency_ms?: number;
+  sources?: WebPrefetchSource[];
+  summary_text?: string;
+  error?: string;
+}
+
 export interface ChatRequest {
   input: string;
   thread_id?: string;
@@ -55,6 +73,7 @@ export interface ChatRequest {
   execute?: boolean;
   model?: string;
   incognito?: boolean;
+  web_search?: boolean;
 }
 
 export interface ExecutionTraceItem {
@@ -104,6 +123,7 @@ export interface ChatResponse {
   execution_trace?: ExecutionTraceItem[];
   rollback_trace?: RollbackAction[];
   reasoning_content?: string;
+  web_prefetch?: WebPrefetchData;
   error?: string;
 }
 
@@ -143,6 +163,7 @@ export interface FormattedMessage {
   execution_trace?: ExecutionTraceItem[];
   rollback_trace?: RollbackAction[];
   reasoning_content?: string;
+  web_prefetch?: WebPrefetchData;
   isError?: boolean;
 }
 
@@ -156,7 +177,8 @@ export async function sendStreamMessage(
   onReasoningDelta?: (delta: string) => void,
   onContentDelta?: (delta: string) => void,
   onFinalResponse?: (response: ChatResponse) => void,
-  onError?: (error: string) => void
+  onError?: (error: string) => void,
+  onRetrievalEvent?: (event: string, data: any) => void
 ): Promise<void> {
   try {
     const response = await fetch(`${API_BASE}/invoke_stream`, {
@@ -197,6 +219,8 @@ export async function sendStreamMessage(
               onReasoningDelta(data.delta);
             } else if (data.type === 'content' && onContentDelta) {
               onContentDelta(data.delta);
+            } else if (data.type === 'retrieval' && onRetrievalEvent) {
+              onRetrievalEvent(data.event, data.data);
             } else if (data.type === 'final' && onFinalResponse) {
               onFinalResponse(data.response);
             } else if (data.type === 'error' && onError) {

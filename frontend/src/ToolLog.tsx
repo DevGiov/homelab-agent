@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Wrench, Activity, ShieldCheck, ChevronRight, Zap, X, Info, BookOpen } from 'lucide-react';
-import type { ExecutionTraceItem, PlanStructure, RollbackAction } from './api';
+import { Wrench, Activity, ShieldCheck, ChevronRight, Zap, X, Info, BookOpen, Globe, ExternalLink } from 'lucide-react';
+import type { ExecutionTraceItem, PlanStructure, RollbackAction, WebPrefetchData } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { ApprovalsPanel } from './components/ApprovalsPanel';
@@ -15,6 +15,7 @@ interface ToolLogProps {
   executionTrace?: ExecutionTraceItem[];
   rollbackTrace?: RollbackAction[];
   mode?: string;
+  webPrefetch?: WebPrefetchData;
   currentThreadId?: string | null;
   isOpen: boolean;
   onToggle: () => void;
@@ -28,6 +29,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
   executionTrace,
   rollbackTrace,
   mode,
+  webPrefetch,
   currentThreadId,
   isOpen,
   onToggle,
@@ -40,6 +42,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
     planStructure ||
     (executionTrace && executionTrace.length > 0) ||
     (rollbackTrace && rollbackTrace.length > 0) ||
+    (webPrefetch && webPrefetch.sources && webPrefetch.sources.length > 0) ||
     mode
   );
 
@@ -134,6 +137,62 @@ export const ToolLog: React.FC<ToolLogProps> = ({
             )}
           </div>
 
+          {/* Web Retrieval Context Card */}
+          {webPrefetch && (
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Globe size={14} className="text-cyan-400" />
+                  <span className="font-medium text-slate-300">Web Context (Prefetch)</span>
+                </div>
+                {webPrefetch.provider_used && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
+                    {webPrefetch.provider_used}
+                    {webPrefetch.latency_ms ? ` (${webPrefetch.latency_ms}ms)` : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800/70 rounded-lg p-2 space-y-1">
+                <div className="font-mono text-[10px] text-slate-500 truncate">
+                  Query: <span className="text-slate-300">"{webPrefetch.query}"</span>
+                </div>
+                {webPrefetch.sources && webPrefetch.sources.length > 0 ? (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider">
+                      {webPrefetch.sources.length} {webPrefetch.sources.length === 1 ? 'Fonte Recuperata' : 'Fonti Recuperate'}
+                    </div>
+                    <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                      {webPrefetch.sources.map((src, sIdx) => (
+                        <a
+                          key={sIdx}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block p-1.5 rounded bg-slate-950 border border-slate-800 hover:border-cyan-700/50 transition group"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[11px] font-medium text-slate-200 group-hover:text-cyan-300 truncate">
+                              {src.title || src.url}
+                            </span>
+                            <ExternalLink size={10} className="text-slate-500 group-hover:text-cyan-400 shrink-0" />
+                          </div>
+                          {src.snippet && (
+                            <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-tight">
+                              {src.snippet}
+                            </p>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-500 italic">Nessun risultato web trovato per questa query.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Execution Trace & Reasoning Viewer */}
           <ExecutionTraceViewer
             reasoning={executionTrace?.find((t) => t.reasoning)?.reasoning}
@@ -164,6 +223,11 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           <div className="p-2 text-slate-400" title="Tool Log Panel (collapsed)">
             <Wrench size={16} />
           </div>
+          {webPrefetch && (
+            <div className="p-2 text-cyan-400" title="Web Retrieval (Prefetch) active">
+              <Globe size={16} />
+            </div>
+          )}
           {toolUsed && (
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" title="Tool activity detected" />
           )}

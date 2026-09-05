@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     execute: bool = False
     model: Optional[str] = None
     incognito: bool = False
+    web_search: bool = False
 
 class ChatResponse(BaseModel):
     thread_id: Optional[str] = None
@@ -22,6 +23,7 @@ class ChatResponse(BaseModel):
     execution_trace: Optional[List[Dict[str, Any]]] = None
     rollback_trace: Optional[List[Dict[str, Any]]] = None
     reasoning_content: Optional[str] = None
+    web_prefetch: Optional[Dict[str, Any]] = None
 
 
 class ThreadSummary(BaseModel):

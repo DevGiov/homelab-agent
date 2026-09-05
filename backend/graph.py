@@ -93,6 +93,8 @@ class AgentState(TypedDict):
     reasoning_budget: Optional[int]
     model: Optional[str]
     execute: Optional[bool]
+    web_search: Optional[bool]
+    web_prefetch_data: Optional[Dict[str, Any]]
     agent_id: Optional[str]
     memory_context: Optional[str]
     mode: str
@@ -393,8 +395,51 @@ def mode_router_node(state: AgentState) -> AgentState:
     logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}'")
     return {"mode": classified}
 
+def web_prefetch_node(state: AgentState) -> AgentState:
+    """Performs deterministic read-only web prefetch before subgraphs if web_search is enabled."""
+    if not state.get("web_search"):
+        return state
+
+    task = state.get("task", "")
+    if not task:
+        return state
+
+    q = stream_queue.get()
+
+    def emit_event(ev_name: str, data: Dict[str, Any]):
+        if q:
+            q.put({"type": "retrieval", "event": ev_name, "data": data})
+
+    emit_event("web_prefetch.started", {"query": task})
+    logger.info(f"Avvio web prefetch per query: '{task}'")
+
+    try:
+        from registry.web_search_service import execute_search
+        search_res = execute_search(
+            query=task,
+            count=8,
+            event_callback=emit_event
+        )
+        if search_res.get("success") and search_res.get("sources"):
+            emit_event("web_prefetch.completed", {
+                "query": task,
+                "sources_count": len(search_res["sources"]),
+                "provider": search_res.get("provider_used", "Web"),
+                "latency_ms": search_res.get("latency_ms", 0)
+            })
+        else:
+            emit_event("web_prefetch.empty", {
+                "query": task,
+                "provider": search_res.get("provider_used", "Web")
+            })
+        return {"web_prefetch_data": search_res}
+    except Exception as e:
+        logger.warning(f"Web prefetch non riuscito (non bloccante): {e}")
+        emit_event("web_prefetch.failed", {"query": task, "error": str(e)})
+        return {"web_prefetch_data": {"query": task, "success": False, "sources": [], "summary_text": "", "error": str(e)}}
+
 def chat_graph_node(state: AgentState) -> AgentState:
-    """Subgraph for free conversation & fast queries (with 1-step web search enabled)."""
+    """Subgraph for free conversation & fast queries with direct LLM response (non-agentic, 0 tools)."""
     task = state.get("task", "")
     task_lower = task.lower()
     memory_context = state.get("memory_context") or ""
@@ -409,21 +454,46 @@ def chat_graph_node(state: AgentState) -> AgentState:
     policy = get_mode_policy("chat")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
     model = state.get("model")
+    prefetch_data = state.get("web_prefetch_data")
 
-    loop_res = run_agent_loop(
-        task=task,
-        mode="chat",
-        memory_context=memory_context,
-        thread_id=state.get("thread_id"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
+    now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
+    from registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
+
+    system_prompt = (
+        f"Data e Ora Corrente del Sistema: {now_str}\n"
+        f"Sei l'Agente AI dell'Homelab Proxmox VE (modalità: CHAT).\n"
+        f"Rispondi all'utente in modo naturale, dettagliato, completo ed esaustivo in lingua italiana.\n"
+        f"Non hai a disposizione tool in questa modalità: rispondi direttamente in testo discorsivo.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 
-    ans = loop_res.get("final_response", "")
-    trace = loop_res.get("execution_trace", [])
-    reasoning = loop_res.get("reasoning_content")
-    plan = {"mode": "chat", "tool_needed": len(trace) > 0, "direct_answer": ans, "execution_log": trace}
-    return {"plan": plan, "execution_trace": trace, "final_response": ans, "reasoning_content": reasoning}
+    prompt_sections = []
+    if memory_context:
+        prompt_sections.append(f"Contesto memoria conversazionale:\n{memory_context}")
+
+    if prefetch_data and prefetch_data.get("summary_text"):
+        wrapped_evidence = wrap_untrusted_web_evidence(
+            query=prefetch_data.get("query", task),
+            formatted_content=prefetch_data.get("summary_text", ""),
+            sources=prefetch_data.get("sources", [])
+        )
+        prompt_sections.append(wrapped_evidence)
+
+    prompt_sections.append(f"Richiesta Utente: '{task}'")
+    user_prompt = "\n\n".join(prompt_sections)
+
+    ans_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model)
+    raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
+    reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
+    ans = clean_synthesis_content(raw_ans) or raw_ans
+
+    plan = {"mode": "chat", "tool_needed": False, "direct_answer": ans, "execution_log": []}
+    return {
+        "plan": plan,
+        "execution_trace": [],
+        "final_response": ans,
+        "reasoning_content": reasoning,
+    }
 
 def ask_graph_node(state: AgentState) -> AgentState:
     """Subgraph for memory & knowledge retrieval queries (with Web Search & Code Exec tools enabled)."""
@@ -444,6 +514,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
         mode="ask",
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
+        web_prefetch_data=state.get("web_prefetch_data"),
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
     )
@@ -804,6 +875,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         mode="act",
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
+        web_prefetch_data=state.get("web_prefetch_data"),
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
     )
@@ -1123,7 +1195,7 @@ def respond_node(state: AgentState) -> AgentState:
     else:
         logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti e salvataggio memoria saltati.")
 
-    return {"final_response": formatted}
+    return {"final_response": formatted, "web_prefetch_data": state.get("web_prefetch_data")}
 
 def commit_memory_node(state: AgentState) -> AgentState:
     """Commits task and final response to Letta thread in a single atomic turn to prevent duplicate responses. Skipped in incognito."""
@@ -1154,6 +1226,7 @@ def build_graph():
     workflow.add_node("intake", intake_node)
     workflow.add_node("retrieve_memory", retrieve_memory_node)
     workflow.add_node("mode_router_node", mode_router_node)
+    workflow.add_node("web_prefetch", web_prefetch_node)
 
     # Subgraph nodes
     workflow.add_node("chat_graph", chat_graph_node)
@@ -1167,9 +1240,10 @@ def build_graph():
     workflow.set_entry_point("intake")
     workflow.add_edge("intake", "retrieve_memory")
     workflow.add_edge("retrieve_memory", "mode_router_node")
+    workflow.add_edge("mode_router_node", "web_prefetch")
 
     workflow.add_conditional_edges(
-        "mode_router_node",
+        "web_prefetch",
         route_to_subgraph,
         {
             "chat_graph": "chat_graph",

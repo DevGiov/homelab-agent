@@ -108,6 +108,7 @@ export function App() {
           executionTrace={diagnostics.activeExecutionTrace}
           rollbackTrace={diagnostics.activeRollbackTrace}
           mode={diagnostics.activeMode}
+          webPrefetch={diagnostics.activeWebPrefetch}
           currentThreadId={currentThreadId}
           isOpen={isToolLogOpen}
           onToggle={() => setIsToolLogOpen(!isToolLogOpen)}

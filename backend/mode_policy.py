@@ -14,9 +14,9 @@ class ModePolicy(BaseModel):
 DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
     "chat": ModePolicy(
         mode="chat",
-        max_tool_calls=1,
-        allowed_registries=["web", "memory"],
-        allow_react_loop=True,
+        max_tool_calls=0,
+        allowed_registries=[],
+        allow_react_loop=False,
         timeout_seconds=15,
         reasoning_budget=0
     ),

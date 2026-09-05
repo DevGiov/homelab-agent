@@ -74,8 +74,16 @@ def _empty_result(url: str, error: str = "") -> dict:
         "error": error,
     }
 
-def fetch_webpage_content(url: str, timeout: int = 12) -> dict:
-    """Fetch and extract meaningful content from a webpage."""
+from registry.search_security import is_safe_url
+
+_MAX_PAGE_BYTES = 2_000_000
+
+def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE_BYTES) -> dict:
+    """Fetch and extract meaningful content from a webpage safely with SSRF protection."""
+    if not is_safe_url(url):
+        logger.warning(f"Fetch webpage bloccato da SSRF protection: {url}")
+        return _empty_result(url, "Blocked by SSRF policy")
+
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -83,9 +91,24 @@ def fetch_webpage_content(url: str, timeout: int = 12) -> dict:
     }
 
     try:
-        res = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        res = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True, stream=True)
         if res.status_code >= 400:
             return _empty_result(url, f"HTTP {res.status_code}")
+
+        # Verifica URL finale post-redirect contro SSRF
+        if res.url != url and not is_safe_url(res.url):
+            logger.warning(f"Redirect verso target non sicuro bloccato da SSRF: {res.url}")
+            return _empty_result(res.url, "Blocked by SSRF policy on redirect")
+
+        raw_bytes = bytearray()
+        for chunk in res.iter_content(chunk_size=16384):
+            raw_bytes.extend(chunk)
+            if len(raw_bytes) > max_bytes:
+                logger.info(f"Dimensione pagina eccede {max_bytes} bytes per {url}, contenuto troncato.")
+                break
+
+        encoding = res.encoding or "utf-8"
+        text_content = raw_bytes.decode(encoding, errors="replace")
     except requests.Timeout:
         return _empty_result(url, "Timeout")
     except Exception as e:
@@ -100,7 +123,7 @@ def fetch_webpage_content(url: str, timeout: int = 12) -> dict:
     looks_like_text = url_path.endswith((".md", ".txt", ".json"))
 
     if not is_html and (content_type.startswith("text/") or is_json or looks_like_text):
-        text_body = res.text.strip()
+        text_body = text_content.strip()
         return {
             "url": url,
             "title": os.path.basename(url_path) or url,
@@ -116,7 +139,7 @@ def fetch_webpage_content(url: str, timeout: int = 12) -> dict:
 
     # HTML handling
     try:
-        soup = BeautifulSoup(res.text, "html.parser")
+        soup = BeautifulSoup(text_content, "html.parser")
     except Exception as e:
         return _empty_result(url, f"ParseError: {e}")
 

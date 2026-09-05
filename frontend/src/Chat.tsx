@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff } from 'lucide-react';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe, ExternalLink } from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
@@ -15,7 +15,8 @@ interface ChatProps {
     execute: boolean,
     reasoningBudget?: number,
     model?: string,
-    incognito?: boolean
+    incognito?: boolean,
+    webSearch?: boolean
   ) => Promise<void>;
   isLoading: boolean;
   error: string | null;
@@ -41,6 +42,7 @@ export const Chat: React.FC<ChatProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>('default');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isIncognito, setIsIncognito] = useState<boolean>(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -74,7 +76,7 @@ export const Chat: React.FC<ChatProps> = ({
 
     const modeToPass = selectedMode === 'auto' ? undefined : selectedMode;
     const modelToPass = selectedModel === 'default' ? undefined : selectedModel;
-    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass, isIncognito);
+    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass, isIncognito, webSearchEnabled);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -293,6 +295,42 @@ export const Chat: React.FC<ChatProps> = ({
                             initialCollapsed={true}
                           />
                         )}
+
+                        {/* Web Sources Citations */}
+                        {msg.web_prefetch && msg.web_prefetch.sources && msg.web_prefetch.sources.length > 0 && (
+                          <div className="mt-3 pt-2.5 border-t border-slate-800/80">
+                            <div className="flex items-center gap-1.5 text-[11px] text-cyan-400 font-medium mb-1.5">
+                              <Globe size={12} className="shrink-0" />
+                              <span>Fonti web consultate ({msg.web_prefetch.sources.length})</span>
+                              {msg.web_prefetch.provider_used && (
+                                <span className="text-[10px] text-slate-500 font-mono">via {msg.web_prefetch.provider_used}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {msg.web_prefetch.sources.map((src, sIdx) => {
+                                let hostname = '';
+                                try {
+                                  hostname = new URL(src.url).hostname.replace(/^www\./, '');
+                                } catch {
+                                  hostname = src.title || 'fonte';
+                                }
+                                return (
+                                  <a
+                                    key={sIdx}
+                                    href={src.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-950/80 border border-slate-800 hover:border-cyan-600/50 hover:bg-slate-950 text-slate-300 hover:text-cyan-300 text-[10px] transition group shadow-sm max-w-[220px]"
+                                    title={src.title || src.url}
+                                  >
+                                    <span className="truncate">{src.title || hostname}</span>
+                                    <ExternalLink size={9} className="text-slate-500 group-hover:text-cyan-400 shrink-0" />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -313,6 +351,12 @@ export const Chat: React.FC<ChatProps> = ({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] sm:text-[10px]">
                         <Wrench size={10} />
                         {msg.tool_used}
+                      </span>
+                    )}
+                    {msg.web_prefetch && msg.web_prefetch.sources && msg.web_prefetch.sources.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] sm:text-[10px]">
+                        <Globe size={10} />
+                        {msg.web_prefetch.sources.length} fonti web
                       </span>
                     )}
                   </div>
@@ -357,6 +401,21 @@ export const Chat: React.FC<ChatProps> = ({
           >
             <EyeOff size={12} className={isIncognito ? 'text-purple-400' : 'text-slate-400 shrink-0'} />
             <span className="text-[11px] font-sans">{isIncognito ? 'Incognito ON' : 'Incognito'}</span>
+          </button>
+
+          {/* Web Search Toggle */}
+          <button
+            type="button"
+            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer shadow-sm ${
+              webSearchEnabled
+                ? 'bg-cyan-950 border-cyan-500 text-cyan-200 shadow-cyan-950/50 ring-1 ring-cyan-500/50'
+                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+            }`}
+            title={webSearchEnabled ? 'Ricerca Web attiva (prefetch pre-turn abilitato)' : 'Attiva Ricerca Web (effettua retrieval da web prima di rispondere)'}
+          >
+            <Globe size={12} className={webSearchEnabled ? 'text-cyan-400' : 'text-slate-400 shrink-0'} />
+            <span className="text-[11px] font-sans">{webSearchEnabled ? 'Web ON' : 'Web'}</span>
           </button>
 
           {/* Model Selector Dropdown */}

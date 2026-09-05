@@ -34,6 +34,7 @@ export function adaptChatResponseToMessage(
     execution_trace: response.execution_trace,
     rollback_trace: response.rollback_trace,
     reasoning_content: response.reasoning_content,
+    web_prefetch: response.web_prefetch,
     isError: Boolean(response.error),
   };
 }

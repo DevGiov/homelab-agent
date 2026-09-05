@@ -7,6 +7,7 @@ import {
   type ExecutionTraceItem,
   type PlanStructure,
   type RollbackAction,
+  type WebPrefetchData,
 } from '../api';
 import { adaptChatResponseToMessage, adaptLettaMessagesToMessages } from '../utils/messageAdapter';
 
@@ -22,6 +23,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [activeExecutionTrace, setActiveExecutionTrace] = useState<ExecutionTraceItem[] | undefined>(undefined);
   const [activeRollbackTrace, setActiveRollbackTrace] = useState<RollbackAction[] | undefined>(undefined);
   const [activeMode, setActiveMode] = useState<string | undefined>(undefined);
+  const [activeWebPrefetch, setActiveWebPrefetch] = useState<WebPrefetchData | undefined>(undefined);
 
   const isSendingRef = useRef<boolean>(false);
 
@@ -53,6 +55,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           setActivePlanStructure(lastAssistant.plan_structure);
           setActiveExecutionTrace(lastAssistant.execution_trace);
           setActiveRollbackTrace(lastAssistant.rollback_trace);
+          setActiveWebPrefetch(lastAssistant.web_prefetch);
         } else {
           setActiveMode(undefined);
           setActiveTool(undefined);
@@ -60,6 +63,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           setActivePlanStructure(undefined);
           setActiveExecutionTrace(undefined);
           setActiveRollbackTrace(undefined);
+          setActiveWebPrefetch(undefined);
         }
       }
     } catch (err) {
@@ -82,7 +86,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       execute: boolean,
       reasoningBudget?: number,
       model?: string,
-      incognito?: boolean
+      incognito?: boolean,
+      webSearch?: boolean
     ) => {
       setChatError(null);
       isSendingRef.current = true;
@@ -131,6 +136,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             reasoning_budget: reasoningBudget,
             model,
             incognito,
+            web_search: webSearch,
           },
           (reasoningDelta) => {
             setThreadMessagesMap((prev) => {
@@ -178,9 +184,25 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             setActiveExecutionTrace(finalResponse.execution_trace);
             setActiveRollbackTrace(finalResponse.rollback_trace);
             setActiveMode(finalResponse.mode);
+            setActiveWebPrefetch(finalResponse.web_prefetch);
           },
           (errorStr) => {
             throw new Error(errorStr);
+          },
+          (retrievalEvent, retrievalData) => {
+            if (retrievalEvent === 'web_prefetch.started') {
+              setActiveWebPrefetch({
+                query: retrievalData.query || input,
+                success: true,
+                sources: [],
+              });
+            } else if (retrievalEvent === 'web_prefetch.completed') {
+              setActiveWebPrefetch((prev) => ({
+                ...(prev || { query: input, success: true }),
+                provider_used: retrievalData.provider,
+                latency_ms: retrievalData.latency_ms,
+              }));
+            }
           }
         );
       } catch (err: any) {
@@ -224,6 +246,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       activeExecutionTrace,
       activeRollbackTrace,
       activeMode,
+      activeWebPrefetch,
     },
   };
 }

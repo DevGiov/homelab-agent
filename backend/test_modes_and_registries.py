@@ -14,8 +14,9 @@ from registry.manager import get_registry_manager
 class TestModesAndRegistries(unittest.TestCase):
     def test_mode_policies(self):
         chat_p = get_mode_policy("chat")
-        self.assertEqual(chat_p.max_tool_calls, 1)
-        self.assertIn("web", chat_p.allowed_registries)
+        self.assertEqual(chat_p.max_tool_calls, 0)
+        self.assertEqual(chat_p.allowed_registries, [])
+        self.assertFalse(chat_p.allow_react_loop)
 
         ask_p = get_mode_policy("ask")
         self.assertEqual(ask_p.max_tool_calls, 3)

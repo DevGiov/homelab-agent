@@ -45,7 +45,8 @@ def run_agent_loop(
     memory_context: Optional[str] = None,
     call_llm_fn: Any = None,
     call_llm_structured_fn: Any = None,
-    thread_id: Optional[str] = None
+    thread_id: Optional[str] = None,
+    web_prefetch_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Esegue il loop ReAct autonomo in base alla ModePolicy della modalità corrente.
@@ -69,16 +70,34 @@ def run_agent_loop(
             "reasoning_content": f"Elenco dinamico generato con successo per i {len(available_tools)} tool attivi."
         }
 
+    # Blocco prefetch formattato (se disponibile)
+    prefetch_block = ""
+    if web_prefetch_data and web_prefetch_data.get("summary_text"):
+        from registry.search_security import wrap_untrusted_web_evidence
+        prefetch_block = wrap_untrusted_web_evidence(
+            query=web_prefetch_data.get("query", task),
+            formatted_content=web_prefetch_data.get("summary_text", ""),
+            sources=web_prefetch_data.get("sources", [])
+        )
+
     # Se la modalità non ammette tool o il catalogo ammessi è vuoto
     if policy.max_tool_calls <= 0 or not available_tools:
         if call_llm_fn:
             now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
+            from registry.search_security import UNTRUSTED_CONTEXT_POLICY
             sys_prompt = (
                 f"Data e Ora Corrente del Sistema: {now_str}\n"
                 f"Sei l'Agente AI dell'Homelab Proxmox VE. Rispondi in modo naturale e completo in italiano.\n"
+                f"{UNTRUSTED_CONTEXT_POLICY}\n"
                 f"Contesto memoria:\n{memory_context or ''}"
             )
-            ans_res = call_llm_fn(task, system_prompt=sys_prompt, reasoning_budget=policy.reasoning_budget)
+            prompt_parts = []
+            if prefetch_block:
+                prompt_parts.append(prefetch_block)
+            prompt_parts.append(f"Richiesta utente: '{task}'")
+            combined_task = "\n\n".join(prompt_parts)
+
+            ans_res = call_llm_fn(combined_task, system_prompt=sys_prompt, reasoning_budget=policy.reasoning_budget)
             if ans_res:
                 raw_ans = ans_res.get("content", "")
                 reasoning = ans_res.get("reasoning_content", "")
@@ -96,20 +115,33 @@ def run_agent_loop(
         obs_context = "\n".join(history_observations) if history_observations else "Nessuna azione eseguita finora."
 
         now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
+        from registry.search_security import UNTRUSTED_CONTEXT_POLICY
         base_system_prompt = (
             f"Data e Ora Corrente del Sistema: {now_str}\n"
             f"Sei l'Agente AI dell'Homelab Proxmox VE (modalità: {mode.upper()}).\n"
             f"Hai accesso all'ecosistema MCP e ai tool di gestione dell'infrastruttura, ricerca web ed esecuzione codice.\n"
+            f"{UNTRUSTED_CONTEXT_POLICY}\n"
         )
+
+        prefetch_guidance = ""
+        if prefetch_block:
+            prefetch_guidance = (
+                f"\n\nDATI PREFETCH WEB DISPONIBILI:\n{prefetch_block}\n\n"
+                "NOTA: Un prefetch web è già stato eseguito per questo turno. "
+                "Se le informazioni sopra sono già sufficienti per rispondere alla richiesta dell'utente, "
+                "imposta `tool_needed=false` e fornisci subito la risposta finale in `final_answer`. "
+                "Usa `web_search` solo se ti occorrono approfondimenti o dati differenti non presenti nel prefetch.\n"
+            )
 
         tool_system_prompt = base_system_prompt + (
             f"Catalogo tool disponibili per questa modalità:\n{catalog_str}\n\n"
             f"Contesto memoria conversazionale:\n{memory_context or ''}\n\n"
+            f"{prefetch_guidance}"
             f"Storico azioni eseguite in questo turno:\n{obs_context}\n\n"
             "REGOLE FONDAMENTALI DI SELEZIONE TOOL:\n"
-            "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, lanci spaziali, fatti esterni o informazioni non presenti nella tua conoscenza certa, DEVI IMPOSTARE `tool_needed=true` e selezionare `tool_name='web_search'`.\n"
+            "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, lanci spaziali, fatti esterni o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), DEVI IMPOSTARE `tool_needed=true` e selezionare `tool_name='web_search'`.\n"
             "2. Se la richiesta richiede di operare su Proxmox, file, container, IPAM, DNS o reverse proxy, DEVI IMPOSTARE `tool_needed=true` e specificare il relativo tool MCP.\n"
-            "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna senza dati esterni o azioni sul sistema, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
+            "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna o dal prefetch web senza ulteriori azioni, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
             "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari (es. 'SpaceX Starship latest launch updates').\n"
             "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura (es. lista container + stato DNS) e sono indipendenti tra loro, usa `parallel_calls`.\n"
             "6. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
@@ -164,20 +196,24 @@ def run_agent_loop(
                 final_ans = syn_ans if syn_ans else (
                     "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
                 )
-            # 3. Se la richiesta non richiede tool (es. domande concettuali), generiamo una risposta diretta
+            # 3. Se la richiesta non richiede tool (es. domande concettuali o coperte da prefetch), generiamo una risposta diretta
             elif call_llm_fn:
                 direct_system_prompt = base_system_prompt + (
                     "Sei in fase di dialogo diretto con l'utente.\n"
                     "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano.\n"
-                    "IMPORTANTE: se la richiesta riguarda eventi recenti, notizie, date o fatti che potrebbero essere cambiati dopo il tuo training, "
-                    "NON rispondere dalla memoria interna: dichiara che per dati aggiornati serve una ricerca e suggerisci di riprovare in modalità ask/act "
-                    "(oppure, se disponibile, indica che verrà usato web_search al prossimo turno)."
+                    "Se sono presenti dati web nel contesto, usali per fornire una risposta aggiornata, precisa ed esaustiva.\n"
+                    "IMPORTANTE: se la richiesta riguarda eventi recenti, notizie o date non coperte dal contesto e non verificabili con certezza, "
+                    "dichiara che per dati aggiornati serve una ricerca e suggerisci di riprovare con ricerca web attiva."
                 )
-                direct_prompt = (
+                direct_prompt_parts = []
+                if prefetch_block:
+                    direct_prompt_parts.append(prefetch_block)
+                direct_prompt_parts.append(
                     f"Rispondi in modo completo, chiaro ed esaustivo alla seguente richiesta dell'utente in italiano.\n"
                     f"Richiesta: '{task}'\n"
                     f"Contesto memoria:\n{memory_context or ''}"
                 )
+                direct_prompt = "\n\n".join(direct_prompt_parts)
                 syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
                 raw_syn = syn_res.get("content", "") if syn_res else ""
                 reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""

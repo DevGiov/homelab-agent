@@ -81,7 +81,7 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False) -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
@@ -90,6 +90,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "reasoning_budget": reasoning_budget,
         "model": model,
         "execute": execute,
+        "web_search": web_search,
+        "web_prefetch_data": None,
         "agent_id": None,
         "memory_context": None,
         "mode": "",
@@ -113,6 +115,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
         rollback_trace = final_state.get("rollback_trace")
         reasoning_content = final_state.get("reasoning_content")
+        web_prefetch = final_state.get("web_prefetch_data")
 
         resp = ChatResponse(
             thread_id=effective_thread_id,
@@ -123,7 +126,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             plan_structure=plan_structure,
             execution_trace=execution_trace,
             rollback_trace=rollback_trace,
-            reasoning_content=reasoning_content
+            reasoning_content=reasoning_content,
+            web_prefetch=web_prefetch
         )
 
         # Salva atomico del turno nello store SQLite solo se non in modalità incognito
@@ -211,29 +215,29 @@ def _limit(rate: str):
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
@@ -242,6 +246,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "reasoning_budget": reasoning_budget,
         "model": model,
         "execute": execute,
+        "web_search": web_search,
+        "web_prefetch_data": None,
         "agent_id": None,
         "memory_context": None,
         "mode": "",
@@ -267,6 +273,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
             execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
             rollback_trace = final_state.get("rollback_trace")
             reasoning_content = final_state.get("reasoning_content")
+            web_prefetch = final_state.get("web_prefetch_data")
 
             resp = ChatResponse(
                 thread_id=effective_thread_id,
@@ -277,7 +284,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 plan_structure=plan_structure,
                 execution_trace=execution_trace,
                 rollback_trace=rollback_trace,
-                reasoning_content=reasoning_content
+                reasoning_content=reasoning_content,
+                web_prefetch=web_prefetch
             )
             if not incognito:
                 thread_store.save_turn(effective_thread_id, task, resp.model_dump())
@@ -304,7 +312,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 @api.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito)
+    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
 @api.get("/v1/audit", dependencies=[Depends(verify_api_key)])
 async def get_audit_log(limit: int = 100, thread_id: Optional[str] = None):
