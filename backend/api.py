@@ -92,6 +92,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "execute": execute,
         "web_search": web_search,
         "web_prefetch_data": None,
+        "web_prefetch_metadata": None,
         "agent_id": None,
         "memory_context": None,
         "mode": "",
@@ -115,7 +116,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
         rollback_trace = final_state.get("rollback_trace")
         reasoning_content = final_state.get("reasoning_content")
-        web_prefetch = final_state.get("web_prefetch_data")
+        web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
 
         resp = ChatResponse(
             thread_id=effective_thread_id,
@@ -248,6 +249,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "execute": execute,
         "web_search": web_search,
         "web_prefetch_data": None,
+        "web_prefetch_metadata": None,
         "agent_id": None,
         "memory_context": None,
         "mode": "",
@@ -273,7 +275,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
             execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
             rollback_trace = final_state.get("rollback_trace")
             reasoning_content = final_state.get("reasoning_content")
-            web_prefetch = final_state.get("web_prefetch_data")
+            web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
 
             resp = ChatResponse(
                 thread_id=effective_thread_id,

@@ -251,6 +251,9 @@ def run_agent_loop(
                         "error": res.get("error") if isinstance(res, dict) else None
                     })
                     res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
+                    if call.get("tool_name") == "web_search":
+                        from registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
+                        res_str = f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
                     history_observations.append(f"Step {step_id}.{i} [parallelo]: {call['tool_name']}({call.get('arguments')}) -> {res_str}")
                 continue
 
@@ -324,14 +327,21 @@ def run_agent_loop(
             "error": res.get("error") if isinstance(res, dict) else None
         })
 
-        obs_entry = f"Step {step_id}: {tool_name}({arguments}) -> {res_str}"
+        if tool_name == "web_search":
+            from registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
+            safe_res_str = f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
+            obs_entry = f"Step {step_id}: {tool_name}({arguments}) -> {safe_res_str}"
+        else:
+            obs_entry = f"Step {step_id}: {tool_name}({arguments}) -> {res_str}"
         history_observations.append(obs_entry)
 
     # Se abbiamo completato tutti gli step del loop, sintetizziamo il risultato
     if history_observations and call_llm_fn:
+        from registry.search_security import UNTRUSTED_CONTEXT_POLICY
         summary_system_prompt = (
             f"Data e Ora Corrente del Sistema: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
-            f"Sei l'Agente AI dell'Homelab Proxmox VE. Sintetizza i risultati delle azioni in italiano."
+            f"Sei l'Agente AI dell'Homelab Proxmox VE. Sintetizza i risultati delle azioni in italiano.\n"
+            f"{UNTRUSTED_CONTEXT_POLICY}"
         )
         obs_text = "\n".join(history_observations)
         if len(obs_text) > config.TRUNCATION_LIMIT:

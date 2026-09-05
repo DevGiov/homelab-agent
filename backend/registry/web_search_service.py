@@ -29,14 +29,16 @@ from registry.search_providers import (
 )
 from registry.search_ranking import (
     filter_irrelevant_results,
+    normalize_search_query,
     rank_search_results,
 )
-from registry.search_security import is_safe_url
+from registry.search_security import is_safe_url, sanitize_source_url
 
 logger = logging.getLogger("web_search_service")
 
-_MAX_FETCH_PAGES = 4
-_MAX_CONTENT_CHARS = 3000
+_MAX_FETCH_PAGES = 3
+_MAX_CONTENT_CHARS = 2000
+_MAX_TOTAL_CONTENT_CHARS = 8000
 _MAX_WORKERS = 4
 _MIN_SATISFACTORY_RESULTS = 3
 
@@ -144,7 +146,8 @@ def execute_search(
 
     Guaranteed to return a structured dictionary, never raising uncaught exceptions.
     """
-    clean_query = query.strip()
+    raw_query = query.strip()
+    clean_query = normalize_search_query(raw_query) or raw_query
     if not clean_query:
         return {
             "query": "",
@@ -159,14 +162,14 @@ def execute_search(
     try:
         raw_results, provider = search_with_fallback(clean_query, count=count, event_callback=event_callback)
     except Exception as e:
-        logger.warning(f"Errore provider search per '{clean_query}': {e}")
+        logger.warning(f"Errore provider search per '{clean_query}': {e}", exc_info=True)
         return {
             "query": clean_query,
             "success": False,
             "provider_used": "Error",
             "sources": [],
-            "summary_text": f"Ricerca non riuscita: {e}",
-            "error": str(e),
+            "summary_text": "Ricerca web temporaneamente non disponibile.",
+            "error": "search_unavailable",
         }
 
     if not raw_results:
@@ -186,9 +189,13 @@ def execute_search(
         logger.warning(f"Errore ranking per '{clean_query}': {e}")
         ranked_results = raw_results
 
-    # Build sources list
+    # Build sources list with safe sanitized URLs
     sources = [
-        {"url": r["url"], "title": r.get("title", ""), "snippet": r.get("snippet", "")}
+        {
+            "url": sanitize_source_url(r["url"]),
+            "title": r.get("title", "").strip(),
+            "snippet": r.get("snippet", "").strip()[:250]
+        }
         for r in ranked_results
         if r.get("url") and is_safe_url(r["url"])
     ]
@@ -217,7 +224,7 @@ def execute_search(
         fetched_content.sort(key=lambda c: c.get("source_index", 999))
         logger.info(f"Pagine scaricate con successo: {len(fetched_content)}/{len(urls_to_fetch)}")
 
-    # Format text output for LLM context
+    # Format text output for LLM context with total character budget enforcement
     output_parts = [
         "=" * 60,
         "WEB SEARCH RESULTS AND FETCHED CONTENT",
@@ -232,7 +239,9 @@ def execute_search(
         output_parts.append(f"\n[{i}] {r['title']}")
         output_parts.append(f"    URL: {r['url']}")
         if r.get("snippet"):
-            output_parts.append(f"    Snippet: {r['snippet'][:250]}")
+            output_parts.append(f"    Snippet: {r['snippet']}")
+
+    current_evidence_chars = sum(len(p) for p in output_parts)
 
     if fetched_content:
         output_parts.append("\n" + "=" * 60)
@@ -240,32 +249,44 @@ def execute_search(
         output_parts.append("-" * 40)
 
         for content in fetched_content:
+            if current_evidence_chars >= _MAX_TOTAL_CONTENT_CHARS:
+                output_parts.append("\n[Ulteriori dettagli delle pagine omessi per budget di contesto]")
+                break
+
             idx = content.get("source_index", "?")
-            output_parts.append(f"\n[PAGINA {idx}] {content.get('title', '')}")
-            output_parts.append(f"URL: {content.get('url', '')}")
-            output_parts.append("-" * 30)
+            page_parts = [
+                f"\n[PAGINA {idx}] {content.get('title', '')}",
+                f"URL: {content.get('url', '')}",
+                "-" * 30,
+            ]
 
             tldr = get_tldr(content.get("content", ""))
             if tldr and len(tldr) > 30:
-                output_parts.append(f"TL;DR: {tldr[:500]}\n")
+                page_parts.append(f"TL;DR: {tldr[:400]}\n")
 
             if content.get("tables"):
-                output_parts.append("Tabelle rilevate:")
+                page_parts.append("Tabelle rilevate:")
                 for table in content["tables"][:2]:
-                    for row in table[:6]:
-                        output_parts.append(" | ".join(row))
-                output_parts.append("")
+                    for row in table[:5]:
+                        page_parts.append(" | ".join(row))
+                page_parts.append("")
 
-            text = content.get("content", "")[:_MAX_CONTENT_CHARS]
-            output_parts.append("Testo principale:")
-            output_parts.append(text)
+            remaining_budget = max(400, _MAX_TOTAL_CONTENT_CHARS - current_evidence_chars)
+            allowed_chars = min(_MAX_CONTENT_CHARS, remaining_budget)
+            text = content.get("content", "")[:allowed_chars]
+            page_parts.append("Testo principale:")
+            page_parts.append(text)
 
             key_pts = extract_key_points(content.get("content", ""))
             if key_pts:
-                output_parts.append("\nPunti salienti:")
+                page_parts.append("\nPunti salienti:")
                 for pt in key_pts[:4]:
-                    output_parts.append(f"- {pt}")
-            output_parts.append("")
+                    page_parts.append(f"- {pt}")
+                page_parts.append("")
+
+            page_block = "\n".join(page_parts)
+            current_evidence_chars += len(page_block)
+            output_parts.append(page_block)
 
     output_parts.append("=" * 60)
     output_parts.append("FINE RISULTATI WEB SEARCH")
@@ -273,7 +294,7 @@ def execute_search(
 
     summary_text = "\n".join(output_parts)
     elapsed_ms = int((time.time() - start_time) * 1000)
-    logger.info(f"Search pipeline completata per '{clean_query}' in {elapsed_ms}ms (sources={len(sources)})")
+    logger.info(f"Search pipeline completata per '{clean_query}' in {elapsed_ms}ms (sources={len(sources)}, chars={len(summary_text)})")
 
     return {
         "query": clean_query,

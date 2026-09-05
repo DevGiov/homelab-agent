@@ -95,6 +95,7 @@ class AgentState(TypedDict):
     execute: Optional[bool]
     web_search: Optional[bool]
     web_prefetch_data: Optional[Dict[str, Any]]
+    web_prefetch_metadata: Optional[Dict[str, Any]]
     agent_id: Optional[str]
     memory_context: Optional[str]
     mode: str
@@ -420,23 +421,79 @@ def web_prefetch_node(state: AgentState) -> AgentState:
             count=8,
             event_callback=emit_event
         )
-        if search_res.get("success") and search_res.get("sources"):
+
+        clean_sources = [
+            {
+                "title": s.get("title", ""),
+                "url": s.get("url", ""),
+                "snippet": s.get("snippet", "")
+            }
+            for s in search_res.get("sources", [])
+        ]
+
+        query_effective = search_res.get("query", task)
+        provider = search_res.get("provider_used", "Web")
+        latency_ms = search_res.get("latency_ms", 0)
+
+        # Metadati pubblici: compatti, sicuri per API, SSE e memorizzazione SQLite
+        public_meta = {
+            "query": query_effective,
+            "success": bool(search_res.get("success")),
+            "provider_used": provider,
+            "latency_ms": latency_ms,
+            "sources": clean_sources,
+            "error": search_res.get("error")
+        }
+
+        # Contesto interno per i prompt: contiene summary_text senza strutture pesanti
+        internal_data = {
+            "query": query_effective,
+            "success": bool(search_res.get("success")),
+            "sources": clean_sources,
+            "summary_text": search_res.get("summary_text", ""),
+            "error": search_res.get("error")
+        }
+
+        if search_res.get("success") and clean_sources:
             emit_event("web_prefetch.completed", {
-                "query": task,
-                "sources_count": len(search_res["sources"]),
-                "provider": search_res.get("provider_used", "Web"),
-                "latency_ms": search_res.get("latency_ms", 0)
+                "query": query_effective,
+                "sources_count": len(clean_sources),
+                "provider": provider,
+                "latency_ms": latency_ms
             })
         else:
             emit_event("web_prefetch.empty", {
-                "query": task,
-                "provider": search_res.get("provider_used", "Web")
+                "query": query_effective,
+                "provider": provider
             })
-        return {"web_prefetch_data": search_res}
+
+        return {
+            "web_prefetch_data": internal_data,
+            "web_prefetch_metadata": public_meta
+        }
     except Exception as e:
-        logger.warning(f"Web prefetch non riuscito (non bloccante): {e}")
-        emit_event("web_prefetch.failed", {"query": task, "error": str(e)})
-        return {"web_prefetch_data": {"query": task, "success": False, "sources": [], "summary_text": "", "error": str(e)}}
+        logger.warning(f"Web prefetch non riuscito (non bloccante): {e}", exc_info=True)
+        public_err_msg = "Ricerca web non disponibile al momento."
+        emit_event("web_prefetch.failed", {"query": task, "error": public_err_msg, "code": "search_unavailable"})
+        public_meta = {
+            "query": task,
+            "success": False,
+            "provider_used": "Web",
+            "latency_ms": 0,
+            "sources": [],
+            "error": "search_unavailable"
+        }
+        internal_data = {
+            "query": task,
+            "success": False,
+            "sources": [],
+            "summary_text": "",
+            "error": "search_unavailable"
+        }
+        return {
+            "web_prefetch_data": internal_data,
+            "web_prefetch_metadata": public_meta
+        }
 
 def chat_graph_node(state: AgentState) -> AgentState:
     """Subgraph for free conversation & fast queries with direct LLM response (non-agentic, 0 tools)."""
@@ -892,18 +949,39 @@ def plan_graph_node(state: AgentState) -> AgentState:
     task = state.get("task", "")
     memory_context = state.get("memory_context") or ""
     model = state.get("model")
+    prefetch_data = state.get("web_prefetch_data")
 
     policy = get_mode_policy("plan")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
 
+    from registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
+
+    now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
     system_prompt = (
-        "Sei l'Agente AI dell'Homelab Proxmox VE. "
+        f"Data e Ora Corrente del Sistema: {now_str}\n"
+        "Sei l'Agente AI dell'Homelab Proxmox VE (modalità: PLAN).\n"
         "Genera un piano d'azione numerato passo per passo (massimo 5 passaggi) specifico per soddisfare la richiesta dell'utente. "
-        "I tool disponibili includono Proxmox LXC, IPAM, DNS Pi-hole, Nginx Proxy Manager (NPM), e script Agy. "
+        "I tool disponibili includono Proxmox LXC, IPAM, DNS Pi-hole, Nginx Proxy Manager (NPM), e script Agy.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}\n"
         "Rispondi SOLAMENTE con la lista numerata dei passaggi di esecuzione."
     )
 
-    llm_plan_res = _call_llm(task, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model)
+    prompt_sections = []
+    if memory_context:
+        prompt_sections.append(f"Contesto memoria conversazionale:\n{memory_context}")
+
+    if prefetch_data and prefetch_data.get("summary_text"):
+        wrapped_evidence = wrap_untrusted_web_evidence(
+            query=prefetch_data.get("query", task),
+            formatted_content=prefetch_data.get("summary_text", ""),
+            sources=prefetch_data.get("sources", [])
+        )
+        prompt_sections.append(wrapped_evidence)
+
+    prompt_sections.append(f"Richiesta dell'utente: '{task}'")
+    user_prompt = "\n\n".join(prompt_sections)
+
+    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model)
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -917,6 +995,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     # Generate JSON plan_structure via LLM
     json_prompt = (
         f"Genera un piano JSON strutturato per il seguente task dell'utente: '{task}'.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}\n"
         "Rispondi ESCLUSIVAMENTE con un JSON valido con questa struttura:\n"
         "{\n"
         "  \"steps\": [\n"
@@ -931,7 +1010,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "  ]\n"
         "}"
     )
-    json_resp_res = _call_llm(task, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model)
+    json_resp_res = _call_llm(user_prompt, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model)
     json_resp = json_resp_res.get("content", "") if isinstance(json_resp_res, dict) else ""
     plan_structure = None
     if json_resp:
@@ -1195,7 +1274,11 @@ def respond_node(state: AgentState) -> AgentState:
     else:
         logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti e salvataggio memoria saltati.")
 
-    return {"final_response": formatted, "web_prefetch_data": state.get("web_prefetch_data")}
+    return {
+        "final_response": formatted,
+        "web_prefetch_data": state.get("web_prefetch_data"),
+        "web_prefetch_metadata": state.get("web_prefetch_metadata")
+    }
 
 def commit_memory_node(state: AgentState) -> AgentState:
     """Commits task and final response to Letta thread in a single atomic turn to prevent duplicate responses. Skipped in incognito."""
@@ -1225,8 +1308,8 @@ def build_graph():
 
     workflow.add_node("intake", intake_node)
     workflow.add_node("retrieve_memory", retrieve_memory_node)
-    workflow.add_node("mode_router_node", mode_router_node)
     workflow.add_node("web_prefetch", web_prefetch_node)
+    workflow.add_node("mode_router_node", mode_router_node)
 
     # Subgraph nodes
     workflow.add_node("chat_graph", chat_graph_node)
@@ -1239,11 +1322,11 @@ def build_graph():
 
     workflow.set_entry_point("intake")
     workflow.add_edge("intake", "retrieve_memory")
-    workflow.add_edge("retrieve_memory", "mode_router_node")
-    workflow.add_edge("mode_router_node", "web_prefetch")
+    workflow.add_edge("retrieve_memory", "web_prefetch")
+    workflow.add_edge("web_prefetch", "mode_router_node")
 
     workflow.add_conditional_edges(
-        "web_prefetch",
+        "mode_router_node",
         route_to_subgraph,
         {
             "chat_graph": "chat_graph",

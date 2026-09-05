@@ -162,3 +162,31 @@ def rank_search_results(query: str, results: List[dict]) -> List[dict]:
 
     ranked.sort(key=lambda x: x[0], reverse=True)
     return [r for _, r in ranked]
+
+
+_CONVERSATIONAL_PREFIXES = (
+    r"^(?:ciao|buongiorno|buonasera|salve|hey|hello|hi)[,\s]*",
+    r"^(?:per\s+favore|per\s+cortesia|ti\s+prego|please)[,\s]*",
+    r"^(?:mi\s+(?:dici|diresse|spieghi|trovi|cerchi)|puoi\s+(?:dirmi|spiegarmi|cercare|trovare)|sapresti\s+dirmi)[,\s]*",
+    r"^(?:vorrei\s+sapere|vorrei\s+conoscere|voglio\s+sapere|dimmi|spiegami|trova|cerca)[,\s]*",
+    r"^(?:can\s+you\s+(?:tell|explain|find|search)|tell\s+me|show\s+me|find|search\s+for)[,\s]*",
+)
+
+def normalize_search_query(query: str) -> str:
+    """Normalizza la query rimuovendo prefissi colloquiali senza perdere entità, date o codici."""
+    if not query or not isinstance(query, str):
+        return ""
+    q = query.strip()
+    changed = True
+    while changed:
+        changed = False
+        for pat in _CONVERSATIONAL_PREFIXES:
+            new_q = re.sub(pat, "", q, flags=re.IGNORECASE).strip()
+            if new_q != q and len(new_q) >= 3:
+                q = new_q
+                changed = True
+                break
+    # Rimuovi punti interrogativi o esclamativi finali ridondanti per i motori di ricerca
+    q = re.sub(r"[\?!.]+$", "", q).strip()
+    return q if q else query.strip()
+

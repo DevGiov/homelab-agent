@@ -180,3 +180,32 @@ def wrap_untrusted_web_evidence(
         f"Contenuto estratto:\n{clean_content}\n"
         f"{GUARD_CLOSE}"
     )
+
+
+_TRACKING_QUERY_PARAMS = {
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "fbclid", "gclid", "msclkid", "mc_cid", "mc_eid",
+    "ref", "ref_src", "ref_url", "source", "token", "auth", "api_key", "key"
+}
+
+def sanitize_source_url(url: str) -> str:
+    """Rimuove parametri di tracking o token sensibili dalle query string degli URL delle fonti."""
+    if not url or not isinstance(url, str):
+        return ""
+    try:
+        from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return url
+        if not parsed.query:
+            return url
+        query_dict = parse_qs(parsed.query, keep_blank_values=False)
+        cleaned_query = {
+            k: v for k, v in query_dict.items()
+            if k.lower() not in _TRACKING_QUERY_PARAMS and not k.lower().startswith("utm_")
+        }
+        new_query = urlencode(cleaned_query, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, ""))
+    except Exception:
+        return url
+

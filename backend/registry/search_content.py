@@ -74,59 +74,81 @@ def _empty_result(url: str, error: str = "") -> dict:
         "error": error,
     }
 
+from urllib.parse import urljoin
 from registry.search_security import is_safe_url
 
 _MAX_PAGE_BYTES = 2_000_000
+_MAX_REDIRECTS = 5
 
-def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE_BYTES) -> dict:
-    """Fetch and extract meaningful content from a webpage safely with SSRF protection."""
-    if not is_safe_url(url):
-        logger.warning(f"Fetch webpage bloccato da SSRF protection: {url}")
-        return _empty_result(url, "Blocked by SSRF policy")
-
+def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE_BYTES, max_redirects: int = _MAX_REDIRECTS) -> dict:
+    """Fetch and extract meaningful content from a webpage safely with SSRF protection across all redirects."""
+    current_url = url
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
     }
 
-    try:
-        res = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True, stream=True)
-        if res.status_code >= 400:
-            return _empty_result(url, f"HTTP {res.status_code}")
+    res = None
+    raw_bytes = bytearray()
+    encoding = "utf-8"
+    content_type = ""
 
-        # Verifica URL finale post-redirect contro SSRF
-        if res.url != url and not is_safe_url(res.url):
-            logger.warning(f"Redirect verso target non sicuro bloccato da SSRF: {res.url}")
-            return _empty_result(res.url, "Blocked by SSRF policy on redirect")
+    for hop in range(max_redirects + 1):
+        if not is_safe_url(current_url):
+            logger.warning(f"Fetch webpage bloccato da SSRF protection (hop {hop}): {current_url}")
+            return _empty_result(current_url, "Blocked by SSRF policy")
 
-        raw_bytes = bytearray()
-        for chunk in res.iter_content(chunk_size=16384):
-            raw_bytes.extend(chunk)
-            if len(raw_bytes) > max_bytes:
-                logger.info(f"Dimensione pagina eccede {max_bytes} bytes per {url}, contenuto troncato.")
-                break
+        try:
+            res = requests.get(current_url, headers=headers, timeout=timeout, allow_redirects=False, stream=True)
+            if res.status_code in (301, 302, 303, 307, 308):
+                location = res.headers.get("Location")
+                res.close()
+                if not location:
+                    return _empty_result(current_url, "Redirect missing Location header")
+                current_url = urljoin(current_url, location)
+                continue
 
-        encoding = res.encoding or "utf-8"
-        text_content = raw_bytes.decode(encoding, errors="replace")
-    except requests.Timeout:
-        return _empty_result(url, "Timeout")
-    except Exception as e:
-        return _empty_result(url, str(e))
+            if res.status_code >= 400:
+                status = res.status_code
+                res.close()
+                return _empty_result(current_url, f"HTTP {status}")
 
-    content_type = res.headers.get("Content-Type", "").lower()
+            for chunk in res.iter_content(chunk_size=16384):
+                raw_bytes.extend(chunk)
+                if len(raw_bytes) > max_bytes:
+                    logger.info(f"Dimensione pagina eccede {max_bytes} bytes per {current_url}, contenuto troncato.")
+                    break
+
+            encoding = res.encoding or "utf-8"
+            content_type = res.headers.get("Content-Type", "").lower()
+            res.close()
+            break
+        except requests.Timeout:
+            if res:
+                res.close()
+            return _empty_result(current_url, "Timeout")
+        except Exception as e:
+            if res:
+                res.close()
+            logger.warning(f"Errore connessione HTTP fetch per {current_url}: {e}")
+            return _empty_result(current_url, "Connection error")
+    else:
+        return _empty_result(current_url, "Too many redirects")
+
+    text_content = raw_bytes.decode(encoding, errors="replace")
 
     # Handle plain text / json
     is_html = "html" in content_type
     is_json = "json" in content_type
-    url_path = url.lower().split("?", 1)[0].split("#", 1)[0]
+    url_path = current_url.lower().split("?", 1)[0].split("#", 1)[0]
     looks_like_text = url_path.endswith((".md", ".txt", ".json"))
 
     if not is_html and (content_type.startswith("text/") or is_json or looks_like_text):
         text_body = text_content.strip()
         return {
-            "url": url,
-            "title": os.path.basename(url_path) or url,
+            "url": current_url,
+            "title": os.path.basename(url_path) or current_url,
             "content": text_body,
             "lists": [],
             "tables": [],
@@ -141,7 +163,7 @@ def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE
     try:
         soup = BeautifulSoup(text_content, "html.parser")
     except Exception as e:
-        return _empty_result(url, f"ParseError: {e}")
+        return _empty_result(current_url, "ParseError: HTML parsing failed")
 
     title_tag = soup.find("title")
     title_text = title_tag.get_text(strip=True) if title_tag else ""
@@ -168,7 +190,7 @@ def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE
                 main_content = body_text
 
     result = {
-        "url": url,
+        "url": current_url,
         "title": title_text,
         "content": main_content,
         "lists": _extract_lists(soup),
