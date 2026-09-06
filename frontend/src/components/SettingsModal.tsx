@@ -15,6 +15,9 @@ import {
   RefreshCw,
   AlertTriangle,
   Search,
+  Palette,
+  Sparkles,
+  Check,
 } from 'lucide-react';
 import {
   getApiKey,
@@ -29,6 +32,7 @@ import {
   type ProviderInfo,
   type MemoryItem,
 } from '../api';
+import { useTheme } from '../theme/ThemeContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,13 +40,16 @@ interface SettingsModalProps {
   onProviderChanged?: () => void;
 }
 
-type SettingsTab = 'general' | 'memory';
+type SettingsTab = 'general' | 'appearance' | 'memory';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onProviderChanged }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setLocalApiKey] = useState(getApiKey());
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Theme state from Context
+  const { theme, setTheme, isFrosted, setIsFrosted, hasGlow, setHasGlow, themes } = useTheme();
 
   // Provider & Model state
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
@@ -121,11 +128,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     getProviderModels(newProvider)
       .then((mList) => {
         setModels(mList);
-        const provObj = providers.find((p) => p.name === newProvider);
-        const defaultForProv = provObj?.default_model;
-        if (defaultForProv && mList.includes(defaultForProv)) {
-          setSelectedModel(defaultForProv);
-        } else if (mList.length > 0) {
+        if (mList.length > 0) {
           setSelectedModel(mList[0]);
         } else {
           setSelectedModel('');
@@ -212,63 +215,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div onClick={onClose} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+      <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
       {/* Modal */}
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4 text-slate-200 max-h-[90vh] flex flex-col">
+      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         {/* Header & Tabs */}
         <div className="flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-slate-200">
-            <SettingsIcon size={16} className="text-blue-400" />
-            <span className="font-semibold text-sm">Impostazioni & Memoria</span>
+          <div className="flex items-center gap-2 text-fg">
+            <SettingsIcon size={16} className="text-accent" />
+            <span className="font-semibold text-sm">Impostazioni & Personalizzazione</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition"
+            className="p-1 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex gap-1 bg-slate-950 rounded-lg p-1 border border-slate-800 shrink-0">
+        <div className="flex gap-1 bg-panel/80 rounded-xl p-1 border border-border shrink-0">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
-              activeTab === 'general' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'general' ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
             }`}
           >
             <Cpu size={13} />
-            Generale & Modelli
+            Generale
+          </button>
+          <button
+            onClick={() => setActiveTab('appearance')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'appearance' ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
+            }`}
+          >
+            <Palette size={13} />
+            Aspetto & Temi
           </button>
           <button
             onClick={() => {
               setActiveTab('memory');
               fetchMemories();
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
-              activeTab === 'memory' ? 'bg-slate-800 text-purple-300 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'memory' ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
             }`}
           >
-            <Brain size={13} className="text-purple-400" />
-            Memoria Semantica ({totalMemories})
+            <Brain size={13} className={activeTab === 'memory' ? 'text-white' : 'text-purple-400'} />
+            Memoria ({totalMemories})
           </button>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-800/80 rounded-lg p-2.5 text-xs text-rose-200 shrink-0">
+          <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-800/80 rounded-xl p-2.5 text-xs text-rose-200 shrink-0">
             <AlertCircle size={14} className="text-rose-400 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {activeTab === 'general' ? (
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+          {activeTab === 'general' && (
             <>
               {/* API Key */}
               <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
                   <KeyRound size={12} className="text-amber-400" />
                   API Key (header X-API-Key)
                 </label>
@@ -277,41 +289,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   value={apiKey}
                   onChange={(e) => setLocalApiKey(e.target.value)}
                   placeholder="Inserisci la chiave API del backend..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/60"
+                  className="w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs font-mono text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
                 />
-                <p className="text-[10px] text-slate-500 leading-snug">
+                <p className="text-[10px] text-fg-muted leading-snug">
                   Salvata in localStorage e inviata automaticamente alle chiamate API.
                 </p>
               </div>
 
-              <div className="border-t border-slate-800 pt-3 space-y-3">
+              <div className="border-t border-border pt-3 space-y-3">
                 {/* Provider Selection */}
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
-                    <Cpu size={12} className="text-blue-400" />
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+                    <Cpu size={12} className="text-accent" />
                     Provider LLM
-                    {loadingProviders && <Loader2 size={12} className="animate-spin text-blue-400 ml-1" />}
+                    {loadingProviders && <Loader2 size={12} className="animate-spin text-accent ml-1" />}
                   </label>
                   <select
                     value={selectedProvider}
                     onChange={(e) => handleProviderChange(e.target.value)}
                     disabled={loadingProviders || providers.length === 0}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 disabled:opacity-50 capitalize"
+                    className="w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent disabled:opacity-50 capitalize"
                   >
                     {providers.map((p) => (
-                      <option key={p.name} value={p.name}>
+                      <option key={p.name} value={p.name} className="bg-panel text-fg">
                         {p.name} {p.healthy ? '● (online)' : '○ (offline)'}
                       </option>
                     ))}
                     {providers.length === 0 && !loadingProviders && (
-                      <option value="">Nessun provider disponibile</option>
+                      <option value="" className="bg-panel text-fg">Nessun provider disponibile</option>
                     )}
                   </select>
                 </div>
 
                 {/* Model Selection */}
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
                     <Box size={12} className="text-emerald-400" />
                     Modello di Default
                     {loadingModels && <Loader2 size={12} className="animate-spin text-emerald-400 ml-1" />}
@@ -320,27 +332,127 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     disabled={loadingModels || models.length === 0}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 disabled:opacity-50 font-mono"
+                    className="w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
                   >
                     {models.map((m) => (
-                      <option key={m} value={m}>
+                      <option key={m} value={m} className="bg-panel text-fg">
                         {m}
                       </option>
                     ))}
                     {models.length === 0 && !loadingModels && (
-                      <option value="">Nessun modello trovato</option>
+                      <option value="" className="bg-panel text-fg">Nessun modello trovato</option>
                     )}
                   </select>
-                  <p className="text-[10px] text-slate-500 leading-snug">
+                  <p className="text-[10px] text-fg-muted leading-snug">
                     Imposta il modello predefinito usato dall'agente se non sovrascritto in chat.
                   </p>
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'appearance' && (
+            <div className="space-y-4">
+              {/* Theme Grid */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-fg flex items-center gap-1.5">
+                  <Palette size={13} className="text-accent" />
+                  Tema Interfaccia
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {themes.map((t) => {
+                    const isActive = theme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTheme(t.id)}
+                        className={`flex flex-col gap-2 p-3 rounded-xl text-left transition-all duration-200 cursor-pointer border ${
+                          isActive
+                            ? 'border-accent bg-accent/10 shadow-md shadow-accent/15 ring-1 ring-accent/50'
+                            : 'glass-card border-border/60 hover:border-border hover:bg-panel-header/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          {/* 4-Color Swatch Strip */}
+                          <div className="flex items-center h-3.5 w-20 rounded-full overflow-hidden border border-border shadow-inner">
+                            <span className="h-full flex-1" style={{ backgroundColor: t.swatch[0] }} />
+                            <span className="h-full flex-1" style={{ backgroundColor: t.swatch[1] }} />
+                            <span className="h-full flex-1" style={{ backgroundColor: t.swatch[2] }} />
+                            <span className="h-full flex-1" style={{ backgroundColor: t.swatch[3] }} />
+                          </div>
+                          {isActive && <Check size={14} className="text-accent shrink-0" />}
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-fg">{t.name}</div>
+                          <div className="text-[10px] text-fg-muted line-clamp-1">{t.description}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Glassmorphism & Effects Controls */}
+              <div className="space-y-2.5 pt-2 border-t border-border">
+                <label className="text-xs font-medium text-fg flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-accent" />
+                  Effetti Visivi & Glassmorphism
+                </label>
+
+                {/* Frosted Glass Switch */}
+                <div className="flex items-center justify-between p-3 rounded-xl glass-card border border-border">
+                  <div className="flex flex-col pr-4">
+                    <span className="text-xs font-medium text-fg">Frosted Glass (Trasparenze)</span>
+                    <span className="text-[11px] text-fg-muted">
+                      Applica sfocatura dinamica (blur) e trasparenze a pannelli, sidebar, header e modali.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsFrosted(!isFrosted)}
+                    className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                      isFrosted ? 'bg-accent' : 'bg-border'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 absolute top-1 left-1 shadow-sm ${
+                        isFrosted ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Ambient Glow Switch */}
+                <div className="flex items-center justify-between p-3 rounded-xl glass-card border border-border">
+                  <div className="flex flex-col pr-4">
+                    <span className="text-xs font-medium text-fg">Ambient Glow (Bagliore di Sfondo)</span>
+                    <span className="text-[11px] text-fg-muted">
+                      Attiva orbi luminosi fluttuanti coordinati al tema che traspaiono attraverso il vetro.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHasGlow(!hasGlow)}
+                    className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                      hasGlow ? 'bg-accent' : 'bg-border'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 absolute top-1 left-1 shadow-sm ${
+                        hasGlow ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'memory' && (
             /* Memoria Semantica Tab */
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center justify-between text-xs text-fg-muted">
                 <span className="text-[11px]">
                   Fatti estratti e indicizzati nel Vector Store locale:
                 </span>
@@ -348,7 +460,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   type="button"
                   onClick={fetchMemories}
                   disabled={loadingMemories}
-                  className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 disabled:opacity-50"
+                  className="flex items-center gap-1 text-[11px] text-accent hover:text-accent-hover disabled:opacity-50 cursor-pointer"
                   title="Ricarica memoria"
                 >
                   <RefreshCw size={11} className={loadingMemories ? 'animate-spin' : ''} />
@@ -357,7 +469,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               </div>
 
               {memoryMsg && (
-                <div className="bg-slate-950 border border-purple-800/60 rounded-lg p-2 text-xs text-purple-300">
+                <div className="bg-panel border border-accent/40 rounded-xl p-2.5 text-xs text-accent">
                   {memoryMsg}
                 </div>
               )}
@@ -369,12 +481,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   value={newFactInput}
                   onChange={(e) => setNewFactInput(e.target.value)}
                   placeholder="Insegna un fatto all'agente (es. 'Preferisco Debian 12')..."
-                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                  className="flex-1 bg-input-bg border border-input-border rounded-xl px-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
                 />
                 <button
                   type="submit"
                   disabled={!newFactInput.trim() || isAddingFact}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold transition"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-accent hover:bg-accent-hover disabled:opacity-40 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-md shadow-accent/20"
                 >
                   {isAddingFact ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                   Aggiungi
@@ -383,29 +495,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
 
               {/* Filter search bar */}
               <div className="relative flex items-center">
-                <Search size={12} className="absolute left-2.5 text-slate-500" />
+                <Search size={12} className="absolute left-2.5 text-fg-muted" />
                 <input
                   type="text"
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
                   placeholder="Filtra fatti per parola chiave (es. Debian, IP, LXC)..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-input-bg border border-input-border rounded-xl pl-7 pr-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
                 />
               </div>
 
               {/* Memory List */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 max-h-56 overflow-y-auto space-y-2">
+              <div className="bg-panel border border-border rounded-xl p-2.5 max-h-56 overflow-y-auto space-y-2 custom-scrollbar">
                 {loadingMemories && memories.length === 0 ? (
-                  <div className="flex items-center justify-center py-6 text-xs text-slate-500 gap-2">
-                    <Loader2 size={14} className="animate-spin text-purple-400" />
+                  <div className="flex items-center justify-center py-6 text-xs text-fg-muted gap-2">
+                    <Loader2 size={14} className="animate-spin text-accent" />
                     Caricamento memorie...
                   </div>
                 ) : memories.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-500">
+                  <div className="text-center py-6 text-xs text-fg-muted">
                     Nessun fatto memorizzato. L'agente estrae automaticamente preferenze e informazioni durante le chat.
                   </div>
                 ) : memories.filter((m) => !filterQuery.trim() || m.content.toLowerCase().includes(filterQuery.toLowerCase())).length === 0 ? (
-                  <div className="text-center py-4 text-xs text-slate-500 italic">
+                  <div className="text-center py-4 text-xs text-fg-muted italic">
                     Nessun fatto corrisponde a "{filterQuery}".
                   </div>
                 ) : (
@@ -414,18 +526,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     .map((mem) => (
                     <div
                       key={mem.id}
-                      className="group flex items-start justify-between gap-2 p-2 bg-slate-900/80 hover:bg-slate-900 border border-slate-800/80 rounded-lg text-xs transition"
+                      className="group flex items-start justify-between gap-2 p-2 bg-panel-header/50 hover:bg-panel-header border border-border rounded-lg text-xs transition"
                     >
                       <div className="flex-1 space-y-0.5">
-                        <p className="text-slate-200 text-xs leading-relaxed">{mem.content}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                        <p className="text-fg text-xs leading-relaxed">{mem.content}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-fg-muted">
                           {mem.thread_id && <span>Thread: {mem.thread_id}</span>}
                           {mem.created_at && <span>• {new Date(mem.created_at).toLocaleString()}</span>}
                         </div>
                       </div>
                       <button
                         onClick={() => handleDeleteFact(mem.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded transition"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-fg-muted hover:text-rose-400 rounded transition cursor-pointer"
                         title="Elimina questo fatto"
                       >
                         <Trash2 size={13} />
@@ -436,30 +548,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               </div>
 
               {/* Danger Zone */}
-              <div className="border-t border-slate-800/80 pt-3">
+              <div className="border-t border-border pt-3">
                 {!showClearConfirm ? (
                   <button
                     type="button"
                     onClick={() => setShowClearConfirm(true)}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-900/60 text-rose-300 rounded-lg text-xs font-medium transition cursor-pointer"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-900/60 text-rose-300 rounded-xl text-xs font-medium transition cursor-pointer"
                   >
                     <Trash2 size={13} className="text-rose-400" />
                     Cancella Tutta la Memoria Semantica
                   </button>
                 ) : (
-                  <div className="bg-rose-950/80 border border-rose-700/80 rounded-xl p-3 space-y-2 text-xs text-rose-200">
+                  <div className="bg-rose-950/85 border border-rose-700/80 rounded-xl p-3 space-y-2 text-xs text-rose-200 backdrop-blur-md">
                     <div className="flex items-center gap-1.5 font-semibold text-rose-300">
                       <AlertTriangle size={14} className="text-rose-400 shrink-0" />
                       Conferma azzeramento memoria
                     </div>
                     <p className="text-[11px] text-rose-200/90 leading-snug">
-                      Verranno eliminati tutti i fatti memorizzati nel Vector Store, gli agenti su Letta (CT 102) e i riassunti locali. Questa azione è irreversibile.
+                      Verranno eliminati tutti i fatti memorizzati nel Vector Store, gli agenti su Letta e i riassunti locali. Questa azione è irreversibile.
                     </p>
                     <div className="flex gap-2 justify-end pt-1">
                       <button
                         type="button"
                         onClick={() => setShowClearConfirm(false)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium"
+                        className="px-2.5 py-1 bg-panel hover:bg-panel-header text-fg-muted hover:text-fg rounded-lg text-xs font-medium cursor-pointer"
                       >
                         Annulla
                       </button>
@@ -467,7 +579,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                         type="button"
                         onClick={handleClearAllMemory}
                         disabled={isClearingMemory}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       >
                         {isClearingMemory && <Loader2 size={11} className="animate-spin" />}
                         Sì, cancella tutto
@@ -485,10 +597,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           <button
             onClick={handleSave}
             disabled={saving}
-            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-50 shrink-0 ${
+            className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50 shrink-0 ${
               saved
                 ? 'bg-emerald-600/30 border border-emerald-500/50 text-emerald-300'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                : 'bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/25'
             }`}
           >
             {saved ? (

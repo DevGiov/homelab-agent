@@ -34,50 +34,50 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
   const stepsCount = trace?.length || 0;
 
   return (
-    <div className={`space-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-slate-800'}`}>
+    <div className={`space-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
       {/* Auto-Collapsible Header Bar */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="w-full bg-slate-950/90 hover:bg-slate-900 border border-slate-800/90 rounded-xl p-2.5 flex items-center justify-between transition-all cursor-pointer group shadow-sm"
+        className="w-full glass-card hover:bg-panel border border-border rounded-xl p-2.5 flex items-center justify-between transition-all cursor-pointer group shadow-sm"
         title={isCollapsed ? 'Click to expand reasoning and tool execution details' : 'Click to collapse'}
       >
         <div className="flex items-center gap-2 text-xs font-medium">
-          <div className="flex items-center gap-1 text-purple-400">
+          <div className="flex items-center gap-1 text-accent">
             <Brain size={15} />
           </div>
-          <span className="text-slate-300 font-semibold">
+          <span className="text-fg font-semibold">
             {hasReasoning ? 'Reasoning' : 'Process'}
           </span>
 
           {hasTrace && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] text-cyan-400 font-mono">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-[10px] text-accent font-mono">
               <Wrench size={10} />
               {stepsCount} tool {stepsCount === 1 ? 'execution' : 'executions'}
             </span>
           )}
 
-          <span className="text-[10px] text-slate-500 font-mono hidden xs:inline ml-1">
-            {isCollapsed ? '(Collapsed — Click to expand)' : '(Click to collapse)'}
+          <span className="text-[10px] text-fg-muted font-mono hidden xs:inline ml-1">
+            {isCollapsed ? '(Collapsed)' : '(Expanded)'}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-slate-200">
-          <span className="text-[10px] font-mono text-slate-500 uppercase">{isCollapsed ? 'Show' : 'Hide'}</span>
+        <div className="flex items-center gap-1.5 text-fg-muted group-hover:text-fg">
+          <span className="text-[10px] font-mono uppercase">{isCollapsed ? 'Show' : 'Hide'}</span>
           {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
         </div>
       </button>
 
       {/* Expanded Content View */}
       {!isCollapsed && (
-        <div className="space-y-3 pt-1 animate-fadeIn">
+        <div className="space-y-3 pt-1 animate-in fade-in duration-200">
           {/* Global or Step-level Reasoning Block */}
           {reasoning && (
-            <div className="bg-purple-950/20 border border-purple-800/40 rounded-xl p-3 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-purple-300 font-semibold">
-                <Brain size={14} className="text-purple-400" />
+            <div className="glass-card border border-border/80 rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-accent font-semibold">
+                <Brain size={14} className="text-accent" />
                 <span>LLM Chain of Thought / Reasoning</span>
               </div>
-              <div className="pl-4 border-l-2 border-purple-500/40 font-sans">
+              <div className="pl-4 border-l-2 border-accent/40 font-sans">
                 <MarkdownRenderer content={reasoning} />
               </div>
             </div>
@@ -86,7 +86,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           {/* Trace steps */}
           {hasTrace && (
             <div className="space-y-2">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-1">
+              <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider px-1">
                 Tool Execution Trace
               </div>
               {trace?.map((tr, idx) => {
@@ -97,11 +97,11 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                 return (
                   <div
                     key={itemId}
-                    className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2 transition"
+                    className="glass-card border border-border rounded-xl p-3 space-y-2 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 font-mono text-xs text-slate-200 truncate">
-                        <span className="text-cyan-400 font-bold">Step {idx + 1}:</span>
+                      <div className="flex items-center gap-2 font-mono text-xs text-fg truncate">
+                        <span className="text-accent font-bold">Step {idx + 1}:</span>
                         <span className="truncate font-semibold">{tr.tool_name}</span>
                       </div>
 
@@ -136,7 +136,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         {(tr.args || tr.output || tr.result || tr.error || tr.reasoning) && (
                           <button
                             onClick={() => toggleStepExpand(itemId)}
-                            className="p-1 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                            className="p-1 text-fg-muted hover:text-fg transition cursor-pointer"
                             title={isStepExpanded ? 'Hide step details' : 'Show step details'}
                           >
                             {isStepExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -147,19 +147,19 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                     {/* Step-level Reasoning if present */}
                     {tr.reasoning && (
-                      <div className="text-xs text-purple-300/90 bg-purple-950/30 p-2 rounded-lg border border-purple-900/40 flex items-start gap-2">
-                        <Brain size={13} className="text-purple-400 shrink-0 mt-0.5" />
+                      <div className="text-xs text-accent/90 bg-accent/10 p-2 rounded-lg border border-accent/20 flex items-start gap-2">
+                        <Brain size={13} className="text-accent shrink-0 mt-0.5" />
                         <span className="italic leading-relaxed">{tr.reasoning}</span>
                       </div>
                     )}
 
                     {/* Step Details */}
                     {isStepExpanded && (
-                      <div className="pt-2 border-t border-slate-900 space-y-2 text-[11px] font-mono">
+                      <div className="pt-2 border-t border-border space-y-2 text-[11px] font-mono">
                         {tr.args && (
                           <div>
-                            <span className="text-slate-500 block mb-0.5">Parameters:</span>
-                            <pre className="bg-slate-900/90 p-2 rounded-lg text-slate-300 overflow-x-auto">
+                            <span className="text-fg-muted block mb-0.5">Parameters:</span>
+                            <pre className="bg-panel p-2 rounded-lg text-fg overflow-x-auto border border-border/60">
                               {JSON.stringify(tr.args, null, 2)}
                             </pre>
                           </div>
@@ -167,8 +167,8 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                         {(tr.output || tr.result) && (
                           <div>
-                            <span className="text-slate-500 block mb-0.5">Output:</span>
-                            <pre className="bg-slate-900/90 p-2 rounded-lg text-emerald-300 overflow-x-auto whitespace-pre-wrap">
+                            <span className="text-fg-muted block mb-0.5">Output:</span>
+                            <pre className="bg-panel p-2 rounded-lg text-emerald-400 overflow-x-auto whitespace-pre-wrap border border-border/60">
                               {typeof (tr.output || tr.result) === 'string'
                                 ? tr.output || tr.result
                                 : JSON.stringify(tr.output || tr.result, null, 2)}
@@ -201,13 +201,13 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
               </div>
               <div className="space-y-1.5 text-xs">
                 {rollbackTrace?.map((act, idx) => (
-                  <div key={idx} className="bg-slate-950/80 p-2 rounded-lg border border-amber-900/40 font-mono text-[11px]">
+                  <div key={idx} className="bg-panel p-2 rounded-lg border border-amber-900/40 font-mono text-[11px]">
                     <div className="flex items-center justify-between text-amber-300">
                       <span>Undo: {act.tool_name}</span>
                       <span className="text-[10px] text-amber-400/80">{act.status || 'Executed'}</span>
                     </div>
                     {act.args && (
-                      <div className="text-[10px] text-slate-400 mt-1 truncate">
+                      <div className="text-[10px] text-fg-muted mt-1 truncate">
                         Args: {JSON.stringify(act.args)}
                       </div>
                     )}

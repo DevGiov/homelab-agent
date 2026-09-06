@@ -55,21 +55,21 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
 
   return (
     <details 
-      className="mb-3 bg-slate-900/60 border border-slate-700/60 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden group transition-all duration-200 shadow-sm"
+      className="mb-3 glass-card border border-border/80 rounded-xl overflow-hidden [&_summary::-webkit-details-marker]:hidden group transition-all duration-200 shadow-sm"
       open={isOpen}
       onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}
     >
-      <summary className="px-3.5 py-2.5 cursor-pointer flex items-center justify-between text-xs text-slate-400 font-medium hover:bg-slate-800/80 hover:text-slate-300 transition-colors select-none">
+      <summary className="px-3.5 py-2.5 cursor-pointer flex items-center justify-between text-xs text-fg-muted font-medium hover:bg-panel hover:text-fg transition-colors select-none">
         <div className="flex items-center gap-2.5">
-          <Lightbulb size={14} className="text-amber-500/90 animate-pulse" />
-          <span>{isStreaming ? 'Thinking...' : 'Reasoning Process'}</span>
+          <Lightbulb size={14} className="text-amber-400 animate-pulse" />
+          <span className="font-medium">{isStreaming ? 'Thinking...' : 'Reasoning Process'}</span>
         </div>
         <ChevronDown size={14} className="group-open:rotate-180 transition-transform duration-300 ease-in-out opacity-70" />
       </summary>
       <div 
         ref={contentRef}
         onScroll={handleScroll}
-        className="px-4 py-3 text-slate-300/90 border-t border-slate-700/60 bg-slate-950/40 text-sm leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar"
+        className="px-4 py-3 text-fg border-t border-border/60 bg-panel/30 text-sm leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar"
       >
         <MarkdownRenderer content={content} />
       </div>

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe, ExternalLink } from 'lucide-react';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe } from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import ReasoningBlock from './components/ReasoningBlock';
+import { ThemeQuickSelector } from './components/ThemeQuickSelector';
 
 interface ChatProps {
   currentThreadId: string | null;
@@ -91,10 +92,10 @@ export const Chat: React.FC<ChatProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative">
       {/* Incognito Banner */}
       {isIncognito && (
-        <div className="bg-purple-950/80 border-b border-purple-800/50 px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] text-purple-200 z-20 shrink-0">
+        <div className="bg-purple-950/70 border-b border-purple-800/50 backdrop-blur-md px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] text-purple-200 z-20 shrink-0">
           <div className="flex items-center gap-2 truncate">
             <EyeOff size={13} className="text-purple-400 shrink-0 animate-pulse" />
             <span className="truncate">
@@ -112,42 +113,42 @@ export const Chat: React.FC<ChatProps> = ({
       )}
 
       {/* Top Header */}
-      <div className="h-14 border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between z-10 shrink-0">
+      <div className="h-14 border-b border-border glass-header px-3 sm:px-6 flex items-center justify-between z-10 shrink-0">
         <div className="flex items-center gap-2.5">
           {onOpenMobileSidebar && (
             <button
               onClick={onOpenMobileSidebar}
-              className="md:hidden p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
               title="Open threads sidebar"
             >
               <Menu size={20} />
             </button>
           )}
 
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover flex items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
             <Bot size={18} />
           </div>
           <div className="truncate max-w-[120px] sm:max-w-xs">
-            <h2 className="text-xs sm:text-sm font-semibold text-slate-200 truncate">
+            <h2 className="text-xs sm:text-sm font-semibold text-fg truncate">
               {currentThreadId ? `Thread: ${currentThreadId}` : 'New Session'}
             </h2>
-            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">Main Agent Engine</p>
+            <p className="text-[10px] sm:text-[11px] text-fg-muted truncate">Main Agent Engine</p>
           </div>
         </div>
 
-        {/* Mode Selector Controls */}
+        {/* Mode Selector & Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Desktop Mode Pills */}
-          <div className="hidden sm:flex bg-slate-900 border border-slate-800 rounded-lg p-1 items-center gap-1 text-xs">
-            <span className="text-slate-400 text-[11px] px-2 font-medium">Mode:</span>
+          <div className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs">
+            <span className="text-fg-muted text-[11px] px-2 font-medium">Mode:</span>
             {(['auto', 'chat', 'ask', 'act', 'plan'] as const).map((modeOption) => (
               <button
                 key={modeOption}
                 onClick={() => setSelectedMode(modeOption)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition ${
                   selectedMode === modeOption
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-accent text-white shadow-md shadow-accent/25'
+                    : 'text-fg-muted hover:text-fg hover:bg-border/40'
                 }`}
               >
                 {modeOption}
@@ -160,7 +161,7 @@ export const Chat: React.FC<ChatProps> = ({
             <select
               value={selectedMode}
               onChange={(e) => setSelectedMode(e.target.value as any)}
-              className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500 capitalize"
+              className="bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent capitalize"
             >
               <option value="auto">Auto Mode</option>
               <option value="chat">Chat</option>
@@ -170,27 +171,28 @@ export const Chat: React.FC<ChatProps> = ({
             </select>
           </div>
 
-          <label className="flex items-center gap-1 text-xs text-slate-400 cursor-pointer bg-slate-900 border border-slate-800 px-2 sm:px-2.5 py-1.5 rounded-lg hover:border-slate-700">
+          <label className="flex items-center gap-1 text-xs text-fg-muted cursor-pointer bg-panel/80 border border-border px-2 sm:px-2.5 py-1.5 rounded-lg hover:border-accent/40 transition">
             <input
               type="checkbox"
               checked={execute}
               onChange={(e) => setExecute(e.target.checked)}
-              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+              className="rounded bg-input-bg border-border text-accent focus:ring-0"
             />
-            <Play size={12} className={execute ? 'text-emerald-400' : 'text-slate-500'} />
+            <Play size={12} className={execute ? 'text-emerald-400' : 'text-fg-muted'} />
             <span className="text-[10px] sm:text-[11px] hidden xs:inline">Execute</span>
           </label>
 
-
+          {/* Quick Theme Selector */}
+          <ThemeQuickSelector />
 
           {/* Mobile Diagnostics Button */}
           {onOpenMobileToolLog && (
             <button
               onClick={onOpenMobileToolLog}
-              className="md:hidden p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition relative"
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition relative"
               title="Open Diagnostics"
             >
-              <Activity size={18} className="text-blue-400" />
+              <Activity size={18} className="text-accent" />
             </button>
           )}
         </div>
@@ -205,7 +207,7 @@ export const Chat: React.FC<ChatProps> = ({
           </div>
           <button
             onClick={onClearError}
-            className="text-rose-400 hover:text-rose-200 font-bold px-2 py-0.5"
+            className="text-rose-400 hover:text-rose-200 font-bold px-2 py-0.5 cursor-pointer"
           >
             Dismiss
           </button>
@@ -215,14 +217,14 @@ export const Chat: React.FC<ChatProps> = ({
       {/* Messages Scroll Container */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500 space-y-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-400">
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-fg-muted space-y-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl glass-card border border-border flex items-center justify-center text-accent shadow-lg shadow-accent/10">
               <Sparkles size={24} />
             </div>
             <div className="max-w-md space-y-1">
-              <h3 className="text-slate-300 font-semibold text-sm">Main Agent Ready</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Type a prompt to interact with the main agent API. Switch between <span className="text-blue-400 font-mono">chat</span>, <span className="text-blue-400 font-mono">ask</span>, <span className="text-blue-400 font-mono">act</span>, or <span className="text-blue-400 font-mono">plan</span> modes.
+              <h3 className="text-fg font-semibold text-sm">Main Agent Ready</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Type a prompt to interact with the main agent API. Switch between <span className="text-accent font-mono">chat</span>, <span className="text-accent font-mono">ask</span>, <span className="text-accent font-mono">act</span>, or <span className="text-accent font-mono">plan</span> modes.
               </p>
             </div>
           </div>
@@ -242,10 +244,10 @@ export const Chat: React.FC<ChatProps> = ({
                 <div
                   className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 text-white shadow-sm mt-0.5 ${
                     isUser
-                      ? 'bg-blue-600'
+                      ? 'bg-accent shadow-md shadow-accent/25'
                       : msg.isError
                       ? 'bg-rose-600'
-                      : 'bg-slate-800 border border-slate-700'
+                      : 'bg-panel border border-border text-accent'
                   }`}
                 >
                   {isUser ? <User size={14} /> : <Bot size={14} />}
@@ -256,10 +258,10 @@ export const Chat: React.FC<ChatProps> = ({
                   <div
                     className={`px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                       isUser
-                        ? 'bg-blue-600 text-white rounded-tr-none shadow-md shadow-blue-600/10'
+                        ? 'glass-bubble-user text-userBubbleText rounded-tr-none shadow-md'
                         : msg.isError
-                        ? 'bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-tl-none'
-                        : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none shadow-sm'
+                        ? 'bg-rose-950/70 border border-rose-800/80 text-rose-200 rounded-tl-none'
+                        : 'glass-bubble-agent text-fg border border-border rounded-tl-none shadow-sm'
                     }`}
                   >
                     {isUser ? (
@@ -298,21 +300,18 @@ export const Chat: React.FC<ChatProps> = ({
 
                         {/* Web Sources Citations */}
                         {msg.web_prefetch && msg.web_prefetch.sources && msg.web_prefetch.sources.length > 0 && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-800/80">
-                            <div className="flex items-center gap-1.5 text-[11px] text-cyan-400 font-medium mb-1.5">
-                              <Globe size={12} className="shrink-0" />
-                              <span>Fonti web consultate ({msg.web_prefetch.sources.length})</span>
-                              {msg.web_prefetch.provider_used && (
-                                <span className="text-[10px] text-slate-500 font-mono">via {msg.web_prefetch.provider_used}</span>
-                              )}
+                          <div className="mt-3 pt-2.5 border-t border-border/60">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-accent mb-1.5">
+                              <Globe size={12} className="text-accent" />
+                              <span>Fonti web consultate:</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {msg.web_prefetch.sources.map((src, sIdx) => {
-                                let hostname = '';
+                              {msg.web_prefetch.sources.slice(0, 5).map((src, sIdx) => {
+                                let domain = '';
                                 try {
-                                  hostname = new URL(src.url).hostname.replace(/^www\./, '');
+                                  domain = new URL(src.url).hostname.replace(/^www\./, '');
                                 } catch {
-                                  hostname = src.title || 'fonte';
+                                  domain = src.url;
                                 }
                                 return (
                                   <a
@@ -320,11 +319,10 @@ export const Chat: React.FC<ChatProps> = ({
                                     href={src.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-950/80 border border-slate-800 hover:border-cyan-600/50 hover:bg-slate-950 text-slate-300 hover:text-cyan-300 text-[10px] transition group shadow-sm max-w-[220px]"
-                                    title={src.title || src.url}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-panel/80 hover:bg-panel border border-border/80 hover:border-accent text-fg-muted hover:text-fg text-[10px] transition group"
+                                    title={`${src.title}\n${src.url}`}
                                   >
-                                    <span className="truncate">{src.title || hostname}</span>
-                                    <ExternalLink size={9} className="text-slate-500 group-hover:text-cyan-400 shrink-0" />
+                                    <span className="truncate max-w-[140px]">{domain}</span>
                                   </a>
                                 );
                               })}
@@ -335,16 +333,12 @@ export const Chat: React.FC<ChatProps> = ({
                     )}
                   </div>
 
-                  {/* Sub-bubble Metadata Badges */}
-                  <div
-                    className={`flex items-center gap-1.5 sm:gap-2 px-1 text-[10px] sm:text-[11px] text-slate-500 ${
-                      isUser ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
+                  {/* Metadata Indicators under Bubble */}
+                  <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
                     <span>{msg.timestamp}</span>
-                    {msg.mode && (
-                      <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase">
-                        {msg.mode}
+                    {modeName && (
+                      <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
+                        {modeName}
                       </span>
                     )}
                     {msg.tool_used && (
@@ -369,14 +363,14 @@ export const Chat: React.FC<ChatProps> = ({
         {/* Loading Indicator */}
         {isLoading && (
           <div className="flex gap-2.5 sm:gap-3 max-w-3xl mr-auto items-center">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-blue-400 animate-pulse">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-panel border border-border flex items-center justify-center text-accent animate-pulse">
               <Bot size={14} />
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none px-3.5 py-2.5 sm:px-4 sm:py-3 text-slate-400 text-xs flex items-center gap-2">
+            <div className="glass-card border border-border rounded-2xl rounded-tl-none px-3.5 py-2.5 sm:px-4 sm:py-3 text-fg-muted text-xs flex items-center gap-2">
               <div className="flex space-x-1">
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
               </div>
               <span className="ml-1 text-[11px] sm:text-xs">Thinking & executing...</span>
             </div>
@@ -386,7 +380,7 @@ export const Chat: React.FC<ChatProps> = ({
       </div>
 
       {/* Input Bar */}
-      <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col gap-2">
+      <div className="p-3 sm:p-4 border-t border-border glass-input-bar shrink-0 flex flex-col gap-2">
         <div className="max-w-4xl mx-auto w-full flex justify-end gap-2 items-center flex-wrap">
           {/* Incognito Mode Toggle */}
           <button
@@ -394,12 +388,12 @@ export const Chat: React.FC<ChatProps> = ({
             onClick={() => setIsIncognito(!isIncognito)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer shadow-sm ${
               isIncognito
-                ? 'bg-purple-950 border-purple-500 text-purple-200 shadow-purple-950/50 ring-1 ring-purple-500/50'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-purple-950/70 border-purple-500 text-purple-200 shadow-purple-950/50 ring-1 ring-purple-500/50'
+                : 'glass-card border-border text-fg-muted hover:text-fg hover:border-accent/40'
             }`}
             title={isIncognito ? 'Modalità Incognito attiva (nessun fatto salvato)' : 'Attiva Modalità Incognito (disabilita estrazione e memoria)'}
           >
-            <EyeOff size={12} className={isIncognito ? 'text-purple-400' : 'text-slate-400 shrink-0'} />
+            <EyeOff size={12} className={isIncognito ? 'text-purple-400' : 'text-fg-muted shrink-0'} />
             <span className="text-[11px] font-sans">{isIncognito ? 'Incognito ON' : 'Incognito'}</span>
           </button>
 
@@ -409,27 +403,27 @@ export const Chat: React.FC<ChatProps> = ({
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer shadow-sm ${
               webSearchEnabled
-                ? 'bg-cyan-950 border-cyan-500 text-cyan-200 shadow-cyan-950/50 ring-1 ring-cyan-500/50'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-accent/20 border-accent text-accent shadow-accent/20 ring-1 ring-accent/50'
+                : 'glass-card border-border text-fg-muted hover:text-fg hover:border-accent/40'
             }`}
             title={webSearchEnabled ? 'Ricerca Web attiva (prefetch pre-turn abilitato)' : 'Attiva Ricerca Web (effettua retrieval da web prima di rispondere)'}
           >
-            <Globe size={12} className={webSearchEnabled ? 'text-cyan-400' : 'text-slate-400 shrink-0'} />
+            <Globe size={12} className={webSearchEnabled ? 'text-accent' : 'text-fg-muted shrink-0'} />
             <span className="text-[11px] font-sans">{webSearchEnabled ? 'Web ON' : 'Web'}</span>
           </button>
 
           {/* Model Selector Dropdown */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] gap-1.5 text-slate-400 hover:border-slate-700 w-max shadow-sm">
+          <div className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-[11px] gap-1.5 text-fg-muted hover:border-accent/40 w-max shadow-sm">
             <Box size={12} className="text-emerald-400 shrink-0" />
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-transparent text-[11px] text-slate-300 focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate font-mono"
+              className="bg-transparent text-[11px] text-fg focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate font-mono"
               title="Modello LLM Override"
             >
-              <option value="default" className="bg-slate-900 text-slate-200 font-sans">Modello: Default</option>
+              <option value="default" className="bg-panel text-fg font-sans">Modello: Default</option>
               {availableModels.map((m) => (
-                <option key={m} value={m} className="bg-slate-900 text-slate-200 font-mono">
+                <option key={m} value={m} className="bg-panel text-fg font-mono">
                   {m}
                 </option>
               ))}
@@ -437,7 +431,7 @@ export const Chat: React.FC<ChatProps> = ({
           </div>
 
           {/* Reasoning Budget Dropdown */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] gap-1.5 text-slate-400 hover:border-slate-700 w-max shadow-sm">
+          <div className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-[11px] gap-1.5 text-fg-muted hover:border-accent/40 w-max shadow-sm">
             <Brain size={12} className="text-purple-400 shrink-0" />
             <select
               value={reasoningBudget === undefined ? 'default' : reasoningBudget}
@@ -445,17 +439,18 @@ export const Chat: React.FC<ChatProps> = ({
                 const val = e.target.value;
                 setReasoningBudget(val === 'default' ? undefined : Number(val));
               }}
-              className="bg-transparent text-[11px] text-slate-300 focus:outline-none cursor-pointer"
+              className="bg-transparent text-[11px] text-fg focus:outline-none cursor-pointer"
               title="Reasoning Token Budget"
             >
-              <option value="default" className="bg-slate-900 text-slate-200">Budget: Default</option>
-              <option value="0" className="bg-slate-900 text-slate-200">Disable (0t)</option>
-              <option value="2048" className="bg-slate-900 text-slate-200">Balanced (2048t)</option>
-              <option value="8192" className="bg-slate-900 text-slate-200">Deep Think (8192t)</option>
-              <option value="-1" className="bg-slate-900 text-slate-200">Unlimited (-1)</option>
+              <option value="default" className="bg-panel text-fg">Budget: Default</option>
+              <option value="0" className="bg-panel text-fg">Disable (0t)</option>
+              <option value="2048" className="bg-panel text-fg">Balanced (2048t)</option>
+              <option value="8192" className="bg-panel text-fg">Deep Think (8192t)</option>
+              <option value="-1" className="bg-panel text-fg">Unlimited (-1)</option>
             </select>
           </div>
         </div>
+
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto w-full relative flex items-center">
           <textarea
             ref={textareaRef}
@@ -464,12 +459,12 @@ export const Chat: React.FC<ChatProps> = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Send message..."
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-11 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none transition"
+            className="w-full bg-input-bg border border-input-border rounded-xl pl-3.5 pr-11 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white rounded-lg transition active:scale-95 shadow-md shadow-blue-600/20"
+            className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-white rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
             title="Send Message"
           >
             <Send size={15} />

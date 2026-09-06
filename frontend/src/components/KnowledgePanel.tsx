@@ -59,22 +59,14 @@ export const KnowledgePanel: React.FC = () => {
     const validExt = ['.md', '.txt', '.pdf'];
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
     if (!validExt.includes(ext)) {
-      setUploadMsg(`Formato non supportato: ${ext}. Usa .md, .txt o .pdf`);
-      setTimeout(() => setUploadMsg(null), 4000);
+      setUploadMsg('Formato non supportato. Usa file .md, .txt o .pdf.');
       return;
     }
     setIsUploading(true);
     setUploadMsg(null);
     try {
-      let content: string;
-      if (ext === '.pdf') {
-        setUploadMsg('PDF: usa il testo estratto o converti in .md/.txt per ora');
-        setTimeout(() => setUploadMsg(null), 5000);
-        return;
-      }
-      content = await file.text();
-      const res = await uploadKbDocument(file.name, content);
-      setUploadMsg(`✓ ${file.name}: ${res.chunks_indexed} chunk indicizzati`);
+      const res = await uploadKbDocument(file);
+      setUploadMsg(`Documento caricato: ${res.chunks_indexed} chunk indicizzati.`);
       await refresh();
     } catch (e: any) {
       setUploadMsg(`Errore: ${e?.response?.data?.detail || e.message}`);
@@ -132,23 +124,23 @@ export const KnowledgePanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3">
+    <div className="glass-card border border-border rounded-xl p-3.5 space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-400 text-xs">
-          <BookOpen size={14} className="text-purple-400" />
-          <span className="font-medium text-slate-300">Memoria & Knowledge</span>
+        <div className="flex items-center gap-2 text-fg-muted text-xs">
+          <BookOpen size={14} className="text-accent" />
+          <span className="font-medium text-fg">Memoria & Knowledge</span>
         </div>
-        <button onClick={refresh} className="p-1 text-slate-500 hover:text-slate-300 transition rounded" title="Refresh">
+        <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Refresh">
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-900 rounded-lg p-0.5">
+      <div className="flex gap-1 bg-panel rounded-lg p-0.5 border border-border/60">
         <button
           onClick={() => setTab('facts')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 ${
-            tab === 'facts' ? 'bg-purple-950/80 text-purple-300 border border-purple-800/60 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+            tab === 'facts' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
           }`}
         >
           <Brain size={10} />
@@ -156,8 +148,8 @@ export const KnowledgePanel: React.FC = () => {
         </button>
         <button
           onClick={() => setTab('docs')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 ${
-            tab === 'docs' ? 'bg-slate-800 text-slate-200 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+            tab === 'docs' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
           }`}
         >
           <FileText size={10} />
@@ -165,8 +157,8 @@ export const KnowledgePanel: React.FC = () => {
         </button>
         <button
           onClick={() => setTab('search')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 ${
-            tab === 'search' ? 'bg-blue-950/80 text-blue-300 border border-blue-800/60 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+            tab === 'search' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
           }`}
         >
           <Search size={10} />
@@ -184,12 +176,12 @@ export const KnowledgePanel: React.FC = () => {
               value={quickFact}
               onChange={(e) => setQuickFact(e.target.value)}
               placeholder="Aggiungi fatto (es. 'Gateway 192.168.1.1')..."
-              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
             />
             <button
               type="submit"
               disabled={!quickFact.trim() || isAddingFact}
-              className="px-2 py-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-[10px] font-semibold transition flex items-center gap-1"
+              className="px-2 py-1 bg-accent hover:bg-accent-hover disabled:opacity-40 text-white rounded-lg text-[10px] font-semibold transition flex items-center gap-1 cursor-pointer"
               title="Aggiungi fatto"
             >
               {isAddingFact ? <Loader2 size={10} className="animate-spin" /> : <Plus size={11} />}
@@ -197,24 +189,24 @@ export const KnowledgePanel: React.FC = () => {
           </form>
 
           {/* Facts list */}
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
             {facts.length === 0 && !isLoading && (
-              <p className="text-[11px] text-slate-500 italic py-2 text-center">Nessun fatto memorizzato.</p>
+              <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun fatto memorizzato.</p>
             )}
             {facts.map((f) => (
               <div
                 key={f.id}
-                className="group flex items-start justify-between gap-1.5 bg-slate-900/60 border border-slate-800/80 rounded-lg p-2 text-[11px] text-slate-300 hover:border-slate-700 transition"
+                className="group flex items-start justify-between gap-1.5 bg-panel-header/50 border border-border rounded-lg p-2 text-[11px] text-fg-muted hover:text-fg hover:border-accent/40 transition"
               >
                 <div className="min-w-0 flex-1 space-y-0.5">
-                  <p className="leading-snug text-slate-200">{f.content}</p>
-                  <div className="flex items-center gap-1 text-[9px] text-slate-500">
+                  <p className="leading-snug text-fg">{f.content}</p>
+                  <div className="flex items-center gap-1 text-[9px] text-fg-muted">
                     {f.thread_id && <span className="truncate">Thread: {f.thread_id}</span>}
                   </div>
                 </div>
                 <button
                   onClick={() => handleDeleteFact(f.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-rose-400 transition shrink-0 cursor-pointer"
                   title="Elimina fatto"
                 >
                   <Trash2 size={11} />
@@ -239,31 +231,31 @@ export const KnowledgePanel: React.FC = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-slate-700 text-[10px] text-slate-400 hover:border-cyan-500/50 hover:text-cyan-300 transition disabled:opacity-50 cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-[10px] text-fg-muted hover:border-accent hover:text-accent transition disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
             Upload .md / .txt / .pdf
           </button>
-          {uploadMsg && <p className="text-[10px] text-slate-400 italic">{uploadMsg}</p>}
+          {uploadMsg && <p className="text-[10px] text-fg-muted italic">{uploadMsg}</p>}
 
           {/* Document list */}
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
             {docs.length === 0 && !isLoading && (
-              <p className="text-[11px] text-slate-500 italic py-2 text-center">Nessun documento indicizzato.</p>
+              <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>
             )}
             {docs.map((doc) => (
               <div
                 key={doc.filename}
-                className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-lg px-2.5 py-1.5 group"
+                className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group"
               >
                 <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                  <FileText size={12} className="text-cyan-400 shrink-0" />
-                  <span className="text-[11px] font-mono text-slate-300 truncate">{doc.filename}</span>
-                  <span className="text-[9px] text-slate-600 shrink-0">{doc.chunks}ch</span>
+                  <FileText size={12} className="text-accent shrink-0" />
+                  <span className="text-[11px] font-mono text-fg truncate">{doc.filename}</span>
+                  <span className="text-[9px] text-fg-muted shrink-0">{doc.chunks}ch</span>
                 </div>
                 <button
                   onClick={() => handleDeleteDoc(doc.filename)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-fg-muted hover:text-rose-400 transition cursor-pointer"
                   title="Elimina documento"
                 >
                   <Trash2 size={11} />
@@ -282,37 +274,35 @@ export const KnowledgePanel: React.FC = () => {
             <select
               value={searchKind}
               onChange={(e) => setSearchKind(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-lg px-1.5 py-1 text-[10px] text-slate-300 focus:outline-none focus:border-blue-500"
+              className="bg-panel border border-border rounded-lg px-1.5 py-1 text-[10px] text-fg focus:outline-none focus:border-accent"
             >
-              <option value="all">Tutto</option>
-              <option value="fact">Solo Fatti</option>
-              <option value="kb">Solo KB</option>
+              <option value="all" className="bg-panel text-fg">Tutto</option>
+              <option value="fact" className="bg-panel text-fg">Solo Fatti</option>
+              <option value="kb" className="bg-panel text-fg">Solo KB</option>
             </select>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Cerca per significato (es. Debian, IP)..."
-              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
             />
             <button
               onClick={handleSearch}
               disabled={isSearching || !query.trim()}
-              className="px-2 py-1 rounded-lg bg-blue-600/30 border border-blue-500/50 text-blue-300 hover:bg-blue-600/50 transition disabled:opacity-50 cursor-pointer"
+              className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/30 transition disabled:opacity-50 cursor-pointer"
             >
               {isSearching ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
             </button>
           </div>
 
           {/* Search Results */}
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
             {searchResults.map((r) => (
-              <div key={r.id} className="bg-slate-900/70 border border-slate-800 rounded-lg p-2 space-y-1">
+              <div key={r.id} className="bg-panel-header/50 border border-border rounded-lg p-2 space-y-1">
                 <div className="flex items-center justify-between gap-1 text-[10px]">
                   <span
-                    className={`px-1.5 py-0.2 rounded text-[9px] font-semibold uppercase ${
-                      r.kind === 'fact' ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                    }`}
+                    className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-accent/15 text-accent border border-accent/25"
                   >
                     {r.kind === 'fact' ? 'Fatto' : 'Documento'}
                   </span>
@@ -320,14 +310,14 @@ export const KnowledgePanel: React.FC = () => {
                     {(r.score * 100).toFixed(0)}% match
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-snug">{r.content}</p>
+                <p className="text-[11px] text-fg leading-snug">{r.content}</p>
                 {r.metadata?.filename && (
-                  <p className="text-[9px] font-mono text-slate-500">File: {r.metadata.filename}</p>
+                  <p className="text-[9px] font-mono text-fg-muted">File: {r.metadata.filename}</p>
                 )}
               </div>
             ))}
             {searchResults.length === 0 && !isSearching && query && (
-              <p className="text-xs text-slate-500 italic py-2 text-center">Nessun risultato per "{query}".</p>
+              <p className="text-xs text-fg-muted italic py-2 text-center">Nessun risultato per "{query}".</p>
             )}
           </div>
         </div>

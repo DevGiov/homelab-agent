@@ -4,8 +4,10 @@ import { Chat } from './Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
+import { ThemeProvider } from './theme/ThemeContext';
+import { AmbientBackground } from './components/AmbientBackground';
 
-export function App() {
+function MainLayout() {
   const {
     threads,
     currentThreadId,
@@ -42,7 +44,10 @@ export function App() {
   };
 
   return (
-    <div className="flex h-dvh w-screen bg-slate-950 overflow-hidden font-sans relative">
+    <div className="flex h-dvh w-screen bg-bg text-fg overflow-hidden font-sans relative transition-colors duration-300">
+      {/* Ambient Animated Glow Background (behind all glass panels) */}
+      <AmbientBackground />
+
       {/* Mobile Backdrop Overlay */}
       {(isMobileSidebarOpen || isMobileToolLogOpen) && (
         <div
@@ -50,7 +55,7 @@ export function App() {
             setIsMobileSidebarOpen(false);
             setIsMobileToolLogOpen(false);
           }}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-bg/80 backdrop-blur-md z-40 md:hidden transition-opacity duration-300"
         />
       )}
 
@@ -116,6 +121,14 @@ export function App() {
         />
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <ThemeProvider>
+      <MainLayout />
+    </ThemeProvider>
   );
 }
 

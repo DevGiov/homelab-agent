@@ -2,13 +2,144 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Default to Midnight theme values */
+  --bg: #090d16;
+  --bg-secondary: #0f172a;
+  --panel: #111827;
+  --panel-header: #131d31;
+  --border: #1e293b;
+  --border-subtle: #172033;
+  --fg: #f1f5f9;
+  --fg-muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-hover: #0ea5e9;
+  --accent-subtle: rgba(56, 189, 248, 0.15);
+  --user-bubble-bg: #2563eb;
+  --user-bubble-fg: #ffffff;
+  --agent-bubble-bg: #141d2e;
+  --input-bg: #0c1322;
+  --input-border: #223049;
+  --glow-1: rgba(56, 189, 248, 0.28);
+  --glow-2: rgba(99, 102, 241, 0.24);
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased font-sans min-h-screen selection:bg-blue-500/30 selection:text-blue-200;
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--fg);
   }
 }
 
-/* Custom scrollbar */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Frosted Glass Glassmorphism Utilities
+   Active when body has .theme-frosted class
+   ───────────────────────────────────────────────────────────────────────────── */
+body.theme-frosted .glass-panel {
+  background-color: color-mix(in srgb, var(--panel) 70%, transparent) !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 6%, transparent) 0%,
+    transparent 40%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(175%) !important;
+  border-color: color-mix(in srgb, var(--fg) 14%, transparent) !important;
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.45),
+              inset 0 1px 0 color-mix(in srgb, var(--fg) 18%, transparent) !important;
+}
+
+body.theme-frosted .glass-header {
+  background-color: color-mix(in srgb, var(--panel-header) 65%, transparent) !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 8%, transparent) 0%,
+    transparent 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom-color: color-mix(in srgb, var(--fg) 12%, transparent) !important;
+}
+
+body.theme-frosted .glass-bubble-agent {
+  background-color: color-mix(in srgb, var(--agent-bubble-bg) 65%, transparent) !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 7%, transparent) 0%,
+    transparent 50%
+  ) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  border-color: color-mix(in srgb, var(--fg) 14%, transparent) !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.35),
+              inset 0 1px 0 color-mix(in srgb, var(--fg) 16%, transparent) !important;
+}
+
+body.theme-frosted .glass-bubble-user {
+  background-color: color-mix(in srgb, var(--user-bubble-bg) 90%, transparent) !important;
+  box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--user-bubble-bg) 35%, transparent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+body.theme-frosted .glass-input-bar {
+  background-color: color-mix(in srgb, var(--panel) 75%, transparent) !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 6%, transparent) 0%,
+    transparent 60%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-top-color: color-mix(in srgb, var(--fg) 12%, transparent) !important;
+}
+
+body.theme-frosted .glass-card {
+  background-color: color-mix(in srgb, var(--panel) 50%, transparent) !important;
+  backdrop-filter: blur(16px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+  border-color: color-mix(in srgb, var(--fg) 12%, transparent) !important;
+}
+
+/* Fallbacks when frosted glass is disabled (opaque modern theme look) */
+.glass-panel {
+  background-color: var(--panel);
+  border-color: var(--border);
+}
+
+.glass-header {
+  background-color: var(--panel-header);
+  border-bottom-color: var(--border);
+}
+
+.glass-bubble-agent {
+  background-color: var(--agent-bubble-bg);
+  border-color: var(--border);
+}
+
+.glass-bubble-user {
+  background-color: var(--user-bubble-bg);
+}
+
+.glass-input-bar {
+  background-color: var(--panel);
+  border-top-color: var(--border);
+}
+
+.glass-card {
+  background-color: var(--bg-secondary);
+  border-color: var(--border);
+}
+
+/* Custom Themed Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -19,10 +150,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
 }

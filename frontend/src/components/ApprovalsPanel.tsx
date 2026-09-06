@@ -65,11 +65,11 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
   };
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+    <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-400 text-xs">
+        <div className="flex items-center gap-2 text-fg-muted text-xs">
           <ShieldAlert size={14} className="text-amber-400" />
-          <span className="font-medium text-slate-300">
+          <span className="font-medium text-fg">
             Pending Approvals
             {pending.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
@@ -80,7 +80,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
         </div>
         <button
           onClick={refresh}
-          className="p-1 text-slate-500 hover:text-slate-300 transition rounded"
+          className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer"
           title="Refresh approvals"
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
@@ -88,7 +88,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
       </div>
 
       {pending.length === 0 ? (
-        <p className="text-xs text-slate-500 italic">No pending tool approvals.</p>
+        <p className="text-xs text-fg-muted italic">No pending tool approvals.</p>
       ) : (
         <div className="space-y-2">
           {pending.map((item) => (
@@ -99,13 +99,13 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
               <div className="flex items-center justify-between gap-2">
                 <button
                   onClick={() => setExpandedId(expandedId === item.request_id ? null : item.request_id)}
-                  className="flex-1 text-left min-w-0"
+                  className="flex-1 text-left min-w-0 cursor-pointer"
                   title="Toggle arguments"
                 >
                   <div className="text-xs font-mono font-semibold text-amber-300 truncate">
                     {item.tool_name}
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5">
+                  <div className="flex items-center gap-1 text-[10px] text-fg-muted mt-0.5">
                     <Clock size={9} />
                     <span>{formatAge(item.age_seconds)} ago</span>
                     {item.mode && <span className="uppercase">· {item.mode}</span>}
@@ -124,7 +124,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                   <button
                     onClick={() => handleDeny(item.request_id)}
                     disabled={busyId === item.request_id}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-600/20 border border-red-500/40 text-red-300 hover:bg-red-600/40 transition text-[10px] font-semibold disabled:opacity-50 cursor-pointer"
+                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/40 transition text-[10px] font-semibold disabled:opacity-50 cursor-pointer"
                     title="Deny request"
                   >
                     <X size={11} />
@@ -134,7 +134,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
               </div>
 
               {expandedId === item.request_id && (
-                <pre className="bg-slate-950 border border-slate-800 rounded-md p-2 text-[10px] font-mono text-slate-400 overflow-x-auto max-h-32">
+                <pre className="bg-panel border border-border rounded-md p-2 text-[10px] font-mono text-fg-muted overflow-x-auto max-h-32">
                   {JSON.stringify(item.arguments, null, 2)}
                 </pre>
               )}

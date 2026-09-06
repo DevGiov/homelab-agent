@@ -310,9 +310,18 @@ export async function listKbDocuments(): Promise<KbDocument[]> {
   return res.data.documents;
 }
 
-export async function uploadKbDocument(filename: string, content: string): Promise<{ status: string; chunks_indexed: number }> {
-  const res = await api.post('/kb/documents', { filename, content });
-  return res.data;
+export async function uploadKbDocument(fileOrPayload: File | { filename: string; content: string }): Promise<{ status: string; chunks_indexed: number; chunks_total?: number }> {
+  if (fileOrPayload instanceof File) {
+    const formData = new FormData();
+    formData.append('file', fileOrPayload);
+    const res = await api.post('/kb/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  } else {
+    const res = await api.post('/kb/documents', fileOrPayload);
+    return res.data;
+  }
 }
 
 export async function deleteKbDocument(filename: string): Promise<{ status: string; chunks_deleted: number }> {
