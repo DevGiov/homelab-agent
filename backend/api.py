@@ -109,6 +109,10 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "incognito": incognito
     }
 
+    # Salva immediatamente il messaggio dell'utente nello store SQLite
+    if not incognito:
+        thread_store.save_user_message(effective_thread_id, task)
+
     cfg = {"configurable": {"thread_id": effective_thread_id}}
     try:
         final_state = app_graph.invoke(initial_state, config=cfg)
@@ -138,14 +142,20 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             web_prefetch=web_prefetch
         )
 
-        # Salva atomico del turno nello store SQLite solo se non in modalità incognito
+        # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
         if not incognito:
-            thread_store.save_turn(effective_thread_id, task, resp.model_dump())
+            thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
 
         return resp
 
     except Exception as e:
+        if not incognito:
+            thread_store.save_assistant_message(effective_thread_id, {
+                "response": f"[Errore durante l'esecuzione: {str(e)}]",
+                "error": True
+            })
         raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}")
+
 
 @api.get("/v1/health")
 async def health():
@@ -245,7 +255,7 @@ async def plan_endpoint(req: ChatRequest, request: Request = None):
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
@@ -265,6 +275,10 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "final_response": "",
         "incognito": incognito
     }
+
+    # Salva immediatamente il messaggio dell'utente nello store SQLite
+    if not incognito:
+        thread_store.save_user_message(effective_thread_id, task)
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
     q = queue.Queue()
@@ -302,11 +316,25 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 metrics=metrics
             )
             if not incognito:
-                thread_store.save_turn(effective_thread_id, task, resp.model_dump())
+                thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
             q.put({"type": "final", "response": resp.model_dump()})
         except Exception as e:
+            if not incognito:
+                thread_store.save_assistant_message(effective_thread_id, {
+                    "response": f"[Errore durante l'elaborazione: {str(e)}]",
+                    "error": True
+                })
             q.put({"type": "error", "error": str(e)})
         finally:
+            if not incognito:
+                # Se il flusso è stato fermato o interrotto e non c'è ancora un messaggio assistente registrato
+                msgs = thread_store.get_thread_messages(effective_thread_id)
+                has_assistant = any(m.get("sender") == "assistant" for m in msgs)
+                if not has_assistant:
+                    thread_store.save_assistant_message(effective_thread_id, {
+                        "response": "[Esecuzione interrotta o non completata]",
+                        "error": False
+                    })
             remove_session(effective_thread_id)
             q.put(None)
 
@@ -314,19 +342,24 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     t = threading.Thread(target=ctx.run, args=(worker,))
     t.start()
 
-    def event_generator():
+    async def event_generator():
         try:
             while True:
                 if sess.is_stopped():
                     break
+                if request is not None and await request.is_disconnected():
+                    logging.getLogger("api").info(f"Client disconnesso per thread '{effective_thread_id}'. Arresto flusso.")
+                    sess.stop()
+                    break
                 try:
-                    item = q.get(timeout=0.2)
+                    item = await asyncio.to_thread(q.get, timeout=0.2)
                 except queue.Empty:
                     continue
                 if item is None:
                     break
                 yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
         finally:
+            sess.stop()
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -334,7 +367,17 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 @api.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow_stream(
+        req.input,
+        req.thread_id,
+        force_mode=req.force_mode,
+        execute=req.execute,
+        reasoning_budget=req.reasoning_budget,
+        model=req.model,
+        incognito=req.incognito,
+        web_search=req.web_search,
+        request=request
+    )
 
 @api.post("/v1/chat/stop", dependencies=[Depends(verify_api_key)])
 async def chat_stop_endpoint(req: ThreadControlRequest):
@@ -423,14 +466,27 @@ async def kb_search(query: str, k: int = 5):
 @api.get("/v1/threads", response_model=List[ThreadSummary], dependencies=[Depends(verify_api_key)])
 async def list_threads():
     try:
+        thread_store.init_db()
         conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT thread_id, COUNT(*) FROM checkpoints GROUP BY thread_id ORDER BY rowid DESC")
+        cursor.execute("""
+            SELECT thread_id, MAX(cp_count) as checkpoint_count, MAX(last_activity) as sort_key
+            FROM (
+                SELECT thread_id, COUNT(*) as cp_count, MAX(rowid) as last_activity FROM checkpoints GROUP BY thread_id
+                UNION ALL
+                SELECT thread_id, 0 as cp_count, MAX(rowid) as last_activity FROM thread_messages GROUP BY thread_id
+            )
+            WHERE thread_id IS NOT NULL AND thread_id != ''
+            GROUP BY thread_id
+            ORDER BY sort_key DESC
+        """)
         rows = cursor.fetchall()
         conn.close()
 
         summaries = []
-        for tid, count in rows:
+        for row in rows:
+            tid = row[0]
+            count = row[1]
             if not tid:
                 continue
             last_msg = thread_store.get_last_message(tid)

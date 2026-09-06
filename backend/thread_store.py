@@ -53,31 +53,42 @@ def init_db():
 # Inizializza al caricamento del modulo
 init_db()
 
-def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
-    """
-    Salva atomicamente in SQLite sia il messaggio utente che la risposta assistente.
-    """
-    if not thread_id:
-        return
-
+def save_user_message(thread_id: str, user_input: str, user_msg_id: Optional[str] = None, timestamp_str: Optional[str] = None) -> str:
+    """Salva immediatamente il messaggio dell'utente in SQLite."""
+    if not thread_id or not user_input:
+        return ""
     init_db()
     conn = _get_conn()
     cursor = conn.cursor()
-
     now_time = time.time()
-    time_str = time.strftime("%H:%M", time.localtime(now_time))
-    user_msg_id = f"user_{int(now_time * 1000)}"
-    ast_msg_id = f"msg_{int(now_time * 1000)}"
-
+    time_str = timestamp_str or time.strftime("%H:%M", time.localtime(now_time))
+    msg_id = user_msg_id or f"user_{int(now_time * 1000)}"
     try:
-        # 1. Salva messaggio User
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp)
             VALUES (?, ?, ?, ?, ?)
-        """, (thread_id, user_msg_id, "user", user_input, time_str))
+        """, (thread_id, msg_id, "user", user_input, time_str))
+        conn.commit()
+        return msg_id
+    except Exception as e:
+        logger.error(f"Errore salvataggio messaggio utente thread '{thread_id}': {e}")
+        return ""
+    finally:
+        conn.close()
 
-        # 2. Prepara campi Assistant
+
+def save_assistant_message(thread_id: str, response_data: Dict[str, Any], ast_msg_id: Optional[str] = None, timestamp_str: Optional[str] = None) -> str:
+    """Salva o aggiorna la risposta dell'assistente in SQLite con tutti i campi strutturati."""
+    if not thread_id:
+        return ""
+    init_db()
+    conn = _get_conn()
+    cursor = conn.cursor()
+    now_time = time.time()
+    time_str = timestamp_str or time.strftime("%H:%M", time.localtime(now_time))
+    msg_id = ast_msg_id or f"msg_{int(now_time * 1000)}"
+    try:
         resp_text = response_data.get("response", "")
         mode = response_data.get("mode")
         tool_used = response_data.get("tool_used")
@@ -95,7 +106,6 @@ def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
         rollback_trace = response_data.get("rollback_trace")
         rollback_trace_json = json.dumps(rollback_trace, ensure_ascii=False) if rollback_trace else None
 
-        # Estrazione reasoning dallo trace se non esplicito
         reasoning = None
         if execution_trace and isinstance(execution_trace, list):
             for tr in execution_trace:
@@ -105,7 +115,6 @@ def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
 
         is_error = 1 if response_data.get("error") else 0
 
-        # 3. Salva messaggio Assistant
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
@@ -113,7 +122,7 @@ def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
-            ast_msg_id,
+            msg_id,
             "assistant",
             resp_text,
             time_str,
@@ -127,12 +136,27 @@ def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
             is_error,
             reasoning_content
         ))
-
         conn.commit()
+        return msg_id
     except Exception as e:
-        logger.error(f"Errore salvataggio turno thread '{thread_id}' in SQLite: {e}")
+        logger.error(f"Errore salvataggio risposta assistente thread '{thread_id}': {e}")
+        return ""
     finally:
         conn.close()
+
+
+def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
+    """
+    Salva atomicamente in SQLite sia il messaggio utente che la risposta assistente.
+    """
+    if not thread_id:
+        return
+    now_time = time.time()
+    time_str = time.strftime("%H:%M", time.localtime(now_time))
+    user_msg_id = f"user_{int(now_time * 1000)}"
+    ast_msg_id = f"msg_{int(now_time * 1000) + 1}"
+    save_user_message(thread_id, user_input, user_msg_id=user_msg_id, timestamp_str=time_str)
+    save_assistant_message(thread_id, response_data, ast_msg_id=ast_msg_id, timestamp_str=time_str)
 
 
 def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
@@ -185,7 +209,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
 
 
 def get_last_message(thread_id: str) -> Optional[str]:
-    """Recupera l'anteprima del testo dell'ultimo messaggio di un thread."""
+    """Recupera l'anteprima del testo dell'ultimo messaggio non vuoto di un thread."""
     if not thread_id:
         return None
 
@@ -194,7 +218,7 @@ def get_last_message(thread_id: str) -> Optional[str]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT content FROM thread_messages
-            WHERE thread_id = ?
+            WHERE thread_id = ? AND content IS NOT NULL AND TRIM(content) != ''
             ORDER BY rowid DESC LIMIT 1
         """, (thread_id,))
         row = cursor.fetchone()
@@ -235,8 +259,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
     Ricostruisce i turni di conversazione dallo state history di LangGraph
     e li salva nello store per accesso futuro istantaneo.
     
-    Viene invocata solo se get_thread_messages() restituisce [] per un thread
-    che esiste nei checkpoint.
+    Supporta sia turni completati che turni interrotti a metà (es. durante pause o refresh).
     """
     if not thread_id or not app_graph:
         return []
@@ -251,14 +274,12 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
     if not history:
         return []
 
-    # Raccoglie i turni completati (snapshot terminali dove next == ())
-    # L'history è in ordine reverse-cronologico, quindi reversed() dà l'ordine corretto
+    # 1. Raccoglie i turni completati (snapshot terminali dove next == ())
     completed_turns = []
     seen_tasks = set()
 
     for snap in reversed(history):
         next_nodes = snap.next
-        # Solo snapshot terminali (fine turno)
         if next_nodes != ():
             continue
 
@@ -277,12 +298,10 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         execution_trace = values.get("execution_trace")
         plan_structure = values.get("plan_structure")
         rollback_trace = values.get("rollback_trace")
+        reasoning_content = values.get("reasoning_content")
 
-        # Fallback: execution_trace potrebbe essere dentro plan.execution_log
         if not execution_trace and isinstance(plan_dict, dict):
             execution_trace = plan_dict.get("execution_log")
-
-        # Fallback: plan_structure potrebbe essere dentro plan
         if not plan_structure and isinstance(plan_dict, dict):
             plan_structure = plan_dict.get("plan_structure")
 
@@ -298,7 +317,38 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             "plan_structure": plan_structure,
             "execution_trace": execution_trace,
             "rollback_trace": rollback_trace,
+            "reasoning_content": reasoning_content,
         })
+
+    # 2. Se non ci sono turni completati (o l'ultimo turno è rimasto interrotto/incompleto)
+    # Recupera il task dallo snapshot più recente
+    if history:
+        latest_snap = history[0]
+        latest_task = latest_snap.values.get("task")
+        if latest_task and latest_task not in seen_tasks:
+            seen_tasks.add(latest_task)
+            values = latest_snap.values
+            mode = values.get("mode") or "chat"
+            plan_dict = values.get("plan", {})
+            execution_trace = values.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
+            plan_structure = values.get("plan_structure") or (plan_dict.get("plan_structure") if isinstance(plan_dict, dict) else None)
+            rollback_trace = values.get("rollback_trace")
+            tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
+            plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
+            reasoning_content = values.get("reasoning_content")
+            final_response = values.get("final_response") or "[Esecuzione interrotta o non completata]"
+
+            completed_turns.append({
+                "task": latest_task,
+                "mode": mode,
+                "final_response": final_response,
+                "tool_used": tool_used,
+                "plan_steps": plan_steps,
+                "plan_structure": plan_structure,
+                "execution_trace": execution_trace,
+                "rollback_trace": rollback_trace,
+                "reasoning_content": reasoning_content,
+            })
 
     if not completed_turns:
         return []
@@ -310,7 +360,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
     all_messages = []
 
     try:
-        base_ts = time.time() - (len(completed_turns) * 60)  # Timestamp sintetici, 1 min di distanza
+        base_ts = time.time() - (len(completed_turns) * 60)
 
         for idx, turn in enumerate(completed_turns):
             ts = base_ts + (idx * 60)
@@ -337,7 +387,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "plan_structure": None,
                 "execution_trace": None,
                 "rollback_trace": None,
-                "isError": False
+                "isError": False,
+                "reasoning_content": None
             })
 
             # Prepara contenuto risposta assistente
@@ -353,6 +404,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             pst_json = json.dumps(pst, ensure_ascii=False) if pst else None
             rt = turn.get("rollback_trace")
             rt_json = json.dumps(rt, ensure_ascii=False) if rt else None
+            rc = turn.get("reasoning_content")
 
             reasoning = None
             if et and isinstance(et, list):
@@ -364,12 +416,12 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             cursor.execute("""
                 INSERT OR IGNORE INTO thread_messages
                 (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
-                 plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error, reasoning_content)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 thread_id, ast_msg_id, "assistant", resp_text, time_str,
                 turn.get("mode"), turn.get("tool_used"), reasoning,
-                ps_json, pst_json, et_json, rt_json, 0
+                ps_json, pst_json, et_json, rt_json, 0, rc
             ))
 
             all_messages.append({
@@ -384,7 +436,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "plan_structure": pst,
                 "execution_trace": et,
                 "rollback_trace": rt,
-                "isError": False
+                "isError": False,
+                "reasoning_content": rc
             })
 
         conn.commit()
@@ -396,3 +449,4 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         conn.close()
 
     return all_messages
+

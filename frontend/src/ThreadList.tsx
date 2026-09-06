@@ -201,9 +201,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                     </button>
                   </div>
                 </div>
-                {thread.last_message && (
+                {thread.last_message ? (
                   <p className="text-[11px] text-fg-muted truncate pl-5">
                     {thread.last_message}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-fg-muted/60 italic truncate pl-5">
+                    (Nessun messaggio / in attesa)
                   </p>
                 )}
               </div>

@@ -74,6 +74,7 @@ function MainLayout() {
           currentThreadId={currentThreadId}
           onSelectThread={(id) => {
             selectThread(id);
+            loadThreadHistory(id);
             setIsMobileSidebarOpen(false);
           }}
           onNewThread={() => {
