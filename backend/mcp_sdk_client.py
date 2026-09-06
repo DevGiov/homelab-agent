@@ -7,6 +7,7 @@ Fallback automatico al client legacy se l'SDK non è installato o fallisce.
 import asyncio
 import logging
 import threading
+import time
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("mcp_sdk_client")
@@ -38,9 +39,14 @@ class MetaMCPSdkClient:
         self._lock = threading.RLock()
 
     def _ensure_loop(self):
-        if self._loop is None or self._loop.is_closed():
+        if self._loop is None or self._loop.is_closed() or not self._loop.is_running():
             self._loop = asyncio.new_event_loop()
-            threading.Thread(target=self._loop.run_forever, daemon=True).start()
+            t = threading.Thread(target=self._loop.run_forever, daemon=True)
+            t.start()
+            for _ in range(50):
+                if self._loop.is_running():
+                    break
+                time.sleep(0.01)
         return self._loop
 
     def _run(self, coro, timeout: Optional[float] = None):
@@ -84,22 +90,38 @@ class MetaMCPSdkClient:
     def reset(self):
         """Chiude la sessione corrente (usata in caso di errore per riconnettere)."""
         with self._lock:
-            if self._loop and not self._loop.is_closed():
-                if self._session is not None:
-                    try:
-                        asyncio.run_coroutine_threadsafe(self._aclose(), self._loop).result(timeout=3)
-                    except Exception:
-                        pass
-                try:
-                    self._loop.call_soon_threadsafe(self._loop.stop)
-                except Exception:
-                    pass
+            old_loop = self._loop
+            old_session = self._session
+            old_cm = self._cm
             self._loop = None
             self._session = None
             self._cm = None
 
+            if old_loop and old_loop.is_running():
+                try:
+                    if old_session or old_cm:
+                        async def _cleanup():
+                            if old_session:
+                                try:
+                                    await old_session.__aexit__(None, None, None)
+                                except Exception:
+                                    pass
+                            if old_cm:
+                                try:
+                                    await old_cm.__aexit__(None, None, None)
+                                except Exception:
+                                    pass
+                        asyncio.run_coroutine_threadsafe(_cleanup(), old_loop).result(timeout=2)
+                except Exception:
+                    pass
+                try:
+                    old_loop.call_soon_threadsafe(old_loop.stop)
+                except Exception:
+                    pass
+
     def list_tools(self) -> List[Dict[str, Any]]:
         with self._lock:
+            last_err = None
             for attempt in (1, 2):
                 try:
                     self._connect()
@@ -117,12 +139,14 @@ class MetaMCPSdkClient:
 
                     return self._run(_do_list())
                 except Exception as e:
+                    last_err = e
                     logger.warning(f"[sdk] list_tools attempt {attempt} failed: {e}")
                     self.reset()
-            raise RuntimeError("MCP SDK list_tools failed after retries")
+            raise RuntimeError(f"MCP SDK list_tools failed after retries: {last_err}")
 
     def call_tool(self, tool_name: str, arguments: dict) -> dict:
         with self._lock:
+            last_err = None
             for attempt in (1, 2):
                 try:
                     self._connect()
@@ -156,6 +180,7 @@ class MetaMCPSdkClient:
 
                     return self._run(_do_call())
                 except Exception as e:
+                    last_err = e
                     logger.warning(f"[sdk] call_tool('{tool_name}') attempt {attempt} failed: {e}")
                     self.reset()
-            raise RuntimeError(f"MCP SDK call_tool('{tool_name}') failed after retries")
+            raise RuntimeError(f"MCP SDK call_tool('{tool_name}') failed after retries: {last_err}")

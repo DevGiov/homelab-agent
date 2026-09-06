@@ -16,6 +16,7 @@ services:
       CHECKPOINT_DB_PATH: /data/checkpoints.db
     volumes:
       - agent_data:/data
+      - ./backend:/app:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/v1/health')"]
