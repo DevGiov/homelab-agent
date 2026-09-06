@@ -218,10 +218,14 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           isError: true,
         };
 
-        setThreadMessagesMap((prev) => ({
-          ...prev,
-          [targetThreadId]: [...(prev[targetThreadId] || []), errorMsgItem],
-        }));
+        setThreadMessagesMap((prev) => {
+          const msgs = prev[targetThreadId] || [];
+          const filtered = msgs.filter((m) => m.id !== assistantMsgId);
+          return {
+            ...prev,
+            [targetThreadId]: [...filtered, errorMsgItem],
+          };
+        });
       } finally {
         setIsLoadingChat(false);
         isSendingRef.current = false;

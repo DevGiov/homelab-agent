@@ -268,10 +268,26 @@ export const Chat: React.FC<ChatProps> = ({
                       <div className="whitespace-pre-wrap font-sans break-words">{msg.content}</div>
                     ) : (
                       <>
-                        {msg.reasoning_content && (
-                          <ReasoningBlock content={msg.reasoning_content} isStreaming={isLoading && index === messages.length - 1} />
+                        {!msg.content && !msg.reasoning_content && isLoading && index === messages.length - 1 ? (
+                          <div className="flex items-center gap-2 text-fg-muted py-0.5">
+                            <div className="flex space-x-1">
+                              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                            <span className="ml-1 text-[11px] sm:text-xs font-sans">Thinking & executing...</span>
+                          </div>
+                        ) : (
+                          <>
+                            {msg.reasoning_content && (
+                              <ReasoningBlock
+                                content={msg.reasoning_content}
+                                isStreaming={isLoading && index === messages.length - 1 && (!msg.content || msg.content.length === 0)}
+                              />
+                            )}
+                            {msg.content && <MarkdownRenderer content={msg.content} />}
+                          </>
                         )}
-                        <MarkdownRenderer content={msg.content} />
                       </>
                     )}
 
@@ -334,34 +350,36 @@ export const Chat: React.FC<ChatProps> = ({
                   </div>
 
                   {/* Metadata Indicators under Bubble */}
-                  <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                    <span>{msg.timestamp}</span>
-                    {modeName && (
-                      <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
-                        {modeName}
-                      </span>
-                    )}
-                    {msg.tool_used && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] sm:text-[10px]">
-                        <Wrench size={10} />
-                        {msg.tool_used}
-                      </span>
-                    )}
-                    {msg.web_prefetch && msg.web_prefetch.sources && msg.web_prefetch.sources.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] sm:text-[10px]">
-                        <Globe size={10} />
-                        {msg.web_prefetch.sources.length} fonti web
-                      </span>
-                    )}
-                  </div>
+                  {(!isLoading || msg.content || msg.reasoning_content || index !== messages.length - 1) && (
+                    <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      <span>{msg.timestamp}</span>
+                      {modeName && (
+                        <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
+                          {modeName}
+                        </span>
+                      )}
+                      {msg.tool_used && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] sm:text-[10px]">
+                          <Wrench size={10} />
+                          {msg.tool_used}
+                        </span>
+                      )}
+                      {msg.web_prefetch && msg.web_prefetch.sources && msg.web_prefetch.sources.length > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] sm:text-[10px]">
+                          <Globe size={10} />
+                          {msg.web_prefetch.sources.length} fonti web
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })
         )}
 
-        {/* Loading Indicator */}
-        {isLoading && (
+        {/* Loading Indicator when messages are empty (e.g. initial load) */}
+        {isLoading && messages.length === 0 && (
           <div className="flex gap-2.5 sm:gap-3 max-w-3xl mr-auto items-center">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-panel border border-border flex items-center justify-center text-accent animate-pulse">
               <Bot size={14} />
