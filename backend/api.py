@@ -277,7 +277,11 @@ async def invoke_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
 # Gestione upload file multimodali
-UPLOAD_DIR = Path(__file__).parent / "data" / "uploads"
+import os
+if os.path.exists("/data") and os.access("/data", os.W_OK):
+    UPLOAD_DIR = Path("/data/uploads")
+else:
+    UPLOAD_DIR = Path(__file__).parent / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @api.post("/v1/upload", response_model=ImageUploadResponse, dependencies=[Depends(verify_api_key)])
