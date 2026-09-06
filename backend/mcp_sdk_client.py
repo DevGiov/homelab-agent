@@ -125,9 +125,10 @@ class MetaMCPSdkClient:
                         for item in (result.content or []):
                             if hasattr(item, "text"):
                                 content_parts.append(item.text)
+                        is_err = getattr(result, "is_error", getattr(result, "isError", False))
                         payload: Dict[str, Any] = {
                             "content": "\n".join(content_parts),
-                            "isError": bool(result.isError),
+                            "isError": bool(is_err),
                         }
                         structured = getattr(result, "structuredContent", None)
                         if structured:
