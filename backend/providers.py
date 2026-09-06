@@ -87,6 +87,15 @@ class OpenAICompatProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        settings = config.get_settings()
+        if getattr(settings, "llm_repeat_penalty", None) and settings.llm_repeat_penalty != 1.0:
+            payload["repeat_penalty"] = settings.llm_repeat_penalty
+        if getattr(settings, "llm_presence_penalty", None) and settings.llm_presence_penalty != 0.0:
+            payload["presence_penalty"] = settings.llm_presence_penalty
+        if getattr(settings, "llm_frequency_penalty", None) and settings.llm_frequency_penalty != 0.0:
+            payload["frequency_penalty"] = settings.llm_frequency_penalty
+        if getattr(settings, "llm_top_p", None) and settings.llm_top_p != 1.0:
+            payload["top_p"] = settings.llm_top_p
         if enable_thinking:
             payload["chat_template_kwargs"] = {"enable_thinking": True}
             if reasoning_budget > 0:

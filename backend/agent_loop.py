@@ -49,6 +49,22 @@ def _call_llm_with_phase(fn: Any, prompt: str, system_prompt: Optional[str] = No
         return fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget)
 
 
+def _normalize_call_signature(tool_name: str, arguments: Dict[str, Any]) -> str:
+    if tool_name == "web_search":
+        q = str(arguments.get("query", "")).lower().strip().strip('"\'')
+        q = " ".join(q.split())
+        return f"web_search:{q}"
+    return f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
+
+
+def _query_jaccard_similarity(q1: str, q2: str) -> float:
+    tokens1 = set(re.findall(r"\w+", q1.lower()))
+    tokens2 = set(re.findall(r"\w+", q2.lower()))
+    if not tokens1 or not tokens2:
+        return 0.0
+    return len(tokens1 & tokens2) / len(tokens1 | tokens2)
+
+
 
 def run_agent_loop(
     task: str,
@@ -120,8 +136,10 @@ def run_agent_loop(
     history_observations = []
     accumulated_reasonings: List[Tuple[str, str]] = []
 
-    # Cache/deduplicazione risultati tool identici nello stesso run
+    # Cache/deduplicazione e tracciamento storico chiamate nello stesso run
     call_cache: Dict[str, Any] = {}
+    call_history_counts: Dict[str, int] = {}
+    executed_search_queries: List[str] = []
 
     for step_id in range(1, policy.max_tool_calls + 1):
         from stream_session import current_session_var
@@ -161,12 +179,14 @@ def run_agent_loop(
             f"{prefetch_guidance}"
             f"Storico azioni eseguite in questo turno:\n{obs_context}\n\n"
             "REGOLE FONDAMENTALI DI SELEZIONE TOOL:\n"
-            "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, lanci spaziali, fatti esterni o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), DEVI IMPOSTARE `tool_needed=true` e selezionare `tool_name='web_search'`.\n"
-            "2. Se la richiesta richiede di operare su Proxmox, file, container, IPAM, DNS o reverse proxy, DEVI IMPOSTARE `tool_needed=true` e specificare il relativo tool MCP.\n"
+            "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, fatti esterni o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), imposta `tool_needed=true` e seleziona `tool_name='web_search'`.\n"
+            "2. Se la richiesta richiede di operare su Proxmox, file, container, IPAM, DNS o reverse proxy, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
             "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna o dal prefetch web senza ulteriori azioni, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
-            "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari (es. 'SpaceX Starship latest launch updates').\n"
+            "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
             "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura (es. lista container + stato DNS) e sono indipendenti tra loro, usa `parallel_calls`.\n"
-            "6. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
+            "6. Se hai già eseguito una ricerca web e i risultati ottenuti contengono dati sufficienti (o non contengono riscontri dopo una verifica mirata), NON ripetere la stessa ricerca o ricerche simili: imposta `tool_needed=false` e sintetizza la risposta.\n"
+            "7. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
+            "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
         )
 
         if not call_llm_structured_fn:
@@ -179,14 +199,15 @@ def run_agent_loop(
                 return {"final_response": syn_ans or "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}
             break
 
+        effective_reasoning_cap = min(policy.reasoning_budget, 1024) if policy.reasoning_budget > 0 else 1024
         selection = call_llm_structured_fn(
             prompt=task,
             system_prompt=tool_system_prompt,
             schema_cls=ToolSelection,
             max_tokens=4096,
-            temperature=0.0,
+            temperature=0.10,
             max_retries=2,
-            reasoning_budget=policy.reasoning_budget
+            reasoning_budget=effective_reasoning_cap
         )
 
         step_thinking = getattr(selection, "raw_thinking", "") or ""
@@ -308,6 +329,9 @@ def run_agent_loop(
                     if call.get("tool_name") == "web_search":
                         from registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
                         res_str = f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
+                        executed_search_queries.append(str(call.get("arguments", {}).get("query", "")).strip())
+                    p_sig = _normalize_call_signature(call.get("tool_name", ""), call.get("arguments", {}))
+                    call_history_counts[p_sig] = call_history_counts.get(p_sig, 0) + 1
                     history_observations.append(f"Step {step_id}.{i} [parallelo]: {call['tool_name']}({call.get('arguments')}) -> {res_str}")
                 continue
 
@@ -327,6 +351,63 @@ def run_agent_loop(
             })
             history_observations.append(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {val_error}")
             continue
+
+        # Verifica duplicati e prevenzione loop
+        call_sig = _normalize_call_signature(tool_name, arguments)
+        is_duplicate = False
+
+        if call_sig in call_history_counts:
+            is_duplicate = True
+            call_history_counts[call_sig] += 1
+        else:
+            call_history_counts[call_sig] = 1
+
+        if tool_name == "web_search" and not is_duplicate:
+            current_q = str(arguments.get("query", "")).strip()
+            for prev_q in executed_search_queries:
+                sim = _query_jaccard_similarity(current_q, prev_q)
+                if sim >= 0.80:
+                    logger.info(f"Step {step_id}: query '{current_q}' ha similarità {sim:.2f} con precedente '{prev_q}', trattata come duplicato")
+                    is_duplicate = True
+                    call_history_counts[call_sig] = call_history_counts.get(call_sig, 1) + 1
+                    break
+
+        if is_duplicate:
+            repeat_count = call_history_counts[call_sig]
+            if repeat_count >= 2:
+                logger.warning(f"Step {step_id}: Rilevata ripetizione persistente per '{tool_name}'. Interruzione loop ReAct per prevenire cicli infiniti.")
+                history_observations.append(f"Step {step_id}: [LOOP INTERROTTO] L'azione '{tool_name}' è già stata eseguita in precedenza. Si procede alla sintesi finale.")
+                execution_trace.append({
+                    "step_id": step_id,
+                    "tool_name": tool_name,
+                    "args": arguments,
+                    "result": {"warning": "Chiamata duplicata bloccata. Interruzione loop ReAct per convergenza rapida."},
+                    "reasoning": selection.reasoning if selection else None,
+                    "cached": True,
+                    "duplicate_blocked": True
+                })
+                break
+            else:
+                warning_msg = (
+                    f"ATTENZIONE: Hai già eseguito la chiamata '{tool_name}' con parametri analoghi. "
+                    "Non ripetere la stessa azione. Se le informazioni non sono reperibili nel web o i dati ottenuti sono sufficienti, "
+                    "imposta `tool_needed=false` e sintetizza la risposta in `final_answer`."
+                )
+                logger.warning(f"Step {step_id}: Chiamata duplicata per '{tool_name}'. Iniezione feedback correttivo.")
+                execution_trace.append({
+                    "step_id": step_id,
+                    "tool_name": tool_name,
+                    "args": arguments,
+                    "result": {"warning": warning_msg},
+                    "reasoning": selection.reasoning if selection else None,
+                    "cached": True,
+                    "duplicate_blocked": True
+                })
+                history_observations.append(f"Step {step_id}: [DUPLICATO BLOCCATO] {warning_msg}")
+                continue
+
+        if tool_name == "web_search":
+            executed_search_queries.append(str(arguments.get("query", "")).strip())
 
         # Esecuzione del tool via Registry Manager (con guardrail + approval + audit)
         cache_key = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"

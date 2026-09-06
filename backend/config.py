@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     default_model: str = Field(default="Qwen3.6-35B-HugeCtx", alias="DEFAULT_MODEL")
     llama_cpp_url: str = Field(default="http://192.168.1.159:8080/v1", alias="LLAMA_CPP_URL")
     ollama_url: str = Field(default="", alias="OLLAMA_URL")
+    llm_repeat_penalty: float = Field(default=1.10, alias="LLM_REPEAT_PENALTY")
+    llm_presence_penalty: float = Field(default=0.15, alias="LLM_PRESENCE_PENALTY")
+    llm_frequency_penalty: float = Field(default=0.10, alias="LLM_FREQUENCY_PENALTY")
+    llm_top_p: float = Field(default=0.95, alias="LLM_TOP_P")
 
     # --- Letta ---
     letta_url: str = Field(default="http://192.168.1.177:8083", alias="LETTA_URL")

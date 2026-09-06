@@ -262,7 +262,7 @@ def _call_llm_structured(
     system_prompt: str,
     schema_cls: Any,
     max_tokens: int = 4096,
-    temperature: float = 0.0,
+    temperature: float = 0.10,
     max_retries: int = 3,
     reasoning_budget: int = -1,
     model: Optional[str] = None,
@@ -280,6 +280,12 @@ def _call_llm_structured(
         f"{json.dumps(json_schema, ensure_ascii=False)}\n\n"
         f"Non aggiungere testo fuori dal JSON."
     )
+
+    # Limita il reasoning budget per la selezione tool per evitare loop di pensiero prolungati
+    effective_reasoning_budget = reasoning_budget
+    if getattr(schema_cls, "__name__", "") == "ToolSelection":
+        if reasoning_budget <= 0 or reasoning_budget > 1024:
+            effective_reasoning_budget = 1024
 
     last_error = None
     effective_max_tokens = max_tokens
@@ -299,7 +305,7 @@ def _call_llm_structured(
             system_prompt=schema_prompt,
             max_tokens=effective_max_tokens,
             temperature=temperature,
-            reasoning_budget=reasoning_budget,
+            reasoning_budget=effective_reasoning_budget,
             model=model,
             stream_mode="reasoning_only",
             reasoning_phase=reasoning_phase,

@@ -31,13 +31,21 @@ def _get_llm_config(client: httpx.Client):
         pass
     return None
 
+_logged_missing_config = False
+
+def _warn_missing_config_once():
+    global _logged_missing_config
+    if not _logged_missing_config:
+        logger.info("Letta non configurato (LETTA_URL o LETTA_API_KEY mancante): fallback su memoria JSONL locale.")
+        _logged_missing_config = True
+
 def create_thread(name: str, memory_blocks: list = None) -> str:
     """
     Creates or retrieves a Letta agent/thread by name.
     Returns agent_id (str) or None if request fails.
     """
     if not LETTA_URL or not LETTA_API_KEY:
-        logger.warning("LETTA_URL or LETTA_API_KEY missing")
+        _warn_missing_config_once()
         return None
 
     with httpx.Client(follow_redirects=True) as client:

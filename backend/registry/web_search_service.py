@@ -83,6 +83,19 @@ def search_with_fallback(
         accumulated.extend(relevant)
         provider_used = f"SearXNG ({_PRIMARY_LANG})"
 
+    # 1b. If query had restrictive quotes and gave < MIN results, retry unquoted
+    unquoted_q = " ".join(query.replace('"', ' ').replace("'", ' ').split())
+    if unquoted_q != query and len(accumulated) < _MIN_SATISFACTORY_RESULTS:
+        logger.info(f"Retrying SearXNG ({_PRIMARY_LANG}) without restrictive quotes: {unquoted_q}")
+        unquoted_results = search_searxng_api(unquoted_q, count=count, time_filter=time_filter, language=_PRIMARY_LANG)
+        if unquoted_results:
+            relevant = filter_irrelevant_results(unquoted_q, unquoted_results)
+            accumulated.extend(relevant)
+            accumulated = deduplicate_by_url(accumulated)
+            if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
+                return accumulated, f"SearXNG ({_PRIMARY_LANG} unquoted)"
+            provider_used = f"SearXNG ({_PRIMARY_LANG} unquoted)"
+
     # 2. Retry SearXNG fallback language
     if _FALLBACK_LANG and _FALLBACK_LANG != _PRIMARY_LANG:
         time.sleep(0.2)

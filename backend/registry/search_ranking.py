@@ -14,6 +14,12 @@ _STOPWORDS = {
     "del", "dei", "delle", "da", "in", "su", "nel", "nella", "sui", "sulle",
 }
 
+_GENERIC_TECH_TOKENS = {
+    "gpt", "ai", "chatgpt", "llm", "model", "modello", "modelli", "models",
+    "vs", "versus", "comparison", "confronto", "artificial", "intelligence",
+    "online", "api", "app", "pro", "plus", "free", "gratis", "news", "notizie"
+}
+
 _AGE_FORMATS = ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S")
 
 def _utcnow_naive() -> datetime:
@@ -80,13 +86,22 @@ def compute_relevance(query: str, title: str, snippet: str) -> float:
 
 def is_result_relevant(query: str, title: str, snippet: str) -> bool:
     """Determine if a result is genuinely relevant to the query.
-    Prevents false positives from accidental matches on a single ambiguous word (e.g. 'Nancy').
+    Prevents false positives from accidental matches on a single ambiguous word or generic buzzwords.
     """
     terms = _content_query_terms(query)
     if not terms:
         return True
 
     text = f"{title} {snippet}".lower()
+
+    # If the query contains distinctive entity terms (e.g. 'astra', 'sol'),
+    # require that at least one distinctive entity term is present in title or snippet.
+    specific_terms = [t for t in terms if t not in _GENERIC_TECH_TOKENS]
+    if specific_terms:
+        specific_hits = sum(1 for t in specific_terms if _has_word(text, t))
+        if specific_hits == 0:
+            return False
+
     hits = sum(1 for t in terms if _has_word(text, t))
 
     if len(terms) >= 4:
