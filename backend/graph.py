@@ -30,7 +30,14 @@ from tool_catalog import get_rollback_info, get_tool_catalog
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("graph")
 
-MONITORING_LOG_FILE = os.getenv("MONITORING_LOG_FILE", str(Path(__file__).parent / "memory" / "monitoring_logs.jsonl"))
+if os.path.exists("/data") and os.access("/data", os.W_OK):
+    MEMORY_DIR = "/data/memory"
+elif os.path.exists("/opt/homelab-agent"):
+    MEMORY_DIR = "/opt/homelab-agent/memory"
+else:
+    MEMORY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
+
+MONITORING_LOG_FILE = os.getenv("MONITORING_LOG_FILE", str(Path(MEMORY_DIR) / "monitoring_logs.jsonl"))
 
 @dataclass
 class AgentSpan:
@@ -115,7 +122,6 @@ client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_K
 conn = sqlite3.connect(config.CHECKPOINT_DB_PATH, check_same_thread=False)
 memory = SqliteSaver(conn)
 
-MEMORY_DIR = "/opt/homelab-agent/memory" if os.path.exists("/opt/homelab-agent") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
 
 def _append_message_to_file(thread_id: str, role: str, content: str):
     """Scrivi un messaggio su file JSONL (append-only) per audit e disaster recovery."""
