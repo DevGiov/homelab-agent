@@ -20,6 +20,7 @@ from mcp_client import MetaMCPClient
 from providers import get_provider
 
 stream_queue = contextvars.ContextVar("stream_queue", default=None)
+stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_count", default=0)
 
 from agent_loop import is_tools_discovery_query, run_agent_loop
 from mode_policy import get_mode_policy
@@ -173,11 +174,20 @@ Conversazione:
 {text}
 
 Riassunto:"""
-    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, model=model)
+    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, model=model, stream_mode="none")
     summary = summary_res.get("content", "") if isinstance(summary_res, dict) else ""
     return summary.strip() if summary else ""
 
-def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, temperature: float = 0.3, reasoning_budget: int = -1, model: Optional[str] = None) -> dict:
+def _call_llm(
+    prompt: str,
+    system_prompt: str = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.3,
+    reasoning_budget: int = -1,
+    model: Optional[str] = None,
+    stream_mode: str = "all",  # "all" | "reasoning_only" | "content_only" | "none"
+    reasoning_phase: Optional[str] = None,
+) -> dict:
     messages = []
 
     # Capability detection based on effective model
@@ -203,7 +213,31 @@ def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, te
     messages.append({"role": "user", "content": prompt})
 
     q = stream_queue.get()
-    stream_callback = (lambda ev: q.put(ev)) if q else None
+    stream_callback = None
+    if q and stream_mode != "none":
+        phase_header_sent = False
+
+        def _cb(ev: dict):
+            nonlocal phase_header_sent
+            ev_type = ev.get("type")
+            if ev_type == "reasoning":
+                if stream_mode in ("all", "reasoning_only"):
+                    if reasoning_phase and not phase_header_sent:
+                        phase_header_sent = True
+                        count = stream_reasoning_phase_count.get()
+                        stream_reasoning_phase_count.set(count + 1)
+                        header = (
+                            f"\n\n---\n\n#### 💡 {reasoning_phase}\n\n"
+                            if count > 0
+                            else f"#### 🔍 {reasoning_phase}\n\n"
+                        )
+                        q.put({"type": "reasoning", "delta": header})
+                    q.put(ev)
+            elif ev_type == "content":
+                if stream_mode in ("all", "content_only"):
+                    q.put(ev)
+
+        stream_callback = _cb
 
     # Fase 1.1: delega al provider abstraction
     return provider.chat(
@@ -215,10 +249,21 @@ def _call_llm(prompt: str, system_prompt: str = None, max_tokens: int = 4096, te
         stream_callback=stream_callback,
     )
 
-def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_tokens: int = 4096, temperature: float = 0.0, max_retries: int = 3, reasoning_budget: int = -1, model: Optional[str] = None) -> Optional[Any]:
+def _call_llm_structured(
+    prompt: str,
+    system_prompt: str,
+    schema_cls: Any,
+    max_tokens: int = 4096,
+    temperature: float = 0.0,
+    max_retries: int = 3,
+    reasoning_budget: int = -1,
+    model: Optional[str] = None,
+    reasoning_phase: Optional[str] = "Analisi e Selezione Tool",
+) -> Optional[Any]:
     """
     Chiama l'LLM richiedendo output conforme allo schema Pydantic.
     Effettua parsing + validazione con retry mirato ed iniezione dell'errore.
+    Isola lo stream del content JSON per non farlo comparire nella chat principale.
     """
     json_schema = schema_cls.model_json_schema()
     schema_prompt = (
@@ -241,7 +286,16 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
                 f"Correggi e rispondi di nuovo SOLO con il JSON valido."
             )
 
-        raw_res = _call_llm(current_prompt, system_prompt=schema_prompt, max_tokens=effective_max_tokens, temperature=temperature, reasoning_budget=reasoning_budget, model=model)
+        raw_res = _call_llm(
+            current_prompt,
+            system_prompt=schema_prompt,
+            max_tokens=effective_max_tokens,
+            temperature=temperature,
+            reasoning_budget=reasoning_budget,
+            model=model,
+            stream_mode="reasoning_only",
+            reasoning_phase=reasoning_phase,
+        )
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
             continue
@@ -264,6 +318,8 @@ def _call_llm_structured(prompt: str, system_prompt: str, schema_cls: Any, max_t
         try:
             parsed = json.loads(clean)
             validated = schema_cls.model_validate(parsed)
+            if hasattr(validated, "raw_thinking"):
+                validated.raw_thinking = raw_res.get("reasoning_content", "") if isinstance(raw_res, dict) else ""
             logger.info(f"Structured output valido al tentativo {attempt}: {validated.model_dump()}")
             return validated
         except Exception as e:
@@ -539,7 +595,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta Utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    ans_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model)
+    ans_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta")
     raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
     reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
     ans = clean_synthesis_content(raw_ans) or raw_ans
@@ -572,8 +628,8 @@ def ask_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase),
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
     )
 
     ans = loop_res.get("final_response", "")
@@ -771,7 +827,7 @@ def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str
     
     Piano di rollback:"""
 
-    plan_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in rollback di operazioni di infrastruttura Proxmox.", max_tokens=512, temperature=0.3, model=model)
+    plan_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in rollback di operazioni di infrastruttura Proxmox.", max_tokens=512, temperature=0.3, model=model, stream_mode="none")
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 
@@ -933,8 +989,8 @@ def act_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model)
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase),
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
     )
 
     ans = loop_res.get("final_response", "")
@@ -981,7 +1037,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta dell'utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model)
+    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica")
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -1010,7 +1066,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "  ]\n"
         "}"
     )
-    json_resp_res = _call_llm(user_prompt, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model)
+    json_resp_res = _call_llm(user_prompt, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model, stream_mode="none")
     json_resp = json_resp_res.get("content", "") if isinstance(json_resp_res, dict) else ""
     plan_structure = None
     if json_resp:
@@ -1199,7 +1255,7 @@ def extract_salient_facts(task: str, response: str, memory_context: str, model: 
     
     Fatti salienti (elenca massimo 5 punti concisi, uno per riga):"""
 
-    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=300, temperature=0.3, model=model)
+    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=300, temperature=0.3, model=model, stream_mode="none")
     raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
     if not raw:
         return []

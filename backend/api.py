@@ -16,7 +16,7 @@ import audit_log
 import config
 import letta_client
 import thread_store
-from graph import build_graph, stream_queue
+from graph import build_graph, stream_queue, stream_reasoning_phase_count
 from providers import (
     get_active_model_name,
     get_active_provider_name,
@@ -262,6 +262,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     cfg = {"configurable": {"thread_id": effective_thread_id}}
     q = queue.Queue()
     stream_queue.set(q)
+    stream_reasoning_phase_count.set(0)
 
     def worker():
         try:

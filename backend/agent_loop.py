@@ -1,7 +1,8 @@
 import json
 import logging
+import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import config
 from mode_policy import get_mode_policy
@@ -37,6 +38,16 @@ def is_tools_discovery_query(query: str) -> bool:
         "mostra i", "mostrami i", "cosa puoi fare", "hai a disposizione", "di che tool",
     ])
     return has_target and has_intent
+
+
+def _call_llm_with_phase(fn: Any, prompt: str, system_prompt: Optional[str] = None, reasoning_budget: int = -1, reasoning_phase: Optional[str] = None) -> Any:
+    if not fn:
+        return None
+    try:
+        return fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget, reasoning_phase=reasoning_phase)
+    except TypeError:
+        return fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget)
+
 
 
 def run_agent_loop(
@@ -107,6 +118,7 @@ def run_agent_loop(
 
     catalog_str = format_catalog_for_prompt(available_tools)
     history_observations = []
+    accumulated_reasonings: List[Tuple[str, str]] = []
 
     # Cache/deduplicazione risultati tool identici nello stesso run
     call_cache: Dict[str, Any] = {}
@@ -151,7 +163,7 @@ def run_agent_loop(
             if call_llm_fn:
                 direct_system_prompt = base_system_prompt + "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano. Se la richiesta riguarda eventi recenti o dati che non puoi conoscere con certezza, dillo esplicitamente invece di inventare informazioni."
                 direct_prompt = f"Richiesta: '{task}'\nContesto memoria:\n{memory_context or ''}"
-                syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
+                syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
                 syn_ans = syn_res.get("content", "") if isinstance(syn_res, dict) else (syn_res or "")
                 reasoning_content = syn_res.get("reasoning_content", "") if isinstance(syn_res, dict) else ""
                 return {"final_response": syn_ans or "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}
@@ -167,11 +179,28 @@ def run_agent_loop(
             reasoning_budget=policy.reasoning_budget
         )
 
+        step_thinking = getattr(selection, "raw_thinking", "") or ""
+        step_cot = (selection.reasoning if selection else "") or ""
+        step_reasoning = step_thinking or step_cot
+        if step_reasoning:
+            phase_label = f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool"
+            accumulated_reasonings.append((phase_label, step_reasoning))
+
         if not selection or (not selection.tool_needed and not selection.parallel_calls) or not selection.tool_name:
             # 1. Se l'LLM ha fornito un final_answer esplicito
             if selection and selection.final_answer and len(selection.final_answer.strip()) > 10:
                 final_ans = selection.final_answer.strip()
-                reasoning_content = selection.reasoning or None
+                # Emette la risposta finale in streaming pulito verso il frontend se la coda è attiva
+                from graph import stream_queue
+                q = stream_queue.get()
+                if q:
+                    words = re.findall(r'\S+|\s+', final_ans)
+                    for w in words:
+                        q.put({"type": "content", "delta": w})
+                reasoning_content = "\n\n---\n\n".join(
+                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+                    for title, body in accumulated_reasonings
+                ) if accumulated_reasonings else None
             # 2. Se abbiamo eseguito dei tool ed abbiamo delle osservazioni, sintetizziamo la risposta per l'utente
             elif history_observations and call_llm_fn:
                 summary_system_prompt = base_system_prompt + (
@@ -189,13 +218,19 @@ def run_agent_loop(
                     f"La risposta deve essere discorsiva, dettagliata ed esaustiva. "
                     f"Se sono stati usati tool di ricerca (es. web_search), cita e spiega le informazioni trovate in modo chiaro e completo."
                 )
-                syn_res = call_llm_fn(summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget) if call_llm_fn else None
+                syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Sintesi Risultati Tool")
                 raw_syn = syn_res.get("content", "") if syn_res else ""
-                reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
+                syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
+                if syn_reasoning:
+                    accumulated_reasonings.append(("Sintesi Risultati Tool", syn_reasoning))
                 syn_ans = clean_synthesis_content(raw_syn)
                 final_ans = syn_ans if syn_ans else (
                     "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
                 )
+                reasoning_content = "\n\n---\n\n".join(
+                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+                    for title, body in accumulated_reasonings
+                ) if accumulated_reasonings else None
             # 3. Se la richiesta non richiede tool (es. domande concettuali o coperte da prefetch), generiamo una risposta diretta
             elif call_llm_fn:
                 direct_system_prompt = base_system_prompt + (
@@ -214,16 +249,25 @@ def run_agent_loop(
                     f"Contesto memoria:\n{memory_context or ''}"
                 )
                 direct_prompt = "\n\n".join(direct_prompt_parts)
-                syn_res = call_llm_fn(direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget)
+                syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
                 raw_syn = syn_res.get("content", "") if syn_res else ""
-                reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
+                syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
+                if syn_reasoning:
+                    accumulated_reasonings.append(("Elaborazione Risposta Finale", syn_reasoning))
                 syn_ans = clean_synthesis_content(raw_syn)
                 final_ans = syn_ans if syn_ans else (
                     "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
                 )
+                reasoning_content = "\n\n---\n\n".join(
+                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+                    for title, body in accumulated_reasonings
+                ) if accumulated_reasonings else None
             else:
                 final_ans = "Richiesta completata."
-                reasoning_content = None
+                reasoning_content = "\n\n---\n\n".join(
+                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+                    for title, body in accumulated_reasonings
+                ) if accumulated_reasonings else None
 
             return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
 
@@ -352,10 +396,20 @@ def run_agent_loop(
             f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
             f"Rispondi in prosa naturale (nessun JSON): questa è la risposta per l'utente."
         )
-        syn_res = call_llm_fn(summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget)
+        syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Sintesi Risultati Finali")
         raw_ans = syn_res.get("content", "") if syn_res else ""
-        reasoning_content = syn_res.get("reasoning_content", "") if syn_res else ""
+        syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
+        if syn_reasoning:
+            accumulated_reasonings.append(("Sintesi Risultati Finali", syn_reasoning))
         final_ans = clean_synthesis_content(raw_ans) or "Operazione completata."
+        reasoning_content = "\n\n---\n\n".join(
+            f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+            for title, body in accumulated_reasonings
+        ) if accumulated_reasonings else None
         return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
 
-    return {"final_response": "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": None}
+    reasoning_content = "\n\n---\n\n".join(
+        f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
+        for title, body in accumulated_reasonings
+    ) if accumulated_reasonings else None
+    return {"final_response": "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}

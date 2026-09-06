@@ -22,6 +22,7 @@ class ToolSelection(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidenza nella scelta, da 0 a 1")
     reasoning: str = Field(default="", description="Motivazione o spiegazione interna della decisione (Chain of Thought)")
     final_answer: Optional[str] = Field(default=None, description="Risposta finale formattata ed esplicita per l'utente, da compilare specialmente quando tool_needed=False")
+    raw_thinking: Optional[str] = Field(default=None, description="Thinking nativo catturato durante la chiamata LLM")
 
 def validate_tool_args(tool_name: str, arguments: dict, tools_catalog: List[dict]) -> Optional[str]:
     """Valida gli argomenti contro lo schema del tool. Ritorna None se ok, altrimenti messaggio di errore."""
