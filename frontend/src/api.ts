@@ -113,6 +113,14 @@ export interface RollbackAction {
   error?: string;
 }
 
+export interface StreamMetrics {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  duration_s?: number;
+  tok_per_s?: number;
+}
+
 export interface ChatResponse {
   thread_id: string | null;
   mode: AgentMode | string;
@@ -124,6 +132,7 @@ export interface ChatResponse {
   rollback_trace?: RollbackAction[];
   reasoning_content?: string;
   web_prefetch?: WebPrefetchData;
+  metrics?: StreamMetrics;
   error?: string;
 }
 
@@ -164,6 +173,7 @@ export interface FormattedMessage {
   rollback_trace?: RollbackAction[];
   reasoning_content?: string;
   web_prefetch?: WebPrefetchData;
+  metrics?: StreamMetrics;
   isError?: boolean;
 }
 
@@ -178,7 +188,9 @@ export async function sendStreamMessage(
   onContentDelta?: (delta: string) => void,
   onFinalResponse?: (response: ChatResponse) => void,
   onError?: (error: string) => void,
-  onRetrievalEvent?: (event: string, data: any) => void
+  onRetrievalEvent?: (event: string, data: any) => void,
+  onMetrics?: (metrics: StreamMetrics) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   try {
     const response = await fetch(`${API_BASE}/invoke_stream`, {
@@ -188,6 +200,7 @@ export async function sendStreamMessage(
         ...(getApiKey() ? { 'X-API-Key': getApiKey() } : {}),
       },
       body: JSON.stringify(req),
+      signal,
     });
 
     if (!response.body) throw new Error('ReadableStream not yet supported in this browser.');
@@ -221,6 +234,8 @@ export async function sendStreamMessage(
               onContentDelta(data.delta);
             } else if (data.type === 'retrieval' && onRetrievalEvent) {
               onRetrievalEvent(data.event, data.data);
+            } else if (data.type === 'metrics' && onMetrics) {
+              onMetrics(data.metrics);
             } else if (data.type === 'final' && onFinalResponse) {
               onFinalResponse(data.response);
             } else if (data.type === 'error' && onError) {
@@ -233,8 +248,27 @@ export async function sendStreamMessage(
       }
     }
   } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.log('Stream request was aborted by user');
+      return;
+    }
     if (onError) onError(err.message || 'Stream error');
   }
+}
+
+export async function stopChatStream(threadId: string): Promise<{ status: string }> {
+  const res = await api.post<{ status: string }>('/chat/stop', { thread_id: threadId });
+  return res.data;
+}
+
+export async function pauseChatStream(threadId: string): Promise<{ status: string }> {
+  const res = await api.post<{ status: string }>('/chat/pause', { thread_id: threadId });
+  return res.data;
+}
+
+export async function resumeChatStream(threadId: string): Promise<{ status: string }> {
+  const res = await api.post<{ status: string }>('/chat/resume', { thread_id: threadId });
+  return res.data;
 }
 
 export async function listThreads(): Promise<ThreadItem[]> {

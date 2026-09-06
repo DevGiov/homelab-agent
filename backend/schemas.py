@@ -24,6 +24,11 @@ class ChatResponse(BaseModel):
     rollback_trace: Optional[List[Dict[str, Any]]] = None
     reasoning_content: Optional[str] = None
     web_prefetch: Optional[Dict[str, Any]] = None
+    metrics: Optional[Dict[str, Any]] = None
+
+
+class ThreadControlRequest(BaseModel):
+    thread_id: str
 
 
 class ThreadSummary(BaseModel):

@@ -124,6 +124,16 @@ def run_agent_loop(
     call_cache: Dict[str, Any] = {}
 
     for step_id in range(1, policy.max_tool_calls + 1):
+        from stream_session import current_session_var
+        sess = current_session_var.get()
+        if sess:
+            if sess.is_stopped():
+                logger.info("Agent loop interrotto da session stop")
+                break
+            sess.pause_event.wait(timeout=300)
+            if sess.is_stopped():
+                break
+
         obs_context = "\n".join(history_observations) if history_observations else "Nessuna azione eseguita finora."
 
         now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')

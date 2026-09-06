@@ -35,7 +35,14 @@ from schemas import (
     ProviderModelsResponse,
     ProvidersResponse,
     SetDefaultProviderRequest,
+    ThreadControlRequest,
     ThreadSummary,
+)
+from stream_session import (
+    create_session,
+    current_session_var,
+    get_session,
+    remove_session,
 )
 
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
@@ -263,6 +270,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     q = queue.Queue()
     stream_queue.set(q)
     stream_reasoning_phase_count.set(0)
+    sess = create_session(effective_thread_id)
+    current_session_var.set(sess)
 
     def worker():
         try:
@@ -277,6 +286,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
             rollback_trace = final_state.get("rollback_trace")
             reasoning_content = final_state.get("reasoning_content")
             web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
+            metrics = sess.get_metrics()
 
             resp = ChatResponse(
                 thread_id=effective_thread_id,
@@ -288,7 +298,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 execution_trace=execution_trace,
                 rollback_trace=rollback_trace,
                 reasoning_content=reasoning_content,
-                web_prefetch=web_prefetch
+                web_prefetch=web_prefetch,
+                metrics=metrics
             )
             if not incognito:
                 thread_store.save_turn(effective_thread_id, task, resp.model_dump())
@@ -296,6 +307,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         except Exception as e:
             q.put({"type": "error", "error": str(e)})
         finally:
+            remove_session(effective_thread_id)
             q.put(None)
 
     ctx = contextvars.copy_context()
@@ -303,12 +315,19 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     t.start()
 
     def event_generator():
-        while True:
-            item = q.get()
-            if item is None:
-                break
-            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-        yield "data: [DONE]\n\n"
+        try:
+            while True:
+                if sess.is_stopped():
+                    break
+                try:
+                    item = q.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+                if item is None:
+                    break
+                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -316,6 +335,30 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 @_limit(config.RATE_LIMIT)
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow_stream(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+
+@api.post("/v1/chat/stop", dependencies=[Depends(verify_api_key)])
+async def chat_stop_endpoint(req: ThreadControlRequest):
+    sess = get_session(req.thread_id)
+    if sess:
+        sess.stop()
+        return {"status": "ok", "message": "Stream stopped"}
+    return {"status": "not_found", "message": "No active stream for thread"}
+
+@api.post("/v1/chat/pause", dependencies=[Depends(verify_api_key)])
+async def chat_pause_endpoint(req: ThreadControlRequest):
+    sess = get_session(req.thread_id)
+    if sess:
+        sess.pause()
+        return {"status": "ok", "message": "Stream paused"}
+    return {"status": "not_found", "message": "No active stream for thread"}
+
+@api.post("/v1/chat/resume", dependencies=[Depends(verify_api_key)])
+async def chat_resume_endpoint(req: ThreadControlRequest):
+    sess = get_session(req.thread_id)
+    if sess:
+        sess.resume()
+        return {"status": "ok", "message": "Stream resumed"}
+    return {"status": "not_found", "message": "No active stream for thread"}
 
 @api.get("/v1/audit", dependencies=[Depends(verify_api_key)])
 async def get_audit_log(limit: int = 100, thread_id: Optional[str] = None):

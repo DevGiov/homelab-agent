@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   sendStreamMessage,
+  stopChatStream,
+  pauseChatStream,
+  resumeChatStream,
   getThreadDetails,
   type FormattedMessage,
   type AgentMode,
@@ -8,12 +11,14 @@ import {
   type PlanStructure,
   type RollbackAction,
   type WebPrefetchData,
+  type StreamMetrics,
 } from '../api';
 import { adaptChatResponseToMessage, adaptLettaMessagesToMessages } from '../utils/messageAdapter';
 
 export function useChat(currentThreadId: string | null, onThreadCreated?: (id: string) => void) {
   const [threadMessagesMap, setThreadMessagesMap] = useState<Record<string, FormattedMessage[]>>({});
   const [isLoadingChat, setIsLoadingChat] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
   // Active diagnostics panel state
@@ -26,6 +31,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [activeWebPrefetch, setActiveWebPrefetch] = useState<WebPrefetchData | undefined>(undefined);
 
   const isSendingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null);
 
   // Load history for a thread
   const loadThreadHistory = useCallback(async (threadId: string) => {
@@ -91,11 +98,16 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     ) => {
       setChatError(null);
       isSendingRef.current = true;
+      setIsPaused(false);
 
       const targetThreadId = currentThreadId || `thread_${Date.now()}`;
+      activeThreadIdRef.current = targetThreadId;
       if (!currentThreadId && onThreadCreated) {
         onThreadCreated(targetThreadId);
       }
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const userMsg: FormattedMessage = {
@@ -163,6 +175,9 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           (finalResponse) => {
             const assistantMsg = adaptChatResponseToMessage(finalResponse);
             assistantMsg.id = assistantMsgId; // preserve id
+            if (!assistantMsg.metrics && finalResponse.metrics) {
+              assistantMsg.metrics = finalResponse.metrics;
+            }
             const finalThreadId = finalResponse.thread_id || targetThreadId;
 
             setThreadMessagesMap((prev) => {
@@ -203,9 +218,25 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
                 latency_ms: retrievalData.latency_ms,
               }));
             }
-          }
+          },
+          (metricsData: StreamMetrics) => {
+            setThreadMessagesMap((prev) => {
+              const msgs = prev[targetThreadId] || [];
+              return {
+                ...prev,
+                [targetThreadId]: msgs.map((m) =>
+                  m.id === assistantMsgId ? { ...m, metrics: metricsData } : m
+                ),
+              };
+            });
+          },
+          abortController.signal
         );
       } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('Chat execution aborted by user');
+          return;
+        }
         console.error('API call failed:', err);
         const errMsg = err.response?.data?.detail || err.message || 'Failed to send message to agent';
         setChatError(`API Error: ${errMsg}`);
@@ -228,20 +259,68 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         });
       } finally {
         setIsLoadingChat(false);
+        setIsPaused(false);
         isSendingRef.current = false;
+        abortControllerRef.current = null;
       }
     },
     [currentThreadId, onThreadCreated]
   );
+
+  const handleStop = useCallback(async () => {
+    const threadId = activeThreadIdRef.current;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (threadId) {
+      try {
+        await stopChatStream(threadId);
+      } catch (e) {
+        console.warn('Error sending stop signal to backend:', e);
+      }
+    }
+    setIsPaused(false);
+    setIsLoadingChat(false);
+    isSendingRef.current = false;
+  }, []);
+
+  const handlePause = useCallback(async () => {
+    const threadId = activeThreadIdRef.current;
+    if (threadId) {
+      try {
+        await pauseChatStream(threadId);
+        setIsPaused(true);
+      } catch (e) {
+        console.warn('Error pausing stream:', e);
+      }
+    }
+  }, []);
+
+  const handleResume = useCallback(async () => {
+    const threadId = activeThreadIdRef.current;
+    if (threadId) {
+      try {
+        await resumeChatStream(threadId);
+        setIsPaused(false);
+      } catch (e) {
+        console.warn('Error resuming stream:', e);
+      }
+    }
+  }, []);
 
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];
 
   return {
     currentMessages,
     isLoadingChat,
+    isPaused,
     chatError,
     setChatError,
     handleSendMessage,
+    handleStop,
+    handlePause,
+    handleResume,
     loadThreadHistory,
     diagnostics: {
       activeTool,

@@ -25,9 +25,13 @@ function MainLayout() {
   const {
     currentMessages,
     isLoadingChat,
+    isPaused,
     chatError,
     setChatError,
     handleSendMessage,
+    handleStop,
+    handlePause,
+    handleResume,
     loadThreadHistory,
     diagnostics,
   } = useChat(currentThreadId, (newId) => selectThread(newId));
@@ -93,6 +97,10 @@ function MainLayout() {
         currentThreadId={currentThreadId}
         messages={currentMessages}
         onSendMessage={handleSendMessage}
+        onStop={handleStop}
+        onPause={handlePause}
+        onResume={handleResume}
+        isPaused={isPaused}
         isLoading={isLoadingChat}
         error={activeError}
         onClearError={clearErrors}

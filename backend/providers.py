@@ -7,12 +7,14 @@ e supportano streaming verso una callback di eventi.
 import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
 
 import httpx
 
 import config
+from stream_session import current_session_var
 
 logger = logging.getLogger("providers")
 
@@ -91,13 +93,19 @@ class OpenAICompatProvider(LLMProvider):
                 payload["reasoning_budget_tokens"] = reasoning_budget
         if stream:
             payload["stream"] = True
+            payload["stream_options"] = {"include_usage": True}
         return payload
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None) -> Dict[str, str]:
+             reasoning_budget=-1, stream_callback=None) -> Dict[str, Any]:
         url = f"{self.base_url}/chat/completions"
         payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, stream=bool(stream_callback))
 
+        sess = current_session_var.get()
+        if sess and sess.is_stopped():
+            return {"content": "", "reasoning_content": "", "metrics": {}}
+
+        start_t = time.time()
         max_retries = 2
         for attempt in range(1, max_retries + 1):
             try:
@@ -108,34 +116,88 @@ class OpenAICompatProvider(LLMProvider):
                                 logger.warning(f"[{self.name}] LLM status {res.status_code}")
                                 break
                             content_acc, reasoning_acc = "", ""
+                            raw_usage = None
                             for line in res.iter_lines():
+                                if sess:
+                                    if sess.is_stopped():
+                                        logger.info(f"[{self.name}] LLM stream interrotto da session stop")
+                                        break
+                                    sess.pause_event.wait(timeout=300)
+                                    if sess.is_stopped():
+                                        break
                                 if not line.startswith("data: ") or line == "data: [DONE]":
                                     continue
                                 try:
                                     chunk = json.loads(line[6:])
-                                    delta = chunk["choices"][0].get("delta", {})
-                                    r_part = delta.get("reasoning_content")
-                                    if r_part:
-                                        reasoning_acc += r_part
-                                        stream_callback({"type": "reasoning", "delta": r_part})
-                                    c_part = delta.get("content")
-                                    if c_part:
-                                        content_acc += c_part
-                                        stream_callback({"type": "content", "delta": c_part})
+                                    if "usage" in chunk and chunk["usage"]:
+                                        raw_usage = chunk["usage"]
+                                    choices = chunk.get("choices")
+                                    if choices and len(choices) > 0:
+                                        delta = choices[0].get("delta", {})
+                                        r_part = delta.get("reasoning_content")
+                                        if r_part:
+                                            reasoning_acc += r_part
+                                            stream_callback({"type": "reasoning", "delta": r_part})
+                                        c_part = delta.get("content")
+                                        if c_part:
+                                            content_acc += c_part
+                                            stream_callback({"type": "content", "delta": c_part})
                                 except Exception as e:
                                     logger.warning(f"[{self.name}] SSE parse error: {e}")
-                            return {"content": content_acc.strip(), "reasoning_content": reasoning_acc.strip()}
+
+                            duration_s = round(time.time() - start_t, 2)
+                            if raw_usage:
+                                p_tok = raw_usage.get("prompt_tokens", 0)
+                                c_tok = raw_usage.get("completion_tokens", 0)
+                                tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                            else:
+                                c_tok = max(1, len(content_acc + reasoning_acc) // 4) if (content_acc or reasoning_acc) else 0
+                                p_tok = 0
+                                tot_tok = c_tok
+                            tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
+                            metrics = {
+                                "prompt_tokens": p_tok,
+                                "completion_tokens": c_tok,
+                                "total_tokens": tot_tok,
+                                "duration_s": duration_s,
+                                "tok_per_s": tok_per_s,
+                            }
+                            if sess:
+                                sess.record_metrics(metrics)
+                            stream_callback({"type": "metrics", "metrics": sess.get_metrics() if sess else metrics})
+                            return {"content": content_acc.strip(), "reasoning_content": reasoning_acc.strip(), "metrics": metrics}
                 else:
                     with httpx.Client(timeout=self.timeout) as client:
                         res = client.post(url, json=payload)
                     if res.status_code == 200:
-                        msg_obj = res.json()["choices"][0]["message"]
+                        data = res.json()
+                        msg_obj = data["choices"][0]["message"]
                         content = msg_obj.get("content") or ""
                         reasoning = msg_obj.get("reasoning_content") or msg_obj.get("thinking") or msg_obj.get("reasoning") or ""
                         if not reasoning:
                             content, extracted = _extract_think_blocks(content)
                             reasoning = extracted
-                        return {"content": content.strip(), "reasoning_content": reasoning.strip()}
+                        raw_usage = data.get("usage")
+                        duration_s = round(time.time() - start_t, 2)
+                        if raw_usage:
+                            p_tok = raw_usage.get("prompt_tokens", 0)
+                            c_tok = raw_usage.get("completion_tokens", 0)
+                            tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                        else:
+                            c_tok = max(1, len(content + reasoning) // 4) if (content or reasoning) else 0
+                            p_tok = 0
+                            tot_tok = c_tok
+                        tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
+                        metrics = {
+                            "prompt_tokens": p_tok,
+                            "completion_tokens": c_tok,
+                            "total_tokens": tot_tok,
+                            "duration_s": duration_s,
+                            "tok_per_s": tok_per_s,
+                        }
+                        if sess:
+                            sess.record_metrics(metrics)
+                        return {"content": content.strip(), "reasoning_content": reasoning.strip(), "metrics": metrics}
                     logger.warning(f"[{self.name}] LLM status {res.status_code}: {res.text[:300]}")
                     break
             except (httpx.TimeoutException, httpx.ConnectError) as e:
@@ -143,7 +205,7 @@ class OpenAICompatProvider(LLMProvider):
             except Exception as e:
                 logger.warning(f"[{self.name}] LLM call failed unexpectedly: {e}")
                 break
-        return {"content": "", "reasoning_content": ""}
+        return {"content": "", "reasoning_content": "", "metrics": {}}
 
     def health(self) -> bool:
         try:

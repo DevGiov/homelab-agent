@@ -236,8 +236,16 @@ def _call_llm(
             elif ev_type == "content":
                 if stream_mode in ("all", "content_only"):
                     q.put(ev)
+            elif ev_type == "metrics":
+                if stream_mode != "none":
+                    q.put(ev)
 
         stream_callback = _cb
+
+    from stream_session import current_session_var
+    sess = current_session_var.get()
+    if sess and sess.is_stopped():
+        return {"content": "", "reasoning_content": "", "metrics": {}}
 
     # Fase 1.1: delega al provider abstraction
     return provider.chat(

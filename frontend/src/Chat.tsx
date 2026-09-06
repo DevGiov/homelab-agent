@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe } from 'lucide-react';
+import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe, Square, Pause, Zap } from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
@@ -19,6 +19,10 @@ interface ChatProps {
     incognito?: boolean,
     webSearch?: boolean
   ) => Promise<void>;
+  onStop?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
+  isPaused?: boolean;
   isLoading: boolean;
   error: string | null;
   onClearError: () => void;
@@ -30,6 +34,10 @@ export const Chat: React.FC<ChatProps> = ({
   currentThreadId,
   messages,
   onSendMessage,
+  onStop,
+  onPause,
+  onResume,
+  isPaused = false,
   isLoading,
   error,
   onClearError,
@@ -351,7 +359,7 @@ export const Chat: React.FC<ChatProps> = ({
 
                   {/* Metadata Indicators under Bubble */}
                   {(!isLoading || msg.content || msg.reasoning_content || index !== messages.length - 1) && (
-                    <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
                       <span>{msg.timestamp}</span>
                       {modeName && (
                         <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
@@ -368,6 +376,31 @@ export const Chat: React.FC<ChatProps> = ({
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] sm:text-[10px]">
                           <Globe size={10} />
                           {msg.web_prefetch.sources.length} fonti web
+                        </span>
+                      )}
+                      {/* Performance & Token Metrics */}
+                      {msg.metrics && (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono text-[9px] sm:text-[10px]"
+                          title={`Prompt: ${msg.metrics.prompt_tokens ?? 0} tok • Generati: ${msg.metrics.completion_tokens ?? 0} tok • Durata: ${msg.metrics.duration_s ?? 0}s`}
+                        >
+                          <Zap size={10} className="text-amber-400" />
+                          <span>{msg.metrics.tok_per_s ?? 0} tok/s</span>
+                          <span className="text-border">•</span>
+                          <span>{msg.metrics.total_tokens ?? 0} tok</span>
+                          {msg.metrics.duration_s !== undefined && (
+                            <>
+                              <span className="text-border">•</span>
+                              <span>{msg.metrics.duration_s}s</span>
+                            </>
+                          )}
+                        </span>
+                      )}
+                      {/* Paused Indicator during live generation */}
+                      {isLoading && isPaused && index === messages.length - 1 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono text-[9px] sm:text-[10px] animate-pulse">
+                          <Pause size={10} />
+                          In pausa...
                         </span>
                       )}
                     </div>
@@ -476,17 +509,43 @@ export const Chat: React.FC<ChatProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Send message..."
-            className="w-full bg-input-bg border border-input-border rounded-xl pl-3.5 pr-11 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
+            placeholder={isLoading ? (isPaused ? 'Esecuzione in pausa...' : 'Generazione in corso...') : 'Send message...'}
+            disabled={isLoading}
+            className="w-full bg-input-bg border border-input-border rounded-xl pl-3.5 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-white rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
-            title="Send Message"
-          >
-            <Send size={15} />
-          </button>
+          {isLoading ? (
+            <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={isPaused ? onResume : onPause}
+                className={`p-1.5 sm:p-2 rounded-lg transition active:scale-95 shadow-md cursor-pointer ${
+                  isPaused
+                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 shadow-amber-500/20'
+                    : 'glass-card border border-border text-fg-muted hover:text-fg hover:border-accent/40'
+                }`}
+                title={isPaused ? 'Riprendi esecuzione' : 'Metti in pausa'}
+              >
+                {isPaused ? <Play size={14} className="fill-current text-amber-400" /> : <Pause size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={onStop}
+                className="p-1.5 sm:p-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition active:scale-95 shadow-md shadow-rose-600/30 cursor-pointer"
+                title="Interrompi esecuzione"
+              >
+                <Square size={14} className="fill-current" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-white rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
+              title="Send Message"
+            >
+              <Send size={15} />
+            </button>
+          )}
         </form>
       </div>
     </div>
