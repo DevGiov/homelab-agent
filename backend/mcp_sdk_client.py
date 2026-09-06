@@ -34,7 +34,8 @@ class MetaMCPSdkClient:
         self.timeout = timeout
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session = None
-        self._lock = threading.Lock()
+        self._cm = None
+        self._lock = threading.RLock()
 
     def _ensure_loop(self):
         if self._loop is None or self._loop.is_closed():
@@ -83,12 +84,19 @@ class MetaMCPSdkClient:
     def reset(self):
         """Chiude la sessione corrente (usata in caso di errore per riconnettere)."""
         with self._lock:
-            if self._loop and not self._loop.is_closed() and self._session is not None:
+            if self._loop and not self._loop.is_closed():
+                if self._session is not None:
+                    try:
+                        asyncio.run_coroutine_threadsafe(self._aclose(), self._loop).result(timeout=3)
+                    except Exception:
+                        pass
                 try:
-                    asyncio.run_coroutine_threadsafe(self._aclose(), self._loop).result(timeout=5)
+                    self._loop.call_soon_threadsafe(self._loop.stop)
                 except Exception:
                     pass
+            self._loop = None
             self._session = None
+            self._cm = None
 
     def list_tools(self) -> List[Dict[str, Any]]:
         with self._lock:
