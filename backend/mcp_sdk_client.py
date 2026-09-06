@@ -24,7 +24,12 @@ class MetaMCPSdkClient:
     """Wrapper sincrono attorno a ClientSession dell'SDK MCP (SSE transport)."""
 
     def __init__(self, base_url: str, api_key: str = "", timeout: int = 25):
-        self.base_url = base_url
+        clean_url = (base_url or "").rstrip("/")
+        if clean_url.endswith("/mcp"):
+            clean_url = clean_url[:-4] + "/sse"
+        elif not clean_url.endswith("/sse"):
+            clean_url = clean_url + "/sse"
+        self.base_url = clean_url
         self.api_key = api_key
         self.timeout = timeout
         self._loop: Optional[asyncio.AbstractEventLoop] = None

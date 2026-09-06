@@ -22,8 +22,11 @@ class MetaMCPClient:
     - Fallback resiliente e auto-reconnect
     """
 
-    def __init__(self, base_url: str, api_key: str = "", timeout: int = 40):
-        self.base_url = base_url.rstrip('/')
+    def __init__(self, base_url: str = "http://192.168.1.175:12008/metamcp/MetaMCP/sse", api_key: str = "", timeout: int = 25):
+        clean_url = (base_url or "").rstrip("/")
+        if clean_url.endswith("/mcp"):
+            clean_url = clean_url[:-4] + "/sse"
+        self.base_url = clean_url
         self.api_key = api_key
         self.timeout = timeout
         self._endpoints_cache: Optional[Dict[str, str]] = None
@@ -118,7 +121,7 @@ class MetaMCPClient:
                     continue
         return None
 
-    def _execute_http_streamable(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _execute_http_streamable(self, method: str, params: Optional[Dict[str, Any]] = None, _retry_count: int = 0) -> Dict[str, Any]:
         """Esegue una chiamata JSON-RPC tramite il protocollo Streamable HTTP MCP."""
         mcp_url = self._get_mcp_url()
         sess = requests.Session()
@@ -161,10 +164,11 @@ class MetaMCPClient:
 
         resp = sess.post(mcp_url, headers=req_headers, json=payload, timeout=self.timeout)
         if resp.status_code not in (200, 201, 202):
-            # Se la sessione è scaduta, resetta e ritenta una volta
-            if resp.status_code in (400, 404, 408):
+            # Se la sessione è scaduta e avevamo un session_id, resetta e ritenta una sola volta
+            if resp.status_code in (400, 404, 408) and _retry_count < 1 and self._session_id:
+                logger.info(f"Sessione MCP non valida (HTTP {resp.status_code}), resetto e ritento.")
                 self._session_id = None
-                return self._execute_http_streamable(method, params)
+                return self._execute_http_streamable(method, params, _retry_count=_retry_count + 1)
             raise RuntimeError(f"Chiamata MCP '{method}' fallita con status {resp.status_code}: {resp.text}")
 
         parsed = self._parse_mcp_response(resp.text)

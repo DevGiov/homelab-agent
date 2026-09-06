@@ -113,9 +113,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           // Custom Code Blocks (Inline vs Fenced with Copy Button)
           code: ({ node, className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
-            const codeString = String(children).replace(/\n$/, '');
+            const rawText = extractText(children).replace(/\n$/, '');
 
-            if (!match && !codeString.includes('\n')) {
+            if (!match && !rawText.includes('\n')) {
               // Inline code snippet
               return (
                 <code
@@ -127,7 +127,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               );
             }
 
-            return <CodeBlock language={match ? match[1] : ''} code={codeString} />;
+            return (
+              <CodeBlock language={match ? match[1] : ''} rawCode={rawText}>
+                {children}
+              </CodeBlock>
+            );
           },
         }}
       >
@@ -137,12 +141,28 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   );
 };
 
+// Helper to extract text recursively from React nodes (avoids [object Object] from rehype AST)
+function extractText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (!node) return '';
+  if (Array.isArray(node)) return node.map(extractText).join('');
+  if (React.isValidElement(node) && node.props && (node.props as any).children) {
+    return extractText((node.props as any).children);
+  }
+  return '';
+}
+
 // Helper Sub-component for Fenced Code Blocks with Copy Button
-const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, code }) => {
+const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.ReactNode }> = ({
+  language,
+  rawCode,
+  children,
+}) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(code);
+    navigator.clipboard.writeText(rawCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -175,7 +195,7 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
 
       {/* Code Body */}
       <pre className="p-3 overflow-x-auto text-fg leading-relaxed font-mono text-[11px] sm:text-xs whitespace-pre hljs bg-bg/40">
-        <code className={`hljs ${language ? `language-${language}` : ''}`}>{code}</code>
+        <code className={`hljs ${language ? `language-${language}` : ''}`}>{children}</code>
       </pre>
     </div>
   );

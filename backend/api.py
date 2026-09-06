@@ -1,6 +1,7 @@
 import asyncio
 import contextvars
 import json
+import logging
 import queue
 import sqlite3
 import threading
