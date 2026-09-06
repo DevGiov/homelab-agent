@@ -74,6 +74,7 @@ export interface ChatRequest {
   model?: string;
   incognito?: boolean;
   web_search?: boolean;
+  images?: string[];
 }
 
 export interface ExecutionTraceItem {
@@ -183,6 +184,7 @@ export interface MessageVersion {
   isError?: boolean;
   model?: string;
   reasoningBudget?: number;
+  images?: string[];
 }
 
 export interface FormattedMessage extends MessageVersion {
@@ -476,9 +478,42 @@ export interface ProvidersResponse {
   providers: ProviderInfo[];
 }
 
+export interface ModelDetail {
+  id: string;
+  is_vision: boolean;
+  input_modalities: string[];
+}
+
 export interface ProviderModelsResponse {
   provider: string;
   models: string[];
+  models_detail?: ModelDetail[];
+}
+
+export interface ImageUploadResponse {
+  url: string;
+  data_url: string;
+  filename: string;
+  width?: number;
+  height?: number;
+}
+
+export async function uploadImage(file: File): Promise<ImageUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await api.post<ImageUploadResponse>('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
 }
 
 export async function getProviders(): Promise<ProvidersResponse> {
@@ -489,6 +524,18 @@ export async function getProviders(): Promise<ProvidersResponse> {
 export async function getProviderModels(providerName: string): Promise<string[]> {
   const res = await api.get<ProviderModelsResponse>(`/providers/${encodeURIComponent(providerName)}/models`);
   return res.data.models;
+}
+
+export async function getProviderModelsWithDetails(providerName: string): Promise<ModelDetail[]> {
+  const res = await api.get<ProviderModelsResponse>(`/providers/${encodeURIComponent(providerName)}/models`);
+  if (res.data.models_detail && res.data.models_detail.length > 0) {
+    return res.data.models_detail;
+  }
+  return res.data.models.map((m) => ({
+    id: m,
+    is_vision: /qwen3\.6|vl|vision|llava|pixtral|gemma-4/i.test(m),
+    input_modalities: ['text'],
+  }));
 }
 
 export async function setDefaultProvider(

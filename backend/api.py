@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import contextvars
 import json
 import logging
@@ -6,11 +7,13 @@ import queue
 import sqlite3
 import threading
 import time
+import uuid
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Security
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
 import audit_log
@@ -22,6 +25,7 @@ from providers import (
     get_active_model_name,
     get_active_provider_name,
     list_provider_models,
+    list_provider_models_with_details,
     list_providers_info,
     set_active_provider,
 )
@@ -30,8 +34,10 @@ from schemas import (
     ChatRequest,
     ChatResponse,
     ClearMemoryResponse,
+    ImageUploadResponse,
     MemoryItem,
     MemoryListResponse,
+    ModelDetail,
     ProviderInfo,
     ProviderModelsResponse,
     ProvidersResponse,
@@ -92,10 +98,11 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False) -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, images: Optional[List[str]] = None) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
+        "images": images,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
         "reasoning_budget": reasoning_budget,
@@ -115,7 +122,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     if not incognito:
-        thread_store.save_user_message(effective_thread_id, task)
+        thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
             threading.Thread(
                 target=thread_store.generate_and_save_title,
@@ -216,10 +223,12 @@ async def get_providers():
 
 @api.get("/v1/providers/{name}/models", response_model=ProviderModelsResponse, dependencies=[Depends(verify_api_key)])
 async def get_provider_models(name: str):
-    """Elenca i modelli disponibili per il provider specificato."""
+    """Elenca i modelli disponibili per il provider specificato con dettagli multimodali."""
     try:
         models = list_provider_models(name)
-        return ProviderModelsResponse(provider=name, models=models)
+        details = list_provider_models_with_details(name)
+        models_detail = [ModelDetail(**d) for d in details]
+        return ProviderModelsResponse(provider=name, models=models, models_detail=models_detail)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -245,32 +254,76 @@ def _limit(rate: str):
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None):
+# Gestione upload file multimodali
+UPLOAD_DIR = Path(__file__).parent / "data" / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+@api.post("/v1/upload", response_model=ImageUploadResponse, dependencies=[Depends(verify_api_key)])
+async def upload_file_endpoint(file: UploadFile = File(...)):
+    """Carica un'immagine per utilizzo multimodale, salvandola localmente e restituendo URL e base64 data_url."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Solo file di tipo immagine sono supportati.")
+
+    contents = await file.read()
+    if len(contents) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Dimensione massima file superata (limite 20MB).")
+
+    ext = Path(file.filename or "image.png").suffix or ".png"
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = UPLOAD_DIR / safe_name
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    encoded_b64 = base64.b64encode(contents).decode("utf-8")
+    data_url = f"data:{file.content_type};base64,{encoded_b64}"
+
+    return ImageUploadResponse(
+        url=f"/v1/uploads/{safe_name}",
+        data_url=data_url,
+        filename=safe_name,
+    )
+
+@api.get("/v1/uploads/{filename}")
+async def get_uploaded_file(filename: str):
+    """Restituisce un file immagine caricato con intestazioni di sicurezza."""
+    safe_filename = Path(filename).name
+    file_path = UPLOAD_DIR / safe_filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File non trovato.")
+
+    return FileResponse(
+        str(file_path),
+        headers={"X-Content-Type-Options": "nosniff"}
+    )
+
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None, images: Optional[List[str]] = None):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     initial_state = {
         "task": task,
+        "images": images,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
         "reasoning_budget": reasoning_budget,
@@ -290,7 +343,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     if not incognito:
-        thread_store.save_user_message(effective_thread_id, task)
+        thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
             threading.Thread(
                 target=thread_store.generate_and_save_title,
@@ -402,7 +455,8 @@ async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
         model=req.model,
         incognito=req.incognito,
         web_search=req.web_search,
-        request=request
+        request=request,
+        images=req.images,
     )
 
 @api.get("/v1/threads/{thread_id}/stream", dependencies=[Depends(verify_api_key)])

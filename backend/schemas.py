@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     input: str
+    images: Optional[List[str]] = None
     thread_id: Optional[str] = None
     force_mode: Optional[Literal["chat", "ask", "act", "plan"]] = None
     reasoning_budget: Optional[int] = None
@@ -66,9 +67,24 @@ class ProvidersResponse(BaseModel):
     providers: List[ProviderInfo]
 
 
+class ModelDetail(BaseModel):
+    id: str
+    is_vision: bool = False
+    input_modalities: Optional[List[str]] = None
+
+
 class ProviderModelsResponse(BaseModel):
     provider: str
     models: List[str]
+    models_detail: Optional[List[ModelDetail]] = None
+
+
+class ImageUploadResponse(BaseModel):
+    url: str
+    data_url: str
+    filename: str
+    width: Optional[int] = None
+    height: Optional[int] = None
 
 
 class SetDefaultProviderRequest(BaseModel):

@@ -51,10 +51,36 @@ class LLMProvider(ABC):
         """Lista dei modelli disponibili per questo provider."""
         ...
 
+    def list_models_with_details(self) -> List[Dict[str, Any]]:
+        """Lista dettagliata dei modelli con capability (es. vision)."""
+        return [{"id": m, "is_vision": is_vision_model(m)} for m in self.list_models()]
+
 
 def _supports_reasoning(model_name: str) -> bool:
     lowered = (model_name or "").lower()
     return any(x in lowered for x in ["qwen", "deepseek", "r1", "o1", "o3", "mistral", "think", "reason"])
+
+
+_VISION_MODEL_KEYWORDS = (
+    # Hosted / universal
+    "gpt-4o", "gpt-4.1", "gpt-4.5", "gpt-4-vision", "claude", "gemini",
+    # Open / Local
+    "qwen3.6", "qwen2.5-vl", "qwen3-vl", "qwen-vl", "vl", "vision", "multimodal",
+    "llava", "bakllava", "moondream", "pixtral", "minicpm",
+    "internvl", "cogvlm", "gemma-4", "gemma4", "gemma-3", "gemma3",
+    "llama-4", "llama4", "phi-4-multimodal"
+)
+_VISION_VL_RE = re.compile(r'(?<![a-z])vl(?![a-z])|vlm', re.IGNORECASE)
+
+
+def is_vision_model(model_name: Optional[str]) -> bool:
+    """Rileva se il modello specificato supporta input multimodale / immagini."""
+    if not model_name:
+        return False
+    m = model_name.lower()
+    if any(kw in m for kw in _VISION_MODEL_KEYWORDS):
+        return True
+    return bool(_VISION_VL_RE.search(m))
 
 
 def _extract_think_blocks(content: str) -> tuple[str, str]:
@@ -224,28 +250,57 @@ class OpenAICompatProvider(LLMProvider):
         except Exception:
             return False
 
-    def list_models(self) -> List[str]:
+    def list_models_with_details(self) -> List[Dict[str, Any]]:
         try:
             with httpx.Client(timeout=5.0) as client:
                 res = client.get(f"{self.base_url}/models")
             if res.status_code == 200:
                 data = res.json()
+                raw_list = []
                 if isinstance(data, dict):
                     if "data" in data and isinstance(data["data"], list):
-                        ids = [str(m["id"]) for m in data["data"] if isinstance(m, dict) and "id" in m]
-                        if ids:
-                            return ids
-                    if "models" in data and isinstance(data["models"], list):
-                        ids = [str(m.get("id") or m.get("name")) for m in data["models"] if isinstance(m, dict)]
-                        if ids:
-                            return ids
+                        raw_list = data["data"]
+                    elif "models" in data and isinstance(data["models"], list):
+                        raw_list = data["models"]
                 elif isinstance(data, list):
-                    ids = [str(m.get("id") or m.get("name", m)) for m in data if isinstance(m, (dict, str))]
-                    if ids:
-                        return ids
+                    raw_list = data
+
+                details = []
+                for m in raw_list:
+                    if isinstance(m, dict):
+                        m_id = str(m.get("id") or m.get("name", ""))
+                        if not m_id:
+                            continue
+                        arch = m.get("architecture") if isinstance(m.get("architecture"), dict) else {}
+                        input_mods = arch.get("input_modalities") if isinstance(arch.get("input_modalities"), list) else []
+                        status_args = m.get("status", {}).get("args", []) if isinstance(m.get("status"), dict) else []
+                        has_img_mod = ("image" in input_mods) or ("--mmproj" in status_args)
+                        is_vis = is_vision_model(m_id) or has_img_mod
+                        details.append({
+                            "id": m_id,
+                            "is_vision": is_vis,
+                            "input_modalities": input_mods or (["text", "image"] if is_vis else ["text"])
+                        })
+                    elif isinstance(m, str) and m:
+                        details.append({
+                            "id": m,
+                            "is_vision": is_vision_model(m),
+                            "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"]
+                        })
+                if details:
+                    return details
         except Exception as e:
-            logger.warning(f"[{self.name}] Failed to list models: {e}")
-        return [self.default_model] if self.default_model else []
+            logger.warning(f"[{self.name}] Failed to list models with details: {e}")
+
+        fallback_id = self.default_model or "default"
+        return [{
+            "id": fallback_id,
+            "is_vision": is_vision_model(fallback_id),
+            "input_modalities": ["text", "image"] if is_vision_model(fallback_id) else ["text"]
+        }]
+
+    def list_models(self) -> List[str]:
+        return [m["id"] for m in self.list_models_with_details()]
 
 
 class OllamaProvider(LLMProvider):
@@ -260,9 +315,31 @@ class OllamaProvider(LLMProvider):
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
              reasoning_budget=-1, stream_callback=None) -> Dict[str, str]:
         url = f"{self.base_url}/api/chat"
+        # Convert multimodal OpenAI blocks to Ollama format if necessary
+        ollama_messages = []
+        for msg in messages:
+            c = msg.get("content")
+            if isinstance(c, list):
+                text_parts = []
+                img_parts = []
+                for b in c:
+                    if b.get("type") == "text":
+                        text_parts.append(b.get("text", ""))
+                    elif b.get("type") == "image_url":
+                        u = b.get("image_url", {}).get("url", "")
+                        if "," in u and "base64," in u:
+                            img_parts.append(u.split("base64,", 1)[1])
+                new_m = dict(msg)
+                new_m["content"] = "\n".join(text_parts)
+                if img_parts:
+                    new_m["images"] = img_parts
+                ollama_messages.append(new_m)
+            else:
+                ollama_messages.append(msg)
+
         payload = {
             "model": model or self.default_model,
-            "messages": messages,
+            "messages": ollama_messages,
             "stream": bool(stream_callback),
             "options": {"num_predict": max_tokens, "temperature": temperature},
         }
@@ -395,6 +472,13 @@ def list_provider_models(provider_name: str) -> List[str]:
     if provider_name not in _PROVIDERS:
         raise ValueError(f"Provider '{provider_name}' non registrato")
     return _PROVIDERS[provider_name].list_models()
+
+
+def list_provider_models_with_details(provider_name: str) -> List[Dict[str, Any]]:
+    """Elenca i modelli con dettagli (is_vision, input_modalities) per un dato provider."""
+    if provider_name not in _PROVIDERS:
+        raise ValueError(f"Provider '{provider_name}' non registrato")
+    return _PROVIDERS[provider_name].list_models_with_details()
 
 
 def list_providers() -> Dict[str, bool]:

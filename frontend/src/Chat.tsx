@@ -22,8 +22,12 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  Paperclip,
+  Image as ImageIcon,
+  X,
+  Maximize2,
 } from 'lucide-react';
-import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
+import { type FormattedMessage, type AgentMode, getProviders, getProviderModelsWithDetails, fileToDataUrl, type ModelDetail } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -41,7 +45,8 @@ interface ChatProps {
     reasoningBudget?: number,
     model?: string,
     incognito?: boolean,
-    webSearch?: boolean
+    webSearch?: boolean,
+    images?: string[]
   ) => Promise<void>;
   onRegenerate?: (assistantMsgId: string) => Promise<void> | void;
   onEditPrompt?: (
@@ -98,6 +103,19 @@ export const Chat: React.FC<ChatProps> = ({
   const [editPromptModel, setEditPromptModel] = useState<string>('default');
   const [editPromptBudget, setEditPromptBudget] = useState<number | undefined>(undefined);
 
+  // Vision & Multimodal State
+  interface PendingImage {
+    id: string;
+    dataUrl: string;
+    name: string;
+    file?: File;
+  }
+  const [modelDetails, setModelDetails] = useState<ModelDetail[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -106,9 +124,10 @@ export const Chat: React.FC<ChatProps> = ({
       .then((data) => {
         const activeProv = data.active_provider;
         if (activeProv) {
-          getProviderModels(activeProv)
-            .then((mList) => {
-              setAvailableModels(mList);
+          getProviderModelsWithDetails(activeProv)
+            .then((details) => {
+              setModelDetails(details);
+              setAvailableModels(details.map((d) => d.id));
             })
             .catch((err) => console.warn('Errore caricamento modelli chat:', err));
         }
@@ -116,22 +135,106 @@ export const Chat: React.FC<ChatProps> = ({
       .catch((err) => console.warn('Errore caricamento provider chat:', err));
   }, []);
 
+  const isModelVision = (modelId: string): boolean => {
+    const found = modelDetails.find((d) => d.id === modelId);
+    if (found) return found.is_vision;
+    return /qwen3\.6|vl|vision|llava|pixtral|gemma-4/i.test(modelId);
+  };
+
+  const processImageFiles = async (files: FileList | File[]) => {
+    const newImgs: PendingImage[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        newImgs.push({
+          id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          dataUrl,
+          name: file.name,
+          file,
+        });
+      } catch (e) {
+        console.warn('Errore lettura immagine:', e);
+      }
+    }
+    if (newImgs.length > 0) {
+      setPendingImages((prev) => [...prev, ...newImgs]);
+    }
+  };
+
+  const removePendingImage = (id: string) => {
+    setPendingImages((prev) => prev.filter((img) => img.id !== id));
+  };
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        processImageFiles(imageFiles);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processImageFiles(e.dataTransfer.files);
+    }
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages, isLoading, pendingImages]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && pendingImages.length === 0) || isLoading) return;
 
     const modeToPass = selectedMode === 'auto' ? undefined : selectedMode;
     const modelToPass = selectedModel === 'default' ? undefined : selectedModel;
-    onSendMessage(input.trim(), modeToPass, execute, reasoningBudget, modelToPass, isIncognito, webSearchEnabled);
+    const imagesToSend = pendingImages.map((img) => img.dataUrl);
+
+    onSendMessage(
+      input.trim(),
+      modeToPass,
+      execute,
+      reasoningBudget,
+      modelToPass,
+      isIncognito,
+      webSearchEnabled,
+      imagesToSend.length > 0 ? imagesToSend : undefined
+    );
     setInput('');
+    setPendingImages([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -184,7 +287,24 @@ export const Chat: React.FC<ChatProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative"
+    >
+      {/* Drag & Drop Visual Overlay */}
+      {isDraggingOver && (
+        <div className="absolute inset-0 z-40 bg-accent/20 backdrop-blur-xs border-2 border-dashed border-accent flex flex-col items-center justify-center pointer-events-none transition-all duration-150">
+          <div className="p-5 rounded-2xl glass-card border border-accent/60 shadow-2xl flex items-center gap-3 bg-panel/95">
+            <ImageIcon size={32} className="text-accent animate-bounce" />
+            <div>
+              <p className="text-sm font-semibold text-fg">Rilascia l'immagine qui</p>
+              <p className="text-xs text-fg-muted">Verrà allegata alla richiesta multimodale</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Incognito Banner */}
       {isIncognito && (
         <div className="bg-purple-950/70 border-b border-purple-800/50 backdrop-blur-md px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] text-purple-200 z-20 shrink-0">
@@ -413,6 +533,28 @@ export const Chat: React.FC<ChatProps> = ({
                         </div>
                       ) : (
                         <div className="relative group/userbubble">
+                          {/* Attached Images Thumbnail Grid */}
+                          {msg.images && msg.images.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {msg.images.map((img, iIdx) => (
+                                <div
+                                  key={iIdx}
+                                  onClick={() => setLightboxUrl(img)}
+                                  className="relative group/thumb cursor-pointer rounded-xl overflow-hidden border border-white/20 shadow-md hover:scale-[1.02] transition-transform duration-150 bg-black/20"
+                                  title="Clicca per ingrandire"
+                                >
+                                  <img
+                                    src={img}
+                                    alt={`allegato-${iIdx}`}
+                                    className="max-h-48 max-w-[220px] sm:max-w-[280px] object-cover rounded-xl"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <Maximize2 size={16} className="drop-shadow" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <div className="whitespace-pre-wrap font-sans break-words pr-12">{msg.content}</div>
                           {/* Hover action buttons on User prompt */}
                           <div className="absolute top-0 right-0 flex items-center gap-0.5 opacity-0 group-hover/userbubble:opacity-100 transition-opacity">
@@ -698,11 +840,14 @@ export const Chat: React.FC<ChatProps> = ({
               title="Modello LLM Override"
             >
               <option value="default" className="bg-panel text-fg font-sans">Modello: Default</option>
-              {availableModels.map((m) => (
-                <option key={m} value={m} className="bg-panel text-fg font-mono">
-                  {m}
-                </option>
-              ))}
+              {availableModels.map((m) => {
+                const isVision = isModelVision(m);
+                return (
+                  <option key={m} value={m} className="bg-panel text-fg font-mono">
+                    {m} {isVision ? '👁️ [Vision]' : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -727,16 +872,96 @@ export const Chat: React.FC<ChatProps> = ({
           </div>
         </div>
 
+        {/* Helpful hint if image attached and selected model is text-only */}
+        {pendingImages.length > 0 && selectedModel !== 'default' && !isModelVision(selectedModel) && (
+          <div className="max-w-4xl mx-auto w-full px-1 text-[11px] text-amber-400/90 flex items-center gap-1.5">
+            <AlertTriangle size={12} className="shrink-0" />
+            <span>
+              Il modello selezionato (<strong>{selectedModel}</strong>) potrebbe non supportare la visione. Ti consigliamo <strong>Qwen3.6-35B</strong>.
+            </span>
+          </div>
+        )}
+
+        {/* Pending Images Thumbnail Preview Strip */}
+        {pendingImages.length > 0 && (
+          <div className="max-w-4xl mx-auto w-full flex items-center gap-2 overflow-x-auto py-1 px-1">
+            {pendingImages.map((img) => (
+              <div
+                key={img.id}
+                className="relative group shrink-0 rounded-xl overflow-hidden border border-border bg-panel shadow-md flex items-center"
+              >
+                <img
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="h-14 w-14 sm:h-16 sm:w-16 object-cover cursor-pointer hover:opacity-90 transition"
+                  onClick={() => setLightboxUrl(img.dataUrl)}
+                  title="Clicca per ingrandire"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePendingImage(img.id)}
+                  className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white/90 hover:text-white hover:bg-rose-600 transition shadow cursor-pointer"
+                  title="Rimuovi immagine"
+                >
+                  <X size={12} />
+                </button>
+                <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 text-[9px] text-white truncate max-w-[56px] sm:max-w-[64px]">
+                  {img.name}
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl border border-dashed border-border hover:border-accent flex flex-col items-center justify-center text-fg-muted hover:text-accent transition shrink-0 bg-panel/40 cursor-pointer"
+              title="Aggiungi altra immagine"
+            >
+              <Paperclip size={16} />
+              <span className="text-[9px] mt-1">+ Altro</span>
+            </button>
+          </div>
+        )}
+
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => {
+            if (e.target.files) processImageFiles(e.target.files);
+            e.target.value = '';
+          }}
+          className="hidden"
+        />
+
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto w-full relative flex items-center">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="absolute left-2 sm:left-2.5 p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg transition cursor-pointer z-10 disabled:opacity-40"
+            title="Allega immagine (o trascina/incolla con Ctrl+V)"
+          >
+            <ImageIcon size={17} />
+          </button>
           <textarea
             ref={textareaRef}
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isLoading ? (isPaused ? 'Esecuzione in pausa...' : 'Generazione in corso...') : 'Send message...'}
+            placeholder={
+              isLoading
+                ? isPaused
+                  ? 'Esecuzione in pausa...'
+                  : 'Generazione in corso...'
+                : pendingImages.length > 0
+                ? "Aggiungi istruzioni per l'immagine o premi Invia per descriverla..."
+                : 'Send message (incolla immagini con Ctrl+V)...'
+            }
             disabled={isLoading}
-            className="w-full bg-input-bg border border-input-border rounded-xl pl-3.5 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
+            className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
           />
           {isLoading ? (
             <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">
@@ -764,15 +989,39 @@ export const Chat: React.FC<ChatProps> = ({
           ) : (
             <button
               type="submit"
-              disabled={!input.trim()}
+              disabled={!input.trim() && pendingImages.length === 0}
               className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-white rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
-              title="Send Message"
+              title={pendingImages.length > 0 && !input.trim() ? "Invia immagine per l'analisi automatica" : "Send Message"}
             >
               <Send size={15} />
             </button>
           )}
         </form>
       </div>
+
+      {/* Fullscreen Lightbox Modal */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setLightboxUrl(null)}
+              className="absolute -top-10 right-0 p-1.5 rounded-full bg-panel text-fg hover:text-rose-400 hover:bg-panel-border transition cursor-pointer shadow-lg"
+              title="Chiudi"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={lightboxUrl}
+              alt="Ingrandimento immagine"
+              className="max-h-[85vh] max-w-full object-contain rounded-xl shadow-2xl border border-border"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

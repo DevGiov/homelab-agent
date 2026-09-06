@@ -37,6 +37,7 @@ function extractMessageVersion(msg: FormattedMessage): MessageVersion {
     isError: msg.isError,
     model: msg.model,
     reasoningBudget: msg.reasoningBudget,
+    images: msg.images,
   };
 }
 
@@ -254,7 +255,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       reasoningBudget?: number,
       model?: string,
       incognito?: boolean,
-      webSearch?: boolean
+      webSearch?: boolean,
+      images?: string[]
     ) => {
       setChatError(null);
       isSendingRef.current = true;
@@ -274,6 +276,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         id: `user_${Date.now()}`,
         sender: 'user',
         content: input,
+        images: images && images.length > 0 ? images : undefined,
         timestamp,
       };
 
@@ -309,6 +312,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             model,
             incognito,
             web_search: webSearch,
+            images: images && images.length > 0 ? images : undefined,
           },
           (reasoningDelta) => {
             setThreadMessagesMap((prev) => {
@@ -551,6 +555,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             execute: true,
             reasoning_budget: userMsg.reasoningBudget,
             model: userMsg.model,
+            images: userMsg.images,
           },
           (reasoningDelta) => {
             setThreadMessagesMap((prev) => {
@@ -670,6 +675,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         mode,
         model,
         reasoningBudget,
+        images: userMsg.images,
       };
       const updatedPromptVersions = [...currentPromptVers, newPromptVersion];
       const newPromptVersionIndex = updatedPromptVersions.length - 1;
@@ -697,7 +703,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       if (nextMsg && nextMsg.sender === 'assistant') {
         await handleRegenerateMessage(nextMsg.id);
       } else {
-        await handleSendMessage(newContent, mode, true, reasoningBudget, model);
+        await handleSendMessage(newContent, mode, true, reasoningBudget, model, undefined, undefined, userMsg.images);
       }
     },
     [currentThreadId, isLoadingChat, threadMessagesMap, handleRegenerateMessage, handleSendMessage]

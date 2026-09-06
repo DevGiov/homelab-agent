@@ -17,7 +17,7 @@ import config
 import letta_client
 import router
 from mcp_client import MetaMCPClient
-from providers import get_provider
+from providers import get_provider, is_vision_model
 
 stream_queue = contextvars.ContextVar("stream_queue", default=None)
 stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_count", default=0)
@@ -89,6 +89,7 @@ def check_anomalies(span: AgentSpan, thresholds: dict = None):
 
 class AgentState(TypedDict):
     task: str
+    images: Optional[List[str]]
     thread_id: Optional[str]
     force_mode: Optional[str]
     reasoning_budget: Optional[int]
@@ -187,6 +188,7 @@ def _call_llm(
     model: Optional[str] = None,
     stream_mode: str = "all",  # "all" | "reasoning_only" | "content_only" | "none"
     reasoning_phase: Optional[str] = None,
+    images: Optional[List[str]] = None,
 ) -> dict:
     messages = []
 
@@ -210,7 +212,27 @@ def _call_llm(
 
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
+
+    # Multimodal image handling
+    if images and len(images) > 0:
+        if is_vision_model(effective_model):
+            user_content_parts = [{"type": "text", "text": prompt}]
+            for img in images:
+                user_content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": img}
+                })
+            messages.append({"role": "user", "content": user_content_parts})
+        else:
+            fallback_text = (
+                f"{prompt}\n\n"
+                f"[NOTA DI SISTEMA: L'utente ha allegato {len(images)} immagine/i, ma il modello attualmente selezionato "
+                f"('{effective_model}') non supporta la visione multimodale. Informa gentilmente l'utente di selezionare un "
+                f"modello Vision come Qwen3.6-35B per visualizzare ed analizzare le immagini.]"
+            )
+            messages.append({"role": "user", "content": fallback_text})
+    else:
+        messages.append({"role": "user", "content": prompt})
 
     q = stream_queue.get()
     stream_callback = None
@@ -354,6 +376,10 @@ def intake_node(state: AgentState) -> AgentState:
     """Receives the task and settings, and appends user message to JSONL file memory if not incognito."""
     thread_id = state.get("thread_id")
     task = state.get("task", "")
+    images = state.get("images")
+    if not task and images:
+        task = "Analizza e descrivi l'immagine allegata."
+        state["task"] = task
     incognito = state.get("incognito", False)
     if thread_id and task and not incognito:
         _append_message_to_file(thread_id, "user", task)
@@ -609,7 +635,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta Utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    ans_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta")
+    ans_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"))
     raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
     reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
     ans = clean_synthesis_content(raw_ans) or raw_ans
@@ -642,7 +668,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase),
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
     )
 
@@ -1003,7 +1029,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
-        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase),
+        call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
     )
 
@@ -1051,7 +1077,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta dell'utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica")
+    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
