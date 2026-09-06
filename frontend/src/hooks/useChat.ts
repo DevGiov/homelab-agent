@@ -6,7 +6,10 @@ import {
   pauseChatStream,
   resumeChatStream,
   getThreadDetails,
+  saveMessageVersions,
+  switchMessageVersion,
   type FormattedMessage,
+  type MessageVersion,
   type AgentMode,
   type ExecutionTraceItem,
   type PlanStructure,
@@ -16,8 +19,30 @@ import {
 } from '../api';
 import { adaptChatResponseToMessage, adaptLettaMessagesToMessages } from '../utils/messageAdapter';
 
+function extractMessageVersion(msg: FormattedMessage): MessageVersion {
+  return {
+    id: msg.id,
+    content: msg.content,
+    timestamp: msg.timestamp,
+    mode: msg.mode,
+    tool_used: msg.tool_used,
+    reasoning: msg.reasoning,
+    plan_steps: msg.plan_steps,
+    plan_structure: msg.plan_structure,
+    execution_trace: msg.execution_trace,
+    rollback_trace: msg.rollback_trace,
+    reasoning_content: msg.reasoning_content,
+    web_prefetch: msg.web_prefetch,
+    metrics: msg.metrics,
+    isError: msg.isError,
+    model: msg.model,
+    reasoningBudget: msg.reasoningBudget,
+  };
+}
+
 export function useChat(currentThreadId: string | null, onThreadCreated?: (id: string) => void) {
   const [threadMessagesMap, setThreadMessagesMap] = useState<Record<string, FormattedMessage[]>>({});
+  const [currentThreadTitle, setCurrentThreadTitle] = useState<string | null>(null);
   const [isLoadingChat, setIsLoadingChat] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -43,6 +68,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     try {
       const details = await getThreadDetails(threadId);
       if (details) {
+        setCurrentThreadTitle(details.title || null);
         isActive = Boolean(details.is_active);
         let parsedMsgs: FormattedMessage[] = [];
         if (details.messages && details.messages.length > 0) {
@@ -443,15 +469,253 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     }
   }, [currentThreadId]);
 
+  const handleSwitchVersion = useCallback((messageId: string, targetIndex: number) => {
+    if (!currentThreadId) return;
+    setThreadMessagesMap((prev) => {
+      const msgs = prev[currentThreadId] || [];
+      return {
+        ...prev,
+        [currentThreadId]: msgs.map((m) => {
+          if (m.id !== messageId || !m.versions || !m.versions[targetIndex]) return m;
+          const targetVer = m.versions[targetIndex];
+          return {
+            ...m,
+            ...targetVer,
+            versionIndex: targetIndex,
+            versions: m.versions,
+          };
+        }),
+      };
+    });
+    switchMessageVersion(currentThreadId, messageId, targetIndex);
+  }, [currentThreadId]);
+
+  const handleRegenerateMessage = useCallback(
+    async (assistantMsgId: string) => {
+      if (!currentThreadId || isLoadingChat) return;
+      const msgs = threadMessagesMap[currentThreadId] || [];
+      const astIndex = msgs.findIndex((m) => m.id === assistantMsgId);
+      if (astIndex === -1) return;
+
+      const astMsg = msgs[astIndex];
+      const userMsg = msgs.slice(0, astIndex).reverse().find((m) => m.sender === 'user');
+      if (!userMsg) return;
+
+      const currentVerList: MessageVersion[] =
+        astMsg.versions && astMsg.versions.length > 0
+          ? [...astMsg.versions]
+          : [extractMessageVersion(astMsg)];
+
+      const newVersionSlot: MessageVersion = {
+        id: `ast_regen_${Date.now()}`,
+        content: '',
+        reasoning_content: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        mode: astMsg.mode,
+      };
+
+      const updatedVersions = [...currentVerList, newVersionSlot];
+      const newVersionIndex = updatedVersions.length - 1;
+
+      setThreadMessagesMap((prev) => ({
+        ...prev,
+        [currentThreadId]: (prev[currentThreadId] || []).map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                content: '',
+                reasoning_content: '',
+                execution_trace: undefined,
+                plan_steps: undefined,
+                plan_structure: undefined,
+                metrics: undefined,
+                isError: false,
+                versionIndex: newVersionIndex,
+                versions: updatedVersions,
+              }
+            : m
+        ),
+      }));
+
+      setIsLoadingChat(true);
+      isSendingRef.current = true;
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      try {
+        await sendStreamMessage(
+          {
+            input: userMsg.content,
+            thread_id: currentThreadId,
+            force_mode: (userMsg.mode as AgentMode) || undefined,
+            execute: true,
+            reasoning_budget: userMsg.reasoningBudget,
+            model: userMsg.model,
+          },
+          (reasoningDelta) => {
+            setThreadMessagesMap((prev) => {
+              const currentList = prev[currentThreadId] || [];
+              return {
+                ...prev,
+                [currentThreadId]: currentList.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const newReasoning = (m.reasoning_content || '') + reasoningDelta;
+                  const vers = m.versions ? [...m.versions] : [];
+                  if (vers[newVersionIndex]) {
+                    vers[newVersionIndex] = { ...vers[newVersionIndex], reasoning_content: newReasoning };
+                  }
+                  return { ...m, reasoning_content: newReasoning, versions: vers };
+                }),
+              };
+            });
+          },
+          (contentDelta) => {
+            setThreadMessagesMap((prev) => {
+              const currentList = prev[currentThreadId] || [];
+              return {
+                ...prev,
+                [currentThreadId]: currentList.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const newContent = m.content + contentDelta;
+                  const vers = m.versions ? [...m.versions] : [];
+                  if (vers[newVersionIndex]) {
+                    vers[newVersionIndex] = { ...vers[newVersionIndex], content: newContent };
+                  }
+                  return { ...m, content: newContent, versions: vers };
+                }),
+              };
+            });
+          },
+          (finalResponse) => {
+            const assistantMsg = adaptChatResponseToMessage(finalResponse);
+            assistantMsg.id = assistantMsgId;
+            if (!assistantMsg.metrics && finalResponse.metrics) {
+              assistantMsg.metrics = finalResponse.metrics;
+            }
+            if (finalResponse.thread_title) {
+              setCurrentThreadTitle(finalResponse.thread_title);
+            }
+            setThreadMessagesMap((prev) => {
+              const currentList = prev[currentThreadId] || [];
+              const finalVersions = (currentList.find((m) => m.id === assistantMsgId)?.versions || updatedVersions).map(
+                (v, idx) => (idx === newVersionIndex ? extractMessageVersion(assistantMsg) : v)
+              );
+              saveMessageVersions(currentThreadId, assistantMsgId, finalVersions, newVersionIndex);
+
+              return {
+                ...prev,
+                [currentThreadId]: currentList.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        ...assistantMsg,
+                        versions: finalVersions,
+                        versionIndex: newVersionIndex,
+                      }
+                    : m
+                ),
+              };
+            });
+            setActiveTool(finalResponse.tool_used);
+            setActivePlan(finalResponse.plan_steps);
+            setActivePlanStructure(finalResponse.plan_structure);
+            setActiveExecutionTrace(finalResponse.execution_trace);
+            setActiveRollbackTrace(finalResponse.rollback_trace);
+            setActiveMode(finalResponse.mode);
+            setActiveWebPrefetch(finalResponse.web_prefetch);
+          },
+          (errorStr) => {
+            console.error('Error during regeneration:', errorStr);
+            setChatError(errorStr);
+          },
+          undefined,
+          undefined,
+          abortController.signal
+        );
+      } catch (err: any) {
+        console.error('Failed to regenerate message:', err);
+        setChatError(err?.message || 'Errore durante la rigenerazione');
+      } finally {
+        setIsLoadingChat(false);
+        isSendingRef.current = false;
+      }
+    },
+    [currentThreadId, isLoadingChat, threadMessagesMap]
+  );
+
+  const handleEditPrompt = useCallback(
+    async (
+      userMsgId: string,
+      newContent: string,
+      mode?: AgentMode,
+      model?: string,
+      reasoningBudget?: number
+    ) => {
+      if (!currentThreadId || isLoadingChat) return;
+      const msgs = threadMessagesMap[currentThreadId] || [];
+      const userIndex = msgs.findIndex((m) => m.id === userMsgId);
+      if (userIndex === -1) return;
+
+      const userMsg = msgs[userIndex];
+      const currentPromptVers: MessageVersion[] =
+        userMsg.versions && userMsg.versions.length > 0
+          ? [...userMsg.versions]
+          : [extractMessageVersion(userMsg)];
+
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newPromptVersion: MessageVersion = {
+        id: `user_edit_${Date.now()}`,
+        content: newContent,
+        timestamp,
+        mode,
+        model,
+        reasoningBudget,
+      };
+      const updatedPromptVersions = [...currentPromptVers, newPromptVersion];
+      const newPromptVersionIndex = updatedPromptVersions.length - 1;
+
+      setThreadMessagesMap((prev) => ({
+        ...prev,
+        [currentThreadId]: (prev[currentThreadId] || []).map((m) =>
+          m.id === userMsgId
+            ? {
+                ...m,
+                content: newContent,
+                mode,
+                model,
+                reasoningBudget,
+                timestamp,
+                versions: updatedPromptVersions,
+                versionIndex: newPromptVersionIndex,
+              }
+            : m
+        ),
+      }));
+      saveMessageVersions(currentThreadId, userMsgId, updatedPromptVersions, newPromptVersionIndex);
+
+      const nextMsg = msgs[userIndex + 1];
+      if (nextMsg && nextMsg.sender === 'assistant') {
+        await handleRegenerateMessage(nextMsg.id);
+      } else {
+        await handleSendMessage(newContent, mode, true, reasoningBudget, model);
+      }
+    },
+    [currentThreadId, isLoadingChat, threadMessagesMap, handleRegenerateMessage, handleSendMessage]
+  );
+
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];
 
   return {
     currentMessages,
+    currentThreadTitle,
     isLoadingChat,
     isPaused,
     chatError,
     setChatError,
     handleSendMessage,
+    handleRegenerateMessage,
+    handleEditPrompt,
+    handleSwitchVersion,
     handleStop,
     handlePause,
     handleResume,

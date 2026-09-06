@@ -33,6 +33,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const filteredThreads = threads.filter(t => 
+    (t.title && t.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
     t.thread_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (t.last_message && t.last_message.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -191,7 +192,9 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                     ) : (
                       <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
                     )}
-                    <span className="truncate">{thread.thread_id}</span>
+                    <span className="truncate font-medium text-xs" title={thread.title ? `${thread.title} (${thread.thread_id})` : thread.thread_id}>
+                      {thread.title || thread.thread_id}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     {thread.is_active && (

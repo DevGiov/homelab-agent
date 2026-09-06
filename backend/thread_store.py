@@ -13,10 +13,18 @@ def _get_conn():
     return sqlite3.connect(config.CHECKPOINT_DB_PATH)
 
 def init_db():
-    """Inizializza la tabella thread_messages nel database SQLite dei checkpoint."""
+    """Inizializza le tabelle thread_metadata e thread_messages nel database SQLite."""
     try:
         conn = _get_conn()
         cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS thread_metadata (
+                thread_id TEXT PRIMARY KEY,
+                title TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS thread_messages (
                 thread_id TEXT NOT NULL,
@@ -33,18 +41,25 @@ def init_db():
                 rollback_trace_json TEXT,
                 is_error INTEGER DEFAULT 0,
                 reasoning_content TEXT,
+                versions_json TEXT,
+                version_index INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (thread_id, message_id)
             )
         """)
         conn.commit()
 
-        # Migrazione sicura per tabelle esistenti
-        try:
-            cursor.execute("ALTER TABLE thread_messages ADD COLUMN reasoning_content TEXT")
-            conn.commit()
-        except Exception:
-            pass  # La colonna esiste già
+        # Migrazione colonne se la tabella esisteva già
+        for col_def in [
+            "reasoning_content TEXT",
+            "versions_json TEXT",
+            "version_index INTEGER DEFAULT 0",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE thread_messages ADD COLUMN {col_def}")
+                conn.commit()
+            except Exception:
+                pass
 
         conn.close()
     except Exception as e:
@@ -53,8 +68,84 @@ def init_db():
 # Inizializza al caricamento del modulo
 init_db()
 
-def save_user_message(thread_id: str, user_input: str, user_msg_id: Optional[str] = None, timestamp_str: Optional[str] = None) -> str:
-    """Salva immediatamente il messaggio dell'utente in SQLite."""
+
+def get_thread_title(thread_id: str) -> Optional[str]:
+    """Recupera il titolo salvato per un thread."""
+    if not thread_id:
+        return None
+    try:
+        conn = _get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM thread_metadata WHERE thread_id = ?", (thread_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+    except Exception as e:
+        logger.warning(f"Errore lettura titolo per thread '{thread_id}': {e}")
+        return None
+
+
+def set_thread_title(thread_id: str, title: str):
+    """Imposta o aggiorna il titolo di un thread."""
+    if not thread_id or not title:
+        return
+    try:
+        conn = _get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO thread_metadata (thread_id, title, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(thread_id) DO UPDATE SET title = excluded.title, updated_at = CURRENT_TIMESTAMP
+        """, (thread_id, title.strip()))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore aggiornamento titolo per thread '{thread_id}': {e}")
+
+
+def generate_and_save_title(thread_id: str, user_prompt: str) -> str:
+    """Genera via LLM un titolo conciso in italiano (3-5 parole) e lo salva in SQLite."""
+    if not thread_id or not user_prompt:
+        return "Nuova Conversazione"
+    try:
+        import providers
+        provider = providers.get_provider()
+        prompt_msgs = [
+            {
+                "role": "system",
+                "content": "Sei un assistente che assegna un titolo conciso a una conversazione. "
+                           "Rispondi ESCLUSIVAMENTE con un titolo di 3-5 parole in italiano, "
+                           "senza virgolette, markdown o spiegazioni."
+            },
+            {
+                "role": "user",
+                "content": f"Titolo per questa richiesta iniziale:\n{user_prompt[:300]}"
+            }
+        ]
+        res = provider.chat(prompt_msgs, max_tokens=25, temperature=0.3)
+        raw_title = res.get("content", "").strip()
+        clean = re.sub(r'["\'`\n#]', '', raw_title).strip()
+        if clean.endswith('.'):
+            clean = clean[:-1].strip()
+        title = clean[:50] if clean else user_prompt[:30].strip()
+        set_thread_title(thread_id, title)
+        return title
+    except Exception as e:
+        logger.warning(f"Impossibile generare titolo con LLM per '{thread_id}': {e}")
+        fallback = user_prompt[:35].strip()
+        set_thread_title(thread_id, fallback)
+        return fallback
+
+
+def save_user_message(
+    thread_id: str,
+    user_input: str,
+    user_msg_id: Optional[str] = None,
+    timestamp_str: Optional[str] = None,
+    versions: Optional[List[Dict[str, Any]]] = None,
+    version_index: int = 0
+) -> str:
+    """Salva o aggiorna il messaggio dell'utente in SQLite con supporto a versioni multiple."""
     if not thread_id or not user_input:
         return ""
     init_db()
@@ -63,12 +154,13 @@ def save_user_message(thread_id: str, user_input: str, user_msg_id: Optional[str
     now_time = time.time()
     time_str = timestamp_str or time.strftime("%H:%M", time.localtime(now_time))
     msg_id = user_msg_id or f"user_{int(now_time * 1000)}"
+    versions_json = json.dumps(versions, ensure_ascii=False) if versions else None
     try:
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
-            (thread_id, message_id, sender, content, timestamp)
-            VALUES (?, ?, ?, ?, ?)
-        """, (thread_id, msg_id, "user", user_input, time_str))
+            (thread_id, message_id, sender, content, timestamp, versions_json, version_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (thread_id, msg_id, "user", user_input, time_str, versions_json, version_index))
         conn.commit()
         return msg_id
     except Exception as e:
@@ -78,8 +170,15 @@ def save_user_message(thread_id: str, user_input: str, user_msg_id: Optional[str
         conn.close()
 
 
-def save_assistant_message(thread_id: str, response_data: Dict[str, Any], ast_msg_id: Optional[str] = None, timestamp_str: Optional[str] = None) -> str:
-    """Salva o aggiorna la risposta dell'assistente in SQLite con tutti i campi strutturati."""
+def save_assistant_message(
+    thread_id: str,
+    response_data: Dict[str, Any],
+    ast_msg_id: Optional[str] = None,
+    timestamp_str: Optional[str] = None,
+    versions: Optional[List[Dict[str, Any]]] = None,
+    version_index: int = 0
+) -> str:
+    """Salva o aggiorna la risposta dell'assistente in SQLite con tutti i campi strutturati e versioni."""
     if not thread_id:
         return ""
     init_db()
@@ -114,12 +213,15 @@ def save_assistant_message(thread_id: str, response_data: Dict[str, Any], ast_ms
                     break
 
         is_error = 1 if response_data.get("error") else 0
+        versions_json = json.dumps(versions, ensure_ascii=False) if versions else response_data.get("versions_json")
+        v_idx = version_index if versions is not None else response_data.get("version_index", 0)
 
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
-             plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error, reasoning_content)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
+             is_error, reasoning_content, versions_json, version_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -134,7 +236,9 @@ def save_assistant_message(thread_id: str, response_data: Dict[str, Any], ast_ms
             execution_trace_json,
             rollback_trace_json,
             is_error,
-            reasoning_content
+            reasoning_content,
+            versions_json,
+            v_idx
         ))
         conn.commit()
         return msg_id
@@ -143,6 +247,41 @@ def save_assistant_message(thread_id: str, response_data: Dict[str, Any], ast_ms
         return ""
     finally:
         conn.close()
+
+
+def update_message_version(thread_id: str, message_id: str, version_index: int):
+    """Aggiorna l'indice della versione attiva per un messaggio."""
+    if not thread_id or not message_id:
+        return
+    try:
+        conn = _get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE thread_messages SET version_index = ?
+            WHERE thread_id = ? AND message_id = ?
+        """, (version_index, thread_id, message_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore update version_index msg '{message_id}': {e}")
+
+
+def update_message_versions_data(thread_id: str, message_id: str, versions: List[Dict[str, Any]], version_index: int):
+    """Aggiorna lo storico completo delle versioni e l'indice attivo per un messaggio."""
+    if not thread_id or not message_id:
+        return
+    try:
+        conn = _get_conn()
+        cursor = conn.cursor()
+        versions_json = json.dumps(versions, ensure_ascii=False)
+        cursor.execute("""
+            UPDATE thread_messages SET versions_json = ?, version_index = ?
+            WHERE thread_id = ? AND message_id = ?
+        """, (versions_json, version_index, thread_id, message_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Errore update versions_data msg '{message_id}': {e}")
 
 
 def save_turn(thread_id: str, user_input: str, response_data: Dict[str, Any]):
@@ -173,7 +312,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
     try:
         cursor.execute("""
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
-                   plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error, reasoning_content
+                   plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
+                   is_error, reasoning_content, versions_json, version_index
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -183,7 +323,16 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
 
         messages = []
         for row in rows:
-            m_id, sender, content, ts, mode, tool_used, reasoning, ps_json, pst_json, et_json, rt_json, is_err, reasoning_content = row
+            (m_id, sender, content, ts, mode, tool_used, reasoning,
+             ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
+             vers_json, v_idx) = row
+
+            versions_parsed = None
+            if vers_json:
+                try:
+                    versions_parsed = json.loads(vers_json)
+                except Exception:
+                    versions_parsed = None
 
             msg_obj = {
                 "id": m_id,
@@ -198,7 +347,9 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "execution_trace": json.loads(et_json) if et_json else None,
                 "rollback_trace": json.loads(rt_json) if rt_json else None,
                 "isError": bool(is_err),
-                "reasoning_content": reasoning_content
+                "reasoning_content": reasoning_content,
+                "versions": versions_parsed,
+                "versionIndex": v_idx if v_idx is not None else 0
             }
             messages.append(msg_obj)
 

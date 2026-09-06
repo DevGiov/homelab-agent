@@ -24,11 +24,15 @@ function MainLayout() {
 
   const {
     currentMessages,
+    currentThreadTitle,
     isLoadingChat,
     isPaused,
     chatError,
     setChatError,
     handleSendMessage,
+    handleRegenerateMessage,
+    handleEditPrompt,
+    handleSwitchVersion,
     handleStop,
     handlePause,
     handleResume,
@@ -96,8 +100,12 @@ function MainLayout() {
       {/* Main Area: Chat */}
       <Chat
         currentThreadId={currentThreadId}
+        currentThreadTitle={currentThreadTitle}
         messages={currentMessages}
         onSendMessage={handleSendMessage}
+        onRegenerate={handleRegenerateMessage}
+        onEditPrompt={handleEditPrompt}
+        onSwitchVersion={handleSwitchVersion}
         onStop={handleStop}
         onPause={handlePause}
         onResume={handleResume}

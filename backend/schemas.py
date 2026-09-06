@@ -25,6 +25,7 @@ class ChatResponse(BaseModel):
     reasoning_content: Optional[str] = None
     web_prefetch: Optional[Dict[str, Any]] = None
     metrics: Optional[Dict[str, Any]] = None
+    thread_title: Optional[str] = None
 
 
 class ThreadControlRequest(BaseModel):
@@ -33,9 +34,23 @@ class ThreadControlRequest(BaseModel):
 
 class ThreadSummary(BaseModel):
     thread_id: str
+    title: Optional[str] = None
     last_message: Optional[str] = None
     checkpoint_count: int
     is_active: bool = False
+
+
+class SetThreadTitleRequest(BaseModel):
+    title: str
+
+
+class SwitchVersionRequest(BaseModel):
+    version_index: int
+
+
+class SaveVersionsDataRequest(BaseModel):
+    versions: List[Dict[str, Any]]
+    version_index: int
 
 
 class ProviderInfo(BaseModel):

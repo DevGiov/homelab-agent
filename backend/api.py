@@ -36,6 +36,9 @@ from schemas import (
     ProviderModelsResponse,
     ProvidersResponse,
     SetDefaultProviderRequest,
+    SetThreadTitleRequest,
+    SaveVersionsDataRequest,
+    SwitchVersionRequest,
     ThreadControlRequest,
     ThreadSummary,
 )
@@ -113,6 +116,12 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task)
+        if not thread_store.get_thread_title(effective_thread_id):
+            threading.Thread(
+                target=thread_store.generate_and_save_title,
+                args=(effective_thread_id, task),
+                daemon=True
+            ).start()
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
     try:
@@ -130,6 +139,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         reasoning_content = final_state.get("reasoning_content")
         web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
 
+        t_title = thread_store.get_thread_title(effective_thread_id)
         resp = ChatResponse(
             thread_id=effective_thread_id,
             mode=mode,
@@ -140,7 +150,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             execution_trace=execution_trace,
             rollback_trace=rollback_trace,
             reasoning_content=reasoning_content,
-            web_prefetch=web_prefetch
+            web_prefetch=web_prefetch,
+            thread_title=t_title
         )
 
         # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
@@ -280,6 +291,12 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task)
+        if not thread_store.get_thread_title(effective_thread_id):
+            threading.Thread(
+                target=thread_store.generate_and_save_title,
+                args=(effective_thread_id, task),
+                daemon=True
+            ).start()
 
     # Se c'è già una sessione attiva per questo thread, ci colleghiamo ad essa
     existing_sess = get_session(effective_thread_id)
@@ -307,6 +324,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
                 metrics = sess.get_metrics()
 
+                t_title = thread_store.get_thread_title(effective_thread_id)
                 resp = ChatResponse(
                     thread_id=effective_thread_id,
                     mode=mode,
@@ -318,7 +336,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                     rollback_trace=rollback_trace,
                     reasoning_content=reasoning_content,
                     web_prefetch=web_prefetch,
-                    metrics=metrics
+                    metrics=metrics,
+                    thread_title=t_title
                 )
                 if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
@@ -508,6 +527,7 @@ async def kb_search(query: str, k: int = 5):
     from knowledge_base import search_knowledge
     return {"results": search_knowledge(query, k=max(1, min(k, 20)))}
 
+
 @api.get("/v1/threads", response_model=List[ThreadSummary], dependencies=[Depends(verify_api_key)])
 async def list_threads():
     try:
@@ -526,6 +546,9 @@ async def list_threads():
             ORDER BY sort_key DESC
         """)
         rows = cursor.fetchall()
+
+        cursor.execute("SELECT thread_id, title FROM thread_metadata")
+        titles_map = dict(cursor.fetchall())
         conn.close()
 
         summaries = []
@@ -549,6 +572,7 @@ async def list_threads():
 
             summaries.append(ThreadSummary(
                 thread_id=tid,
+                title=titles_map.get(tid),
                 last_message=last_msg,
                 checkpoint_count=count,
                 is_active=is_active
@@ -562,6 +586,7 @@ async def list_threads():
             if atid not in found_tids:
                 summaries.insert(0, ThreadSummary(
                     thread_id=atid,
+                    title=titles_map.get(atid),
                     last_message=asess.task,
                     checkpoint_count=0,
                     is_active=True
@@ -634,6 +659,7 @@ async def get_thread(thread_id: str):
 
         return {
             "thread_id": thread_id,
+            "title": thread_store.get_thread_title(thread_id),
             "agent_id": agent_id,
             "checkpoint_count": count,
             "messages": stored_messages,
@@ -646,6 +672,32 @@ async def get_thread(thread_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get thread details: {str(e)}")
 
+
+@api.patch("/v1/threads/{thread_id}/title", dependencies=[Depends(verify_api_key)])
+async def update_thread_title(thread_id: str, req: SetThreadTitleRequest):
+    thread_store.set_thread_title(thread_id, req.title)
+    return {"status": "ok", "thread_id": thread_id, "title": req.title}
+
+
+@api.post("/v1/threads/{thread_id}/title/generate", dependencies=[Depends(verify_api_key)])
+async def force_generate_thread_title(thread_id: str):
+    last_msg = thread_store.get_last_message(thread_id) or "Nuova chat"
+    title = thread_store.generate_and_save_title(thread_id, last_msg)
+    return {"status": "ok", "thread_id": thread_id, "title": title}
+
+
+@api.post("/v1/threads/{thread_id}/messages/{message_id}/version", dependencies=[Depends(verify_api_key)])
+async def switch_message_version(thread_id: str, message_id: str, req: SwitchVersionRequest):
+    thread_store.update_message_version(thread_id, message_id, req.version_index)
+    return {"status": "ok", "thread_id": thread_id, "message_id": message_id, "version_index": req.version_index}
+
+
+@api.post("/v1/threads/{thread_id}/messages/{message_id}/versions_data", dependencies=[Depends(verify_api_key)])
+async def update_message_versions(thread_id: str, message_id: str, req: SaveVersionsDataRequest):
+    thread_store.update_message_versions_data(thread_id, message_id, req.versions, req.version_index)
+    return {"status": "ok", "thread_id": thread_id, "message_id": message_id}
+
+
 @api.delete("/v1/threads/{thread_id}", dependencies=[Depends(verify_api_key)])
 async def delete_single_thread(thread_id: str):
     try:
@@ -653,6 +705,7 @@ async def delete_single_thread(thread_id: str):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
         deleted_rows = cursor.rowcount
+        cursor.execute("DELETE FROM thread_metadata WHERE thread_id = ?", (thread_id,))
         conn.commit()
         conn.close()
 
@@ -677,6 +730,7 @@ async def delete_all_threads():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM checkpoints")
         deleted_rows = cursor.rowcount
+        cursor.execute("DELETE FROM thread_metadata")
         conn.commit()
         conn.close()
 

@@ -1,5 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Wrench, Sparkles, AlertTriangle, Play, Menu, Activity, Brain, Box, EyeOff, Globe, Square, Pause, Zap } from 'lucide-react';
+import {
+  Send,
+  Bot,
+  User,
+  Wrench,
+  Sparkles,
+  AlertTriangle,
+  Play,
+  Menu,
+  Activity,
+  Brain,
+  Box,
+  EyeOff,
+  Globe,
+  Square,
+  Pause,
+  Zap,
+  Copy,
+  Check,
+  Pencil,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModels } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
@@ -9,6 +32,7 @@ import { ThemeQuickSelector } from './components/ThemeQuickSelector';
 
 interface ChatProps {
   currentThreadId: string | null;
+  currentThreadTitle?: string | null;
   messages: FormattedMessage[];
   onSendMessage: (
     input: string,
@@ -19,6 +43,15 @@ interface ChatProps {
     incognito?: boolean,
     webSearch?: boolean
   ) => Promise<void>;
+  onRegenerate?: (assistantMsgId: string) => Promise<void> | void;
+  onEditPrompt?: (
+    userMsgId: string,
+    newContent: string,
+    mode?: AgentMode,
+    model?: string,
+    reasoningBudget?: number
+  ) => Promise<void> | void;
+  onSwitchVersion?: (messageId: string, targetIndex: number) => void;
   onStop?: () => void;
   onPause?: () => void;
   onResume?: () => void;
@@ -32,8 +65,12 @@ interface ChatProps {
 
 export const Chat: React.FC<ChatProps> = ({
   currentThreadId,
+  currentThreadTitle,
   messages,
   onSendMessage,
+  onRegenerate,
+  onEditPrompt,
+  onSwitchVersion,
   onStop,
   onPause,
   onResume,
@@ -52,6 +89,14 @@ export const Chat: React.FC<ChatProps> = ({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isIncognito, setIsIncognito] = useState<boolean>(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
+
+  // Copy & Inline Edit State
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editPromptText, setEditPromptText] = useState<string>('');
+  const [editPromptMode, setEditPromptMode] = useState<AgentMode | 'auto'>('auto');
+  const [editPromptModel, setEditPromptModel] = useState<string>('default');
+  const [editPromptBudget, setEditPromptBudget] = useState<number | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +144,45 @@ export const Chat: React.FC<ChatProps> = ({
     }
   };
 
+  const handleCopy = (text: string, id: string) => {
+    if (!text) return;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopiedId(id);
+    setTimeout(() => {
+      setCopiedId((curr) => (curr === id ? null : curr));
+    }, 2000);
+  };
+
+  const startEditing = (msg: FormattedMessage) => {
+    setEditingMsgId(msg.id);
+    setEditPromptText(msg.content);
+    setEditPromptMode((msg.mode as AgentMode) || selectedMode || 'auto');
+    setEditPromptModel(msg.model || selectedModel || 'default');
+    setEditPromptBudget(msg.reasoningBudget);
+  };
+
+  const cancelEditing = () => {
+    setEditingMsgId(null);
+    setEditPromptText('');
+  };
+
+  const submitEditing = (msgId: string) => {
+    if (!editPromptText.trim() || !onEditPrompt) return;
+    const modeToPass = editPromptMode === 'auto' ? undefined : editPromptMode;
+    const modelToPass = editPromptModel === 'default' ? undefined : editPromptModel;
+    onEditPrompt(msgId, editPromptText.trim(), modeToPass, modelToPass, editPromptBudget);
+    setEditingMsgId(null);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative">
       {/* Incognito Banner */}
@@ -137,8 +221,8 @@ export const Chat: React.FC<ChatProps> = ({
             <Bot size={18} />
           </div>
           <div className="truncate max-w-[120px] sm:max-w-xs">
-            <h2 className="text-xs sm:text-sm font-semibold text-fg truncate">
-              {currentThreadId ? `Thread: ${currentThreadId}` : 'New Session'}
+            <h2 className="text-xs sm:text-sm font-semibold text-fg truncate" title={currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'New Session')}>
+              {currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'New Session')}
             </h2>
             <p className="text-[10px] sm:text-[11px] text-fg-muted truncate">Main Agent Engine</p>
           </div>
@@ -273,7 +357,86 @@ export const Chat: React.FC<ChatProps> = ({
                     }`}
                   >
                     {isUser ? (
-                      <div className="whitespace-pre-wrap font-sans break-words">{msg.content}</div>
+                      editingMsgId === msg.id ? (
+                        <div className="flex flex-col gap-2 min-w-[260px] sm:min-w-[340px] text-fg">
+                          <textarea
+                            value={editPromptText}
+                            onChange={(e) => setEditPromptText(e.target.value)}
+                            className="w-full bg-input-bg/90 border border-border rounded-xl p-2.5 text-xs sm:text-sm text-fg focus:outline-none focus:border-accent resize-y min-h-[60px]"
+                            placeholder="Modifica prompt..."
+                            autoFocus
+                          />
+                          <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-border/40 text-[11px]">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <select
+                                value={editPromptMode}
+                                onChange={(e) => setEditPromptMode(e.target.value as any)}
+                                className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-[10px] text-fg focus:outline-none focus:border-accent"
+                              >
+                                <option value="auto">Mode: Auto</option>
+                                <option value="chat">Mode: Chat</option>
+                                <option value="ask">Mode: Ask</option>
+                                <option value="act">Mode: Act</option>
+                                <option value="plan">Mode: Plan</option>
+                              </select>
+                              {availableModels.length > 0 && (
+                                <select
+                                  value={editPromptModel}
+                                  onChange={(e) => setEditPromptModel(e.target.value)}
+                                  className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-[10px] text-fg focus:outline-none focus:border-accent max-w-[120px] truncate"
+                                >
+                                  <option value="default">Default Model</option>
+                                  {availableModels.map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                className="px-2 py-1 rounded-md text-[10px] text-fg-muted hover:text-fg hover:bg-border/40 transition cursor-pointer"
+                              >
+                                Annulla
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => submitEditing(msg.id)}
+                                className="px-2.5 py-1 rounded-md text-[10px] font-medium bg-accent text-white hover:bg-accent-hover shadow-sm transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Send size={10} />
+                                <span>Invia</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative group/userbubble">
+                          <div className="whitespace-pre-wrap font-sans break-words pr-12">{msg.content}</div>
+                          {/* Hover action buttons on User prompt */}
+                          <div className="absolute top-0 right-0 flex items-center gap-0.5 opacity-0 group-hover/userbubble:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(msg.content, msg.id)}
+                              className="p-1 rounded text-userBubbleText/70 hover:text-userBubbleText hover:bg-white/10 transition cursor-pointer"
+                              title="Copia prompt"
+                            >
+                              {copiedId === msg.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            </button>
+                            {!isLoading && onEditPrompt && (
+                              <button
+                                type="button"
+                                onClick={() => startEditing(msg)}
+                                className="p-1 rounded text-userBubbleText/70 hover:text-userBubbleText hover:bg-white/10 transition cursor-pointer"
+                                title="Modifica prompt"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <>
                         {!msg.content && !msg.reasoning_content && isLoading && index === messages.length - 1 ? (
@@ -359,8 +522,70 @@ export const Chat: React.FC<ChatProps> = ({
 
                   {/* Metadata Indicators under Bubble */}
                   {(!isLoading || msg.content || msg.reasoning_content || index !== messages.length - 1) && (
-                    <div className={`flex items-center gap-2 text-[10px] text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex items-center gap-1.5 text-[10px] text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      {/* Version Carousel < 1/N > (hidden if only 1 version) */}
+                      {msg.versions && msg.versions.length > 1 && (
+                        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-[9px] font-mono text-fg-muted shadow-sm select-none">
+                          <button
+                            type="button"
+                            onClick={() => onSwitchVersion?.(msg.id, (msg.versionIndex ?? 0) - 1)}
+                            disabled={(msg.versionIndex ?? 0) <= 0}
+                            className="p-0.5 hover:text-fg disabled:opacity-25 disabled:hover:text-fg-muted transition cursor-pointer"
+                            title="Versione precedente"
+                          >
+                            <ChevronLeft size={11} />
+                          </button>
+                          <span className="px-1 text-[9px] font-semibold text-fg">
+                            {(msg.versionIndex ?? 0) + 1} / {msg.versions.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onSwitchVersion?.(msg.id, (msg.versionIndex ?? 0) + 1)}
+                            disabled={(msg.versionIndex ?? 0) >= msg.versions.length - 1}
+                            className="p-0.5 hover:text-fg disabled:opacity-25 disabled:hover:text-fg-muted transition cursor-pointer"
+                            title="Versione successiva"
+                          >
+                            <ChevronRight size={11} />
+                          </button>
+                        </div>
+                      )}
+
                       <span>{msg.timestamp}</span>
+
+                      {/* Assistant Actions: Copy response & Regenerate */}
+                      {!isUser && msg.content && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(msg.content, msg.id)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-panel hover:bg-panel-header border border-border text-[9px] text-fg-muted hover:text-fg font-mono transition cursor-pointer"
+                          title="Copia risposta"
+                        >
+                          {copiedId === msg.id ? (
+                            <>
+                              <Check size={10} className="text-emerald-400" />
+                              <span className="text-emerald-400">Copiato</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={10} />
+                              <span>Copia</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {!isUser && onRegenerate && !isLoading && (
+                        <button
+                          type="button"
+                          onClick={() => onRegenerate(msg.id)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-panel hover:bg-panel-header border border-border hover:border-accent text-[9px] text-fg-muted hover:text-fg font-mono transition cursor-pointer shadow-sm"
+                          title="Rigenera risposta dal prompt precedente"
+                        >
+                          <RefreshCw size={9} />
+                          <span>Rigenera</span>
+                        </button>
+                      )}
+
                       {modeName && (
                         <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
                           {modeName}

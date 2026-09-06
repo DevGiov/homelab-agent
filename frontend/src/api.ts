@@ -133,11 +133,13 @@ export interface ChatResponse {
   reasoning_content?: string;
   web_prefetch?: WebPrefetchData;
   metrics?: StreamMetrics;
+  thread_title?: string;
   error?: string;
 }
 
 export interface ThreadItem {
   thread_id: string;
+  title?: string;
   last_message: string | null;
   checkpoint_count: number;
   is_active?: boolean;
@@ -154,6 +156,7 @@ export interface LettaMessage {
 
 export interface ThreadDetails {
   thread_id: string;
+  title?: string;
   agent_id?: string;
   checkpoint_count?: number;
   messages?: FormattedMessage[];
@@ -163,9 +166,8 @@ export interface ThreadDetails {
   active_snapshot?: any;
 }
 
-export interface FormattedMessage {
+export interface MessageVersion {
   id: string;
-  sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
   mode?: AgentMode | string;
@@ -179,6 +181,14 @@ export interface FormattedMessage {
   web_prefetch?: WebPrefetchData;
   metrics?: StreamMetrics;
   isError?: boolean;
+  model?: string;
+  reasoningBudget?: number;
+}
+
+export interface FormattedMessage extends MessageVersion {
+  sender: 'user' | 'assistant';
+  versions?: MessageVersion[];
+  versionIndex?: number;
 }
 
 export async function sendMessage(req: ChatRequest): Promise<ChatResponse> {
@@ -560,5 +570,35 @@ export async function searchMemories(
   return res.data.results || [];
 }
 
+export async function updateThreadTitle(threadId: string, title: string): Promise<void> {
+  await api.patch(`/threads/${threadId}/title`, { title });
+}
 
+export async function generateThreadTitle(threadId: string): Promise<string> {
+  const res = await api.post<{ status: string; thread_id: string; title: string }>(`/threads/${threadId}/title/generate`);
+  return res.data.title;
+}
 
+export async function switchMessageVersion(threadId: string, messageId: string, versionIndex: number): Promise<void> {
+  try {
+    await api.post(`/threads/${threadId}/messages/${messageId}/version`, { version_index: versionIndex });
+  } catch (err) {
+    console.warn('Failed to persist version index on backend:', err);
+  }
+}
+
+export async function saveMessageVersions(
+  threadId: string,
+  messageId: string,
+  versions: MessageVersion[],
+  versionIndex: number
+): Promise<void> {
+  try {
+    await api.post(`/threads/${threadId}/messages/${messageId}/versions_data`, {
+      versions,
+      version_index: versionIndex,
+    });
+  } catch (err) {
+    console.warn('Failed to persist versions on backend:', err);
+  }
+}
