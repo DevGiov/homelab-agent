@@ -140,6 +140,7 @@ export interface ThreadItem {
   thread_id: string;
   last_message: string | null;
   checkpoint_count: number;
+  is_active?: boolean;
 }
 
 export interface LettaMessage {
@@ -157,6 +158,9 @@ export interface ThreadDetails {
   checkpoint_count?: number;
   messages?: FormattedMessage[];
   letta_messages?: LettaMessage[];
+  is_active?: boolean;
+  is_paused?: boolean;
+  active_snapshot?: any;
 }
 
 export interface FormattedMessage {
@@ -228,7 +232,11 @@ export async function sendStreamMessage(
           }
           try {
             const data = JSON.parse(dataStr);
-            if (data.type === 'reasoning' && onReasoningDelta) {
+            if (data.type === 'sync') {
+              if (data.reasoning_content && onReasoningDelta) onReasoningDelta(data.reasoning_content);
+              if (data.content && onContentDelta) onContentDelta(data.content);
+              if (data.metrics && onMetrics) onMetrics(data.metrics);
+            } else if (data.type === 'reasoning' && onReasoningDelta) {
               onReasoningDelta(data.delta);
             } else if (data.type === 'content' && onContentDelta) {
               onContentDelta(data.delta);
@@ -253,6 +261,81 @@ export async function sendStreamMessage(
       return;
     }
     if (onError) onError(err.message || 'Stream error');
+  }
+}
+
+export async function attachToThreadStream(
+  threadId: string,
+  onReasoningDelta?: (delta: string) => void,
+  onContentDelta?: (delta: string) => void,
+  onFinalResponse?: (response: ChatResponse) => void,
+  onError?: (error: string) => void,
+  onRetrievalEvent?: (event: string, data: any) => void,
+  onMetrics?: (metrics: StreamMetrics) => void,
+  onSync?: (snapshot: any) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE}/threads/${encodeURIComponent(threadId)}/stream`, {
+      method: 'GET',
+      headers: {
+        ...(getApiKey() ? { 'X-API-Key': getApiKey() } : {}),
+      },
+      signal,
+    });
+
+    if (!response.body) throw new Error('ReadableStream not yet supported in this browser.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n\n');
+
+      while (boundary !== -1) {
+        const chunk = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf('\n\n');
+
+        if (chunk.startsWith('data: ')) {
+          const dataStr = chunk.slice(6);
+          if (dataStr === '[DONE]') {
+            break;
+          }
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.type === 'sync' && onSync) {
+              onSync(data);
+            } else if (data.type === 'reasoning' && onReasoningDelta) {
+              onReasoningDelta(data.delta);
+            } else if (data.type === 'content' && onContentDelta) {
+              onContentDelta(data.delta);
+            } else if (data.type === 'retrieval' && onRetrievalEvent) {
+              onRetrievalEvent(data.event, data.data);
+            } else if (data.type === 'metrics' && onMetrics) {
+              onMetrics(data.metrics);
+            } else if (data.type === 'final' && onFinalResponse) {
+              onFinalResponse(data.response);
+            } else if (data.type === 'error' && onError) {
+              onError(data.error);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE JSON', e);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.log('Stream attach request was aborted by user');
+      return;
+    }
+    if (onError) onError(err.message || 'Stream attach error');
   }
 }
 

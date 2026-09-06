@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   sendStreamMessage,
+  attachToThreadStream,
   stopChatStream,
   pauseChatStream,
   resumeChatStream,
@@ -36,11 +37,13 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
 
   // Load history for a thread
   const loadThreadHistory = useCallback(async (threadId: string) => {
-    if (isSendingRef.current) return;
+    if (isSendingRef.current && activeThreadIdRef.current === threadId) return;
     setIsLoadingChat(true);
+    let isActive = false;
     try {
       const details = await getThreadDetails(threadId);
       if (details) {
+        isActive = Boolean(details.is_active);
         let parsedMsgs: FormattedMessage[] = [];
         if (details.messages && details.messages.length > 0) {
           parsedMsgs = details.messages;
@@ -72,11 +75,142 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           setActiveRollbackTrace(undefined);
           setActiveWebPrefetch(undefined);
         }
+
+        // Se l'esecuzione è attiva in background su questo thread, ci agganciamo allo streaming live
+        if (isActive) {
+          isSendingRef.current = true;
+          setIsPaused(Boolean(details.is_paused));
+          activeThreadIdRef.current = threadId;
+
+          const runningMsg = [...parsedMsgs].reverse().find((m) => m.sender === 'assistant');
+          const assistantMsgId = runningMsg ? runningMsg.id : `ast_live_${threadId}`;
+
+          const abortController = new AbortController();
+          abortControllerRef.current = abortController;
+
+          attachToThreadStream(
+            threadId,
+            (reasoningDelta) => {
+              setThreadMessagesMap((prev) => {
+                const msgs = prev[threadId] || [];
+                return {
+                  ...prev,
+                  [threadId]: msgs.map((m) =>
+                    m.id === assistantMsgId
+                      ? { ...m, reasoning_content: (m.reasoning_content || '') + reasoningDelta }
+                      : m
+                  ),
+                };
+              });
+            },
+            (contentDelta) => {
+              setThreadMessagesMap((prev) => {
+                const msgs = prev[threadId] || [];
+                return {
+                  ...prev,
+                  [threadId]: msgs.map((m) =>
+                    m.id === assistantMsgId
+                      ? { ...m, content: (m.content || '') + contentDelta }
+                      : m
+                  ),
+                };
+              });
+            },
+            (finalResponse) => {
+              const assistantMsg = adaptChatResponseToMessage(finalResponse);
+              assistantMsg.id = assistantMsgId;
+              if (!assistantMsg.metrics && finalResponse.metrics) {
+                assistantMsg.metrics = finalResponse.metrics;
+              }
+              setThreadMessagesMap((prev) => {
+                const msgs = prev[threadId] || [];
+                return {
+                  ...prev,
+                  [threadId]: msgs.map((m) => (m.id === assistantMsgId ? assistantMsg : m)),
+                };
+              });
+              setActiveTool(finalResponse.tool_used);
+              setActivePlan(finalResponse.plan_steps);
+              setActivePlanStructure(finalResponse.plan_structure);
+              setActiveExecutionTrace(finalResponse.execution_trace);
+              setActiveRollbackTrace(finalResponse.rollback_trace);
+              setActiveMode(finalResponse.mode);
+              setActiveWebPrefetch(finalResponse.web_prefetch);
+              setIsLoadingChat(false);
+              isSendingRef.current = false;
+              setIsPaused(false);
+            },
+            (err) => {
+              console.error('Error in attached thread stream:', err);
+              setIsLoadingChat(false);
+              isSendingRef.current = false;
+              setIsPaused(false);
+            },
+            (retrievalEvent, retrievalData) => {
+              if (retrievalEvent === 'web_prefetch.started') {
+                setActiveWebPrefetch({
+                  query: retrievalData.query || '',
+                  success: true,
+                  sources: [],
+                });
+              } else if (retrievalEvent === 'web_prefetch.completed') {
+                setActiveWebPrefetch((prev) => ({
+                  ...(prev || { query: '', success: true }),
+                  provider_used: retrievalData.provider,
+                  latency_ms: retrievalData.latency_ms,
+                }));
+              }
+            },
+            (metricsData) => {
+              setThreadMessagesMap((prev) => {
+                const msgs = prev[threadId] || [];
+                return {
+                  ...prev,
+                  [threadId]: msgs.map((m) =>
+                    m.id === assistantMsgId ? { ...m, metrics: metricsData } : m
+                  ),
+                };
+              });
+            },
+            (snapshot) => {
+              setThreadMessagesMap((prev) => {
+                const msgs = prev[threadId] || [];
+                return {
+                  ...prev,
+                  [threadId]: msgs.map((m) =>
+                    m.id === assistantMsgId
+                      ? {
+                          ...m,
+                          reasoning_content: snapshot.reasoning_content || m.reasoning_content || '',
+                          content: snapshot.content || m.content || '',
+                          mode: snapshot.mode || m.mode,
+                          tool_used: snapshot.tool_used || m.tool_used,
+                          plan_steps: snapshot.plan_steps || m.plan_steps,
+                          plan_structure: snapshot.plan_structure || m.plan_structure,
+                          execution_trace: snapshot.execution_trace || m.execution_trace,
+                          metrics: snapshot.metrics || m.metrics,
+                        }
+                      : m
+                  ),
+                };
+              });
+              if (snapshot.is_paused !== undefined) {
+                setIsPaused(Boolean(snapshot.is_paused));
+              }
+            },
+            abortController.signal
+          ).finally(() => {
+            setIsLoadingChat(false);
+            isSendingRef.current = false;
+          });
+        }
       }
     } catch (err) {
       console.warn(`Could not load history for thread ${threadId}:`, err);
     } finally {
-      setIsLoadingChat(false);
+      if (!isActive) {
+        setIsLoadingChat(false);
+      }
     }
   }, []);
 
@@ -268,7 +402,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   );
 
   const handleStop = useCallback(async () => {
-    const threadId = activeThreadIdRef.current;
+    const threadId = activeThreadIdRef.current || currentThreadId;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -283,10 +417,10 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     setIsPaused(false);
     setIsLoadingChat(false);
     isSendingRef.current = false;
-  }, []);
+  }, [currentThreadId]);
 
   const handlePause = useCallback(async () => {
-    const threadId = activeThreadIdRef.current;
+    const threadId = activeThreadIdRef.current || currentThreadId;
     if (threadId) {
       try {
         await pauseChatStream(threadId);
@@ -295,10 +429,10 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         console.warn('Error pausing stream:', e);
       }
     }
-  }, []);
+  }, [currentThreadId]);
 
   const handleResume = useCallback(async () => {
-    const threadId = activeThreadIdRef.current;
+    const threadId = activeThreadIdRef.current || currentThreadId;
     if (threadId) {
       try {
         await resumeChatStream(threadId);
@@ -307,7 +441,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         console.warn('Error resuming stream:', e);
       }
     }
-  }, []);
+  }, [currentThreadId]);
 
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];
 

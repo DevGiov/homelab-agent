@@ -280,86 +280,92 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task)
 
-    cfg = {"configurable": {"thread_id": effective_thread_id}}
-    q = queue.Queue()
-    stream_queue.set(q)
-    stream_reasoning_phase_count.set(0)
-    sess = create_session(effective_thread_id)
-    current_session_var.set(sess)
+    # Se c'è già una sessione attiva per questo thread, ci colleghiamo ad essa
+    existing_sess = get_session(effective_thread_id)
+    if existing_sess and existing_sess.is_active():
+        sess = existing_sess
+    else:
+        sess = create_session(effective_thread_id, task=task, mode=force_mode)
+        cfg = {"configurable": {"thread_id": effective_thread_id}}
 
-    def worker():
-        try:
-            final_state = app_graph.invoke(initial_state, config=cfg)
-            mode = final_state.get("mode", force_mode or "plan")
-            response_text = final_state.get("final_response", "")
-            plan_dict = final_state.get("plan", {})
-            tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
-            plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
-            plan_structure = final_state.get("plan_structure") or (plan_dict.get("plan_structure") if isinstance(plan_dict, dict) else None)
-            execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
-            rollback_trace = final_state.get("rollback_trace")
-            reasoning_content = final_state.get("reasoning_content")
-            web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
-            metrics = sess.get_metrics()
+        def worker():
+            stream_queue.set(sess)
+            stream_reasoning_phase_count.set(0)
+            current_session_var.set(sess)
+            try:
+                final_state = app_graph.invoke(initial_state, config=cfg)
+                mode = final_state.get("mode", force_mode or "plan")
+                response_text = final_state.get("final_response", "")
+                plan_dict = final_state.get("plan", {})
+                tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
+                plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
+                plan_structure = final_state.get("plan_structure") or (plan_dict.get("plan_structure") if isinstance(plan_dict, dict) else None)
+                execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
+                rollback_trace = final_state.get("rollback_trace")
+                reasoning_content = final_state.get("reasoning_content")
+                web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
+                metrics = sess.get_metrics()
 
-            resp = ChatResponse(
-                thread_id=effective_thread_id,
-                mode=mode,
-                response=response_text,
-                tool_used=tool_used,
-                plan_steps=plan_steps,
-                plan_structure=plan_structure,
-                execution_trace=execution_trace,
-                rollback_trace=rollback_trace,
-                reasoning_content=reasoning_content,
-                web_prefetch=web_prefetch,
-                metrics=metrics
-            )
-            if not incognito:
-                thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
-            q.put({"type": "final", "response": resp.model_dump()})
-        except Exception as e:
-            if not incognito:
-                thread_store.save_assistant_message(effective_thread_id, {
-                    "response": f"[Errore durante l'elaborazione: {str(e)}]",
-                    "error": True
-                })
-            q.put({"type": "error", "error": str(e)})
-        finally:
-            if not incognito:
-                # Se il flusso è stato fermato o interrotto e non c'è ancora un messaggio assistente registrato
-                msgs = thread_store.get_thread_messages(effective_thread_id)
-                has_assistant = any(m.get("sender") == "assistant" for m in msgs)
-                if not has_assistant:
+                resp = ChatResponse(
+                    thread_id=effective_thread_id,
+                    mode=mode,
+                    response=response_text,
+                    tool_used=tool_used,
+                    plan_steps=plan_steps,
+                    plan_structure=plan_structure,
+                    execution_trace=execution_trace,
+                    rollback_trace=rollback_trace,
+                    reasoning_content=reasoning_content,
+                    web_prefetch=web_prefetch,
+                    metrics=metrics
+                )
+                if not incognito and not sess.is_stopped():
+                    thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
+                sess.put({"type": "final", "response": resp.model_dump()})
+            except Exception as e:
+                if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, {
-                        "response": "[Esecuzione interrotta o non completata]",
-                        "error": False
+                        "response": f"[Errore durante l'elaborazione: {str(e)}]",
+                        "error": True
                     })
-            remove_session(effective_thread_id)
-            q.put(None)
+                sess.put({"type": "error", "error": str(e)})
+            finally:
+                if not incognito and not sess.is_stopped():
+                    msgs = thread_store.get_thread_messages(effective_thread_id)
+                    has_assistant = any(m.get("sender") == "assistant" for m in msgs)
+                    if not has_assistant:
+                        thread_store.save_assistant_message(effective_thread_id, {
+                            "response": "[Esecuzione completata]",
+                            "error": False
+                        })
+                sess.put(None)
 
-    ctx = contextvars.copy_context()
-    t = threading.Thread(target=ctx.run, args=(worker,))
-    t.start()
+        ctx = contextvars.copy_context()
+        t = threading.Thread(target=ctx.run, args=(worker,))
+        t.start()
 
     async def event_generator():
+        sub_q = sess.subscribe()
         try:
+            # Se la sessione ha già prodotto reasoning o token, invia uno snapshot di sync iniziale
+            if sess.reasoning_content or sess.partial_content or sess.is_paused():
+                yield f"data: {json.dumps(sess.get_snapshot(), ensure_ascii=False)}\n\n"
+
             while True:
-                if sess.is_stopped():
-                    break
                 if request is not None and await request.is_disconnected():
-                    logging.getLogger("api").info(f"Client disconnesso per thread '{effective_thread_id}'. Arresto flusso.")
-                    sess.stop()
+                    logging.getLogger("api").info(f"Client SSE disconnesso per thread '{effective_thread_id}'. L'elaborazione continua in background.")
+                    break
+                if not sess.is_active() and sub_q.empty():
                     break
                 try:
-                    item = await asyncio.to_thread(q.get, timeout=0.2)
+                    item = await asyncio.to_thread(sub_q.get, timeout=0.25)
                 except queue.Empty:
                     continue
                 if item is None:
                     break
                 yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
         finally:
-            sess.stop()
+            sess.unsubscribe(sub_q)
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -379,11 +385,49 @@ async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
         request=request
     )
 
+@api.get("/v1/threads/{thread_id}/stream", dependencies=[Depends(verify_api_key)])
+async def thread_stream_endpoint(thread_id: str, request: Request):
+    """Permette a client riconnessi o a dispositivi differenti di agganciarsi allo streaming in corso."""
+    sess = get_session(thread_id)
+    if not sess or not sess.is_active():
+        async def empty_gen():
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(empty_gen(), media_type="text/event-stream")
+
+    async def event_generator():
+        sub_q = sess.subscribe()
+        try:
+            # Invia subito snapshot sync con tutto lo stato accumulato
+            yield f"data: {json.dumps(sess.get_snapshot(), ensure_ascii=False)}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    logging.getLogger("api").info(f"Client SSE riconnesso si è disconnesso per thread '{thread_id}'. L'elaborazione continua.")
+                    break
+                if not sess.is_active() and sub_q.empty():
+                    break
+                try:
+                    item = await asyncio.to_thread(sub_q.get, timeout=0.25)
+                except queue.Empty:
+                    continue
+                if item is None:
+                    break
+                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+        finally:
+            sess.unsubscribe(sub_q)
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 @api.post("/v1/chat/stop", dependencies=[Depends(verify_api_key)])
 async def chat_stop_endpoint(req: ThreadControlRequest):
     sess = get_session(req.thread_id)
     if sess:
         sess.stop()
+        thread_store.save_assistant_message(req.thread_id, {
+            "response": "[Esecuzione interrotta dall'utente]",
+            "error": False
+        })
         return {"status": "ok", "message": "Stream stopped"}
     return {"status": "not_found", "message": "No active stream for thread"}
 
@@ -484,11 +528,13 @@ async def list_threads():
         conn.close()
 
         summaries = []
+        found_tids = set()
         for row in rows:
             tid = row[0]
             count = row[1]
             if not tid:
                 continue
+            found_tids.add(tid)
             last_msg = thread_store.get_last_message(tid)
 
             # Se non c'è last_message, tenta backfill da LangGraph per popolare lo store
@@ -497,11 +543,29 @@ async def list_threads():
                 if backfilled:
                     last_msg = thread_store.get_last_message(tid)
 
+            sess = get_session(tid)
+            is_active = sess is not None and sess.is_active()
+
             summaries.append(ThreadSummary(
                 thread_id=tid,
                 last_message=last_msg,
-                checkpoint_count=count
+                checkpoint_count=count,
+                is_active=is_active
             ))
+
+        # Aggiungi eventuali sessioni attive non ancora persistite in SQLite
+        from stream_session import _active_sessions, _sessions_lock
+        with _sessions_lock:
+            active_items = [(tid, s) for tid, s in _active_sessions.items() if s.is_active()]
+        for atid, asess in active_items:
+            if atid not in found_tids:
+                summaries.insert(0, ThreadSummary(
+                    thread_id=atid,
+                    last_message=asess.task,
+                    checkpoint_count=0,
+                    is_active=True
+                ))
+
         return summaries
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list threads: {str(e)}")
@@ -523,7 +587,39 @@ async def get_thread(thread_id: str):
         if not stored_messages and count > 0:
             stored_messages = thread_store.backfill_from_state_history(thread_id, app_graph)
 
-        # 3. Letta come fonte supplementare opzionale (mai bloccante)
+        # 3. Controlla se c'è una sessione attiva per questo thread
+        sess = get_session(thread_id)
+        is_active = sess is not None and sess.is_active()
+        is_paused = sess.is_paused() if sess else False
+        active_snapshot = sess.get_snapshot() if is_active else None
+
+        # Se la sessione è attiva, sintetizza lo stato in tempo reale nei messaggi
+        if is_active:
+            if not stored_messages and sess.task:
+                stored_messages.append({
+                    "id": f"user_live_{thread_id}",
+                    "sender": "user",
+                    "content": sess.task,
+                    "timestamp": time.strftime("%H:%M")
+                })
+            last_msg = stored_messages[-1] if stored_messages else None
+            if not last_msg or last_msg.get("sender") == "user":
+                stored_messages.append({
+                    "id": f"ast_live_{thread_id}",
+                    "sender": "assistant",
+                    "content": sess.partial_content or "",
+                    "reasoning_content": sess.reasoning_content or "",
+                    "mode": sess.mode or "plan",
+                    "tool_used": sess.active_tool,
+                    "plan_steps": sess.plan_steps,
+                    "plan_structure": sess.plan_structure,
+                    "execution_trace": sess.execution_trace,
+                    "metrics": sess.get_metrics(),
+                    "isRunning": True,
+                    "timestamp": time.strftime("%H:%M")
+                })
+
+        # 4. Letta come fonte supplementare opzionale (mai bloccante)
         clean_messages = []
         agent_id = None
         try:
@@ -540,7 +636,10 @@ async def get_thread(thread_id: str):
             "agent_id": agent_id,
             "checkpoint_count": count,
             "messages": stored_messages,
-            "letta_messages": clean_messages
+            "letta_messages": clean_messages,
+            "is_active": is_active,
+            "is_paused": is_paused,
+            "active_snapshot": active_snapshot
         }
 
     except Exception as e:

@@ -35,6 +35,7 @@ class ThreadSummary(BaseModel):
     thread_id: str
     last_message: Optional[str] = None
     checkpoint_count: int
+    is_active: bool = False
 
 
 class ProviderInfo(BaseModel):

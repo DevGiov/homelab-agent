@@ -183,10 +183,22 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 font-medium text-xs truncate">
-                    <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
+                    {thread.is_active ? (
+                      <span className="relative flex h-2 w-2 shrink-0 my-auto">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+                      </span>
+                    ) : (
+                      <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
+                    )}
                     <span className="truncate">{thread.thread_id}</span>
                   </div>
                   <div className="flex items-center gap-1">
+                    {thread.is_active && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
+                        In corso
+                      </span>
+                    )}
                     {thread.checkpoint_count > 0 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
                         {thread.checkpoint_count}
