@@ -93,8 +93,9 @@ class VisionRegistry(BaseToolRegistry):
             # Inoltra all'endpoint multimodale llama.cpp
             llama_url = f"{config.LLAMA_CPP_URL.rstrip('/')}/chat/completions"
             headers = {"Content-Type": "application/json"}
-            if config.LLAMA_CPP_API_KEY:
-                headers["Authorization"] = f"Bearer {config.LLAMA_CPP_API_KEY}"
+            api_key = getattr(config, "LLAMA_CPP_API_KEY", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
 
             payload = {
                 "model": config.DEFAULT_MODEL,
