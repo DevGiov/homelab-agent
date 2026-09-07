@@ -84,6 +84,8 @@ def run_agent_loop(
     policy = get_mode_policy(mode)
     logger.info(f"Avvio agent loop per mode='{mode}' (max_tool_calls={policy.max_tool_calls}, registries={policy.allowed_registries})")
 
+    from graph import stream_queue
+
     manager = get_registry_manager()
     available_tools = manager.get_tools_for_mode(policy.allowed_registries)
     execution_trace = []
@@ -247,7 +249,6 @@ def run_agent_loop(
             if selection and selection.final_answer and len(selection.final_answer.strip()) > 10:
                 final_ans = selection.final_answer.strip()
                 # Emette la risposta finale in streaming pulito verso il frontend se la coda è attiva
-                from graph import stream_queue
                 q = stream_queue.get()
                 if q:
                     words = re.findall(r'\S+|\s+', final_ans)
