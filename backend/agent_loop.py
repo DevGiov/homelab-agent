@@ -196,7 +196,7 @@ def run_agent_loop(
             "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna, dall'immagine allegata o dal prefetch web senza ulteriori azioni, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
             "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
             "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
-            "6. Se hai già eseguito una ricerca web e i risultati ottenuti contengono dati sufficienti (o non contengono riscontri dopo una verifica mirata), NON ripetere la stessa ricerca o ricerche simili: imposta `tool_needed=false` e sintetizza la risposta.\n"
+            "6. SE HAI GIÀ ESEGUITO UN'AZIONE O UN TOOL (es. `inspect_image`, `web_search`, comandi di infrastruttura) e il risultato è presente nello 'Storico azioni eseguite in questo turno', l'informazione o l'azione è GIÀ STATA COMPLETATA: NON ripetere la stessa chiamata o tool analoghi. Imposta `tool_needed=false` e sintetizza il risultato in `final_answer` per l'utente.\n"
             "7. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
             "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
         )
@@ -273,7 +273,8 @@ def run_agent_loop(
                     f"La risposta deve essere discorsiva, dettagliata ed esaustiva. "
                     f"Se sono stati usati tool di ricerca (es. web_search), cita e spiega le informazioni trovate in modo chiaro e completo."
                 )
-                syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Sintesi Risultati Tool")
+                synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
+                syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Tool")
                 raw_syn = syn_res.get("content", "") if syn_res else ""
                 syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
                 if syn_reasoning:
@@ -511,7 +512,8 @@ def run_agent_loop(
             f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
             f"Rispondi in prosa naturale (nessun JSON): questa è la risposta per l'utente."
         )
-        syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Sintesi Risultati Finali")
+        synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
+        syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Finali")
         raw_ans = syn_res.get("content", "") if syn_res else ""
         syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
         if syn_reasoning:
