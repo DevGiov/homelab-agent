@@ -14,6 +14,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 
 import config
+import image_utils
 import letta_client
 import router
 from mcp_client import MetaMCPClient
@@ -224,9 +225,14 @@ def _call_llm(
         if is_vision_model(effective_model):
             user_content_parts = [{"type": "text", "text": prompt}]
             for img in images:
+                try:
+                    normalized_img = image_utils.normalize_image_data_url(img)
+                except Exception as e:
+                    logger.warning(f"Normalizzazione immagine fallita: {e}")
+                    normalized_img = img
                 user_content_parts.append({
                     "type": "image_url",
-                    "image_url": {"url": img}
+                    "image_url": {"url": normalized_img}
                 })
             messages.append({"role": "user", "content": user_content_parts})
         else:

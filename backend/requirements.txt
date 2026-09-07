@@ -75,3 +75,5 @@ pydantic-settings
 mcp>=1.28
 fastembed>=0.7
 pypdf>=6
+Pillow>=10.0.0
+pillow-heif>=1.0.0

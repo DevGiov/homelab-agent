@@ -26,8 +26,9 @@ import {
   Image as ImageIcon,
   X,
   Maximize2,
+  Loader2,
 } from 'lucide-react';
-import { type FormattedMessage, type AgentMode, getProviders, getProviderModelsWithDetails, fileToDataUrl, type ModelDetail } from './api';
+import { type FormattedMessage, type AgentMode, getProviders, getProviderModelsWithDetails, isImageFile, optimizeAndConvertImage, type ModelDetail } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -112,6 +113,7 @@ export const Chat: React.FC<ChatProps> = ({
   }
   const [modelDetails, setModelDetails] = useState<ModelDetail[]>([]);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,21 +144,25 @@ export const Chat: React.FC<ChatProps> = ({
   };
 
   const processImageFiles = async (files: FileList | File[]) => {
+    const validFiles = Array.from(files).filter(isImageFile);
+    if (validFiles.length === 0) return;
+
+    setIsProcessingImages(true);
     const newImgs: PendingImage[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
+    for (const file of validFiles) {
       try {
-        const dataUrl = await fileToDataUrl(file);
+        const { dataUrl, name } = await optimizeAndConvertImage(file);
         newImgs.push({
           id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           dataUrl,
-          name: file.name,
+          name,
           file,
         });
       } catch (e) {
         console.warn('Errore lettura immagine:', e);
       }
     }
+    setIsProcessingImages(false);
     if (newImgs.length > 0) {
       setPendingImages((prev) => [...prev, ...newImgs]);
     }
@@ -172,9 +178,12 @@ export const Chat: React.FC<ChatProps> = ({
       if (!items) return;
       const imageFiles: File[] = [];
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          const file = items[i].getAsFile();
-          if (file) imageFiles.push(file);
+        const file = items[i].getAsFile();
+        if (file && isImageFile(file)) {
+          imageFiles.push(file);
+        } else if (items[i].type.startsWith('image/')) {
+          const f = items[i].getAsFile();
+          if (f) imageFiles.push(f);
         }
       }
       if (imageFiles.length > 0) {
@@ -910,6 +919,12 @@ export const Chat: React.FC<ChatProps> = ({
                 </div>
               </div>
             ))}
+            {isProcessingImages && (
+              <div className="h-14 sm:h-16 px-3 rounded-xl border border-dashed border-accent/40 bg-accent/10 flex items-center gap-2 text-accent text-xs shrink-0 animate-pulse">
+                <Loader2 size={16} className="animate-spin" />
+                <span>Ottimizzazione...</span>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -922,15 +937,24 @@ export const Chat: React.FC<ChatProps> = ({
           </div>
         )}
 
+        {isProcessingImages && pendingImages.length === 0 && (
+          <div className="max-w-4xl mx-auto w-full mb-2 flex items-center gap-2 text-xs text-accent px-2">
+            <Loader2 size={14} className="animate-spin" />
+            <span>Elaborazione e ottimizzazione foto in corso...</span>
+          </div>
+        )}
+
         {/* Hidden File Input */}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif,image/*"
           multiple
           onChange={(e) => {
-            if (e.target.files) processImageFiles(e.target.files);
-            e.target.value = '';
+            if (e.target.files && e.target.files.length > 0) {
+              processImageFiles(e.target.files);
+              e.target.value = '';
+            }
           }}
           className="hidden"
         />
