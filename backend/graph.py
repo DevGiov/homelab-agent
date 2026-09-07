@@ -511,6 +511,72 @@ def mode_router_node(state: AgentState) -> AgentState:
     logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}' (has_images={has_images})")
     return {"mode": classified}
 
+def is_purely_visual_request(task: str) -> bool:
+    """Rileva se una richiesta con immagini è puramente percettiva/descrittiva senza intento di ricerca esterna."""
+    if not task or not task.strip():
+        return True
+    task_lower = task.lower().strip()
+
+    # Se ci sono parole chiave che richiedono informazioni esterne, prezzi o dati attuali
+    external_keywords = [
+        "cerca", "search", "trova", "prezzo", "prezzi", "costo", "costi", "quanto costa",
+        "dove comprare", "comprare", "acquistare", "vendita", "negozi", "store",
+        "notizie", "news", "recensioni", "review", "scheda tecnica", "specifiche",
+        "manuale", "firmware", "driver", "pinout", "compatibile", "compatibilità",
+        "disponibilità", "mercato", "aggiornamenti", "online", "internet", "web", "google"
+    ]
+    if any(kw in task_lower for kw in external_keywords):
+        return False
+
+    # Se invece chiede solo di descrivere o guardare l'immagine
+    visual_keywords = [
+        "cosa vedi", "descrivi", "cosa c'è", "spiega l'immagine", "guarda questa",
+        "analizza l'immagine", "analizza e descrivi", "cosa rappresenta", "leggi il testo",
+        "trascrivi", "chi c'è", "che colore", "dov'è"
+    ]
+    return any(kw in task_lower for kw in visual_keywords)
+
+
+def formulate_visual_search_query(task: str, images: List[str], model: Optional[str] = None) -> str:
+    """
+    Esegue un micro-pass visivo rapido e silenzioso (senza streaming SSE) per estrarre
+    dal contesto dell'immagine il soggetto (brand, modello, codice, componente)
+    e formulare una query web essenziale ed efficace per i motori di ricerca.
+    """
+    prompt = (
+        "Sei un assistente per la formulazione di query di ricerca web.\n"
+        f"L'utente ha inviato un'immagine con questa richiesta: '{task}'.\n"
+        "Analizza l'immagine e identifica con precisione il soggetto o prodotto principale (marca, modello, codice o nome).\n"
+        "Combina il nome del soggetto con l'intento dell'utente in una query di ricerca Google/SearXNG concisa ed efficace (massimo 4-7 parole).\n"
+        "Esempi di output attesi:\n"
+        "- Eachine EV800DM prezzo specifiche\n"
+        "- Apple iMac G4 specifiche tecniche\n"
+        "- Raspberry Pi 4 pinout GPIO\n"
+        "- Arduino Uno R3 driver CH340\n"
+        "Rispondi ESCLUSIVAMENTE con la query di ricerca, senza virgolette, spiegazioni, codice o preamboli."
+    )
+    try:
+        res = _call_llm(
+            prompt=prompt,
+            max_tokens=60,
+            temperature=0.0,
+            reasoning_budget=0,
+            model=model,
+            stream_mode="none",
+            images=images
+        )
+        raw_content = res.get("content", "") if isinstance(res, dict) else (res or "")
+        clean_q = re.sub(r'["\'`\n]', ' ', raw_content).strip()
+        clean_q = re.sub(r'^(?:query|ricerca|cerca|search)[:\s]+', '', clean_q, flags=re.IGNORECASE).strip()
+        clean_q = re.sub(r'\s+', ' ', clean_q)
+        if clean_q and len(clean_q) >= 3:
+            logger.info(f"Visual query grounding formulata con successo: '{clean_q}' (da task: '{task}')")
+            return clean_q
+    except Exception as e:
+        logger.warning(f"Visual query grounding non riuscito (fallback a task originale): {e}")
+    return task
+
+
 def web_prefetch_node(state: AgentState) -> AgentState:
     """Performs deterministic read-only web prefetch before subgraphs if web_search is enabled."""
     if not state.get("web_search"):
@@ -521,17 +587,16 @@ def web_prefetch_node(state: AgentState) -> AgentState:
         return state
 
     # Se sono presenti immagini allegate, verifica se la richiesta è prettamente visiva
-    # per evitare che SearXNG cerchi query come "Cosa vedi" inquinando il contesto con definizioni Treccani
     images = state.get("images")
     if images and len(images) > 0:
-        task_lower = task.lower().strip()
-        explicit_web_intent = any(kw in task_lower for kw in [
-            "cerca sul web", "cerca online", "ricerca web", "notizie", "news",
-            "su internet", "google", "ultime notizie", "fonti web"
-        ])
-        if not explicit_web_intent:
-            logger.info(f"Immagini allegate presenti e nessuna intenzione web esplicita: skip web prefetch per '{task}'")
+        if is_purely_visual_request(task):
+            logger.info(f"Richiesta puramente visiva/percettiva: skip web prefetch per '{task}'")
             return state
+
+    # Se ci sono immagini, formula una query grounded visivamente (estraendo marca/modello dall'immagine)
+    effective_query = task
+    if images and len(images) > 0:
+        effective_query = formulate_visual_search_query(task, images, model=state.get("model"))
 
     q = stream_queue.get()
 
@@ -539,13 +604,13 @@ def web_prefetch_node(state: AgentState) -> AgentState:
         if q:
             q.put({"type": "retrieval", "event": ev_name, "data": data})
 
-    emit_event("web_prefetch.started", {"query": task})
-    logger.info(f"Avvio web prefetch per query: '{task}'")
+    emit_event("web_prefetch.started", {"query": effective_query})
+    logger.info(f"Avvio web prefetch per query: '{effective_query}' (task originale: '{task}')")
 
     try:
         from registry.web_search_service import execute_search
         search_res = execute_search(
-            query=task,
+            query=effective_query,
             count=8,
             event_callback=emit_event
         )
@@ -602,9 +667,9 @@ def web_prefetch_node(state: AgentState) -> AgentState:
     except Exception as e:
         logger.warning(f"Web prefetch non riuscito (non bloccante): {e}", exc_info=True)
         public_err_msg = "Ricerca web non disponibile al momento."
-        emit_event("web_prefetch.failed", {"query": task, "error": public_err_msg, "code": "search_unavailable"})
+        emit_event("web_prefetch.failed", {"query": effective_query, "error": public_err_msg, "code": "search_unavailable"})
         public_meta = {
-            "query": task,
+            "query": effective_query,
             "success": False,
             "provider_used": "Web",
             "latency_ms": 0,
@@ -612,7 +677,7 @@ def web_prefetch_node(state: AgentState) -> AgentState:
             "error": "search_unavailable"
         }
         internal_data = {
-            "query": task,
+            "query": effective_query,
             "success": False,
             "sources": [],
             "summary_text": "",
