@@ -27,6 +27,12 @@ class ChatResponse(BaseModel):
     web_prefetch: Optional[Dict[str, Any]] = None
     metrics: Optional[Dict[str, Any]] = None
     thread_title: Optional[str] = None
+    approval_required: Optional[bool] = None
+    request_id: Optional[str] = None
+    approval_prompt: Optional[str] = None
+    command_preview: Optional[str] = None
+    command_prefix: Optional[str] = None
+    risk_reason: Optional[str] = None
 
 
 class ThreadControlRequest(BaseModel):

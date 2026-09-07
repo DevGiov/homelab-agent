@@ -198,7 +198,8 @@ def run_agent_loop(
             "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
             "6. SE HAI GIÀ ESEGUITO UN'AZIONE O UN TOOL (es. `inspect_image`, `web_search`, comandi di infrastruttura) e il risultato è presente nello 'Storico azioni eseguite in questo turno', l'informazione o l'azione è GIÀ STATA COMPLETATA: NON ripetere la stessa chiamata o tool analoghi. Imposta `tool_needed=false` e sintetizza il risultato in `final_answer` per l'utente.\n"
             "7. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
-            "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
+            "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`.\n"
+            "9. PREFERISCI SEMPRE I TOOL DEDICATI MCP: per creare o clonare container, consultare stati, gestire DNS o proxy, usa SEMPRE i tool specifici dedicati (es. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, ecc.). NON tentare comandi shell manuali grezzi come `exec_host_command` con `pct clone` o simili quando esiste un tool dedicato corrispondente."
         )
 
         if not call_llm_structured_fn:

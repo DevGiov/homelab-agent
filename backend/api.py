@@ -165,7 +165,13 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             rollback_trace=rollback_trace,
             reasoning_content=reasoning_content,
             web_prefetch=web_prefetch,
-            thread_title=t_title
+            thread_title=t_title,
+            approval_required=final_state.get("approval_required"),
+            request_id=final_state.get("request_id"),
+            approval_prompt=final_state.get("approval_prompt"),
+            command_preview=final_state.get("command_preview"),
+            command_prefix=final_state.get("command_prefix"),
+            risk_reason=final_state.get("risk_reason"),
         )
 
         # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
@@ -422,7 +428,13 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                     reasoning_content=reasoning_content,
                     web_prefetch=web_prefetch,
                     metrics=metrics,
-                    thread_title=t_title
+                    thread_title=t_title,
+                    approval_required=final_state.get("approval_required"),
+                    request_id=final_state.get("request_id"),
+                    approval_prompt=final_state.get("approval_prompt"),
+                    command_preview=final_state.get("command_preview"),
+                    command_prefix=final_state.get("command_prefix"),
+                    risk_reason=final_state.get("risk_reason"),
                 )
                 if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, resp.model_dump())

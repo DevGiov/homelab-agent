@@ -89,10 +89,22 @@ def extract_command_prefix(args: Dict[str, Any]) -> Optional[str]:
     return cmd
 
 
+def normalize_tool_name(tool_name: str) -> str:
+    """Rimuove l'eventuale prefisso del namespace MCP (es. 'proxmox-mcp__exec_host_command' -> 'exec_host_command')."""
+    if not tool_name:
+        return ""
+    return re.sub(r'^[a-zA-Z0-9_-]+__', '', tool_name)
+
+
 def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optional[str] = None) -> bool:
     """Verifica se il tool (o il comando specifico) è già stato pre-approvato per questo thread o a livello globale."""
     if not tool_name:
         return False
+
+    clean_name = normalize_tool_name(tool_name)
+    candidates = [tool_name]
+    if clean_name and clean_name != tool_name:
+        candidates.append(clean_name)
 
     cmd_prefix = extract_command_prefix(args)
 
@@ -100,18 +112,20 @@ def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optiona
     if thread_id:
         with _session_lock:
             thread_perms = _SESSION_PERMISSIONS.get(thread_id, set())
-            if tool_name in thread_perms:
-                logger.info(f"Tool '{tool_name}' pre-approvato per thread '{thread_id}' (tool-level)")
-                return True
-            if cmd_prefix and f"{tool_name}:{cmd_prefix}" in thread_perms:
-                logger.info(f"Tool '{tool_name}' pre-approvato per thread '{thread_id}' con prefisso '{cmd_prefix}'")
-                return True
+            for c_name in candidates:
+                if c_name in thread_perms:
+                    logger.info(f"Tool '{tool_name}' (match='{c_name}') pre-approvato per thread '{thread_id}' (tool-level)")
+                    return True
+                if cmd_prefix and f"{c_name}:{cmd_prefix}" in thread_perms:
+                    logger.info(f"Tool '{tool_name}' (match='{c_name}') pre-approvato per thread '{thread_id}' con prefisso '{cmd_prefix}'")
+                    return True
 
     # 2. Verifica permessi persistenti (ALWAYS)
     try:
         conn = _get_conn()
         c = conn.cursor()
-        c.execute("SELECT command_prefix FROM tool_permissions WHERE tool_name = ? AND scope = 'always'", (tool_name,))
+        placeholders = ",".join("?" * len(candidates))
+        c.execute(f"SELECT command_prefix FROM tool_permissions WHERE tool_name IN ({placeholders}) AND scope = 'always'", tuple(candidates))
         rows = c.fetchall()
         conn.close()
 
@@ -137,12 +151,18 @@ def grant_permission(
 ) -> Dict[str, Any]:
     """Concede un permesso per un dato tool con scope 'thread' o 'always'."""
     scope = scope.lower().strip()
+    clean_name = normalize_tool_name(tool_name)
+
     if scope in ("thread", "session") and thread_id:
         with _session_lock:
             if thread_id not in _SESSION_PERMISSIONS:
                 _SESSION_PERMISSIONS[thread_id] = set()
             key = f"{tool_name}:{command_prefix}" if command_prefix else tool_name
             _SESSION_PERMISSIONS[thread_id].add(key)
+            if clean_name and clean_name != tool_name:
+                key_clean = f"{clean_name}:{command_prefix}" if command_prefix else clean_name
+                _SESSION_PERMISSIONS[thread_id].add(key_clean)
+
         logger.info(f"Permesso concesso: tool='{tool_name}' scope=thread thread_id='{thread_id}' prefix='{command_prefix}'")
         return {"tool_name": tool_name, "scope": "thread", "thread_id": thread_id, "command_prefix": command_prefix}
 
@@ -151,17 +171,18 @@ def grant_permission(
         try:
             conn = _get_conn()
             c = conn.cursor()
+            canonical_name = clean_name or tool_name
             c.execute("""
                 INSERT INTO tool_permissions (tool_name, command_prefix, scope, created_at, created_by)
                 VALUES (?, ?, 'always', ?, ?)
-            """, (tool_name, command_prefix, now_iso, created_by))
+            """, (canonical_name, command_prefix, now_iso, created_by))
             perm_id = c.lastrowid
             conn.commit()
             conn.close()
-            logger.info(f"Permesso persistente salvato: id={perm_id} tool='{tool_name}' prefix='{command_prefix}'")
+            logger.info(f"Permesso persistente salvato: id={perm_id} tool='{canonical_name}' prefix='{command_prefix}'")
             return {
                 "id": perm_id,
-                "tool_name": tool_name,
+                "tool_name": canonical_name,
                 "scope": "always",
                 "command_prefix": command_prefix,
                 "created_at": now_iso

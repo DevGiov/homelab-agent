@@ -188,5 +188,58 @@ class TestPermissionEngineAndScopes(unittest.TestCase):
         self.assertIn("exec_lxc_command", always_names)
 
 
+class TestMetaMCPPrefixAndRouter(unittest.TestCase):
+    def setUp(self):
+        guardrails._APPROVALS.clear()
+        permissions._SESSION_PERMISSIONS.clear()
+
+    def test_metamcp_prefixed_tool_classification(self):
+        """Tools with MetaMCP server prefixes like proxmox-mcp__ must be classified correctly."""
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__list_containers"), "safe")
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__get_container_status"), "safe")
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__exec_host_command"), "risky")
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__create_lxc_from_template"), "risky")
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__create_service"), "risky")
+        self.assertEqual(guardrails.classify_tool("proxmox-mcp__stop_container"), "risky")
+
+    def test_metamcp_prefixed_enforce_guardrails(self):
+        """Enforcing guardrails on proxmox-mcp__create_lxc_from_template requires interactive approval."""
+        args = {"template_vmid": 9000, "hostname": "test-box"}
+        res = guardrails.enforce_guardrails("proxmox-mcp__create_lxc_from_template", args, thread_id="t_prefix")
+        self.assertIsNotNone(res)
+        self.assertTrue(res.get("approval_required"))
+        self.assertIn("create_lxc_from_template", res.get("risk_reason", ""))
+
+    def test_preapproval_works_with_and_without_prefix(self):
+        """Granting permission to 'exec_host_command' works when tool is invoked as 'proxmox-mcp__exec_host_command'."""
+        args = {"command": "pct list"}
+        permissions.grant_permission("exec_host_command", "thread", thread_id="t_cross")
+        self.assertTrue(permissions.is_tool_preapproved("proxmox-mcp__exec_host_command", args, thread_id="t_cross"))
+        self.assertTrue(permissions.is_tool_preapproved("exec_host_command", args, thread_id="t_cross"))
+
+    def test_router_infrastructure_and_confirmation_queries(self):
+        """Infrastructure and confirmation queries must be classified as mode=act."""
+        import router
+
+        # Container information queries
+        m1 = router.classify_mode("Dammi informazioni sul container immich")
+        self.assertEqual(m1, "act")
+
+        # Container list query
+        m2 = router.classify_mode("Mostrami i container attivi")
+        self.assertEqual(m2, "act")
+
+        # Cloning query
+        m3 = router.classify_mode("Clona il template base e nominalo test")
+        self.assertEqual(m3, "act")
+
+        # Confirmation turn with previous context
+        m4 = router.classify_mode(
+            "Procedi con base",
+            conversation_context="Assistant: Vuoi procedere con il template base per il nuovo container LXC?"
+        )
+        self.assertEqual(m4, "act")
+
+
 if __name__ == "__main__":
     unittest.main()

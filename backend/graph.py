@@ -95,7 +95,7 @@ def check_anomalies(span: AgentSpan, thresholds: dict = None):
     if total_tokens > thresholds["max_tokens"]:
         logger.warning(f"⚠️ ALERT: Token anomaly {total_tokens} > {thresholds['max_tokens']}")
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     task: str
     images: Optional[List[str]]
     thread_id: Optional[str]
@@ -117,6 +117,12 @@ class AgentState(TypedDict):
     final_response: str
     reasoning_content: Optional[str]
     incognito: Optional[bool]
+    approval_required: Optional[bool]
+    request_id: Optional[str]
+    approval_prompt: Optional[str]
+    command_preview: Optional[str]
+    command_prefix: Optional[str]
+    risk_reason: Optional[str]
 
 
 client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
@@ -507,8 +513,15 @@ def mode_router_node(state: AgentState) -> AgentState:
     model = state.get("model")
     images = state.get("images")
     has_images = bool(images and len(images) > 0)
-    classified = router.classify_mode(task, force_mode=force_mode, model=model, has_images=has_images)
-    logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}' (has_images={has_images})")
+    memory_context = state.get("memory_context")
+    classified = router.classify_mode(
+        task,
+        force_mode=force_mode,
+        model=model,
+        has_images=has_images,
+        conversation_context=memory_context
+    )
+    logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}' (has_images={has_images}, has_context={bool(memory_context)})")
     return {"mode": classified}
 
 def is_purely_visual_request(task: str) -> bool:
@@ -1153,7 +1166,18 @@ def act_graph_node(state: AgentState) -> AgentState:
     trace = loop_res.get("execution_trace", [])
     reasoning = loop_res.get("reasoning_content")
     plan = {"mode": "act", "tool_needed": len(trace) > 0, "direct_answer": ans, "execution_log": trace}
-    return {"plan": plan, "execution_trace": trace, "final_response": ans, "reasoning_content": reasoning}
+    return {
+        "plan": plan,
+        "execution_trace": trace,
+        "final_response": ans,
+        "reasoning_content": reasoning,
+        "approval_required": loop_res.get("approval_required"),
+        "request_id": loop_res.get("request_id"),
+        "approval_prompt": loop_res.get("approval_prompt"),
+        "command_preview": loop_res.get("command_preview"),
+        "command_prefix": loop_res.get("command_prefix"),
+        "risk_reason": loop_res.get("risk_reason"),
+    }
 
 
 def plan_graph_node(state: AgentState) -> AgentState:
@@ -1489,7 +1513,13 @@ def respond_node(state: AgentState) -> AgentState:
     return {
         "final_response": formatted,
         "web_prefetch_data": state.get("web_prefetch_data"),
-        "web_prefetch_metadata": state.get("web_prefetch_metadata")
+        "web_prefetch_metadata": state.get("web_prefetch_metadata"),
+        "approval_required": state.get("approval_required"),
+        "request_id": state.get("request_id"),
+        "approval_prompt": state.get("approval_prompt"),
+        "command_preview": state.get("command_preview"),
+        "command_prefix": state.get("command_prefix"),
+        "risk_reason": state.get("risk_reason"),
     }
 
 def commit_memory_node(state: AgentState) -> AgentState:

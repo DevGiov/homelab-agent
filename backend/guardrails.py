@@ -68,7 +68,7 @@ SAFE_TOOLS = {
 HIGH_RISK_TOOLS = {
     "exec_host_command", "stop_container", "rollback_lxc_snapshot",
     "delete_pihole_dns_record", "delete_npm_proxy_host", "release_ip",
-    "run_agy_bootstrap", "create_service",
+    "run_agy_bootstrap", "create_service", "create_lxc_from_template",
 }
 
 TOOL_CATEGORIES = {
@@ -85,6 +85,13 @@ TOOL_CATEGORIES = {
     "python_interpreter": "code.sandboxed", "web_search": "web.read",
     "recall_memory": "memory.read", "knowledge_search": "kb.read", "inspect_image": "vision.read",
 }
+
+
+def normalize_tool_name(tool_name: str) -> str:
+    """Rimuove l'eventuale prefisso del namespace MCP (es. 'proxmox-mcp__list_containers' -> 'list_containers')."""
+    if not tool_name:
+        return ""
+    return re.sub(r'^[a-zA-Z0-9_-]+__', '', tool_name)
 
 
 def analyze_command_safety(command: str) -> Tuple[str, Optional[str]]:
@@ -129,15 +136,18 @@ def check_shell_command(command: str) -> Tuple[bool, Optional[str]]:
 def classify_tool(tool_name: str, args: Optional[Dict[str, Any]] = None) -> str:
     """
     Classifica il rischio di un tool: 'safe', 'risky' o 'write'.
+    Supporta nomi con prefisso server MCP (es. 'proxmox-mcp__...').
     Per 'exec_lxc_command', la classificazione dipende dinamicamente dal comando fornito.
     """
-    if tool_name in SAFE_TOOLS:
+    clean_name = normalize_tool_name(tool_name)
+
+    if clean_name in SAFE_TOOLS:
         return "safe"
 
-    if tool_name == "exec_host_command":
+    if clean_name == "exec_host_command":
         return "risky"
 
-    if tool_name == "exec_lxc_command":
+    if clean_name == "exec_lxc_command":
         if args and isinstance(args, dict):
             raw_cmd = args.get("command") or args.get("cmd") or ""
             level, _ = analyze_command_safety(str(raw_cmd))
@@ -146,10 +156,10 @@ def classify_tool(tool_name: str, args: Optional[Dict[str, Any]] = None) -> str:
             return "safe"
         return "risky"
 
-    if tool_name in HIGH_RISK_TOOLS:
+    if clean_name in HIGH_RISK_TOOLS:
         return "risky"
 
-    lowered = (tool_name or "").lower()
+    lowered = clean_name.lower()
     for pat in (r"delete", r"remove", r"rollback", r"stop", r"destroy"):
         if re.search(pat, lowered):
             return "risky"
@@ -364,8 +374,9 @@ def enforce_guardrails(
             }
 
     # 2. Controllo pre-approvazione (Sessione o Globale)
-    if permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id):
-        logger.info(f"Guardrail: tool '{tool_name}' pre-approvato via Permission Engine per thread='{thread_id}'")
+    clean_name = normalize_tool_name(tool_name)
+    if permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id) or permissions.is_tool_preapproved(clean_name, args, thread_id=thread_id):
+        logger.info(f"Guardrail: tool '{tool_name}' (clean='{clean_name}') pre-approvato via Permission Engine per thread='{thread_id}'")
         return None
 
     # 3. Classificazione rischio
@@ -373,12 +384,14 @@ def enforce_guardrails(
 
     if risk == "risky":
         # Motivo contestuale
-        if tool_name in ("exec_lxc_command", "exec_host_command"):
+        if clean_name in ("exec_lxc_command", "exec_host_command"):
             reason = f"Esecuzione comando shell su infrastruttura: {str(raw_cmd)[:120]}"
-        elif "delete" in tool_name or "rollback" in tool_name or "destroy" in tool_name or "stop" in tool_name:
-            reason = f"Operazione infrastrutturale potenzialmente distruttiva ({tool_name})"
+        elif any(kw in clean_name for kw in ("delete", "rollback", "destroy", "stop")):
+            reason = f"Operazione infrastrutturale potenzialmente distruttiva ({clean_name})"
+        elif clean_name in ("create_lxc_from_template", "create_service", "run_agy_bootstrap"):
+            reason = f"Provisioning nuova risorsa/container su Proxmox ({clean_name})"
         else:
-            reason = f"Modifica dello stato dell'infrastruttura tramite {tool_name}"
+            reason = f"Modifica dello stato dell'infrastruttura tramite {clean_name}"
 
         req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason)
         return {
