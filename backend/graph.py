@@ -301,11 +301,13 @@ def _call_llm_structured(
     reasoning_budget: int = -1,
     model: Optional[str] = None,
     reasoning_phase: Optional[str] = "Analisi e Selezione Tool",
+    images: Optional[List[str]] = None,
 ) -> Optional[Any]:
     """
     Chiama l'LLM richiedendo output conforme allo schema Pydantic.
     Effettua parsing + validazione con retry mirato ed iniezione dell'errore.
     Isola lo stream del content JSON per non farlo comparire nella chat principale.
+    Include il supporto a immagini multimodali (es. per selezione tool basata su immagini).
     """
     json_schema = schema_cls.model_json_schema()
     schema_prompt = (
@@ -343,6 +345,7 @@ def _call_llm_structured(
             model=model,
             stream_mode="reasoning_only",
             reasoning_phase=reasoning_phase,
+            images=images,
         )
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
@@ -500,8 +503,10 @@ def mode_router_node(state: AgentState) -> AgentState:
     task = state.get("task", "")
     force_mode = state.get("force_mode")
     model = state.get("model")
-    classified = router.classify_mode(task, force_mode=force_mode, model=model)
-    logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}'")
+    images = state.get("images")
+    has_images = bool(images and len(images) > 0)
+    classified = router.classify_mode(task, force_mode=force_mode, model=model, has_images=has_images)
+    logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}' (has_images={has_images})")
     return {"mode": classified}
 
 def web_prefetch_node(state: AgentState) -> AgentState:
@@ -512,6 +517,19 @@ def web_prefetch_node(state: AgentState) -> AgentState:
     task = state.get("task", "")
     if not task:
         return state
+
+    # Se sono presenti immagini allegate, verifica se la richiesta è prettamente visiva
+    # per evitare che SearXNG cerchi query come "Cosa vedi" inquinando il contesto con definizioni Treccani
+    images = state.get("images")
+    if images and len(images) > 0:
+        task_lower = task.lower().strip()
+        explicit_web_intent = any(kw in task_lower for kw in [
+            "cerca sul web", "cerca online", "ricerca web", "notizie", "news",
+            "su internet", "google", "ultime notizie", "fonti web"
+        ])
+        if not explicit_web_intent:
+            logger.info(f"Immagini allegate presenti e nessuna intenzione web esplicita: skip web prefetch per '{task}'")
+            return state
 
     q = stream_queue.get()
 
@@ -610,7 +628,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     memory_context = state.get("memory_context") or ""
 
     if any(kw in task_lower for kw in ["chi sei", "presentati", "chi sei tu"]):
-        ans = "Sono l'agente AI del tuo homelab Proxmox. Posso gestire i container LXC, allocare IP con IPAM, gestire i record DNS Pi-hole, configurare Nginx Proxy Manager (NPM), cercare notizie web ed eseguire codice in sandbox."
+        ans = "Sono l'agente AI per la gestione del tuo homelab. Posso assisterti sull'infrastruttura e sui servizi, eseguire azioni operative tramite i tool MCP connessi, condurre analisi visive su immagini e grafici, eseguire ricerche web ed elaborare codice in sandbox."
         return {"plan": {"mode": "chat", "tool_needed": False, "direct_answer": ans}, "final_response": ans}
     elif is_tools_discovery_query(task):
         ans = _format_metamcp_tools_catalog()
@@ -626,9 +644,9 @@ def chat_graph_node(state: AgentState) -> AgentState:
 
     system_prompt = (
         f"Data e Ora Corrente del Sistema: {now_str}\n"
-        f"Sei l'Agente AI dell'Homelab Proxmox VE (modalità: CHAT).\n"
+        f"Sei l'Agente AI per la gestione dell'Homelab (modalità: CHAT).\n"
         f"Rispondi all'utente in modo naturale, dettagliato, completo ed esaustivo in lingua italiana.\n"
-        f"Non hai a disposizione tool in questa modalità: rispondi direttamente in testo discorsivo.\n"
+        f"Non hai a disposizione tool in questa modalità: rispondi direttamente in testo discorsivo sfruttando le tue capacità di comprensione del linguaggio, visione ed eventuale prefetch informativo.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 
@@ -680,8 +698,9 @@ def ask_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
+        images=state.get("images"),
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool", images=None: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase, images=images if images is not None else state.get("images"))
     )
 
     ans = loop_res.get("final_response", "")
@@ -1041,8 +1060,9 @@ def act_graph_node(state: AgentState) -> AgentState:
         memory_context=memory_context,
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
+        images=state.get("images"),
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
-        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool": _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase)
+        call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool", images=None: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase, images=images if images is not None else state.get("images"))
     )
 
     ans = loop_res.get("final_response", "")
@@ -1067,9 +1087,9 @@ def plan_graph_node(state: AgentState) -> AgentState:
     now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
     system_prompt = (
         f"Data e Ora Corrente del Sistema: {now_str}\n"
-        "Sei l'Agente AI dell'Homelab Proxmox VE (modalità: PLAN).\n"
-        "Genera un piano d'azione numerato passo per passo (massimo 5 passaggi) specifico per soddisfare la richiesta dell'utente. "
-        "I tool disponibili includono Proxmox LXC, IPAM, DNS Pi-hole, Nginx Proxy Manager (NPM), e script Agy.\n"
+        "Sei l'Agente AI per la gestione dell'Homelab (modalità: PLAN).\n"
+        "Genera un piano d'azione numerato passo per passo (massimo 5 passaggi) specifico per soddisfare la richiesta dell'utente "
+        "utilizzando gli strumenti e i server MCP disponibili nel sistema.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}\n"
         "Rispondi SOLAMENTE con la lista numerata dei passaggi di esecuzione."
     )
@@ -1089,7 +1109,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta dell'utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=600, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
+    llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -1110,7 +1130,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "    {\n"
         "      \"id\": 1,\n"
         "      \"description\": \"Descrizione dello step\",\n"
-        "      \"tool\": \"proxmox-mcp__nome_tool\",\n"
+        "      \"tool\": \"nome_tool_mcp\",\n"
         "      \"args\": {\"param\": \"valore\"},\n"
         "      \"depends_on\": null,\n"
         "      \"output_var\": \"nome_variabile\"\n"
@@ -1118,7 +1138,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         "  ]\n"
         "}"
     )
-    json_resp_res = _call_llm(user_prompt, system_prompt=json_prompt, max_tokens=600, temperature=0.1, model=model, stream_mode="none")
+    json_resp_res = _call_llm(user_prompt, system_prompt=json_prompt, max_tokens=4096, temperature=0.1, model=model, stream_mode="none")
     json_resp = json_resp_res.get("content", "") if isinstance(json_resp_res, dict) else ""
     plan_structure = None
     if json_resp:

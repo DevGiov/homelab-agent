@@ -14,6 +14,7 @@ from registry.base import BaseToolRegistry
 from registry.code_exec import CodeExecRegistry
 from registry.memory import MemoryRegistry
 from registry.metamcp import MetaMCPRegistry
+from registry.vision import VisionRegistry
 from registry.web_search import WebSearchRegistry
 
 logger = logging.getLogger("registry_manager")
@@ -26,6 +27,7 @@ class ToolRegistryManager:
         self.register_registry(WebSearchRegistry())
         self.register_registry(CodeExecRegistry())
         self.register_registry(MemoryRegistry())
+        self.register_registry(VisionRegistry())
 
     def register_registry(self, registry: BaseToolRegistry):
         self._registries[registry.name] = registry

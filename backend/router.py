@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Optional
 
 import requests
 
@@ -11,10 +12,13 @@ logger = logging.getLogger("router")
 LLAMA_CPP_URL = config.LLAMA_CPP_URL.rstrip('/')
 DEFAULT_MODEL = config.DEFAULT_MODEL
 
-def classify_mode(user_input: str, force_mode: str = None, model: str = None) -> str:
+def classify_mode(user_input: str, force_mode: Optional[str] = None, model: Optional[str] = None, has_images: bool = False) -> str:
     """
-    Classifies user input into one of 4 modes: 'chat', 'ask', 'act', 'plan'.
-    Supports force_mode override, neural classification, and robust rule-matching fallback.
+    Classifica l'input dell'utente in una delle 4 modalità operative in base a intento e complessità:
+    - chat: conversazione naturale, saluti, domande aperte e percezione visiva diretta (0 tool overhead)
+    - ask: compiti leggeri/analitici di ricerca (ricerca web preventiva, tool web_search, script/calcoli shell, inspect_image)
+    - act: task agentici operativi su qualsiasi server MCP connesso, modifica stato, esecuzione comandi
+    - plan: pianificazione strategica di workflow multi-step complessi
     """
     if force_mode:
         forced = force_mode.lower().strip()
@@ -27,27 +31,34 @@ def classify_mode(user_input: str, force_mode: str = None, model: str = None) ->
 
     input_lower = user_input.strip().lower()
 
-    # Priority rule matching for unambiguous user intents
-    if any(kw in input_lower for kw in ["crea", "migra", "prepara", "sequenza", "nuovo servizio", "deploy", "setup", "installa", "provision"]):
+    # Se ci sono immagini allegate e l'utente chiede una descrizione o analisi visiva diretta
+    if has_images and any(kw in input_lower for kw in ["cosa vedi", "descrivi", "analizza l'immagine", "cosa c'è", "spiega l'immagine", "guarda questa"]):
+        logger.info(f"Visual direct request with image classified as mode=chat for input='{user_input}'")
+        return "chat"
+
+    # 1. Regole prioritarie per intenzione esplicita di pianificazione multi-step
+    if any(kw in input_lower for kw in ["pianifica", "piano per", "crea piano", "prepara sequenza", "workflow", "migra", "progetta architettura"]):
         logger.info(f"Rule router classified mode=plan for input='{user_input}'")
         return "plan"
 
-    if any(kw in input_lower for kw in ["lista container", "container attivi", "elenco container", "stato container", "avvia", "ferma", "riavvia", "exec", "logs", "snapshot"]):
+    # 2. Regole prioritarie per azioni operative su tool/MCP (modifiche stato, comandi attivi)
+    if any(kw in input_lower for kw in ["avvia", "ferma", "riavvia", "arresta", "elimina", "cancella", "crea ", "applica", "snapshot", "rollback", "esegui comando", "modifica configurazione"]):
         logger.info(f"Rule router classified mode=act for input='{user_input}'")
         return "act"
 
-    if any(kw in input_lower for kw in ["tool", "strument", "accesso", "cosa puoi fare"]) and ("qual" in input_lower or "quali" in input_lower or "cosa" in input_lower or "lista" in input_lower):
+    # 3. Regole prioritarie per domande informative o discovery tool
+    if any(kw in input_lower for kw in ["quali tool", "elenco tool", "cosa puoi fare", "che strumenti hai"]):
         logger.info(f"Rule router classified mode=ask for input='{user_input}'")
         return "ask"
 
-    # Neural classification via Llama.cpp
-    prompt = f"""Analizza il seguente input dell'utente e rispondi ESATTAMENTE con UNA SOLA PAROLA scelta tra:
-- chat (per saluti o conversazione generale)
-- ask (per domande informative sui tool disponibili o memoria)
-- act (per eseguire un'azione o consultare lo stato di container/template/DNS)
-- plan (per pianificare la creazione o migrazione di servizi multi-step)
+    # 4. Classificazione neurale tramite LLM (senza riferimenti hardcodati a singoli vendor/tool)
+    prompt = f"""Analizza la seguente richiesta dell'utente e rispondi ESATTAMENTE con UNA SOLA PAROLA scelta tra:
+- chat (per saluti, conversazione generale o descrizione diretta di un'immagine)
+- ask (per ricerche informative, domande, analisi dati/grafici, calcoli o script di indagine)
+- act (per eseguire un'azione operativa su infrastruttura/servizi, consultare stati attivi o modificare risorse tramite tool MCP)
+- plan (per pianificare architetture complesse o sequenze di operazioni multi-step)
 
-Input: "{user_input}"
+Richiesta: "{user_input}"
 
 Risposta (solo chat, ask, act o plan):"""
 
@@ -67,7 +78,6 @@ Risposta (solo chat, ask, act o plan):"""
             raw_content = msg_obj.get("content") or ""
             reasoning = msg_obj.get("reasoning_content") or msg_obj.get("thinking") or msg_obj.get("reasoning") or ""
 
-            # Use raw_content if it has the answer, otherwise fallback to parsing reasoning just in case
             full_text = f"{reasoning} {raw_content}".strip().lower()
             match = re.search(r'\b(chat|ask|act|plan)\b', full_text)
             if match:
@@ -77,12 +87,12 @@ Risposta (solo chat, ask, act o plan):"""
     except Exception as e:
         logger.warning(f"Neural router call skipped ({e}). Using rule-based fallback.")
 
-    # General fallback
-    if any(kw in input_lower for kw in ["ciao", "salut", "chi sei", "buongiorno", "buonasera", "barzelletta"]):
+    # 5. Fallback euristico generale basato sulla natura della richiesta
+    if any(kw in input_lower for kw in ["ciao", "salut", "chi sei", "buongiorno", "buonasera", "grazie"]):
         fallback = "chat"
-    elif any(kw in input_lower for kw in ["lista", "stato", "avvia", "ferma", "riavvia", "get", "status", "container"]):
+    elif any(kw in input_lower for kw in ["avvia", "ferma", "riavvia", "crea", "elimina", "exec", "stato", "lista"]):
         fallback = "act"
-    elif any(kw in input_lower for kw in ["qual", "cosa", "preferenza", "ricord", "ultima volta", "storico"]):
+    elif any(kw in input_lower for kw in ["qual", "cosa", "come", "dove", "quando", "perché", "calcola", "cerca", "trova", "analizza", "spieg"]):
         fallback = "ask"
     else:
         fallback = "chat"

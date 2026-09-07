@@ -101,11 +101,14 @@ def optimize_image_bytes(
     final_w, final_h = img.size
 
     # 3. Determina formato di output
-    # Se il formato originale è HEIC/HEIF o force_jpeg è True, convertiamo in JPEG
+    # NOTA: llama.cpp mmproj usa stb_image.h che NON supporta WebP né HEIC.
+    # Per garantire compatibilità totale e massima efficienza token/payload,
+    # convertiamo in JPEG ad alta qualità (quality=85).
     is_source_heif = getattr(img, "format", "") in ("HEIF", "HEIC") or is_heic_or_heif(raw_bytes=raw_bytes)
+    is_source_webp = getattr(img, "format", "") == "WEBP"
     
-    if force_jpeg or is_source_heif or img.format in ("JPEG", "MPO") or img.format is None:
-        # Gestione trasparenza per JPEG (sfondo bianco)
+    if force_jpeg or is_source_heif or is_source_webp or img.format in ("JPEG", "MPO", "WEBP") or img.format is None:
+        # Gestione trasparenza per JPEG (compositing su sfondo bianco pulito)
         if img.mode in ("RGBA", "LA", "P"):
             bg = Image.new("RGB", img.size, (255, 255, 255))
             if img.mode == "P":
@@ -119,16 +122,12 @@ def optimize_image_bytes(
         out_buf = io.BytesIO()
         img.save(out_buf, format="JPEG", quality=quality, optimize=True)
         return out_buf.getvalue(), "image/jpeg", final_w, final_h
-    elif img.format == "PNG":
+    elif img.format == "PNG" and not force_jpeg:
         out_buf = io.BytesIO()
         img.save(out_buf, format="PNG", optimize=True)
         return out_buf.getvalue(), "image/png", final_w, final_h
-    elif img.format == "WEBP":
-        out_buf = io.BytesIO()
-        img.save(out_buf, format="WEBP", quality=quality)
-        return out_buf.getvalue(), "image/webp", final_w, final_h
     else:
-        # Fallback sicuro a JPEG per qualsiasi altro formato esotico
+        # Fallback universale a JPEG
         if img.mode != "RGB":
             img = img.convert("RGB")
         out_buf = io.BytesIO()
@@ -138,10 +137,12 @@ def optimize_image_bytes(
 
 def normalize_image_data_url(data_url: str, max_dimension: int = 1920) -> str:
     """
-    Intercetta una stringa data URL (es. 'data:image/heic;base64,...' o 'data:image/jpeg;base64,...').
-    Se è HEIC/HEIF o supera 1.5MB di payload, la transcodifica e ridimensiona a JPEG standard.
+    Intercetta una stringa data URL (es. 'data:image/webp;base64,...' o 'data:image/heic;base64,...').
+    Garantisce compatibilità con llama.cpp (stb_image.h):
+    - WebP e HEIC vengono SEMPRE convertiti in JPEG standard.
+    - Immagini con payload > 1.5MB vengono ridimensionate e compresse in JPEG.
+    - Preserva l'orientamento EXIF reale.
     Ritorna la stringa data:image/jpeg;base64,... normalizzata.
-    Se è un URL web standard (es. /v1/uploads/...), lo lascia invariato.
     """
     if not data_url or not isinstance(data_url, str):
         return data_url
@@ -157,12 +158,13 @@ def normalize_image_data_url(data_url: str, max_dimension: int = 1920) -> str:
 
         header_lower = header.lower()
         is_heic = "heic" in header_lower or "heif" in header_lower
+        is_webp = "webp" in header_lower
         is_generic_or_empty = header_lower in ("data:;base64", "data:application/octet-stream;base64")
-        # Se payload base64 supera ~1.5MB o è HEIC
-        needs_optimization = is_heic or is_generic_or_empty or len(b64_payload) > 1_500_000
+        # llama.cpp stb_image crasha con HTTP 400 su WebP e HEIC! Forziamo sempre la conversione a JPEG.
+        needs_optimization = is_heic or is_webp or is_generic_or_empty or len(b64_payload) > 1_500_000
 
         if not needs_optimization:
-            # È già un'immagine standard leggera (JPEG/PNG/WebP)
+            # È già un JPEG o PNG leggero conforme
             return data_url
 
         raw_bytes = base64.b64decode(b64_payload)
@@ -173,7 +175,7 @@ def normalize_image_data_url(data_url: str, max_dimension: int = 1920) -> str:
             force_jpeg=True,
         )
         new_b64 = base64.b64encode(opt_bytes).decode("utf-8")
-        logger.info(f"Normalizzata immagine {w}x{h} ({len(raw_bytes)} bytes -> {len(opt_bytes)} bytes) a JPEG")
+        logger.info(f"Normalizzata immagine {w}x{h} ({len(raw_bytes)} bytes -> {len(opt_bytes)} bytes) a {mime}")
         return f"data:{mime};base64,{new_b64}"
     except Exception as e:
         logger.warning(f"Errore durante normalizzazione data URL immagine: {e}")

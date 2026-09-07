@@ -73,7 +73,8 @@ def run_agent_loop(
     call_llm_fn: Any = None,
     call_llm_structured_fn: Any = None,
     thread_id: Optional[str] = None,
-    web_prefetch_data: Optional[Dict[str, Any]] = None
+    web_prefetch_data: Optional[Dict[str, Any]] = None,
+    images: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Esegue il loop ReAct autonomo in base alla ModePolicy della modalità corrente.
@@ -114,7 +115,7 @@ def run_agent_loop(
             from registry.search_security import UNTRUSTED_CONTEXT_POLICY
             sys_prompt = (
                 f"Data e Ora Corrente del Sistema: {now_str}\n"
-                f"Sei l'Agente AI dell'Homelab Proxmox VE. Rispondi in modo naturale e completo in italiano.\n"
+                f"Sei l'Agente AI per la gestione dell'Homelab (modalità: {mode.upper()}). Rispondi in modo naturale e completo in italiano.\n"
                 f"{UNTRUSTED_CONTEXT_POLICY}\n"
                 f"Contesto memoria:\n{memory_context or ''}"
             )
@@ -158,8 +159,8 @@ def run_agent_loop(
         from registry.search_security import UNTRUSTED_CONTEXT_POLICY
         base_system_prompt = (
             f"Data e Ora Corrente del Sistema: {now_str}\n"
-            f"Sei l'Agente AI dell'Homelab Proxmox VE (modalità: {mode.upper()}).\n"
-            f"Hai accesso all'ecosistema MCP e ai tool di gestione dell'infrastruttura, ricerca web ed esecuzione codice.\n"
+            f"Sei l'Agente AI per la gestione dell'Homelab (modalità: {mode.upper()}).\n"
+            f"Hai accesso all'ecosistema MCP connesso, ai tool di infrastruttura, analisi visiva, ricerca web ed esecuzione codice.\n"
             f"{UNTRUSTED_CONTEXT_POLICY}\n"
         )
 
@@ -173,17 +174,28 @@ def run_agent_loop(
                 "Usa `web_search` solo se ti occorrono approfondimenti o dati differenti non presenti nel prefetch.\n"
             )
 
+        vision_guidance = ""
+        if images and len(images) > 0:
+            vision_guidance = (
+                f"\n\nCONTESTO VISIVO DISPONIBILE:\n"
+                f"L'utente ha allegato {len(images)} immagine/i direttamente nel contesto visivo di questa richiesta.\n"
+                "Se la richiesta dell'utente consiste nell'analizzare, descrivere, interpretare o rispondere a domande sull'immagine allegata, "
+                "puoi visualizzarla direttamente: imposta `tool_needed=false` e fornisci la tua risposta completa, dettagliata e accurata in `final_answer`.\n"
+                "Usa i tool solo se sono necessarie azioni esterne su risorse homelab/MCP, ricerche web aggiuntive o esecuzione di codice per calcoli avanzati.\n"
+            )
+
         tool_system_prompt = base_system_prompt + (
             f"Catalogo tool disponibili per questa modalità:\n{catalog_str}\n\n"
             f"Contesto memoria conversazionale:\n{memory_context or ''}\n\n"
             f"{prefetch_guidance}"
+            f"{vision_guidance}"
             f"Storico azioni eseguite in questo turno:\n{obs_context}\n\n"
             "REGOLE FONDAMENTALI DI SELEZIONE TOOL:\n"
             "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, fatti esterni o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), imposta `tool_needed=true` e seleziona `tool_name='web_search'`.\n"
-            "2. Se la richiesta richiede di operare su Proxmox, file, container, IPAM, DNS o reverse proxy, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
-            "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna o dal prefetch web senza ulteriori azioni, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
+            "2. Se la richiesta richiede di operare su risorse homelab, file, configurazioni di rete, DNS o qualsiasi servizio gestito tramite l'ecosistema MCP, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
+            "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna, dall'immagine allegata o dal prefetch web senza ulteriori azioni, imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
             "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
-            "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura (es. lista container + stato DNS) e sono indipendenti tra loro, usa `parallel_calls`.\n"
+            "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
             "6. Se hai già eseguito una ricerca web e i risultati ottenuti contengono dati sufficienti (o non contengono riscontri dopo una verifica mirata), NON ripetere la stessa ricerca o ricerche simili: imposta `tool_needed=false` e sintetizza la risposta.\n"
             "7. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
             "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`."
@@ -200,15 +212,27 @@ def run_agent_loop(
             break
 
         effective_reasoning_cap = min(policy.reasoning_budget, 1024) if policy.reasoning_budget > 0 else 1024
-        selection = call_llm_structured_fn(
-            prompt=task,
-            system_prompt=tool_system_prompt,
-            schema_cls=ToolSelection,
-            max_tokens=4096,
-            temperature=0.10,
-            max_retries=2,
-            reasoning_budget=effective_reasoning_cap
-        )
+        try:
+            selection = call_llm_structured_fn(
+                prompt=task,
+                system_prompt=tool_system_prompt,
+                schema_cls=ToolSelection,
+                max_tokens=4096,
+                temperature=0.10,
+                max_retries=2,
+                reasoning_budget=effective_reasoning_cap,
+                images=images,
+            )
+        except TypeError:
+            selection = call_llm_structured_fn(
+                prompt=task,
+                system_prompt=tool_system_prompt,
+                schema_cls=ToolSelection,
+                max_tokens=4096,
+                temperature=0.10,
+                max_retries=2,
+                reasoning_budget=effective_reasoning_cap,
+            )
 
         step_thinking = getattr(selection, "raw_thinking", "") or ""
         step_cot = (selection.reasoning if selection else "") or ""
