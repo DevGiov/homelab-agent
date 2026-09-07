@@ -312,7 +312,9 @@ def _call_llm_structured(
     json_schema = schema_cls.model_json_schema()
     schema_prompt = (
         f"{system_prompt}\n\n"
-        f"Rispondi ESCLUSIVAMENTE con un JSON valido conforme a questo JSON Schema:\n"
+        f"Rispondi ESCLUSIVAMENTE con un'istanza JSON valida conforme alla struttura richiesta da questo schema.\n"
+        f"NON restituire la definizione del JSON Schema o metadati come 'type': 'object', ma popola i campi concreti dell'oggetto.\n"
+        f"JSON Schema di riferimento:\n"
         f"{json.dumps(json_schema, ensure_ascii=False)}\n\n"
         f"Non aggiungere testo fuori dal JSON."
     )
