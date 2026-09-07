@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Settings as SettingsIcon,
   KeyRound,
@@ -258,13 +259,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
       {/* Modal */}
-      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         {/* Header & Tabs */}
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
@@ -831,6 +832,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
