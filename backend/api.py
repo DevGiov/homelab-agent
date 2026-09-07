@@ -101,8 +101,12 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
 
 def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, images: Optional[List[str]] = None) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
+    graph_task = task.strip() if task else ""
+    if not graph_task and images:
+        graph_task = "Analizza e descrivi l'immagine allegata."
+
     initial_state = {
-        "task": task,
+        "task": graph_task,
         "images": images,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
@@ -125,9 +129,10 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
+            title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
             threading.Thread(
                 target=thread_store.generate_and_save_title,
-                args=(effective_thread_id, task),
+                args=(effective_thread_id, title_prompt),
                 daemon=True
             ).start()
 
@@ -342,8 +347,12 @@ async def get_uploaded_file(filename: str):
 
 def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None, images: Optional[List[str]] = None):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
+    graph_task = task.strip() if task else ""
+    if not graph_task and images:
+        graph_task = "Analizza e descrivi l'immagine allegata."
+
     initial_state = {
-        "task": task,
+        "task": graph_task,
         "images": images,
         "thread_id": effective_thread_id,
         "force_mode": force_mode,
@@ -366,9 +375,10 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
+            title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
             threading.Thread(
                 target=thread_store.generate_and_save_title,
-                args=(effective_thread_id, task),
+                args=(effective_thread_id, title_prompt),
                 daemon=True
             ).start()
 
@@ -377,7 +387,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     if existing_sess and existing_sess.is_active():
         sess = existing_sess
     else:
-        sess = create_session(effective_thread_id, task=task, mode=force_mode)
+        sess = create_session(effective_thread_id, task=graph_task, mode=force_mode)
         cfg = {"configurable": {"thread_id": effective_thread_id}}
 
         def worker():

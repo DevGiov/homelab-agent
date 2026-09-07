@@ -639,7 +639,23 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         );
       } catch (err: any) {
         console.error('Failed to regenerate message:', err);
-        setChatError(err?.message || 'Errore durante la rigenerazione');
+        const errMsg = err?.message || 'Errore durante la rigenerazione';
+        setChatError(errMsg);
+        setThreadMessagesMap((prev) => {
+          const currentList = prev[currentThreadId] || [];
+          return {
+            ...prev,
+            [currentThreadId]: currentList.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    content: `[Errore: ${errMsg}]`,
+                    isError: true,
+                  }
+                : m
+            ),
+          };
+        });
       } finally {
         setIsLoadingChat(false);
         isSendingRef.current = false;

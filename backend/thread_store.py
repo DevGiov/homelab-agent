@@ -149,7 +149,9 @@ def save_user_message(
     images: Optional[List[str]] = None
 ) -> str:
     """Salva o aggiorna il messaggio dell'utente in SQLite con supporto a versioni multiple e immagini."""
-    if not thread_id or not user_input:
+    if not thread_id:
+        return ""
+    if not user_input and not images:
         return ""
     init_db()
     conn = _get_conn()
@@ -164,7 +166,7 @@ def save_user_message(
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, versions_json, version_index, images_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (thread_id, msg_id, "user", user_input, time_str, versions_json, version_index, images_json))
+        """, (thread_id, msg_id, "user", user_input or "", time_str, versions_json, version_index, images_json))
         conn.commit()
         return msg_id
     except Exception as e:
@@ -471,6 +473,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
         plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
 
+        images = values.get("images")
+
         completed_turns.append({
             "task": task,
             "mode": mode,
@@ -481,6 +485,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             "execution_trace": execution_trace,
             "rollback_trace": rollback_trace,
             "reasoning_content": reasoning_content,
+            "images": images,
         })
 
     # 2. Se non ci sono turni completati (o l'ultimo turno è rimasto interrotto/incompleto)
@@ -501,6 +506,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             reasoning_content = values.get("reasoning_content")
             final_response = values.get("final_response") or "[Esecuzione interrotta o non completata]"
 
+            images = values.get("images")
+
             completed_turns.append({
                 "task": latest_task,
                 "mode": mode,
@@ -511,6 +518,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "execution_trace": execution_trace,
                 "rollback_trace": rollback_trace,
                 "reasoning_content": reasoning_content,
+                "images": images,
             })
 
     if not completed_turns:
@@ -531,17 +539,20 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             user_msg_id = f"backfill_user_{thread_id}_{idx}"
             ast_msg_id = f"backfill_ast_{thread_id}_{idx}"
 
+            images = turn.get("images")
+            images_json = json.dumps(images, ensure_ascii=False) if images else None
+
             # Salva messaggio utente
             cursor.execute("""
                 INSERT OR IGNORE INTO thread_messages
-                (thread_id, message_id, sender, content, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            """, (thread_id, user_msg_id, "user", turn["task"], time_str))
+                (thread_id, message_id, sender, content, timestamp, images_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (thread_id, user_msg_id, "user", turn["task"] or "", time_str, images_json))
 
             all_messages.append({
                 "id": user_msg_id,
                 "sender": "user",
-                "content": turn["task"],
+                "content": turn["task"] or "",
                 "timestamp": time_str,
                 "mode": None,
                 "tool_used": None,
@@ -551,7 +562,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "execution_trace": None,
                 "rollback_trace": None,
                 "isError": False,
-                "reasoning_content": None
+                "reasoning_content": None,
+                "images": images
             })
 
             # Prepara contenuto risposta assistente

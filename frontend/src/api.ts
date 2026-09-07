@@ -219,6 +219,26 @@ export async function sendStreamMessage(
       signal,
     });
 
+    if (!response.ok) {
+      let errorMsg = `Server error HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          try {
+            const parsed = JSON.parse(errorText);
+            if (parsed.detail) errorMsg = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+          } catch {
+            if (response.status === 413) {
+              errorMsg = 'Immagine o richiesta troppo grande per il server (HTTP 413). Riduci la risoluzione o invia meno file.';
+            } else if (errorText.length < 300) {
+              errorMsg = errorText;
+            }
+          }
+        }
+      } catch {}
+      throw new Error(errorMsg);
+    }
+
     if (!response.body) throw new Error('ReadableStream not yet supported in this browser.');
 
     const reader = response.body.getReader();
@@ -272,7 +292,9 @@ export async function sendStreamMessage(
       console.log('Stream request was aborted by user');
       return;
     }
-    if (onError) onError(err.message || 'Stream error');
+    const msg = err.message || 'Stream error';
+    if (onError) onError(msg);
+    throw err;
   }
 }
 
@@ -295,6 +317,15 @@ export async function attachToThreadStream(
       },
       signal,
     });
+
+    if (!response.ok) {
+      let errorMsg = `Thread stream error HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        if (errorText && errorText.length < 300) errorMsg = errorText;
+      } catch {}
+      throw new Error(errorMsg);
+    }
 
     if (!response.body) throw new Error('ReadableStream not yet supported in this browser.');
 
@@ -581,7 +612,7 @@ export async function optimizeAndConvertImage(file: File): Promise<{ dataUrl: st
     }
 
     if (bitmap && width > 0 && height > 0) {
-      const MAX_DIM = 1920;
+      const MAX_DIM = 1600;
       let targetW = width;
       let targetH = height;
 
@@ -605,7 +636,7 @@ export async function optimizeAndConvertImage(file: File): Promise<{ dataUrl: st
         ctx.fillRect(0, 0, targetW, targetH);
         ctx.drawImage(bitmap, 0, 0, targetW, targetH);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
 
         if ('close' in bitmap && typeof (bitmap as ImageBitmap).close === 'function') {
           (bitmap as ImageBitmap).close();
