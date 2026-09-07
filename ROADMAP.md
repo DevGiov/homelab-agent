@@ -82,5 +82,31 @@
 - **Ruff**: 213 → 51 problemi dopo auto-fix (161 corretti: whitespace, import sort, unused imports); i restanti 51 sono stile preesistente non bloccante (E702, B904...)
 - **Bug trovati dai test**: chunking che scartava documenti < 30 caratteri; ordine alfabetico dei test unittest che invalidava la suite KB
 
-## 9. Ordine di esecuzione consigliato
-Fase 0 → 1 → 2 → 3 → 4 → 5. Fasi 0–1 sbloccano sicurezza e manutenibilità; 2–3 sono il valore aggiunto da agente; 4–5 consolidano UX e qualità.
+## 9. Piano — Fase 6: Streaming Isolation & Real-Time Controls ✅ IMPLEMENTATA
+1. ✅ **Session Queue & Multi-Subscriber**: `stream_session.py` con broadcast a sottoscrittori multipli e snapshot sync istantaneo.
+2. ✅ **Cross-Device Reconnect**: Endpoint `/v1/threads/{thread_id}/stream` per riagganciare stream attivi da altri dispositivi o dopo refresh.
+3. ✅ **Controlli di Flusso**: Endpoint `/v1/threads/{thread_id}/control` per pausa, ripresa e stop pulito con rilascio risorse.
+4. ✅ **Metriche Real-time**: Tracciamento di prompt tokens, completion tokens, tok/s, e latenza end-to-end con propagazione SSE.
+
+## 10. Piano — Fase 7: Pre-emptive Web Search Pipeline & SSRF Protection ✅ IMPLEMENTATA
+1. ✅ **Deterministic Web Prefetch**: Nodo `web_prefetch_node` nel grafo LangGraph eseguito a monte delle modalità di risposta.
+2. ✅ **Multi-Provider & Ranking**: `registry/web_search_service.py` con fallback SearXNG + DuckDuckGo e relevance filtering.
+3. ✅ **Hardening SSRF**: `search_security.py` con validazione DNS multi-hop per bloccare private LAN (RFC 1918), loopback, link-local e cloud metadata anche su redirect HTTP.
+4. ✅ **Untrusted Evidence Isolation**: Delimitatori e sanificazione prompt injection per i dati web esterni.
+
+## 11. Piano — Fase 8: Multimodal Vision Mode & Media Persistence ✅ IMPLEMENTATA
+1. ✅ **Decodifica & Ottimizzazione Immagini**: `image_utils.py` con supporto universale a JPEG, PNG, WebP e HEIC/HEIF via `pillow-heif`.
+2. ✅ **Persistenza Immagini Resiliente**: Tabella `thread_messages` con colonna `images_json` e logica di backfill da cronologia LangGraph, garantendo persistenza al refresh o cambio thread.
+3. ✅ **Upload & Streaming Body Size**: Incremento `client_max_body_size 50M;` in Nginx e gestione errori HTTP 413 con fallback leggibili nel frontend.
+
+## 12. Piano — Fase 9: Visual Query Grounding & Real-Time Market Search ✅ IMPLEMENTATA
+1. ✅ **Rilevamento Intento Visivo Puro**: `is_purely_visual_request` salta la ricerca web per prompt puramente descrittivi (*"cosa vedi"*, *"descrivi l'immagine"*).
+2. ✅ **Silent Micro-Pass Visivo**: `formulate_visual_search_query` estrae marca, modello ed entità dall'immagine formulando query di ricerca Google/SearXNG concise (4-7 parole).
+3. ✅ **Ottimizzazione Template Jinja**: Disattivazione esplicita del thinking (`enable_thinking: False`) per `reasoning_budget=0` in `providers.py`, riducendo la latenza del grounding a ~3.5s.
+4. ✅ **Istruzioni ReAct per Dati Live**: Regole 1 e 3 aggiornate in `agent_loop.py` per richiedere l'uso di `web_search` su prezzi e disponibilità di mercato in tempo reale.
+
+## 13. Prossime Evoluzioni (Backlog)
+1. **Connessione Dinamica Nuovi Server MCP**: Configurazione UI o hot-reload per registrare nuovi server MCP oltre a `ProxmoxMcp` senza riavviare il backend.
+2. **Visual Memory & Graph Explorer**: Viewer dedicato per navigare entità, relazioni e fatti salvati nella memoria a lungo termine Letta / sqlite-vec.
+3. **Multi-User & Ruoli**: RBAC e supporto sessioni multi-utente qualora l'accesso venga esposto all'esterno della LAN.
+

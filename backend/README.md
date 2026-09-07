@@ -7,11 +7,13 @@ Backend LangGraph + FastAPI per l'agente AI del mio homelab.
 ```mermaid
 flowchart LR
     U[Utente / Frontend React] -->|REST + SSE| API[FastAPI api.py]
+    API --> SS[stream_session<br/>session queue + reconnect]
     API --> G[LangGraph graph.py]
 
     subgraph Grafo
         I[intake] --> RM[retrieve_memory] --> MR[mode_router]
-        MR --> CH[chat] & AK[ask] & AC[act] & PL[plan]
+        MR --> WP[web_prefetch<br/>visual query grounding]
+        WP --> CH[chat] & AK[ask] & AC[act] & PL[plan]
         CH & AK & AC & PL --> RS[respond] --> CM[commit_memory]
     end
 
@@ -20,9 +22,10 @@ flowchart LR
 
     subgraph Registries
         MM[metamcp] --> SDK[mcp_sdk_client<br/>SDK ufficiale MCP]
-        WS[web] --> SX[SearXNG / DDG]
+        WS[web] --> SX[SearXNG / DDG + SSRF guard]
         CE[code] --> FC[Firecracker sandbox]
         ME[memory] --> LT[Letta hybrid retrieval]
+        VN[vision] --> VI[inspect_image]
     end
 
     REG --> GR[guardrails<br/>rischio + approval workflow]
@@ -31,7 +34,7 @@ flowchart LR
     subgraph Persistenza
         VEC[(vector_store<br/>sqlite-vec + fastembed)]
         KB[(knowledge_base)]
-        TS[(thread_store)]
+        TS[(thread_store<br/>messages + images_json)]
         CP[(checkpoints LangGraph)]
     end
 
@@ -70,12 +73,15 @@ sequenceDiagram
 ## Struttura
 
 - `main.py`: CLI entry point
-- `graph.py`: grafo LangGraph (intake → retrieve_memory → mode_router → chat/ask/act/plan → respond → commit_memory)
-- `agent_loop.py`: loop ReAct custom con cache dedup e parallel calls read-only
-- `providers.py`: astrazione LLM multi-provider (llama.cpp OpenAI-compat, Ollama)
+- `graph.py`: grafo LangGraph (intake → retrieve_memory → mode_router → web_prefetch → chat/ask/act/plan → respond → commit_memory) con visual query grounding
+- `agent_loop.py`: loop ReAct custom con cache dedup, parallel calls read-only e regole per dati live di mercato
+- `image_utils.py`: decodifica multimodale (JPEG, PNG, WebP, HEIC/HEIF via pillow-heif) e ottimizzazione immagini
+- `stream_session.py`: gestione sessioni streaming SSE isolate con pause/resume/stop e riconnessione multi-device
+- `thread_store.py`: store SQLite per cronologia messaggi, immagini allegate (`images_json`) e generazione asincrona titoli
+- `providers.py`: astrazione LLM multi-provider (llama.cpp OpenAI-compat, Ollama) con disattivazione thinking su reasoning_budget=0
 - `mcp_sdk_client.py`: client MCP basato sull'SDK ufficiale (sessione persistente, retry)
 - `mcp_client.py`: client legacy SSE/REST (fallback)
-- `registry/`: registries dei tool (`metamcp`, `web`, `code`, `memory`)
+- `registry/`: registries dei tool (`metamcp`, `web`, `code`, `memory`, `vision`)
 - `guardrails.py`: classificazione rischio tool, shell guard, approval workflow
 - `audit_log.py`: audit persistente di ogni tool call
 - `vector_store.py`: memoria semantica (sqlite-vec cosine + fastembed locale)
@@ -179,8 +185,11 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 | GET | `/v1/health` | Health check (pubblico) |
 | GET | `/v1/status` | Health aggregato llama.cpp/MetaMCP/Letta |
 | POST | `/v1/chat\|ask\|act\|plan\|invoke` | Chat sincrona per mode |
-| POST | `/v1/invoke_stream` | Chat streaming SSE |
-| GET/DELETE | `/v1/threads[/{id}]` | Gestione thread |
+| POST | `/v1/invoke_stream` | Chat streaming SSE con supporto immagini |
+| GET | `/v1/threads/{id}/stream` | Aggancio streaming live per riconnessione/multi-device |
+| POST | `/v1/threads/{id}/control` | Controlli di flusso (pause, resume, stop) |
+| POST | `/v1/images/upload` | Upload e validazione immagini multimodali |
+| GET/DELETE | `/v1/threads[/{id}]` | Gestione thread e cronologia |
 | GET | `/v1/audit` | Audit log tool call |
 | GET | `/v1/approvals` | Approvazioni pending |
 | POST | `/v1/approvals/{id}/approve\|deny` | Risolvi approvazione |
