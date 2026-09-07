@@ -509,8 +509,12 @@ export async function denyRequest(requestId: string): Promise<ResolveApprovalRes
 }
 
 export async function listGrantedPermissions(): Promise<PermissionsListResponse> {
-  const res = await api.get<{ status: string; permissions: PermissionsListResponse }>('/permissions');
-  return res.data.permissions;
+  const res = await api.get<any>('/permissions');
+  const data = res.data?.permissions || res.data || {};
+  return {
+    always: Array.isArray(data.always) ? data.always : [],
+    session: (typeof data.session === 'object' && data.session !== null) ? data.session : {},
+  };
 }
 
 export async function revokePermission(permissionId: number): Promise<void> {

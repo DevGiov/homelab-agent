@@ -194,8 +194,12 @@ def list_granted_permissions(thread_id: Optional[str] = None) -> Dict[str, Any]:
         logger.warning(f"Errore lettura permessi da DB: {e}")
 
     thread_list = []
-    if thread_id:
-        with _session_lock:
+    session_map: Dict[str, list] = {}
+    with _session_lock:
+        for t_id, keys in _SESSION_PERMISSIONS.items():
+            if keys:
+                session_map[t_id] = sorted(list(keys))
+        if thread_id:
             keys = list(_SESSION_PERMISSIONS.get(thread_id, set()))
             for k in keys:
                 parts = k.split(":", 1)
@@ -207,8 +211,10 @@ def list_granted_permissions(thread_id: Optional[str] = None) -> Dict[str, Any]:
                 })
 
     return {
+        "status": "ok",
         "always": always_list,
-        "thread": thread_list
+        "thread": thread_list,
+        "session": session_map,
     }
 
 

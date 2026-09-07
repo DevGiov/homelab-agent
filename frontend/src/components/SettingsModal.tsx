@@ -730,7 +730,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                       <Loader2 size={14} className="animate-spin mr-2" />
                       Caricamento permessi...
                     </div>
-                  ) : permissionsData.always.length === 0 ? (
+                  ) : (!permissionsData?.always || permissionsData.always.length === 0) ? (
                     <div className="p-3 rounded-xl border border-border bg-panel/40 text-center text-xs text-fg-muted">
                       Nessun permesso permanente memorizzato. I tool ad alto rischio richiederanno sempre autorizzazione.
                     </div>
@@ -768,7 +768,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 </div>
 
                 {/* Session / Thread Permissions List */}
-                {Object.keys(permissionsData.session).length > 0 && (
+                {Object.keys(permissionsData?.session || {}).length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-border">
                     <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">
                       Permessi di Sessione (Questa Chat)
