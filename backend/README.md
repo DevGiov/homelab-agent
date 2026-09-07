@@ -82,7 +82,8 @@ sequenceDiagram
 - `mcp_sdk_client.py`: client MCP basato sull'SDK ufficiale (sessione persistente, retry)
 - `mcp_client.py`: client legacy SSE/REST (fallback)
 - `registry/`: registries dei tool (`metamcp`, `web`, `code`, `memory`, `vision`)
-- `guardrails.py`: classificazione rischio tool, shell guard, approval workflow
+- `permissions.py`: motore di autorizzazione e policy tool (Human-in-the-Loop) con persistenza SQLite (`tool_permissions`, scope `always`) e memoria di sessione (`_SESSION_PERMISSIONS`, scope `thread`)
+- `guardrails.py`: sistema di sicurezza a 2 livelli (Tier 1 blocco deterministico comandi malevoli/distruttivi senza bypass LLM, Tier 2 HITL approval workflow con 4 opzioni di risposta)
 - `audit_log.py`: audit persistente di ogni tool call
 - `vector_store.py`: memoria semantica (sqlite-vec cosine + fastembed locale)
 - `knowledge_base.py`: KB documentale (.md/.txt/.pdf) con chunking
@@ -90,7 +91,7 @@ sequenceDiagram
 - `router.py`: mode router neurale (chat/ask/act/plan)
 - `mode_policy.py`: policy per mode (tool calls, registries, reasoning budget)
 - `config.py`: Pydantic Settings (.env) con fail-fast sicurezza
-- `api.py`: API REST FastAPI
+- `api.py`: API REST FastAPI con endpoint approvazione (`/v1/approvals/.../resolve`) e gestione permessi (`/v1/permissions`)
 - `schemas.py`: modelli Pydantic
 - `run_api.py`: entry point uvicorn
 
@@ -138,7 +139,7 @@ sudo systemctl enable main-agent-api
 
 ```bash
 # Test unitari e integrazione (env isolate via conftest.py)
-pytest test_guardrails.py test_memory_rag.py test_api_integration.py -v
+pytest test_tool_safety.py test_guardrails.py test_memory_rag.py test_api_integration.py -v
 
 # Lint
 ruff check .

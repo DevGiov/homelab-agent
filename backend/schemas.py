@@ -117,3 +117,19 @@ class ClearMemoryResponse(BaseModel):
     deleted_count: int
     letta_cleared: bool
     message: str
+
+
+class ResolveApprovalRequest(BaseModel):
+    action: str = "approve"  # "approve" | "deny" | "approve_thread" | "approve_always"
+    resolved_by: str = "user"
+
+
+class PermissionItem(BaseModel):
+    id: Optional[int] = None
+    tool_name: str
+    command_prefix: Optional[str] = None
+    scope: str = "always"
+    created_at: Optional[str] = None
+    created_by: Optional[str] = "user"
+    thread_id: Optional[str] = None
+

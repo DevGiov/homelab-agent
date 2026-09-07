@@ -18,6 +18,10 @@ import {
   Palette,
   Sparkles,
   Check,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import {
   getApiKey,
@@ -29,8 +33,12 @@ import {
   addMemory,
   deleteMemory,
   clearAllMemory,
+  listGrantedPermissions,
+  revokePermission,
+  revokeThreadPermissions,
   type ProviderInfo,
   type MemoryItem,
+  type PermissionsListResponse,
 } from '../api';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -40,7 +48,7 @@ interface SettingsModalProps {
   onProviderChanged?: () => void;
 }
 
-type SettingsTab = 'general' | 'appearance' | 'memory';
+type SettingsTab = 'general' | 'appearance' | 'memory' | 'security';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onProviderChanged }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -71,6 +79,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const [isClearingMemory, setIsClearingMemory] = useState<boolean>(false);
   const [memoryMsg, setMemoryMsg] = useState<string | null>(null);
 
+  const [permissionsData, setPermissionsData] = useState<PermissionsListResponse>({ always: [], session: {} });
+  const [loadingPermissions, setLoadingPermissions] = useState<boolean>(false);
+  const [securityMsg, setSecurityMsg] = useState<string | null>(null);
+
   const fetchMemories = useCallback(async () => {
     setLoadingMemories(true);
     try {
@@ -83,6 +95,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       setLoadingMemories(false);
     }
   }, []);
+
+  const fetchPermissions = useCallback(async () => {
+    setLoadingPermissions(true);
+    try {
+      const res = await listGrantedPermissions();
+      setPermissionsData(res);
+    } catch (err) {
+      console.warn('Errore caricamento permessi:', err);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  }, []);
+
+  const handleRevokePermission = async (id: number) => {
+    try {
+      await revokePermission(id);
+      setSecurityMsg('Permesso permanente revocato con successo.');
+      setTimeout(() => setSecurityMsg(null), 3000);
+      await fetchPermissions();
+    } catch (err: any) {
+      console.error('Errore revoca permesso:', err);
+    }
+  };
+
+  const handleRevokeThreadPermissions = async (threadId: string) => {
+    try {
+      await revokeThreadPermissions(threadId);
+      setSecurityMsg(`Permessi per il thread "${threadId}" revocati.`);
+      setTimeout(() => setSecurityMsg(null), 3000);
+      await fetchPermissions();
+    } catch (err: any) {
+      console.error('Errore revoca permessi thread:', err);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -258,12 +304,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               setActiveTab('memory');
               fetchMemories();
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               activeTab === 'memory' ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
             }`}
           >
             <Brain size={13} className={activeTab === 'memory' ? 'text-white' : 'text-purple-400'} />
             Memoria ({totalMemories})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('security');
+              fetchPermissions();
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'security' ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
+            }`}
+          >
+            <Shield size={13} className={activeTab === 'security' ? 'text-white' : 'text-amber-400'} />
+            Sicurezza
           </button>
         </div>
 
@@ -585,6 +643,157 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                         Sì, cancella tutto
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Security & Tool Permissions */}
+          {activeTab === 'security' && (
+            <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {securityMsg && (
+                <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
+                  <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                  <span>{securityMsg}</span>
+                </div>
+              )}
+
+              {/* Tier 1: Guardrail Automatici */}
+              <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={15} className="text-rose-400" />
+                    <h4 className="text-xs font-semibold text-fg">
+                      Tier 1: Guardrail Deterministici (Automatici)
+                    </h4>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    Attivo & Inviolabile
+                  </span>
+                </div>
+                <p className="text-[11px] text-fg-muted leading-relaxed">
+                  Questi comandi distruttivi sono <strong>categoricamente bloccati</strong> prima dell'esecuzione.
+                  Nessun prompt, modalità o parametro (incluso <code>confirm=true</code> simulato dal modello) può scavalcare questo blocco.
+                </p>
+                <div className="grid grid-cols-1 gap-1.5 pt-1 text-[10px] text-fg-muted">
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+                    <Lock size={11} className="text-rose-400 shrink-0" />
+                    <span>Wipe ricorsivo root/sistema (<code>rm -rf /</code>, <code>rm -rf /etc</code>, <code>~</code>, ecc.)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+                    <Lock size={11} className="text-rose-400 shrink-0" />
+                    <span>Formattazione dischi & firme filesystem (<code>mkfs</code>, <code>wipefs</code>)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+                    <Lock size={11} className="text-rose-400 shrink-0" />
+                    <span>Scrittura grezza su blocchi disco (<code>dd of=/dev/sd*</code>, <code>&gt; /dev/nvme*</code>)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+                    <Lock size={11} className="text-rose-400 shrink-0" />
+                    <span>Fork bomb, DoS di sistema e manomissione credenziali (<code>/etc/shadow</code>)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+                    <Lock size={11} className="text-rose-400 shrink-0" />
+                    <span>Download ed esecuzione arbitraria pipe-to-shell (<code>curl ... | sh</code>, <code>base64 -d | sh</code>)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tier 2: Permessi Accordati */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={15} className="text-emerald-400" />
+                    <h4 className="text-xs font-semibold text-fg">
+                      Tier 2: Permessi Tool Accordati (Human-in-the-Loop)
+                    </h4>
+                  </div>
+                  <button
+                    onClick={fetchPermissions}
+                    disabled={loadingPermissions}
+                    className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer"
+                    title="Aggiorna permessi"
+                  >
+                    <RefreshCw size={12} className={loadingPermissions ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+
+                {/* Always Permissions List */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">
+                    Permessi Permanenti (Always)
+                  </div>
+                  {loadingPermissions ? (
+                    <div className="flex items-center justify-center p-4 text-xs text-fg-muted">
+                      <Loader2 size={14} className="animate-spin mr-2" />
+                      Caricamento permessi...
+                    </div>
+                  ) : permissionsData.always.length === 0 ? (
+                    <div className="p-3 rounded-xl border border-border bg-panel/40 text-center text-xs text-fg-muted">
+                      Nessun permesso permanente memorizzato. I tool ad alto rischio richiederanno sempre autorizzazione.
+                    </div>
+                  ) : (
+                    permissionsData.always.map((perm) => (
+                      <div
+                        key={perm.id}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-border bg-panel/80 hover:border-accent/40 transition"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-emerald-300">
+                              {perm.tool_name}
+                            </span>
+                            {perm.command_prefix && (
+                              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40 border border-border text-fg-muted">
+                                prefisso: {perm.command_prefix}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-fg-muted mt-0.5">
+                            Scope: sempre · ID: #{perm.id} {perm.created_by ? `· da: ${perm.created_by}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRevokePermission(perm.id)}
+                          className="p-1.5 text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                          title="Revoca permesso permanente"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Session / Thread Permissions List */}
+                {Object.keys(permissionsData.session).length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">
+                      Permessi di Sessione (Questa Chat)
+                    </div>
+                    {Object.entries(permissionsData.session).map(([tId, tools]) => (
+                      <div
+                        key={tId}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-sky-500/20 bg-sky-950/10"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-mono font-medium text-sky-300 truncate">
+                            Thread: {tId}
+                          </div>
+                          <div className="text-[10px] text-fg-muted mt-0.5">
+                            Tool consentiti: {tools.join(', ')}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRevokeThreadPermissions(tId)}
+                          className="p-1.5 text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                          title="Revoca permessi per questo thread"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

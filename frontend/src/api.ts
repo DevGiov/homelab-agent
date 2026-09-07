@@ -88,6 +88,12 @@ export interface ExecutionTraceItem {
   execution_time_ms?: number;
   sandboxed?: boolean;
   timestamp?: string;
+  approval_required?: boolean;
+  request_id?: string;
+  approval_prompt?: string;
+  command_preview?: string;
+  command_prefix?: string;
+  risk_reason?: string;
 }
 
 export interface PlanNode {
@@ -136,6 +142,12 @@ export interface ChatResponse {
   metrics?: StreamMetrics;
   thread_title?: string;
   error?: string;
+  approval_required?: boolean;
+  request_id?: string;
+  approval_prompt?: string;
+  command_preview?: string;
+  command_prefix?: string;
+  risk_reason?: string;
 }
 
 export interface ThreadItem {
@@ -185,6 +197,14 @@ export interface MessageVersion {
   model?: string;
   reasoningBudget?: number;
   images?: string[];
+  approval_required?: boolean;
+  request_id?: string;
+  approval_prompt?: string;
+  command_preview?: string;
+  command_prefix?: string;
+  risk_reason?: string;
+  approval_resolved?: boolean;
+  approval_action?: string;
 }
 
 export interface FormattedMessage extends MessageVersion {
@@ -422,7 +442,9 @@ export async function deleteAllThreads(): Promise<{ status: string }> {
   return res.data;
 }
 
-// --- Fase 4.2: Approvals ---
+// --- Fase 4.2: Approvals & Tool Permissions ---
+
+export type ApprovalAction = 'deny' | 'approve' | 'approve_thread' | 'approve_always';
 
 export interface ApprovalItem {
   request_id: string;
@@ -431,6 +453,32 @@ export interface ApprovalItem {
   thread_id: string | null;
   mode: string | null;
   age_seconds: number;
+  command_preview?: string;
+  command_prefix?: string;
+  risk_reason?: string;
+}
+
+export interface PermissionItem {
+  id: number;
+  tool_name: string;
+  command_prefix?: string | null;
+  scope: string;
+  created_at?: string;
+  created_by?: string;
+}
+
+export interface PermissionsListResponse {
+  always: PermissionItem[];
+  session: Record<string, string[]>;
+}
+
+export interface ResolveApprovalResponse {
+  request_id: string;
+  status: 'approved' | 'denied' | 'expired';
+  action?: string;
+  tool_name?: string;
+  result?: any;
+  message?: string;
 }
 
 export async function listApprovals(threadId?: string): Promise<ApprovalItem[]> {
@@ -440,14 +488,37 @@ export async function listApprovals(threadId?: string): Promise<ApprovalItem[]> 
   return res.data.pending;
 }
 
-export async function approveRequest(requestId: string): Promise<{ request_id: string; status: string; result: any }> {
-  const res = await api.post(`/approvals/${encodeURIComponent(requestId)}/approve`);
+export async function resolveApproval(
+  requestId: string,
+  action: ApprovalAction,
+  resolvedBy: string = 'user'
+): Promise<ResolveApprovalResponse> {
+  const res = await api.post<ResolveApprovalResponse>(`/approvals/${encodeURIComponent(requestId)}/resolve`, {
+    action,
+    resolved_by: resolvedBy,
+  });
   return res.data;
 }
 
-export async function denyRequest(requestId: string): Promise<{ request_id: string; status: string; tool_name: string }> {
-  const res = await api.post(`/approvals/${encodeURIComponent(requestId)}/deny`);
-  return res.data;
+export async function approveRequest(requestId: string): Promise<ResolveApprovalResponse> {
+  return resolveApproval(requestId, 'approve');
+}
+
+export async function denyRequest(requestId: string): Promise<ResolveApprovalResponse> {
+  return resolveApproval(requestId, 'deny');
+}
+
+export async function listGrantedPermissions(): Promise<PermissionsListResponse> {
+  const res = await api.get<{ status: string; permissions: PermissionsListResponse }>('/permissions');
+  return res.data.permissions;
+}
+
+export async function revokePermission(permissionId: number): Promise<void> {
+  await api.delete(`/permissions/${permissionId}`);
+}
+
+export async function revokeThreadPermissions(threadId: string): Promise<void> {
+  await api.delete(`/threads/${encodeURIComponent(threadId)}/permissions`);
 }
 
 // --- Fase 4.3/4.4: Knowledge Base ---

@@ -54,6 +54,30 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 
 ---
 
+## 🛡️ Sicurezza & Guardrail a Due Livelli (Tool Safety Engine)
+
+1. **Tier 1 — Blocco Deterministico ed Immediato (Nessun bypass LLM)**:
+   - Analisi sintattica preventiva di ogni comando shell su host (`exec_host_command`) e container (`exec_lxc_command`).
+   - Blocco categorico di comandi malevoli o distruttivi senza emissione di conferme:
+     - Rimozione ricorsiva su root, home o directory di sistema (`rm -rf /`, `rm -rf /etc`, `~`, `/var`, `/usr`, ecc.).
+     - Formattazione di partizioni e cancellazione firme filesystem (`mkfs`, `wipefs`).
+     - Scrittura grezza su dischi a blocchi (`dd of=/dev/sd*`, redirection `> /dev/nvme*`).
+     - Fork bomb e denial of service (`:(){ :|:& };:`, loop fork perl/python).
+     - Manomissione credenziali o firewall (`/etc/shadow`, `iptables -F`, `ufw disable`).
+     - Esecuzione remota diretta pipe-to-shell (`curl ... | sh`, `base64 -d | sh`).
+   - Il modello **non può scavalcare i guardrail** allucinando flag `confirm=true` nei payload JSON.
+
+2. **Tier 2 — Human-in-the-Loop Interattivo & Policy Engine (`permissions.py`)**:
+   - I tool rischiosi (`stop_container`, `rollback`, `delete_*`, `release_ip`, `exec_host_command` o comandi shell di modifica) richiedono conferma esplicita dell'utente tramite `InlineApprovalCard` integrata nella chat.
+   - 4 scelte di risposta chiare e differenziate:
+     1. **No (Rifiuta)**: annulla l'azione informando l'agente senza causare crash.
+     2. **Sì (Una volta)**: autorizza la singola chiamata contestuale.
+     3. **Sì (In questa chat per <cmd>)**: autorizza il comando per tutti i turni del thread corrente (session-scoped).
+     4. **Sì (Sempre per <cmd>)**: memorizza l'autorizzazione permanente su tabella SQLite `tool_permissions` con granularità per prefisso comando (cross-session).
+   - Tab **Sicurezza** nelle Impostazioni UI per il controllo delle regole e la revoca immediata di permessi permanenti o di sessione.
+
+---
+
 ## 🛠️ Selezione Dinamica dei Tool via LLM
 
 - **Catalogo Dinamico con Cache TTL 5m (`tool_catalog.py`)**: Recupera la lista dei tool dal protocollo SSE/MCP o OpenAPI.

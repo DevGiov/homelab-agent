@@ -37,6 +37,12 @@ export function adaptChatResponseToMessage(
     web_prefetch: response.web_prefetch,
     metrics: response.metrics,
     isError: Boolean(response.error),
+    approval_required: response.approval_required,
+    request_id: response.request_id,
+    approval_prompt: response.approval_prompt,
+    command_preview: response.command_preview,
+    command_prefix: response.command_prefix,
+    risk_reason: response.risk_reason,
   };
 }
 

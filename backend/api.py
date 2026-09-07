@@ -48,6 +48,7 @@ from schemas import (
     SwitchVersionRequest,
     ThreadControlRequest,
     ThreadSummary,
+    ResolveApprovalRequest,
 )
 from stream_session import (
     create_session,
@@ -833,27 +834,90 @@ async def list_approvals(thread_id: Optional[str] = None):
     import guardrails
     return {"pending": guardrails.get_pending_approvals(thread_id=thread_id)}
 
-@api.post("/v1/approvals/{request_id}/approve", dependencies=[Depends(verify_api_key)])
-async def approve_request(request_id: str):
-    """Approva una richiesta ed esegue immediatamente il tool."""
+@api.post("/v1/approvals/{request_id}/resolve", dependencies=[Depends(verify_api_key)])
+async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRequest):
+    """
+    Risolve una richiesta di approvazione tool con scope:
+    - 'deny': rifiuta l'azione
+    - 'approve': autorizza l'azione una tantum
+    - 'approve_thread': autorizza per l'intera sessione/chat
+    - 'approve_always': autorizza in modo permanente (tabella tool_permissions)
+    """
     import guardrails
     from registry.manager import get_registry_manager
-    req = guardrails.resolve_approval(request_id, approved=True)
+
+    action = req_body.action.lower().strip()
+    req = guardrails.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
     if req is None:
         raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
     if req.status == "expired":
         raise HTTPException(status_code=410, detail="Richiesta scaduta")
+
+    if action in ("deny", "false", "refuse"):
+        if req.thread_id:
+            thread_store.save_assistant_message(req.thread_id, {
+                "response": f"🛑 **Azione annullata**: L'esecuzione del tool `{req.tool_name}` è stata rifiutata dall'utente.",
+                "tool_used": req.tool_name,
+                "error": True
+            })
+        return {
+            "request_id": request_id,
+            "status": "denied",
+            "tool_name": req.tool_name,
+            "message": f"Azione per il tool '{req.tool_name}' rifiutata."
+        }
+
+    # Esecuzione del tool autorizzato
     result = get_registry_manager().execute_approved_tool(request_id)
-    return {"request_id": request_id, "status": "approved", "result": result}
+    if req.thread_id:
+        res_summary = json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result)
+        if len(res_summary) > 2000:
+            res_summary = res_summary[:2000] + "\n... [risultato troncato]"
+        thread_store.save_assistant_message(req.thread_id, {
+            "response": f"✅ **Tool `{req.tool_name}` approvato ed eseguito** (scope: {action}):\n\n```json\n{res_summary}\n```",
+            "tool_used": req.tool_name,
+            "error": isinstance(result, dict) and bool(result.get("error"))
+        })
+
+    return {
+        "request_id": request_id,
+        "status": "approved",
+        "action": action,
+        "tool_name": req.tool_name,
+        "result": result
+    }
+
+@api.post("/v1/approvals/{request_id}/approve", dependencies=[Depends(verify_api_key)])
+async def approve_request(request_id: str):
+    """Retrocompatibilità: approva singola esecuzione."""
+    return await resolve_approval_endpoint(request_id, ResolveApprovalRequest(action="approve"))
 
 @api.post("/v1/approvals/{request_id}/deny", dependencies=[Depends(verify_api_key)])
 async def deny_request(request_id: str):
-    """Nega una richiesta di approvazione."""
-    import guardrails
-    req = guardrails.resolve_approval(request_id, approved=False)
-    if req is None:
-        raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
-    return {"request_id": request_id, "status": "denied", "tool_name": req.tool_name}
+    """Retrocompatibilità: nega esecuzione."""
+    return await resolve_approval_endpoint(request_id, ResolveApprovalRequest(action="deny"))
+
+@api.get("/v1/permissions", dependencies=[Depends(verify_api_key)])
+async def get_permissions(thread_id: Optional[str] = None):
+    """Elenca i permessi persistenti (ALWAYS) e quelli attivi per la sessione (THREAD)."""
+    import permissions
+    return permissions.list_granted_permissions(thread_id=thread_id)
+
+@api.delete("/v1/permissions/{permission_id}", dependencies=[Depends(verify_api_key)])
+async def delete_permission(permission_id: int):
+    """Revoca un permesso persistente per ID."""
+    import permissions
+    success = permissions.revoke_permission(permission_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Permesso ID {permission_id} non trovato")
+    return {"status": "ok", "revoked_id": permission_id}
+
+@api.delete("/v1/threads/{thread_id}/permissions", dependencies=[Depends(verify_api_key)])
+async def delete_thread_permissions(thread_id: str):
+    """Revoca tutti i permessi temporanei di sessione per il thread specificato."""
+    import permissions
+    permissions.revoke_thread_permissions(thread_id)
+    return {"status": "ok", "thread_id": thread_id, "message": "Permessi di sessione revocati"}
 
 
 # --- Gestione Memoria (Fase 4.3 & Controllo Frontend) ---

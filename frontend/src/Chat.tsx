@@ -31,6 +31,7 @@ import {
 import { type FormattedMessage, type AgentMode, getProviders, getProviderModelsWithDetails, isImageFile, optimizeAndConvertImage, type ModelDetail } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
+import { InlineApprovalCard } from './components/InlineApprovalCard';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import ReasoningBlock from './components/ReasoningBlock';
 import { ThemeQuickSelector } from './components/ThemeQuickSelector';
@@ -624,6 +625,39 @@ export const Chat: React.FC<ChatProps> = ({
                             onExecutePlan={(summary) => onSendMessage(summary, 'act', true)}
                             isLoading={isLoading}
                           />
+                        )}
+
+                        {/* Inline Tool Approval Card (Human-in-the-loop Guardrail) */}
+                        {(msg.approval_required || msg.execution_trace?.some((t) => t.approval_required)) && (
+                          (() => {
+                            const traceApproval = msg.execution_trace?.find((t) => t.approval_required);
+                            const reqId = msg.request_id || traceApproval?.request_id || '';
+                            const tName = msg.tool_used || traceApproval?.tool_name || 'tool';
+                            const preview = msg.command_preview || traceApproval?.command_preview;
+                            const prefix = msg.command_prefix || traceApproval?.command_prefix;
+                            const reason = msg.risk_reason || traceApproval?.risk_reason || msg.approval_prompt;
+                            const argsData = traceApproval?.args;
+
+                            if (!reqId) return null;
+
+                            return (
+                              <InlineApprovalCard
+                                requestId={reqId}
+                                toolName={tName}
+                                argumentsData={argsData}
+                                commandPreview={preview}
+                                commandPrefix={prefix}
+                                riskReason={reason}
+                                threadId={currentThreadId}
+                                isResolvedInitially={msg.approval_resolved}
+                                resolvedActionInitially={msg.approval_action}
+                                onResolved={(act) => {
+                                  msg.approval_resolved = true;
+                                  msg.approval_action = act;
+                                }}
+                              />
+                            );
+                          })()
                         )}
 
                         {/* Inline Reasoning & Execution Trace */}

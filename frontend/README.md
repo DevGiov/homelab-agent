@@ -18,12 +18,18 @@ Interfaccia web moderna basata su **React 18**, **Vite**, **TypeScript** e **Tai
 - **Visualizzazione Piani & Tracce di Esecuzione**:
   - `PlanViewer`: visualizzazione dei grafi d'azione multi-step con dipendenze topologiche (`depends_on`).
   - `ExecutionTraceViewer`: log dettagliato dei tool call eseguiti, compensazioni di rollback e stato delle azioni.
-- **Pannello Diagnostica & Approvazioni**:
-  - Gestione del workflow di approvazione per operazioni critiche o non reversibili (es. rimozione risorse, rollback, comandi shell).
+- **Pannello Diagnostica & Approvazioni Human-in-the-Loop (Tier 2)**:
+  - `InlineApprovalCard`: Card interattiva direttamente nel flusso di chat con 4 scelte esplicite per i tool rischiosi:
+    - *No (Rifiuta)*: respinge l'esecuzione senza crash.
+    - *Sì (Una volta)*: autorizzazione singola per la chiamata.
+    - *Sì (In questa chat)*: autorizzazione temporanea session-scoped per il thread.
+    - *Sì (Sempre per il comando)*: autorizzazione permanente globale memorizzata su SQLite.
+  - `ApprovalsPanel`: monitoraggio delle richieste pendenti e risoluzione rapida anche da pannello laterale.
 - **Knowledge Base Integrata**:
   - Upload e gestione documenti (.md, .txt, .pdf), conteggio chunk e ricerca semantica con punteggio di similarità.
-- **Impostazioni & Sicurezza**:
-  - `SettingsModal` per configurazione sicura di `API_SECRET_KEY` salvata in `localStorage` e iniettata automaticamente nelle richieste REST e SSE.
+- **Impostazioni, Temi & Gestione Permessi di Sicurezza**:
+  - `SettingsModal` con 4 schede: *Generale*, *Aspetto & Temi*, *Memoria* e *Sicurezza*.
+  - Tab **Sicurezza**: panoramica dei guardrail automatici (Tier 1) e tabella di gestione/revoca dei permessi accordati (Tier 2).
 
 ---
 

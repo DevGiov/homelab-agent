@@ -452,9 +452,26 @@ def run_agent_loop(
                 res = {"error": f"Eccezione durante l'esecuzione: {str(e)}"}
 
         if isinstance(res, dict) and res.get("approval_required"):
-            logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita.")
+            logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita ({res.get('risk_reason')}).")
             req_id = res.get("request_id")
             msg = res.get("message", "Richiesta di approvazione richiesta.")
+            cmd_prev = res.get("command_preview")
+            cmd_pref = res.get("command_prefix")
+            risk_rsn = res.get("risk_reason")
+
+            q = stream_queue.get()
+            if q:
+                q.put({
+                    "type": "approval_required",
+                    "request_id": req_id,
+                    "tool_name": tool_name,
+                    "arguments": arguments,
+                    "command_preview": cmd_prev,
+                    "command_prefix": cmd_pref,
+                    "risk_reason": risk_rsn,
+                    "message": msg
+                })
+
             execution_trace.append({
                 "step_id": step_id,
                 "tool_name": tool_name,
@@ -463,7 +480,10 @@ def run_agent_loop(
                 "reasoning": selection.reasoning,
                 "approval_required": True,
                 "request_id": req_id,
-                "approval_prompt": msg
+                "approval_prompt": msg,
+                "command_preview": cmd_prev,
+                "command_prefix": cmd_pref,
+                "risk_reason": risk_rsn
             })
             return {
                 "final_response": msg,
@@ -471,7 +491,10 @@ def run_agent_loop(
                 "reasoning_content": selection.reasoning,
                 "approval_required": True,
                 "request_id": req_id,
-                "approval_prompt": msg
+                "approval_prompt": msg,
+                "command_preview": cmd_prev,
+                "command_prefix": cmd_pref,
+                "risk_reason": risk_rsn
             }
 
         res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)

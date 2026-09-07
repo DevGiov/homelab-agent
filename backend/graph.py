@@ -1017,6 +1017,23 @@ def execute_plan_node(state: AgentState) -> AgentState:
         log_entry = ExecutionLog(step, tool_name, resolved_args)
         execution_log.append(log_entry)
 
+        # Verifica guardrail di sicurezza e autorizzazioni
+        import guardrails as _gr
+        guard = _gr.enforce_guardrails(tool_name, resolved_args, thread_id=state.get("thread_id"), mode="plan")
+        if guard:
+            if guard.get("blocked"):
+                has_error = True
+                err_msg = guard["reason"]
+                log_entry.error = err_msg
+                exec_lines.append(f"{step_id}. ⛔ `{desc}` — Bloccato dal guardrail di sicurezza: `{err_msg}`")
+                break
+            if guard.get("approval_required"):
+                has_error = True
+                err_msg = guard["message"]
+                log_entry.error = err_msg
+                exec_lines.append(f"{step_id}. ⚠️ `{desc}` — Richiede approvazione utente: `{guard.get('risk_reason')}` (ID: {guard.get('request_id')})")
+                break
+
         try:
             result = client.call_tool(tool_name, resolved_args)
             log_entry.result = result

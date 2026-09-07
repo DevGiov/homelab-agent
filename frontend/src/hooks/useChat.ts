@@ -38,6 +38,14 @@ function extractMessageVersion(msg: FormattedMessage): MessageVersion {
     model: msg.model,
     reasoningBudget: msg.reasoningBudget,
     images: msg.images,
+    approval_required: msg.approval_required,
+    request_id: msg.request_id,
+    approval_prompt: msg.approval_prompt,
+    command_preview: msg.command_preview,
+    command_prefix: msg.command_prefix,
+    risk_reason: msg.risk_reason,
+    approval_resolved: msg.approval_resolved,
+    approval_action: msg.approval_action,
   };
 }
 

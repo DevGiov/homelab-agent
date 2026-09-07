@@ -76,13 +76,7 @@ class ToolRegistryManager:
                             registry=reg_name, result={"approval_pending": guard["request_id"]},
                             is_error=False, duration_ms=0,
                         )
-                        return {
-                            "approval_required": True,
-                            "request_id": guard["request_id"],
-                            "message": guard["message"],
-                            "tool_name": tool_name,
-                            "arguments": args,
-                        }
+                        return guard
 
                 logger.info(f"Esecuzione tool '{tool_name}' tramite registry '{reg_name}'")
                 try:
@@ -115,7 +109,7 @@ class ToolRegistryManager:
             return {"error": "Richiesta non ancora approvata.", "status": req.status}
 
         logger.info(f"Esecuzione tool approvato '{req.tool_name}' (richiesta {request_id})")
-        return self.execute_tool(req.tool_name, req.arguments, ["metamcp", "web", "code", "memory"],
+        return self.execute_tool(req.tool_name, req.arguments, ["metamcp", "web", "code", "memory", "vision"],
                                  thread_id=req.thread_id, mode=req.mode)
 
     def execute_tools_parallel(self, calls: List[Dict[str, Any]], allowed_registries: List[str],
