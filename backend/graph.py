@@ -182,7 +182,7 @@ Conversazione:
 {text}
 
 Riassunto:"""
-    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, model=model, stream_mode="none")
+    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
     summary = summary_res.get("content", "") if isinstance(summary_res, dict) else ""
     return summary.strip() if summary else ""
 
@@ -1327,7 +1327,7 @@ def extract_salient_facts(task: str, response: str, memory_context: str, model: 
     
     Fatti salienti (elenca massimo 5 punti concisi, uno per riga):"""
 
-    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=300, temperature=0.3, model=model, stream_mode="none")
+    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
     raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
     if not raw:
         return []
