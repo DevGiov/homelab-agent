@@ -126,6 +126,8 @@ class OpenAICompatProvider(LLMProvider):
             payload["chat_template_kwargs"] = {"enable_thinking": True}
             if reasoning_budget > 0:
                 payload["reasoning_budget_tokens"] = reasoning_budget
+        else:
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
         if stream:
             payload["stream"] = True
             payload["stream_options"] = {"include_usage": True}
