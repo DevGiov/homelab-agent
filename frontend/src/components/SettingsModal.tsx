@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Lock,
+  Zap,
 } from 'lucide-react';
 import {
   getApiKey,
@@ -40,6 +41,7 @@ import {
   type ProviderInfo,
   type MemoryItem,
   type PermissionsListResponse,
+  type SecurityMode,
 } from '../api';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -131,10 +133,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     }
   };
 
+  const [securityMode, setSecurityMode] = useState<SecurityMode>(() => {
+    return (localStorage.getItem('homelab_security_mode') as SecurityMode) || 'normal';
+  });
+
+  const handleSecurityModeSelect = (mode: SecurityMode) => {
+    setSecurityMode(mode);
+    localStorage.setItem('homelab_security_mode', mode);
+    setSecurityMsg(`Modalità di sicurezza aggiornata a: ${mode.toUpperCase()}`);
+    setTimeout(() => setSecurityMsg(null), 3000);
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
     setLocalApiKey(getApiKey());
+    setSecurityMode((localStorage.getItem('homelab_security_mode') as SecurityMode) || 'normal');
     setError(null);
     setLoadingProviders(true);
 
@@ -659,6 +673,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   <span>{securityMsg}</span>
                 </div>
               )}
+
+              {/* Modalità di Rischio e Human-in-the-Loop */}
+              <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield size={15} className="text-accent" />
+                    <h4 className="text-xs font-semibold text-fg">
+                      Modalità di Rischio & Human-in-the-Loop
+                    </h4>
+                  </div>
+                  <span className="text-[10px] text-fg-muted font-mono">
+                    Sincronizzata con toolbar
+                  </span>
+                </div>
+                <p className="text-[11px] text-fg-muted leading-relaxed">
+                  Configura il comportamento di autorizzazione per i tool eseguiti dall'agent. Puoi cambiare modalità rapidamente anche tramite il selettore nella barra messaggi.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                  {/* Safest */}
+                  <div
+                    onClick={() => handleSecurityModeSelect('safest')}
+                    className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                      securityMode === 'safest'
+                        ? 'bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/40'
+                        : 'bg-black/20 border-border hover:border-emerald-500/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                          <Shield size={13} />
+                          <span>Safest</span>
+                        </div>
+                        {securityMode === 'safest' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-fg-muted leading-snug">
+                        Qualunque tool esterno (inclusi VIEW come <code>get_container_status</code>) richiede conferma esplicita. Web search e memoria rimangono libere.
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[9px] font-medium text-emerald-300/80 uppercase tracking-wider">
+                      Massima Sicurezza
+                    </div>
+                  </div>
+
+                  {/* Normal */}
+                  <div
+                    onClick={() => handleSecurityModeSelect('normal')}
+                    className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                      securityMode === 'normal'
+                        ? 'bg-accent/15 border-accent ring-1 ring-accent/40'
+                        : 'bg-black/20 border-border hover:border-accent/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                          <ShieldCheck size={13} />
+                          <span>Normal</span>
+                        </div>
+                        {securityMode === 'normal' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-fg-muted leading-snug">
+                        I tool <strong>VIEW</strong> (lettura) sono automatici. Tool di scrittura e comandi shell richiedono conferma (con allow-list comandi sicuri).
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[9px] font-medium text-accent uppercase tracking-wider">
+                      Bilanciata (Default)
+                    </div>
+                  </div>
+
+                  {/* Dangerous */}
+                  <div
+                    onClick={() => handleSecurityModeSelect('dangerous')}
+                    className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                      securityMode === 'dangerous'
+                        ? 'bg-rose-950/40 border-rose-500/60 ring-1 ring-rose-500/40'
+                        : 'bg-black/20 border-border hover:border-rose-500/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400">
+                          <Zap size={13} />
+                          <span>Dangerous</span>
+                        </div>
+                        {securityMode === 'dangerous' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-fg-muted leading-snug">
+                        Esecuzione autonoma senza prompt UI. La salvaguardia deterministica Tier 1 (<code>rm -rf /</code>) rimane comunque <strong>attiva e inviolabile</strong>.
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[9px] font-medium text-rose-400/80 uppercase tracking-wider">
+                      Autonoma (No Prompt)
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Tier 1: Guardrail Automatici */}
               <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5">

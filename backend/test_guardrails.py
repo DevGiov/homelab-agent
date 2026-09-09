@@ -20,8 +20,10 @@ class TestGuardrailsClassification(unittest.TestCase):
         self.assertEqual(guardrails.classify_tool("exec_host_command"), "risky")
 
     def test_write_tools(self):
-        self.assertEqual(guardrails.classify_tool("allocate_ip"), "write")
-        self.assertEqual(guardrails.classify_tool("create_npm_proxy_host"), "write")
+        self.assertEqual(guardrails.classify_tool("allocate_ip"), "risky")
+        self.assertEqual(guardrails.classify_tool("create_npm_proxy_host"), "risky")
+        self.assertEqual(guardrails.get_tool_metadata("allocate_ip")["action_type"], "execute")
+        self.assertEqual(guardrails.get_tool_metadata("create_npm_proxy_host")["action_type"], "execute")
 
 
 class TestShellGuard(unittest.TestCase):

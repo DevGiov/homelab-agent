@@ -27,8 +27,10 @@ import {
   X,
   Maximize2,
   Loader2,
+  Shield,
+  ShieldCheck,
 } from 'lucide-react';
-import { type FormattedMessage, type AgentMode, getProviders, getProviderModelsWithDetails, isImageFile, optimizeAndConvertImage, type ModelDetail } from './api';
+import { type FormattedMessage, type AgentMode, type SecurityMode, getProviders, getProviderModelsWithDetails, isImageFile, optimizeAndConvertImage, type ModelDetail } from './api';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { InlineApprovalCard } from './components/InlineApprovalCard';
@@ -48,7 +50,8 @@ interface ChatProps {
     model?: string,
     incognito?: boolean,
     webSearch?: boolean,
-    images?: string[]
+    images?: string[],
+    securityMode?: SecurityMode
   ) => Promise<void>;
   onRegenerate?: (assistantMsgId: string) => Promise<void> | void;
   onEditPrompt?: (
@@ -96,6 +99,14 @@ export const Chat: React.FC<ChatProps> = ({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isIncognito, setIsIncognito] = useState<boolean>(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
+  const [securityMode, setSecurityMode] = useState<SecurityMode>(() => {
+    return (localStorage.getItem('homelab_security_mode') as SecurityMode) || 'normal';
+  });
+
+  const handleSecurityModeChange = (mode: SecurityMode) => {
+    setSecurityMode(mode);
+    localStorage.setItem('homelab_security_mode', mode);
+  };
 
   // Copy & Inline Edit State
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -241,7 +252,8 @@ export const Chat: React.FC<ChatProps> = ({
       modelToPass,
       isIncognito,
       webSearchEnabled,
-      imagesToSend.length > 0 ? imagesToSend : undefined
+      imagesToSend.length > 0 ? imagesToSend : undefined,
+      securityMode
     );
     setInput('');
     setPendingImages([]);
@@ -622,7 +634,7 @@ export const Chat: React.FC<ChatProps> = ({
                           <PlanViewer
                             planSteps={msg.plan_steps}
                             planStructure={msg.plan_structure}
-                            onExecutePlan={(summary) => onSendMessage(summary, 'act', true)}
+                            onExecutePlan={(summary) => onSendMessage(summary, 'act', true, undefined, undefined, undefined, undefined, undefined, securityMode)}
                             isLoading={isLoading}
                           />
                         )}
@@ -843,6 +855,49 @@ export const Chat: React.FC<ChatProps> = ({
       {/* Input Bar */}
       <div className="p-3 sm:p-4 border-t border-border glass-input-bar shrink-0 flex flex-col gap-2">
         <div className="max-w-4xl mx-auto w-full flex justify-end gap-2 items-center flex-wrap">
+          {/* Security / Risk Mode Selector */}
+          <div className="flex items-center glass-card border border-border rounded-lg p-0.5 text-[11px] gap-0.5 shadow-sm">
+            <button
+              type="button"
+              onClick={() => handleSecurityModeChange('safest')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                securityMode === 'safest'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
+                  : 'text-fg-muted hover:text-fg hover:bg-white/5'
+              }`}
+              title="Safest: Qualunque tool esterno richiede approvazione esplicita (eccetto web search e memoria)"
+            >
+              <Shield size={11} className={securityMode === 'safest' ? 'text-emerald-400' : 'text-fg-muted'} />
+              <span>Safest</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSecurityModeChange('normal')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                securityMode === 'normal'
+                  ? 'bg-accent/20 text-accent border border-accent/40 shadow-xs'
+                  : 'text-fg-muted hover:text-fg hover:bg-white/5'
+              }`}
+              title="Normal: I tool VIEW (lettura) sono automatici; i comandi di scrittura/shell richiedono conferma"
+            >
+              <ShieldCheck size={11} className={securityMode === 'normal' ? 'text-accent' : 'text-fg-muted'} />
+              <span>Normal</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSecurityModeChange('dangerous')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                securityMode === 'dangerous'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-xs'
+                  : 'text-fg-muted hover:text-fg hover:bg-white/5'
+              }`}
+              title="Dangerous: Esecuzione autonoma senza prompt UI (salvaguardia Tier 1 rm -rf / resta comunque attiva)"
+            >
+              <Zap size={11} className={securityMode === 'dangerous' ? 'text-rose-400' : 'text-fg-muted'} />
+              <span>Dangerous</span>
+            </button>
+          </div>
+
           {/* Incognito Mode Toggle */}
           <button
             type="button"

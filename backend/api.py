@@ -100,7 +100,7 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, images: Optional[List[str]] = None) -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -123,7 +123,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "plan": {},
         "tool_result": None,
         "final_response": "",
-        "incognito": incognito
+        "incognito": incognito,
+        "security_mode": security_mode,
     }
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
@@ -172,6 +173,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             command_preview=final_state.get("command_preview"),
             command_prefix=final_state.get("command_prefix"),
             risk_reason=final_state.get("risk_reason"),
+            security_mode=final_state.get("security_mode", security_mode),
         )
 
         # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
@@ -267,27 +269,27 @@ def _limit(rate: str):
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
 async def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images)
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 # Gestione upload file multimodali
 import os
@@ -352,7 +354,7 @@ async def get_uploaded_file(filename: str):
         headers={"X-Content-Type-Options": "nosniff"}
     )
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None, images: Optional[List[str]] = None):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal"):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -375,7 +377,8 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "plan": {},
         "tool_result": None,
         "final_response": "",
-        "incognito": incognito
+        "incognito": incognito,
+        "security_mode": security_mode,
     }
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
@@ -435,6 +438,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                     command_preview=final_state.get("command_preview"),
                     command_prefix=final_state.get("command_prefix"),
                     risk_reason=final_state.get("risk_reason"),
+                    security_mode=final_state.get("security_mode", security_mode),
                 )
                 if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
@@ -501,6 +505,7 @@ async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
         web_search=req.web_search,
         request=request,
         images=req.images,
+        security_mode=req.security_mode or "normal",
     )
 
 @api.get("/v1/threads/{thread_id}/stream", dependencies=[Depends(verify_api_key)])

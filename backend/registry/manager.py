@@ -48,7 +48,8 @@ class ToolRegistryManager:
         return tools
 
     def execute_tool(self, tool_name: str, args: Dict[str, Any], allowed_registries: List[str],
-                     thread_id: Optional[str] = None, mode: Optional[str] = None) -> Any:
+                     thread_id: Optional[str] = None, mode: Optional[str] = None,
+                     security_mode: str = "normal") -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit."""
         start_ms = time.monotonic() * 1000
 
@@ -61,7 +62,7 @@ class ToolRegistryManager:
             tool_names = [t.get("name") for t in reg_tools if isinstance(t, dict)]
             if tool_name in tool_names:
                 # --- Guardrail + Approval workflow (Fase 3.2) ---
-                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode)
+                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=security_mode)
                 if guard is not None:
                     if guard.get("blocked"):
                         audit_log.log_tool_call(
@@ -110,16 +111,16 @@ class ToolRegistryManager:
 
         logger.info(f"Esecuzione tool approvato '{req.tool_name}' (richiesta {request_id})")
         return self.execute_tool(req.tool_name, req.arguments, ["metamcp", "web", "code", "memory", "vision"],
-                                 thread_id=req.thread_id, mode=req.mode)
+                                 thread_id=req.thread_id, mode=req.mode, security_mode="dangerous")
 
     def execute_tools_parallel(self, calls: List[Dict[str, Any]], allowed_registries: List[str],
                                thread_id: Optional[str] = None, mode: Optional[str] = None,
-                               max_workers: int = 4) -> List[Any]:
+                               security_mode: str = "normal", max_workers: int = 4) -> List[Any]:
         """Esegue in parallelo più tool read-only (Fase 3.3). Ordine dei risultati = ordine delle chiamate."""
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [
                 pool.submit(self.execute_tool, c["tool_name"], c.get("arguments", {}),
-                            allowed_registries, thread_id=thread_id, mode=mode)
+                            allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode)
                 for c in calls
             ]
             return [f.result() for f in futures]

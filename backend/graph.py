@@ -123,6 +123,7 @@ class AgentState(TypedDict, total=False):
     command_preview: Optional[str]
     command_prefix: Optional[str]
     risk_reason: Optional[str]
+    security_mode: Optional[str]
 
 
 client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
@@ -779,6 +780,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
         images=state.get("images"),
+        security_mode=state.get("security_mode") or "normal",
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool", images=None: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase, images=images if images is not None else state.get("images"))
     )
@@ -1158,6 +1160,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         thread_id=state.get("thread_id"),
         web_prefetch_data=state.get("web_prefetch_data"),
         images=state.get("images"),
+        security_mode=state.get("security_mode") or "normal",
         call_llm_fn=lambda p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None: _call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state.get("images")),
         call_llm_structured_fn=lambda prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool", images=None: _call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase, images=images if images is not None else state.get("images"))
     )
@@ -1177,6 +1180,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         "command_preview": loop_res.get("command_preview"),
         "command_prefix": loop_res.get("command_prefix"),
         "risk_reason": loop_res.get("risk_reason"),
+        "security_mode": state.get("security_mode") or "normal",
     }
 
 
@@ -1520,6 +1524,7 @@ def respond_node(state: AgentState) -> AgentState:
         "command_preview": state.get("command_preview"),
         "command_prefix": state.get("command_prefix"),
         "risk_reason": state.get("risk_reason"),
+        "security_mode": state.get("security_mode") or "normal",
     }
 
 def commit_memory_node(state: AgentState) -> AgentState:

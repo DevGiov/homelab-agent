@@ -156,13 +156,16 @@ def _parse_openapi_to_tools(openapi: dict) -> List[Dict[str, Any]]:
 
 
 def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
-    """Formatta il catalogo dinamico in modo compatto per il prompt LLM."""
+    """Formatta il catalogo dinamico in modo compatto per il prompt LLM con tag [VIEW] ed [EXECUTE]."""
+    from guardrails import is_view_tool
     lines = []
     for t in tools:
+        name = t.get("name", "")
         params_dict = t.get("parameters", {})
         props = params_dict.get("properties", {}) if isinstance(params_dict, dict) else {}
         params_summary = ", ".join(props.keys()) if isinstance(props, dict) else ""
-        lines.append(f"- `{t['name']}`: {t['description']} (args: {params_summary or 'nessuno'})")
+        badge = "[VIEW]" if is_view_tool(name) else "[EXECUTE]"
+        lines.append(f"- `{name}` {badge}: {t.get('description', '')} (args: {params_summary or 'nessuno'})")
     return "\n".join(lines)
 
 

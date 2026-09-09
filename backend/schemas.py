@@ -13,6 +13,7 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None
     incognito: bool = False
     web_search: bool = False
+    security_mode: Optional[Literal["safest", "normal", "dangerous"]] = "normal"
 
 class ChatResponse(BaseModel):
     thread_id: Optional[str] = None
@@ -33,6 +34,7 @@ class ChatResponse(BaseModel):
     command_preview: Optional[str] = None
     command_prefix: Optional[str] = None
     risk_reason: Optional[str] = None
+    security_mode: Optional[str] = None
 
 
 class ThreadControlRequest(BaseModel):

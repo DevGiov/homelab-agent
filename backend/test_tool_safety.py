@@ -241,5 +241,155 @@ class TestMetaMCPPrefixAndRouter(unittest.TestCase):
         self.assertEqual(m4, "act")
 
 
+class TestSecurityModesAndContentAwareGuardrails(unittest.TestCase):
+    def setUp(self):
+        guardrails._APPROVALS.clear()
+        permissions._SESSION_PERMISSIONS.clear()
+        conn = permissions._get_conn()
+        conn.execute("DELETE FROM tool_permissions WHERE created_by = 'test_runner'")
+        conn.commit()
+        conn.close()
+
+    def tearDown(self):
+        conn = permissions._get_conn()
+        conn.execute("DELETE FROM tool_permissions WHERE created_by = 'test_runner'")
+        conn.commit()
+        conn.close()
+
+    def test_safest_mode_requires_approval_even_for_view_tools(self):
+        """In Safest mode, even read-only VIEW tools require explicit approval."""
+        res_view = guardrails.enforce_guardrails(
+            "get_container_status",
+            {"vmid": 125},
+            thread_id="t_safest",
+            security_mode="safest"
+        )
+        self.assertIsNotNone(res_view)
+        self.assertTrue(res_view.get("approval_required"))
+        self.assertEqual(res_view.get("security_mode"), "safest")
+
+        # But web_search and memory are exempted
+        res_web = guardrails.enforce_guardrails(
+            "web_search",
+            {"query": "proxmox lxc documentation"},
+            thread_id="t_safest",
+            security_mode="safest"
+        )
+        self.assertIsNone(res_web)
+
+        res_mem = guardrails.enforce_guardrails(
+            "recall_memory",
+            {"query": "network setup"},
+            thread_id="t_safest",
+            security_mode="safest"
+        )
+        self.assertIsNone(res_mem)
+
+    def test_dangerous_mode_bypasses_approvals_but_enforces_tier1(self):
+        """In Dangerous mode, tools execute autonomously without UI cards, but Tier 1 blocks remain absolute."""
+        # Mutating commands execute without approval
+        res_exec = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "systemctl restart backend"},
+            thread_id="t_danger",
+            security_mode="dangerous"
+        )
+        self.assertIsNone(res_exec)
+
+        res_rm = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "rm /tmp/unneeded.log"},
+            thread_id="t_danger",
+            security_mode="dangerous"
+        )
+        self.assertIsNone(res_rm)
+
+        # Destructive Tier 1 command MUST be blocked even in dangerous mode
+        res_tier1 = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "rm -rf /"},
+            thread_id="t_danger",
+            security_mode="dangerous"
+        )
+        self.assertIsNotNone(res_tier1)
+        self.assertTrue(res_tier1.get("blocked"))
+        self.assertIn("vietato categoricamente", res_tier1.get("reason", ""))
+
+    def test_normal_mode_view_tools_run_automatically(self):
+        """In Normal mode, purely read-only VIEW tools run without approval prompts."""
+        for tool in ["list_containers", "get_container_status", "list_templates", "list_pihole_dns_records"]:
+            res = guardrails.enforce_guardrails(tool, {}, thread_id="t_norm", security_mode="normal")
+            self.assertIsNone(res, f"VIEW tool {tool} should execute without prompting in normal mode")
+
+    def test_normal_mode_content_aware_shell_inspection_and_thread_allowlist(self):
+        """
+        In Normal mode:
+        1. Read commands (ls, df, cat) require approval first.
+        2. Approving with 'approve_thread' enables safe reads to run freely in this thread.
+        3. Mutating commands (rm, touch, redirection >) still require separate approval!
+        4. Approving a mutating command adds only that command to the thread allow-list.
+        """
+        thread_id = "t_content_aware"
+
+        # 1. First safe-read command triggers approval
+        args_ls = {"vmid": 125, "command": "ls -la /opt"}
+        res1 = guardrails.enforce_guardrails("exec_lxc_command", args_ls, thread_id=thread_id, security_mode="normal")
+        self.assertIsNotNone(res1)
+        self.assertTrue(res1.get("approval_required"))
+        req_id1 = res1["request_id"]
+
+        # Approve for the whole thread
+        guardrails.resolve_approval(req_id1, action="approve_thread", resolved_by="test_user")
+
+        # 2. Subsequent safe-read commands run transparently in this thread
+        res_df = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "df -h /opt"},
+            thread_id=thread_id,
+            security_mode="normal"
+        )
+        self.assertIsNone(res_df, "Safe read 'df -h' should run without approval after thread approval")
+
+        res_cat = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "cat /etc/hosts"},
+            thread_id=thread_id,
+            security_mode="normal"
+        )
+        self.assertIsNone(res_cat, "Safe read 'cat' should run without approval after thread approval")
+
+        # 3. But a mutating command (e.g. rm) STILL requires explicit approval!
+        args_rm = {"vmid": 125, "command": "rm /tmp/cache.tmp"}
+        res_rm = guardrails.enforce_guardrails("exec_lxc_command", args_rm, thread_id=thread_id, security_mode="normal")
+        self.assertIsNotNone(res_rm)
+        self.assertTrue(res_rm.get("approval_required"))
+        self.assertEqual(res_rm.get("command_prefix"), "rm")
+        req_id_rm = res_rm["request_id"]
+
+        # 4. Redirection > is also caught as a mutating write
+        args_redir = {"vmid": 125, "command": "echo test > /tmp/output.txt"}
+        res_redir = guardrails.enforce_guardrails("exec_lxc_command", args_redir, thread_id=thread_id, security_mode="normal")
+        self.assertIsNotNone(res_redir)
+        self.assertTrue(res_redir.get("approval_required"))
+
+        # 5. Approve 'rm' for this thread
+        guardrails.resolve_approval(req_id_rm, action="approve_thread", resolved_by="test_user")
+
+        # Now subsequent 'rm' in this thread runs without approval
+        res_rm2 = guardrails.enforce_guardrails(
+            "exec_lxc_command",
+            {"vmid": 125, "command": "rm /tmp/another.tmp"},
+            thread_id=thread_id,
+            security_mode="normal"
+        )
+        self.assertIsNone(res_rm2, "Subsequent 'rm' should run without approval after rm was authorized for thread")
+
+        # But another mutating command (e.g. systemctl restart) still requires approval!
+        args_sys = {"vmid": 125, "command": "systemctl restart docker"}
+        res_sys = guardrails.enforce_guardrails("exec_lxc_command", args_sys, thread_id=thread_id, security_mode="normal")
+        self.assertIsNotNone(res_sys)
+        self.assertTrue(res_sys.get("approval_required"))
+
+
 if __name__ == "__main__":
     unittest.main()

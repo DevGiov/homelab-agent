@@ -46,6 +46,8 @@ api.interceptors.request.use((config) => {
 
 export type AgentMode = 'chat' | 'ask' | 'act' | 'plan';
 
+export type SecurityMode = 'safest' | 'normal' | 'dangerous';
+
 export interface WebPrefetchSource {
   title: string;
   url: string;
@@ -75,6 +77,7 @@ export interface ChatRequest {
   incognito?: boolean;
   web_search?: boolean;
   images?: string[];
+  security_mode?: SecurityMode;
 }
 
 export interface ExecutionTraceItem {
@@ -148,6 +151,7 @@ export interface ChatResponse {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  security_mode?: SecurityMode;
 }
 
 export interface ThreadItem {
@@ -205,6 +209,7 @@ export interface MessageVersion {
   risk_reason?: string;
   approval_resolved?: boolean;
   approval_action?: string;
+  security_mode?: SecurityMode;
 }
 
 export interface FormattedMessage extends MessageVersion {
@@ -456,6 +461,7 @@ export interface ApprovalItem {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  security_mode?: SecurityMode;
 }
 
 export interface PermissionItem {

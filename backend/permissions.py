@@ -56,7 +56,7 @@ init_permissions_db()
 
 
 def extract_command_prefix(args: Dict[str, Any]) -> Optional[str]:
-    """Estrae un prefisso significativo per comandi shell (es. 'systemctl status', 'apt install', 'git pull')."""
+    """Estrae un prefisso significativo normalizzato per comandi shell (es. 'ls', 'pwd', 'rm', 'systemctl status')."""
     if not isinstance(args, dict):
         return None
     raw_cmd = args.get("command") or args.get("cmd")
@@ -73,7 +73,6 @@ def extract_command_prefix(args: Dict[str, Any]) -> Optional[str]:
         return None
 
     first = tokens[0].lower()
-    # Se il primo token è sudo / env / nohup / timeout, prendi il comando successivo
     idx = 0
     while idx < len(tokens) and tokens[idx].lower() in ("sudo", "env", "nohup", "timeout"):
         idx += 1
@@ -83,9 +82,9 @@ def extract_command_prefix(args: Dict[str, Any]) -> Optional[str]:
     if idx >= len(tokens):
         return first
 
-    cmd = tokens[idx]
+    cmd = tokens[idx].lower()
     if len(tokens) > idx + 1 and cmd in ("systemctl", "apt", "apt-get", "docker", "git", "pct", "qm", "ip", "service"):
-        return f"{cmd} {tokens[idx + 1]}"
+        return f"{cmd} {tokens[idx + 1].lower()}"
     return cmd
 
 
@@ -96,9 +95,43 @@ def normalize_tool_name(tool_name: str) -> str:
     return re.sub(r'^[a-zA-Z0-9_-]+__', '', tool_name)
 
 
-def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optional[str] = None) -> bool:
-    """Verifica se il tool (o il comando specifico) è già stato pre-approvato per questo thread o a livello globale."""
+def is_tool_level_approved(tool_name: str, thread_id: Optional[str] = None) -> bool:
+    """Verifica se il tool stesso è stato autorizzato a livello generale (tool-level) per questo thread o a livello globale."""
     if not tool_name:
+        return False
+    clean_name = normalize_tool_name(tool_name)
+    candidates = [tool_name]
+    if clean_name and clean_name != tool_name:
+        candidates.append(clean_name)
+
+    if thread_id:
+        with _session_lock:
+            thread_perms = _SESSION_PERMISSIONS.get(thread_id, set())
+            for c_name in candidates:
+                if c_name in thread_perms:
+                    return True
+
+    try:
+        conn = _get_conn()
+        c = conn.cursor()
+        placeholders = ",".join("?" * len(candidates))
+        c.execute(
+            f"SELECT 1 FROM tool_permissions WHERE tool_name IN ({placeholders}) AND (command_prefix IS NULL OR command_prefix = '') AND scope = 'always'",
+            tuple(candidates)
+        )
+        row = c.fetchone()
+        conn.close()
+        if row:
+            return True
+    except Exception as e:
+        logger.warning(f"Errore lettura permessi tool_level: {e}")
+
+    return False
+
+
+def is_command_preapproved(tool_name: str, cmd_prefix: Optional[str], thread_id: Optional[str] = None) -> bool:
+    """Verifica se lo specifico comando/prefisso è nella allow-list del thread o globale (ALWAYS)."""
+    if not tool_name or not cmd_prefix:
         return False
 
     clean_name = normalize_tool_name(tool_name)
@@ -106,40 +139,65 @@ def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optiona
     if clean_name and clean_name != tool_name:
         candidates.append(clean_name)
 
-    cmd_prefix = extract_command_prefix(args)
+    normalized_prefix = cmd_prefix.strip().lower()
 
-    # 1. Verifica permessi di sessione (THREAD)
+    # 1. Allow-list di sessione (THREAD)
     if thread_id:
         with _session_lock:
             thread_perms = _SESSION_PERMISSIONS.get(thread_id, set())
             for c_name in candidates:
-                if c_name in thread_perms:
-                    logger.info(f"Tool '{tool_name}' (match='{c_name}') pre-approvato per thread '{thread_id}' (tool-level)")
-                    return True
-                if cmd_prefix and f"{c_name}:{cmd_prefix}" in thread_perms:
-                    logger.info(f"Tool '{tool_name}' (match='{c_name}') pre-approvato per thread '{thread_id}' con prefisso '{cmd_prefix}'")
+                if f"{c_name}:{normalized_prefix}" in thread_perms:
                     return True
 
-    # 2. Verifica permessi persistenti (ALWAYS)
+    # 2. Allow-list permanente (ALWAYS in SQLite)
     try:
         conn = _get_conn()
         c = conn.cursor()
         placeholders = ",".join("?" * len(candidates))
-        c.execute(f"SELECT command_prefix FROM tool_permissions WHERE tool_name IN ({placeholders}) AND scope = 'always'", tuple(candidates))
+        c.execute(
+            f"SELECT command_prefix FROM tool_permissions WHERE tool_name IN ({placeholders}) AND scope = 'always'",
+            tuple(candidates)
+        )
         rows = c.fetchall()
         conn.close()
-
         for (row_prefix,) in rows:
-            if not row_prefix:  # Pre-approvato per intero tool
-                logger.info(f"Tool '{tool_name}' pre-approvato a livello globale (ALWAYS)")
-                return True
-            if cmd_prefix and row_prefix.lower() == cmd_prefix.lower():
-                logger.info(f"Tool '{tool_name}' pre-approvato a livello globale con prefisso '{cmd_prefix}' (ALWAYS)")
+            if row_prefix and row_prefix.strip().lower() == normalized_prefix:
                 return True
     except Exception as e:
-        logger.warning(f"Errore lettura permessi persistenti per tool '{tool_name}': {e}")
+        logger.warning(f"Errore lettura command allow-list da DB: {e}")
 
     return False
+
+
+def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optional[str] = None) -> bool:
+    """
+    Verifica se il tool (o il comando specifico se shell) è già stato pre-approvato.
+    Per tool shell:
+      - se il comando è già nella allow-list specifica (command_prefix) -> True
+      - se il tool è approvato a livello generale nel thread e il comando è safe-read -> True
+    Per tool non-shell, verifica l'approvazione a livello di tool.
+    """
+    if not tool_name:
+        return False
+
+    clean_name = normalize_tool_name(tool_name)
+    cmd_prefix = extract_command_prefix(args)
+
+    if clean_name in ("exec_lxc_command", "exec_host_command"):
+        if cmd_prefix and is_command_preapproved(tool_name, cmd_prefix, thread_id):
+            return True
+        if is_tool_level_approved(tool_name, thread_id):
+            raw_cmd = args.get("command") or args.get("cmd") or ""
+            try:
+                from guardrails import analyze_shell_command_nature
+                nature, _, _ = analyze_shell_command_nature(str(raw_cmd))
+                if nature == "safe_read":
+                    return True
+            except Exception:
+                pass
+        return False
+
+    return is_tool_level_approved(tool_name, thread_id)
 
 
 def grant_permission(
@@ -152,19 +210,26 @@ def grant_permission(
     """Concede un permesso per un dato tool con scope 'thread' o 'always'."""
     scope = scope.lower().strip()
     clean_name = normalize_tool_name(tool_name)
+    normalized_prefix = command_prefix.strip().lower() if command_prefix else None
 
     if scope in ("thread", "session") and thread_id:
         with _session_lock:
             if thread_id not in _SESSION_PERMISSIONS:
                 _SESSION_PERMISSIONS[thread_id] = set()
-            key = f"{tool_name}:{command_prefix}" if command_prefix else tool_name
-            _SESSION_PERMISSIONS[thread_id].add(key)
+            
+            # Se è presente un prefisso comando, salva il permesso granulare per comando
+            if normalized_prefix:
+                _SESSION_PERMISSIONS[thread_id].add(f"{tool_name}:{normalized_prefix}")
+                if clean_name and clean_name != tool_name:
+                    _SESSION_PERMISSIONS[thread_id].add(f"{clean_name}:{normalized_prefix}")
+            
+            # Salva anche il permesso a livello tool (per sbloccare comandi safe-read)
+            _SESSION_PERMISSIONS[thread_id].add(tool_name)
             if clean_name and clean_name != tool_name:
-                key_clean = f"{clean_name}:{command_prefix}" if command_prefix else clean_name
-                _SESSION_PERMISSIONS[thread_id].add(key_clean)
+                _SESSION_PERMISSIONS[thread_id].add(clean_name)
 
-        logger.info(f"Permesso concesso: tool='{tool_name}' scope=thread thread_id='{thread_id}' prefix='{command_prefix}'")
-        return {"tool_name": tool_name, "scope": "thread", "thread_id": thread_id, "command_prefix": command_prefix}
+        logger.info(f"Permesso concesso: tool='{tool_name}' scope=thread thread_id='{thread_id}' prefix='{normalized_prefix}'")
+        return {"tool_name": tool_name, "scope": "thread", "thread_id": thread_id, "command_prefix": normalized_prefix}
 
     elif scope in ("always", "global"):
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -175,16 +240,16 @@ def grant_permission(
             c.execute("""
                 INSERT INTO tool_permissions (tool_name, command_prefix, scope, created_at, created_by)
                 VALUES (?, ?, 'always', ?, ?)
-            """, (canonical_name, command_prefix, now_iso, created_by))
+            """, (canonical_name, normalized_prefix, now_iso, created_by))
             perm_id = c.lastrowid
             conn.commit()
             conn.close()
-            logger.info(f"Permesso persistente salvato: id={perm_id} tool='{canonical_name}' prefix='{command_prefix}'")
+            logger.info(f"Permesso persistente salvato: id={perm_id} tool='{canonical_name}' prefix='{normalized_prefix}'")
             return {
                 "id": perm_id,
                 "tool_name": canonical_name,
                 "scope": "always",
-                "command_prefix": command_prefix,
+                "command_prefix": normalized_prefix,
                 "created_at": now_iso
             }
         except Exception as e:

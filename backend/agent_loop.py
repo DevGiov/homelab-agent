@@ -75,6 +75,7 @@ def run_agent_loop(
     thread_id: Optional[str] = None,
     web_prefetch_data: Optional[Dict[str, Any]] = None,
     images: Optional[List[str]] = None,
+    security_mode: str = "normal",
 ) -> Dict[str, Any]:
     """
     Esegue il loop ReAct autonomo in base alla ModePolicy della modalità corrente.
@@ -193,15 +194,18 @@ def run_agent_loop(
             f"{vision_guidance}"
             f"Storico azioni eseguite in questo turno:\n{obs_context}\n\n"
             "REGOLE FONDAMENTALI DI SELEZIONE TOOL:\n"
-            "1. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, prezzi attuali, quotazioni, offerte commerciali o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), imposta `tool_needed=true` e seleziona `tool_name='web_search'`.\n"
-            "2. Se la richiesta richiede di operare su risorse homelab, file, configurazioni di rete, DNS o qualsiasi servizio gestito tramite l'ecosistema MCP, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
-            "3. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna, dall'immagine allegata o dal prefetch web senza ulteriori azioni (e non sono richiesti prezzi live o dati di mercato in tempo reale), imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
-            "4. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
-            "5. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
-            "6. SE HAI GIÀ ESEGUITO UN'AZIONE O UN TOOL (es. `inspect_image`, `web_search`, comandi di infrastruttura) e il risultato è presente nello 'Storico azioni eseguite in questo turno', l'informazione o l'azione è GIÀ STATA COMPLETATA: NON ripetere la stessa chiamata o tool analoghi. Imposta `tool_needed=false` e sintetizza il risultato in `final_answer` per l'utente.\n"
-            "7. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
-            "8. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`.\n"
-            "9. PREFERISCI SEMPRE I TOOL DEDICATI MCP: per creare o clonare container, consultare stati, gestire DNS o proxy, usa SEMPRE i tool specifici dedicati (es. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, ecc.). NON tentare comandi shell manuali grezzi come `exec_host_command` con `pct clone` o simili quando esiste un tool dedicato corrispondente."
+            "1. DISTINZIONE TOOL VIEW vs EXECUTE:\n"
+            "   - `[VIEW]`: tool puramente informativi/diagnostici di sola lettura (es. `get_container_status`, `list_containers`, `list_templates`, `web_search`). Vengono eseguiti automaticamente dal sistema senza bloccare l'agente.\n"
+            "   - `[EXECUTE]`: comandi shell su host/container ed operazioni che modificano risorse, DNS o configurazioni (es. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`). Fanno scattare la richiesta di conferma esplicita dell'utente tramite UI (HITL). Nel campo `reasoning`, spiega sempre con chiarezza quale azione intendi compiere prima di invocarli.\n"
+            "2. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, prezzi attuali, quotazioni, offerte commerciali o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), imposta `tool_needed=true` e seleziona `tool_name='web_search'`.\n"
+            "3. Se la richiesta richiede di operare su risorse homelab, file, configurazioni di rete, DNS o qualsiasi servizio gestito tramite l'ecosistema MCP, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
+            "4. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna, dall'immagine allegata o dal prefetch web senza ulteriori azioni (e non sono richiesti prezzi live o dati di mercato in tempo reale), imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
+            "5. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
+            "6. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
+            "7. SE HAI GIÀ ESEGUITO UN'AZIONE O UN TOOL (es. `inspect_image`, `web_search`, comandi di infrastruttura) e il risultato è presente nello 'Storico azioni eseguite in questo turno', l'informazione o l'azione è GIÀ STATA COMPLETATA: NON ripetere la stessa chiamata o tool analoghi. Imposta `tool_needed=false` e sintetizza il risultato in `final_answer` per l'utente.\n"
+            "8. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
+            "9. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`.\n"
+            "10. PREFERISCI SEMPRE I TOOL DEDICATI MCP: per creare o clonare container, consultare stati, gestire DNS o proxy, usa SEMPRE i tool specifici dedicati (es. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, ecc.). NON tentare comandi shell manuali grezzi come `exec_host_command` con `pct clone` o simili quando esiste un tool dedicato corrispondente."
         )
 
         if not call_llm_structured_fn:
@@ -339,7 +343,8 @@ def run_agent_loop(
             if len(readonly_calls) > 1:
                 logger.info(f"Step {step_id}: esecuzione parallela di {len(readonly_calls)} tool read-only")
                 results = manager.execute_tools_parallel(
-                    readonly_calls, policy.allowed_registries, thread_id=thread_id, mode=mode
+                    readonly_calls, policy.allowed_registries, thread_id=thread_id, mode=mode,
+                    security_mode=security_mode
                 )
                 for i, (call, res) in enumerate(zip(readonly_calls, results)):
                     execution_trace.append({
@@ -445,7 +450,7 @@ def run_agent_loop(
             is_cached = True
         else:
             try:
-                res = manager.execute_tool(tool_name, arguments, policy.allowed_registries, thread_id=thread_id, mode=mode)
+                res = manager.execute_tool(tool_name, arguments, policy.allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode)
                 import guardrails as _gr
                 if _gr.classify_tool(tool_name) == "safe":
                     call_cache[cache_key] = res
