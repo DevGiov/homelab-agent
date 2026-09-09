@@ -450,7 +450,7 @@ def run_agent_loop(
             is_cached = True
         else:
             try:
-                res = manager.execute_tool(tool_name, arguments, policy.allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode)
+                res = manager.execute_tool(tool_name, arguments, policy.allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode, task=task)
                 import guardrails as _gr
                 if _gr.classify_tool(tool_name) == "safe":
                     call_cache[cache_key] = res

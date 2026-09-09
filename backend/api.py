@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -21,7 +22,8 @@ import config
 import image_utils
 import letta_client
 import thread_store
-from graph import build_graph, stream_queue, stream_reasoning_phase_count
+from graph import _call_llm, build_graph, stream_queue, stream_reasoning_phase_count
+from text_utils import clean_synthesis_content
 from providers import (
     get_active_model_name,
     get_active_provider_name,
@@ -886,13 +888,73 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
 
     # Esecuzione del tool autorizzato
     result = get_registry_manager().execute_approved_tool(request_id)
+
+    # Recupera task utente associato alla richiesta
+    user_task = getattr(req, "task", None)
+    if not user_task and req.thread_id:
+        try:
+            msgs = thread_store.get_thread_messages(req.thread_id)
+            user_msgs = [m for m in msgs if m.get("sender") == "user"]
+            if user_msgs:
+                user_task = user_msgs[-1].get("content") or user_msgs[-1].get("text") or ""
+        except Exception as e:
+            logger.warning(f"Impossibile recuperare ultimo messaggio utente: {e}")
+
+    # Sintesi LLM del risultato
+    from registry.search_security import UNTRUSTED_CONTEXT_POLICY
+    res_str = json.dumps(result, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result)
+    obs_text = f"Tool '{req.tool_name}' con argomenti {json.dumps(req.arguments, ensure_ascii=False)} -> {res_str}"
+    if len(obs_text) > 4000:
+        obs_text = obs_text[:4000] + "\n... [output troncato per brevità]"
+
+    summary_system_prompt = (
+        f"Data e Ora Corrente del Sistema: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
+        f"Sei l'Agente AI dell'Homelab Proxmox VE. Sintetizza i risultati delle azioni in italiano.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}"
+    )
+    summary_prompt = (
+        f"Richiesta originale dell'utente: '{user_task or 'Esegui il comando richiesto'}'\n\n"
+        f"Risultato dell'azione autorizzata ed eseguita:\n{obs_text}\n\n"
+        f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
+        f"Interpreta l'output del tool, rispondi direttamente alla richiesta dell'utente "
+        f"e spiega chiaramente il risultato ottenuto (se vi sono errori come file o configurazioni mancanti o container inesistenti, indicalo chiaramente). "
+        f"Rispondi in prosa naturale (nessun JSON grezzo come unica risposta): questa è la risposta per l'utente."
+    )
+
+    synthesized_text = ""
+    try:
+        syn_res = _call_llm(
+            summary_prompt,
+            system_prompt=summary_system_prompt,
+            max_tokens=4096,
+            stream_mode="none",
+            reasoning_budget=0
+        )
+        raw_ans = syn_res.get("content", "") if syn_res else ""
+        synthesized_text = clean_synthesis_content(raw_ans)
+    except Exception as e:
+        logger.warning(f"Errore durante la sintesi LLM post-approvazione: {e}")
+
+    if not synthesized_text:
+        res_preview = res_str[:1500] + ("\n... [troncato]" if len(res_str) > 1500 else "")
+        synthesized_text = f"Tool `{req.tool_name}` approvato ed eseguito con successo.\n\n```json\n{res_preview}\n```"
+
+    trace = [
+        {
+            "step_id": 1,
+            "tool_name": req.tool_name,
+            "args": req.arguments,
+            "result": result,
+            "reasoning": f"Tool autorizzato dall'utente ({action})"
+        }
+    ]
+
     if req.thread_id:
-        res_summary = json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result)
-        if len(res_summary) > 2000:
-            res_summary = res_summary[:2000] + "\n... [risultato troncato]"
         thread_store.save_assistant_message(req.thread_id, {
-            "response": f"✅ **Tool `{req.tool_name}` approvato ed eseguito** (scope: {action}):\n\n```json\n{res_summary}\n```",
+            "response": synthesized_text,
             "tool_used": req.tool_name,
+            "execution_trace": trace,
+            "mode": req.mode or "act",
             "error": isinstance(result, dict) and bool(result.get("error"))
         })
 
@@ -901,7 +963,10 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
         "status": "approved",
         "action": action,
         "tool_name": req.tool_name,
-        "result": result
+        "arguments": req.arguments,
+        "result": result,
+        "response": synthesized_text,
+        "execution_trace": trace
     }
 
 @api.post("/v1/approvals/{request_id}/approve", dependencies=[Depends(verify_api_key)])

@@ -390,6 +390,25 @@ class TestSecurityModesAndContentAwareGuardrails(unittest.TestCase):
         self.assertIsNotNone(res_sys)
         self.assertTrue(res_sys.get("approval_required"))
 
+    def test_hardware_diagnostics_nature_and_classification(self):
+        """Verifica che nvidia-smi, sensors, lscpu e comandi diagnostici siano classificati come safe-read."""
+        for cmd in ["nvidia-smi", "sensors", "lscpu", "lspci", "lsblk", "zpool status"]:
+            nature, prefix, reason = guardrails.analyze_shell_command_nature(cmd)
+            self.assertEqual(nature, "safe_read", f"Comando '{cmd}' dovrebbe essere safe_read, non {nature}")
+
+        # In modalità normal, la prima esecuzione di nvidia-smi deve indicare diagnostica/lettura (non modificante)
+        t_id = "t_nvidia_test"
+        res = guardrails.enforce_guardrails("exec_host_command", {"command": "nvidia-smi"}, thread_id=t_id, security_mode="normal")
+        self.assertIsNotNone(res)
+        self.assertTrue(res.get("approval_required"))
+        self.assertIn("sola lettura/diagnostica", res.get("risk_reason", ""))
+        self.assertNotIn("modificante", res.get("risk_reason", ""))
+
+        # Dopo approvazione per la chat, nvidia-smi viene auto-eseguito
+        guardrails.resolve_approval(res["request_id"], action="approve_thread")
+        res2 = guardrails.enforce_guardrails("exec_host_command", {"command": "nvidia-smi"}, thread_id=t_id, security_mode="normal")
+        self.assertIsNone(res2, "nvidia-smi dovrebbe auto-eseguirsi dopo autorizzazione chat")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,7 +49,7 @@ class ToolRegistryManager:
 
     def execute_tool(self, tool_name: str, args: Dict[str, Any], allowed_registries: List[str],
                      thread_id: Optional[str] = None, mode: Optional[str] = None,
-                     security_mode: str = "normal") -> Any:
+                     security_mode: str = "normal", task: Optional[str] = None) -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit."""
         start_ms = time.monotonic() * 1000
 
@@ -62,7 +62,7 @@ class ToolRegistryManager:
             tool_names = [t.get("name") for t in reg_tools if isinstance(t, dict)]
             if tool_name in tool_names:
                 # --- Guardrail + Approval workflow (Fase 3.2) ---
-                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=security_mode)
+                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=security_mode, task=task)
                 if guard is not None:
                     if guard.get("blocked"):
                         audit_log.log_tool_call(

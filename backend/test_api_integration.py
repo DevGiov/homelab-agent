@@ -105,6 +105,46 @@ class TestApiEndpoints(unittest.TestCase):
         r = self.client.post("/v1/approvals/apr_inesistente/approve")
         self.assertEqual(r.status_code, 404)
 
+    def test_resolve_approval_with_synthesis_and_trace(self):
+        import guardrails
+        import thread_store
+        from unittest.mock import patch
+
+        t_id = "t_synth_unit_test"
+        # Inizializza messaggio utente nel thread
+        thread_store.save_user_message(t_id, "Elenca i file nella cartella /opt")
+
+        # Crea richiesta di approvazione associata al task
+        req = guardrails.create_approval_request(
+            tool_name="exec_lxc_command",
+            arguments={"vmid": 125, "command": "ls /opt"},
+            thread_id=t_id,
+            mode="act",
+            risk_reason="Test diagnostic read",
+            task="Elenca i file nella cartella /opt"
+        )
+        rid = req.request_id
+
+        mock_tool_result = {"vmid": 125, "stdout": "containerd\nhomelab-agent\n", "exit_code": 0}
+        with patch("registry.manager.ToolRegistryManager.execute_approved_tool", return_value=mock_tool_result):
+            with patch("graph._call_llm", return_value={"content": "Nella directory /opt sono presenti: containerd e homelab-agent."}):
+                r = self.client.post(f"/v1/approvals/{rid}/resolve", json={"action": "approve"})
+                self.assertEqual(r.status_code, 200)
+                data = r.json()
+                self.assertEqual(data["status"], "approved")
+                self.assertEqual(data["action"], "approve")
+                self.assertEqual(data["tool_name"], "exec_lxc_command")
+                self.assertIn("containerd", data["response"])
+                self.assertEqual(len(data["execution_trace"]), 1)
+                self.assertEqual(data["execution_trace"][0]["tool_name"], "exec_lxc_command")
+
+                # Verifica salvataggio su thread_store
+                msgs = thread_store.get_thread_messages(t_id)
+                ast_msgs = [m for m in msgs if m.get("sender") == "assistant"]
+                self.assertTrue(len(ast_msgs) >= 1)
+                self.assertIn("containerd", ast_msgs[-1]["content"])
+                self.assertIsNotNone(ast_msgs[-1].get("execution_trace"))
+
     def test_providers_endpoints(self):
         # 1. Get providers list
         r = self.client.get("/v1/providers")

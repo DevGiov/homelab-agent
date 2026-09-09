@@ -83,7 +83,12 @@ SAFE_READ_COMMAND_ROOTS = {
     "ping", "traceroute", "tracepath", "dig", "nslookup", "host",
     "journalctl", "dmesg",
     "git status", "git log", "git diff", "git branch", "git show",
-    "python -m unittest", "pytest", "python3 -m unittest"
+    "python -m unittest", "pytest", "python3 -m unittest",
+    # Hardware & System diagnostics (Safe-Read)
+    "nvidia-smi", "sensors", "lscpu", "lshw", "lspci", "lsusb", "lsblk",
+    "dmidecode", "arch", "which", "whereis", "type", "file", "stat",
+    "date", "timedatectl", "pveversion", "lsmod",
+    "zpool status", "zpool list", "zfs list"
 }
 
 SAFE_SUBCOMMAND_PREFIXES = [
@@ -284,7 +289,7 @@ class ApprovalRequest:
     __slots__ = (
         "request_id", "tool_name", "arguments", "thread_id", "mode",
         "created_at", "status", "resolved_by", "command_preview",
-        "risk_reason", "command_prefix"
+        "risk_reason", "command_prefix", "task"
     )
 
     def __init__(
@@ -296,7 +301,8 @@ class ApprovalRequest:
         mode: Optional[str],
         command_preview: Optional[str] = None,
         risk_reason: Optional[str] = None,
-        command_prefix: Optional[str] = None
+        command_prefix: Optional[str] = None,
+        task: Optional[str] = None
     ):
         self.request_id = request_id
         self.tool_name = tool_name
@@ -309,6 +315,7 @@ class ApprovalRequest:
         self.command_preview = command_preview
         self.risk_reason = risk_reason
         self.command_prefix = command_prefix
+        self.task = task
 
 
 _APPROVALS: Dict[str, ApprovalRequest] = {}
@@ -326,7 +333,8 @@ def create_approval_request(
     arguments: Dict[str, Any],
     thread_id: Optional[str] = None,
     mode: Optional[str] = None,
-    risk_reason: Optional[str] = None
+    risk_reason: Optional[str] = None,
+    task: Optional[str] = None
 ) -> ApprovalRequest:
     """Crea e registra una nuova richiesta di approvazione interattiva."""
     cmd_preview = arguments.get("command") or arguments.get("cmd") or None
@@ -340,7 +348,8 @@ def create_approval_request(
         mode,
         command_preview=str(cmd_preview) if cmd_preview else None,
         risk_reason=risk_reason,
-        command_prefix=cmd_prefix
+        command_prefix=cmd_prefix,
+        task=task
     )
 
     with _approval_lock:
@@ -438,7 +447,8 @@ def enforce_guardrails(
     *,
     thread_id: Optional[str] = None,
     mode: Optional[str] = None,
-    security_mode: str = "normal"
+    security_mode: str = "normal",
+    task: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Applica i guardrail multilivello prima dell'esecuzione di un tool in base alla modalità di rischio:
@@ -489,7 +499,7 @@ def enforce_guardrails(
             return None
 
         reason = f"Modalità Massima Sicurezza (Safest): conferma esplicita richiesta per '{tool_name}'"
-        req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason)
+        req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
         return {
             "approval_required": True,
             "request_id": req.request_id,
@@ -523,7 +533,7 @@ def enforce_guardrails(
                 return None
 
             reason = f"Esecuzione comando di sola lettura/diagnostica ({effective_prefix}): {str(raw_cmd)[:120]}"
-            req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason)
+            req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
             return {
                 "approval_required": True,
                 "request_id": req.request_id,
@@ -547,7 +557,7 @@ def enforce_guardrails(
                 return None
 
             reason = f"Esecuzione comando shell modificante ({effective_prefix}): {str(raw_cmd)[:120]}"
-            req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason)
+            req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
             return {
                 "approval_required": True,
                 "request_id": req.request_id,
@@ -583,7 +593,7 @@ def enforce_guardrails(
     else:
         reason = f"Modifica dello stato dell'infrastruttura tramite {clean_name}"
 
-    req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason)
+    req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
     return {
         "approval_required": True,
         "request_id": req.request_id,

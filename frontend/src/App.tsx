@@ -37,6 +37,7 @@ function MainLayout() {
     handlePause,
     handleResume,
     loadThreadHistory,
+    handleApprovalResolved,
     diagnostics,
   } = useChat(currentThreadId, (newId) => selectThread(newId));
 
@@ -109,6 +110,7 @@ function MainLayout() {
         onStop={handleStop}
         onPause={handlePause}
         onResume={handleResume}
+        onApprovalResolved={handleApprovalResolved}
         isPaused={isPaused}
         isLoading={isLoadingChat}
         error={activeError}

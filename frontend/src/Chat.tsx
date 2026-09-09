@@ -65,6 +65,7 @@ interface ChatProps {
   onStop?: () => void;
   onPause?: () => void;
   onResume?: () => void;
+  onApprovalResolved?: (action: string, res?: any) => void;
   isPaused?: boolean;
   isLoading: boolean;
   error: string | null;
@@ -84,6 +85,7 @@ export const Chat: React.FC<ChatProps> = ({
   onStop,
   onPause,
   onResume,
+  onApprovalResolved,
   isPaused = false,
   isLoading,
   error,
@@ -663,9 +665,10 @@ export const Chat: React.FC<ChatProps> = ({
                                 threadId={currentThreadId}
                                 isResolvedInitially={msg.approval_resolved}
                                 resolvedActionInitially={msg.approval_action}
-                                onResolved={(act) => {
+                                onResolved={(act, res) => {
                                   msg.approval_resolved = true;
                                   msg.approval_action = act;
+                                  onApprovalResolved?.(act, res);
                                 }}
                               />
                             );

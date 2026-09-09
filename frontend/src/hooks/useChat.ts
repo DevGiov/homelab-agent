@@ -739,6 +739,53 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     [currentThreadId, isLoadingChat, threadMessagesMap, handleRegenerateMessage, handleSendMessage]
   );
 
+  const handleApprovalResolved = useCallback(
+    async (action: string, res?: any) => {
+      if (!currentThreadId) return;
+
+      // Aggiornamento ottimistico immediato dello stato React se res include la risposta
+      if (res && res.response) {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const newAssistantMsg: FormattedMessage = {
+          id: `ast_res_${Date.now()}`,
+          sender: 'assistant',
+          content: res.response,
+          timestamp,
+          mode: 'act',
+          tool_used: res.tool_name,
+          execution_trace: res.execution_trace || [
+            {
+              step_id: 1,
+              tool_name: res.tool_name || 'tool',
+              args: res.arguments,
+              result: res.result,
+              reasoning: `Tool approvato ed eseguito (${action})`,
+            },
+          ],
+        };
+
+        setThreadMessagesMap((prev) => {
+          const existing = prev[currentThreadId] || [];
+          return {
+            ...prev,
+            [currentThreadId]: [...existing, newAssistantMsg],
+          };
+        });
+
+        if (res.tool_name) setActiveTool(res.tool_name);
+        if (res.execution_trace) setActiveExecutionTrace(res.execution_trace);
+      }
+
+      // Sincronizzazione completa con backend SQLite
+      try {
+        await loadThreadHistory(currentThreadId);
+      } catch (err) {
+        console.warn('Could not reload thread history after approval:', err);
+      }
+    },
+    [currentThreadId, loadThreadHistory]
+  );
+
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];
 
   return {
@@ -756,6 +803,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     handlePause,
     handleResume,
     loadThreadHistory,
+    handleApprovalResolved,
     diagnostics: {
       activeTool,
       activePlan,
