@@ -332,8 +332,8 @@ class TestSecurityModesAndContentAwareGuardrails(unittest.TestCase):
         thread_id = "t_content_aware"
 
         # 1. First safe-read command triggers approval
-        args_ls = {"vmid": 125, "command": "ls -la /opt"}
-        res1 = guardrails.enforce_guardrails("exec_lxc_command", args_ls, thread_id=thread_id, security_mode="normal")
+        args_first = {"vmid": 125, "command": "uptime"}
+        res1 = guardrails.enforce_guardrails("exec_lxc_command", args_first, thread_id=thread_id, security_mode="normal")
         self.assertIsNotNone(res1)
         self.assertTrue(res1.get("approval_required"))
         req_id1 = res1["request_id"]
