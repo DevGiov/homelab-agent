@@ -49,7 +49,7 @@ interface ChatProps {
     reasoningBudget?: number,
     model?: string,
     incognito?: boolean,
-    webSearch?: boolean,
+    webSearch?: 'auto' | 'on' | 'off' | boolean,
     images?: string[],
     securityMode?: SecurityMode
   ) => Promise<void>;
@@ -100,7 +100,24 @@ export const Chat: React.FC<ChatProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>('default');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isIncognito, setIsIncognito] = useState<boolean>(false);
-  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
+  const [webSearchMode, setWebSearchMode] = useState<'auto' | 'on' | 'off'>(() => {
+    const saved = localStorage.getItem('homelab_web_search_mode');
+    if (saved === 'auto' || saved === 'on' || saved === 'off') {
+      return saved;
+    }
+    return 'auto';
+  });
+
+  const handleWebSearchToggle = () => {
+    setWebSearchMode((prev) => {
+      let next: 'auto' | 'on' | 'off' = 'auto';
+      if (prev === 'auto') next = 'on';
+      else if (prev === 'on') next = 'off';
+      else if (prev === 'off') next = 'auto';
+      localStorage.setItem('homelab_web_search_mode', next);
+      return next;
+    });
+  };
   const [securityMode, setSecurityMode] = useState<SecurityMode>(() => {
     return (localStorage.getItem('homelab_security_mode') as SecurityMode) || 'normal';
   });
@@ -253,7 +270,7 @@ export const Chat: React.FC<ChatProps> = ({
       reasoningBudget,
       modelToPass,
       isIncognito,
-      webSearchEnabled,
+      webSearchMode,
       imagesToSend.length > 0 ? imagesToSend : undefined,
       securityMode
     );
@@ -919,16 +936,35 @@ export const Chat: React.FC<ChatProps> = ({
           {/* Web Search Toggle */}
           <button
             type="button"
-            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+            onClick={handleWebSearchToggle}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer shadow-sm ${
-              webSearchEnabled
-                ? 'bg-accent/20 border-accent text-accent shadow-accent/20 ring-1 ring-accent/50'
+              webSearchMode === 'auto'
+                ? 'bg-sky-500/15 border-sky-500/50 text-sky-400 ring-1 ring-sky-500/30 shadow-sky-500/10'
+                : webSearchMode === 'on'
+                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 ring-1 ring-emerald-500/50 shadow-emerald-500/20'
                 : 'glass-card border-border text-fg-muted hover:text-fg hover:border-accent/40'
             }`}
-            title={webSearchEnabled ? 'Ricerca Web attiva (prefetch pre-turn abilitato)' : 'Attiva Ricerca Web (effettua retrieval da web prima di rispondere)'}
+            title={
+              webSearchMode === 'auto'
+                ? 'Ricerca Web Automatica (attiva per query informative/generiche, esclusa per comandi e tool homelab)'
+                : webSearchMode === 'on'
+                ? 'Ricerca Web Forzata (prefetch sempre attivo prima di rispondere)'
+                : 'Ricerca Web Disattivata (nessuna ricerca web preventiva)'
+            }
           >
-            <Globe size={12} className={webSearchEnabled ? 'text-accent' : 'text-fg-muted shrink-0'} />
-            <span className="text-[11px] font-sans">{webSearchEnabled ? 'Web ON' : 'Web'}</span>
+            <Globe
+              size={12}
+              className={
+                webSearchMode === 'auto'
+                  ? 'text-sky-400 shrink-0'
+                  : webSearchMode === 'on'
+                  ? 'text-emerald-400 shrink-0'
+                  : 'text-fg-muted shrink-0'
+              }
+            />
+            <span className="text-[11px] font-sans">
+              {webSearchMode === 'auto' ? 'Web Auto' : webSearchMode === 'on' ? 'Web ON' : 'Web OFF'}
+            </span>
           </button>
 
           {/* Model Selector Dropdown */}

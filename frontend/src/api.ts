@@ -75,7 +75,7 @@ export interface ChatRequest {
   execute?: boolean;
   model?: string;
   incognito?: boolean;
-  web_search?: boolean;
+  web_search?: 'auto' | 'on' | 'off' | boolean;
   images?: string[];
   security_mode?: SecurityMode;
 }

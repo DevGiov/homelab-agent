@@ -103,7 +103,7 @@ class AgentState(TypedDict, total=False):
     reasoning_budget: Optional[int]
     model: Optional[str]
     execute: Optional[bool]
-    web_search: Optional[bool]
+    web_search: Optional[Any]
     web_prefetch_data: Optional[Dict[str, Any]]
     web_prefetch_metadata: Optional[Dict[str, Any]]
     agent_id: Optional[str]
@@ -179,17 +179,17 @@ def _read_messages_from_file(thread_id: str) -> List[Dict[str, Any]]:
 def _generate_summary(messages: List[Dict[str, Any]], model: Optional[str] = None) -> str:
     """Genera un riassunto di una lista di messaggi mediante LLM."""
     text = "\n".join([f"{'User' if 'user' in str(m.get('message_type','')).lower() else 'Assistant'}: {m.get('content', '')}" for m in messages])
-    prompt = f"""Riassumi la seguente conversazione in massimo 5 frasi, mantenendo:
-- Nomi delle persone (es. "Alice")
-- Preferenze espresse (es. "preferisce Debian")
-- Decisioni prese (es. "ha creato servizio web")
-- Domande aperte o task in corso
+    prompt = f"""Summarize the following conversation in at most 5 sentences, preserving:
+- Names of persons/entities (e.g. "Alice")
+- Expressed preferences (e.g. "prefers Debian")
+- Decisions made (e.g. "created web service")
+- Open questions or ongoing tasks
 
-Conversazione:
+Conversation:
 {text}
 
-Riassunto:"""
-    summary_res = _call_llm(prompt, system_prompt="Sei un assistente che riassume conversazioni in modo conciso.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
+Summary:"""
+    summary_res = _call_llm(prompt, system_prompt="You are an assistant that summarizes conversations concisely.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
     summary = summary_res.get("content", "") if isinstance(summary_res, dict) else ""
     return summary.strip() if summary else ""
 
@@ -553,21 +553,20 @@ def is_purely_visual_request(task: str) -> bool:
 
 def formulate_visual_search_query(task: str, images: List[str], model: Optional[str] = None) -> str:
     """
-    Esegue un micro-pass visivo rapido e silenzioso (senza streaming SSE) per estrarre
-    dal contesto dell'immagine il soggetto (brand, modello, codice, componente)
-    e formulare una query web essenziale ed efficace per i motori di ricerca.
+    Executes a fast and silent vision micro-pass (without SSE streaming) to extract
+    the subject (brand, model, code, component) from the image and formulate a concise search query.
     """
     prompt = (
-        "Sei un assistente per la formulazione di query di ricerca web.\n"
-        f"L'utente ha inviato un'immagine con questa richiesta: '{task}'.\n"
-        "Analizza l'immagine e identifica con precisione il soggetto o prodotto principale (marca, modello, codice o nome).\n"
-        "Combina il nome del soggetto con l'intento dell'utente in una query di ricerca Google/SearXNG concisa ed efficace (massimo 4-7 parole).\n"
-        "Esempi di output attesi:\n"
-        "- Eachine EV800DM prezzo specifiche\n"
-        "- Apple iMac G4 specifiche tecniche\n"
-        "- Raspberry Pi 4 pinout GPIO\n"
-        "- Arduino Uno R3 driver CH340\n"
-        "Rispondi ESCLUSIVAMENTE con la query di ricerca, senza virgolette, spiegazioni, codice o preamboli."
+        "You are an assistant for formulating effective web search queries.\n"
+        f"The user provided an image with this request: '{task}'.\n"
+        "Analyze the image and accurately identify the primary subject or product (brand, model, product code, or component).\n"
+        "Combine the identified subject with user intent into a concise and effective Google/SearXNG search query (maximum 4-7 words).\n"
+        "Examples of expected output:\n"
+        "- Eachine EV800DM price specs\n"
+        "- Apple iMac G4 technical specifications\n"
+        "- Raspberry Pi 4 GPIO pinout\n"
+        "- Arduino Uno R3 CH340 driver\n"
+        "Reply EXCLUSIVELY with the search query, without quotes, explanations, markdown formatting, or preamble."
     )
     try:
         res = _call_llm(
@@ -584,30 +583,121 @@ def formulate_visual_search_query(task: str, images: List[str], model: Optional[
         clean_q = re.sub(r'^(?:query|ricerca|cerca|search)[:\s]+', '', clean_q, flags=re.IGNORECASE).strip()
         clean_q = re.sub(r'\s+', ' ', clean_q)
         if clean_q and len(clean_q) >= 3:
-            logger.info(f"Visual query grounding formulata con successo: '{clean_q}' (da task: '{task}')")
+            logger.info(f"Visual query grounding formulated successfully: '{clean_q}' (from task: '{task}')")
             return clean_q
     except Exception as e:
-        logger.warning(f"Visual query grounding non riuscito (fallback a task originale): {e}")
+        logger.warning(f"Visual query grounding failed (fallback to original task): {e}")
     return task
 
 
-def web_prefetch_node(state: AgentState) -> AgentState:
-    """Performs deterministic read-only web prefetch before subgraphs if web_search is enabled."""
-    if not state.get("web_search"):
-        return state
+def should_prefetch_web(
+    task: str,
+    images: Optional[List[str]] = None,
+    conversation_context: Optional[str] = None
+) -> bool:
+    """
+    Determines whether deterministic web prefetch should run in 'auto' mode.
+    - Returns True for general informational queries, concept explanations, news, pricing,
+      documentation lookups, and mixed queries (research on web then perform action).
+    - Returns False for pure internal homelab/container operations, local shell commands,
+      pure conversational chit-chat, or purely visual image descriptions.
+    """
+    if not task or not task.strip():
+        return False
 
+    task_lower = task.lower().strip()
+
+    # Pure visual request with images attached -> False
+    if images and len(images) > 0 and is_purely_visual_request(task):
+        return False
+
+    # Pure chit-chat & greetings -> False
+    chat_greetings = [
+        "ciao", "salve", "buongiorno", "buonasera", "grazie", "chi sei", "come ti chiami",
+        "come stai", "cosa sai fare", "hello", "hi", "hey", "good morning", "good evening",
+        "thanks", "thank you", "who are you", "what is your name", "how are you", "ok procedi", "procedi"
+    ]
+    if any(task_lower == g or task_lower.startswith(f"{g} ") or task_lower.endswith(f" {g}") for g in chat_greetings):
+        return False
+
+    # Explicit web search, pricing, news, and external documentation keywords -> True
+    external_research_keywords = [
+        "cerca", "search", "google", "trova online", "trova sul web", "prezzo", "prezzi", "price",
+        "prices", "costo", "cost", "quanto costa", "how much", "recensioni", "reviews", "notizie",
+        "news", "online", "internet", "web", "ultime novità", "latest", "version", "versione attuale",
+        "rilascio", "release date", "documentazione", "documentation", "docs", "manuale", "manual",
+        "datasheet", "pinout", "guida", "guide", "tutorial", "come si fa", "come fare",
+        "come installare", "how to install", "come configurare", "how to configure", "how to use"
+    ]
+    if any(kw in task_lower for kw in external_research_keywords):
+        return True
+
+    # General conceptual or theoretical queries -> True
+    # (unless specifically inquiring about a local container instance or local directory)
+    is_conceptual = (
+        task_lower.startswith(("cosa è", "cos'è", "cosa sono", "qual è la differenza", "quali sono le differenze", "come funziona", "spiegami", "perché si usa", "perché", "chi ha", "chi è"))
+        or task_lower.startswith(("what is", "what are", "what's", "difference between", "how does", "how do", "explain", "why use", "why is", "who is", "who won", "who created"))
+    )
+    has_specific_target_instance = bool(re.search(r'\b(ct|container|vmid|vm)\s*\d+\b|\b\d{3}\b', task_lower))
+    has_directory_inspection = any(p in task_lower for p in ["/opt", "/etc", "/var", "/tmp", "/home", "/root", "cartella", "directory", "folder"])
+
+    if is_conceptual and not has_specific_target_instance and not has_directory_inspection:
+        return True
+
+    # Purely internal homelab / container / shell commands -> False
+    local_actions = [
+        "esegui", "run", "exec", "execute", "lancia", "start", "avvia", "stop", "ferma",
+        "stoppa", "arresta", "spegni", "shutdown", "restart", "riavvia", "reboot", "kill",
+        "create", "crea", "clone", "clona", "delete", "cancella", "elimina", "snapshot",
+        "rollback", "ping", "ls", "cat", "df", "free", "ps", "top", "systemctl", "journalctl",
+        "pveversion", "nvidia-smi"
+    ]
+    local_targets = [
+        "container", "ct", "lxc", "vm", "vmid", "storage", "disco", "disk", "ram", "memoria",
+        "cpu", "ip", "nodo", "node", "host", "macchina", "proxmox", "pve", "immich", "pihole", "dns", "npm"
+    ]
+
+    has_local_action = any(a in task_lower for a in local_actions)
+    has_local_target = any(t in task_lower for t in local_targets)
+
+    if (has_local_action and (has_local_target or has_specific_target_instance or has_directory_inspection)) or (has_specific_target_instance and (has_local_action or has_directory_inspection)):
+        return False
+
+    # Default for open-ended queries where user seeks information: True (to reduce hallucinations)
+    if any(q in task_lower for q in ["qual", "cosa", "come", "chi", "dove", "quando", "what", "how", "who", "where", "when", "why"]):
+        return True
+
+    return False
+
+
+def web_prefetch_node(state: AgentState) -> AgentState:
+    """Performs deterministic read-only web prefetch before subgraphs according to web_search mode."""
+    web_search_val = state.get("web_search")
     task = state.get("task", "")
     if not task:
         return state
 
-    # Se sono presenti immagini allegate, verifica se la richiesta è prettamente visiva
     images = state.get("images")
-    if images and len(images) > 0:
-        if is_purely_visual_request(task):
-            logger.info(f"Richiesta puramente visiva/percettiva: skip web prefetch per '{task}'")
+
+    # Mode evaluation: 'off' | False -> skip
+    if web_search_val is False or web_search_val == "off":
+        logger.info(f"Web prefetch [OFF]: skipped for '{task}'")
+        return state
+
+    # Mode evaluation: 'on' | True -> always prefetch (unless purely visual)
+    elif web_search_val is True or web_search_val == "on":
+        if images and len(images) > 0 and is_purely_visual_request(task):
+            logger.info(f"Purely visual request: skipping web prefetch [ON] for '{task}'")
             return state
 
-    # Se ci sono immagini, formula una query grounded visivamente (estraendo marca/modello dall'immagine)
+    # Mode evaluation: 'auto' (default) -> smart classification
+    else:
+        if not should_prefetch_web(task, images=images, conversation_context=state.get("memory_context")):
+            logger.info(f"Web prefetch [AUTO]: skipped for query '{task}' (internal tool/command/chat)")
+            return state
+        logger.info(f"Web prefetch [AUTO]: activated for query '{task}'")
+
+    # If images are present, formulate a grounded query
     effective_query = task
     if images and len(images) > 0:
         effective_query = formulate_visual_search_query(task, images, model=state.get("model"))
@@ -724,10 +814,10 @@ def chat_graph_node(state: AgentState) -> AgentState:
     from registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
     system_prompt = (
-        f"Data e Ora Corrente del Sistema: {now_str}\n"
-        f"Sei l'Agente AI per la gestione dell'Homelab (modalità: CHAT).\n"
-        f"Rispondi all'utente in modo naturale, dettagliato, completo ed esaustivo in lingua italiana.\n"
-        f"Non hai a disposizione tool in questa modalità: rispondi direttamente in testo discorsivo sfruttando le tue capacità di comprensione del linguaggio, visione ed eventuale prefetch informativo.\n"
+        f"Current System Date and Time: {now_str}\n"
+        "You are the Homelab AI Management Assistant (mode: CHAT).\n"
+        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+        "You do not have access to execution tools in this mode: respond directly in conversational natural language using your internal knowledge, visual perception, and web prefetch data if provided.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 
@@ -966,21 +1056,21 @@ def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str
         for e in execution_log
     ])
 
-    prompt = f"""
-    Un piano di esecuzione è fallito dopo questi step:
-    {log_summary}
-    
-    Task originale: {task}
-    Errore: {error_context}
-    
-    Genera un piano di rollback per ripristinare lo stato iniziale.
-    Elenca i passaggi di rollback in ordine inverso, specificando per ciascuno:
-    - Azione da compiere
-    - Tool da usare (se noto, altrimenti lascia come "azione manuale")
-    
-    Piano di rollback:"""
+    prompt = f"""Language Directive: Respond in the language used in the task.
+An execution plan failed after these steps:
+{log_summary}
 
-    plan_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in rollback di operazioni di infrastruttura Proxmox.", max_tokens=512, temperature=0.3, model=model, stream_mode="none")
+Original task: {task}
+Error context: {error_context}
+
+Generate a rollback plan to revert to the initial state.
+List the rollback steps in reverse order, specifying for each:
+- Action to take
+- Tool to use (if known, otherwise specify "manual action")
+
+Rollback plan:"""
+
+    plan_res = _call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=512, temperature=0.3, model=model, stream_mode="none")
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 
@@ -1198,17 +1288,18 @@ def plan_graph_node(state: AgentState) -> AgentState:
 
     now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
     system_prompt = (
-        f"Data e Ora Corrente del Sistema: {now_str}\n"
-        "Sei l'Agente AI per la gestione dell'Homelab (modalità: PLAN).\n"
-        "Genera un piano d'azione numerato passo per passo (massimo 5 passaggi) specifico per soddisfare la richiesta dell'utente "
-        "utilizzando gli strumenti e i server MCP disponibili nel sistema.\n"
+        f"Current System Date and Time: {now_str}\n"
+        "You are the Homelab AI Management Agent (mode: PLAN).\n"
+        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+        "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request "
+        "using the tools and connected MCP servers available in the system.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        "Rispondi SOLAMENTE con la lista numerata dei passaggi di esecuzione."
+        "Reply ONLY with the numbered list of execution steps."
     )
 
     prompt_sections = []
     if memory_context:
-        prompt_sections.append(f"Contesto memoria conversazionale:\n{memory_context}")
+        prompt_sections.append(f"Conversational memory context:\n{memory_context}")
 
     if prefetch_data and prefetch_data.get("summary_text"):
         wrapped_evidence = wrap_untrusted_web_evidence(
@@ -1218,7 +1309,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
         )
         prompt_sections.append(wrapped_evidence)
 
-    prompt_sections.append(f"Richiesta dell'utente: '{task}'")
+    prompt_sections.append(f"User Request: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
     llm_plan_res = _call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
@@ -1234,18 +1325,18 @@ def plan_graph_node(state: AgentState) -> AgentState:
 
     # Generate JSON plan_structure via LLM
     json_prompt = (
-        f"Genera un piano JSON strutturato per il seguente task dell'utente: '{task}'.\n"
+        f"Generate a structured JSON plan for the following user task: '{task}'.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        "Rispondi ESCLUSIVAMENTE con un JSON valido con questa struttura:\n"
+        "Reply EXCLUSIVELY with valid JSON matching this schema:\n"
         "{\n"
         "  \"steps\": [\n"
         "    {\n"
         "      \"id\": 1,\n"
-        "      \"description\": \"Descrizione dello step\",\n"
-        "      \"tool\": \"nome_tool_mcp\",\n"
-        "      \"args\": {\"param\": \"valore\"},\n"
+        "      \"description\": \"Step description\",\n"
+        "      \"tool\": \"mcp_tool_name\",\n"
+        "      \"args\": {\"param\": \"value\"},\n"
         "      \"depends_on\": null,\n"
-        "      \"output_var\": \"nome_variabile\"\n"
+        "      \"output_var\": \"variable_name\"\n"
         "    }\n"
         "  ]\n"
         "}"
@@ -1426,20 +1517,20 @@ def extract_salient_facts(task: str, response: str, memory_context: str, model: 
     if not task or not response:
         return []
 
-    prompt = f"""
-    Estrai fatti salienti dalla seguente conversazione che potrebbero essere utili per il futuro.
-    Includi:
-    - Preferenze dell'utente (es. "preferisce container LXC basati su Debian")
-    - Decisioni prese (es. "ha creato servizio web per testare le prestazioni")
-    - Contesto dell'infrastruttura (es. "IP statico allocato 192.168.1.180")
-    
-    Task utente: {task}
-    Risposta assistente: {response}
-    Contesto esistente: {memory_context}
-    
-    Fatti salienti (elenca massimo 5 punti concisi, uno per riga):"""
+    prompt = f"""Language Directive: Extract facts preserving proper entities and user intent.
+Extract salient facts from the following conversation that may be valuable for long-term memory.
+Include:
+- User preferences (e.g. "prefers Debian-based LXC containers")
+- Decisions made (e.g. "created web service to test performance")
+- Infrastructure context (e.g. "static IP allocated 192.168.1.180")
 
-    raw_res = _call_llm(prompt, system_prompt="Sei un assistente esperto in estrazione di fatti salienti ed entità.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
+User task: {task}
+Assistant response: {response}
+Existing context: {memory_context}
+
+Salient facts (list maximum 5 concise bullet points, one per line):"""
+
+    raw_res = _call_llm(prompt, system_prompt="You are an expert assistant for extracting salient facts and entities.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
     raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
     if not raw:
         return []

@@ -127,7 +127,7 @@ class TestApiEndpoints(unittest.TestCase):
 
         mock_tool_result = {"vmid": 125, "stdout": "containerd\nhomelab-agent\n", "exit_code": 0}
         with patch("registry.manager.ToolRegistryManager.execute_approved_tool", return_value=mock_tool_result):
-            with patch("graph._call_llm", return_value={"content": "Nella directory /opt sono presenti: containerd e homelab-agent."}):
+            with patch("api._call_llm", return_value={"content": "Nella directory /opt sono presenti: containerd e homelab-agent."}):
                 r = self.client.post(f"/v1/approvals/{rid}/resolve", json={"action": "approve"})
                 self.assertEqual(r.status_code, 200)
                 data = r.json()

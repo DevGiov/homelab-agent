@@ -161,57 +161,58 @@ def run_agent_loop(
         now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
         from registry.search_security import UNTRUSTED_CONTEXT_POLICY
         base_system_prompt = (
-            f"Data e Ora Corrente del Sistema: {now_str}\n"
-            f"Sei l'Agente AI per la gestione dell'Homelab (modalità: {mode.upper()}).\n"
-            f"Hai accesso all'ecosistema MCP connesso, ai tool di infrastruttura, analisi visiva, ricerca web ed esecuzione codice.\n"
+            f"Current System Date and Time: {now_str}\n"
+            f"You are the Homelab AI Management Agent (mode: {mode.upper()}).\n"
+            "You have access to the connected MCP ecosystem, infrastructure tools, visual analysis, web search, and code execution.\n"
+            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
             f"{UNTRUSTED_CONTEXT_POLICY}\n"
         )
 
         prefetch_guidance = ""
         if prefetch_block:
             prefetch_guidance = (
-                f"\n\nDATI PREFETCH WEB DISPONIBILI:\n{prefetch_block}\n\n"
-                "NOTA: Un prefetch web è già stato eseguito per questo turno. "
-                "Se le informazioni sopra sono già sufficienti per rispondere alla richiesta dell'utente, "
-                "imposta `tool_needed=false` e fornisci subito la risposta finale in `final_answer`. "
-                "Usa `web_search` solo se ti occorrono approfondimenti o dati differenti non presenti nel prefetch.\n"
+                f"\n\nAVAILABLE WEB PREFETCH DATA:\n{prefetch_block}\n\n"
+                "NOTE: A web prefetch has already been performed for this turn. "
+                "If the above information is sufficient to answer the user's request, "
+                "set `tool_needed=false` and provide the final answer immediately in `final_answer`. "
+                "Only use `web_search` if you require further details or different data not present in the prefetch.\n"
             )
 
         vision_guidance = ""
         if images and len(images) > 0:
             vision_guidance = (
-                f"\n\nCONTESTO VISIVO DISPONIBILE:\n"
-                f"L'utente ha allegato {len(images)} immagine/i direttamente nel contesto visivo di questa richiesta.\n"
-                "Se la richiesta dell'utente consiste nell'analizzare, descrivere, interpretare o rispondere a domande sull'immagine allegata, "
-                "puoi visualizzarla direttamente: imposta `tool_needed=false` e fornisci la tua risposta completa, dettagliata e accurata in `final_answer`.\n"
-                "Usa i tool solo se sono necessarie azioni esterne su risorse homelab/MCP, ricerche web aggiuntive o esecuzione di codice per calcoli avanzati.\n"
+                f"\n\nAVAILABLE VISUAL CONTEXT:\n"
+                f"The user attached {len(images)} image(s) directly to this request.\n"
+                "If the user's request asks to analyze, describe, interpret, or answer questions about the attached image, "
+                "you can perceive it directly: set `tool_needed=false` and provide your thorough, detailed, and accurate answer in `final_answer`.\n"
+                "Only invoke tools if external actions on Homelab/MCP resources, additional web searches, or code execution are needed.\n"
             )
 
         tool_system_prompt = base_system_prompt + (
-            f"Catalogo tool disponibili per questa modalità:\n{catalog_str}\n\n"
-            f"Contesto memoria conversazionale:\n{memory_context or ''}\n\n"
+            f"Catalog of available tools for this mode:\n{catalog_str}\n\n"
+            f"Conversational memory context:\n{memory_context or ''}\n\n"
             f"{prefetch_guidance}"
             f"{vision_guidance}"
-            f"Storico azioni eseguite in questo turno:\n{obs_context}\n\n"
-            "REGOLE FONDAMENTALI DI SELEZIONE TOOL:\n"
-            "1. DISTINZIONE TOOL VIEW vs EXECUTE:\n"
-            "   - `[VIEW]`: tool puramente informativi/diagnostici di sola lettura (es. `get_container_status`, `list_containers`, `list_templates`, `web_search`). Vengono eseguiti automaticamente dal sistema senza bloccare l'agente.\n"
-            "   - `[EXECUTE]`: comandi shell su host/container ed operazioni che modificano risorse, DNS o configurazioni (es. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`). Fanno scattare la richiesta di conferma esplicita dell'utente tramite UI (HITL). Nel campo `reasoning`, spiega sempre con chiarezza quale azione intendi compiere prima di invocarli.\n"
-            "2. Se la richiesta riguarda eventi recenti, ultime notizie, aggiornamenti, date, orari, prezzi attuali, quotazioni, offerte commerciali o informazioni non presenti nella tua conoscenza certa (e non coperte dal prefetch), imposta `tool_needed=true` e seleziona `tool_name='web_search'`.\n"
-            "3. Se la richiesta richiede di operare su risorse homelab, file, configurazioni di rete, DNS o qualsiasi servizio gestito tramite l'ecosistema MCP, imposta `tool_needed=true` e specifica il relativo tool MCP.\n"
-            "4. Se la risposta può essere fornita con certezza assoluta dalla tua conoscenza interna, dall'immagine allegata o dal prefetch web senza ulteriori azioni (e non sono richiesti prezzi live o dati di mercato in tempo reale), imposta `tool_needed=false` e fornisci la risposta completa in `final_answer`.\n"
-            "5. Per `web_search`: usa query naturali e concise senza aggiungere anni arbitrari o virgolette superflue (es. 'SpaceX Starship latest launch updates').\n"
-            "6. CHIAMATE PARALLELE: se ti servono le informazioni di PIÙ tool di sola lettura e sono indipendenti tra loro, usa `parallel_calls`.\n"
-            "7. SE HAI GIÀ ESEGUITO UN'AZIONE O UN TOOL (es. `inspect_image`, `web_search`, comandi di infrastruttura) e il risultato è presente nello 'Storico azioni eseguite in questo turno', l'informazione o l'azione è GIÀ STATA COMPLETATA: NON ripetere la stessa chiamata o tool analoghi. Imposta `tool_needed=false` e sintetizza il risultato in `final_answer` per l'utente.\n"
-            "8. ANTI-ALLUCINAZIONE DA RICERCA FALLITA: Se le ricerche web non trovano riscontri per i termini specifici richiesti, NON insistere a cercare all'infinito e NON inventare che le entità sono fittizie o inesistenti solo perché non hai fonti. Riporta con trasparenza quanto emerso o l'assenza di dati ufficiali nelle fonti consultate.\n"
-            "9. IMPORTANTE: Se devi ragionare, fallo liberamente nel campo `reasoning`. Se imposti `tool_needed=false`, fornisci SEMPRE la risposta finale per l'utente in `final_answer`.\n"
-            "10. PREFERISCI SEMPRE I TOOL DEDICATI MCP: per creare o clonare container, consultare stati, gestire DNS o proxy, usa SEMPRE i tool specifici dedicati (es. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, ecc.). NON tentare comandi shell manuali grezzi come `exec_host_command` con `pct clone` o simili quando esiste un tool dedicato corrispondente."
+            f"History of actions executed in this turn:\n{obs_context}\n\n"
+            "CORE TOOL SELECTION RULES:\n"
+            "1. DISTINCTION BETWEEN VIEW vs EXECUTE TOOLS:\n"
+            "   - `[VIEW]`: Purely informational, read-only diagnostic tools (e.g. `get_container_status`, `list_containers`, `list_templates`, `web_search`). These run automatically without interrupting the flow.\n"
+            "   - `[EXECUTE]`: Shell commands on host/containers and operations that mutate infrastructure, DNS, or configs (e.g. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`). These trigger Human-In-The-Loop (HITL) approval in the UI. In the `reasoning` field, always clearly explain what action you intend to take before calling them.\n"
+            "2. If the user request asks about recent events, latest news, updates, dates, live prices, or information not present in your certain knowledge (and not covered by prefetch), set `tool_needed=true` and select `tool_name='web_search'`.\n"
+            "3. If the request requires operating on homelab resources, files, network configs, DNS, or any service managed via the MCP ecosystem, set `tool_needed=true` and specify the corresponding MCP tool.\n"
+            "4. If the request can be answered with absolute certainty from internal knowledge, the attached image, or the web prefetch without further actions (and does not ask for live market prices), set `tool_needed=false` and provide the complete response in `final_answer`.\n"
+            "5. For `web_search`: use natural, concise queries without superfluous quotes or arbitrary years (e.g. 'SpaceX Starship latest launch updates').\n"
+            "6. PARALLEL CALLS: if you need information from MULTIPLE independent read-only tools, use `parallel_calls`.\n"
+            "7. IF AN ACTION OR TOOL HAS ALREADY BEEN EXECUTED (e.g. `inspect_image`, `web_search`, infrastructure command) and the result is in 'History of actions executed in this turn', that action is ALREADY COMPLETED: DO NOT repeat the same call or analogous tools. Set `tool_needed=false` and summarize the results in `final_answer` for the user.\n"
+            "8. ANTI-HALLUCINATION ON EMPTY SEARCH: If web searches return no matches for the requested terms, DO NOT search in an endless loop and DO NOT invent that entities are fictitious. Transparently report what was found or the absence of official records in consulted sources.\n"
+            "9. REASONING: Reason freely in the `reasoning` field. When `tool_needed=false`, ALWAYS provide the final response for the user in `final_answer` in the user's language.\n"
+            "10. ALWAYS PREFER DEDICATED MCP TOOLS: To create or clone containers, check status, manage DNS or proxy, ALWAYS use the dedicated MCP tools (e.g. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, etc.). DO NOT attempt raw shell commands like `pct clone` when a dedicated tool exists."
         )
 
         if not call_llm_structured_fn:
             if call_llm_fn:
-                direct_system_prompt = base_system_prompt + "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano. Se la richiesta riguarda eventi recenti o dati che non puoi conoscere con certezza, dillo esplicitamente invece di inventare informazioni."
-                direct_prompt = f"Richiesta: '{task}'\nContesto memoria:\n{memory_context or ''}"
+                direct_system_prompt = base_system_prompt + "Respond naturally, completely, clearly, and thoroughly in the language used by the user in their prompt. If the request concerns recent events or unverified data, state it transparently instead of inventing facts."
+                direct_prompt = f"Request: '{task}'\nMemory context:\n{memory_context or ''}"
                 syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
                 syn_ans = syn_res.get("content", "") if isinstance(syn_res, dict) else (syn_res or "")
                 reasoning_content = syn_res.get("reasoning_content", "") if isinstance(syn_res, dict) else ""
@@ -265,19 +266,19 @@ def run_agent_loop(
             # 2. Se abbiamo eseguito dei tool ed abbiamo delle osservazioni, sintetizziamo la risposta per l'utente
             elif history_observations and call_llm_fn:
                 summary_system_prompt = base_system_prompt + (
-                    "Sei in fase di sintesi finale dopo aver eseguito le azioni con i tool.\n"
-                    "Il tuo compito è sintetizzare le informazioni ottenute dai tool in una risposta fluida, completa, dettagliata ed esaustiva in italiano.\n"
-                    "Presenta i dati in modo chiaro e strutturato. Rispondi in prosa naturale (nessun JSON): questa è la risposta finale per l'utente."
+                    "You are in the final synthesis stage after executing tool actions.\n"
+                    "Your task is to synthesize the information obtained from the tools into a fluent, thorough, and structured response in the language used by the user in their prompt.\n"
+                    "Present the data clearly and in natural prose (no raw JSON dump): this is the final response for the user."
                 )
                 obs_text = "\n".join(history_observations)
                 if len(obs_text) > config.TRUNCATION_LIMIT:
-                    obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [osservazioni troncate per brevità]"
+                    obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [observations truncated for brevity]"
                 summary_prompt = (
-                    f"Task utente: '{task}'\n\n"
-                    f"Storico azioni e risultati dei tool eseguiti:\n{obs_text}\n\n"
-                    f"Fornisci una risposta finale all'utente in lingua ITALIANA. "
-                    f"La risposta deve essere discorsiva, dettagliata ed esaustiva. "
-                    f"Se sono stati usati tool di ricerca (es. web_search), cita e spiega le informazioni trovate in modo chiaro e completo."
+                    f"User task: '{task}'\n\n"
+                    f"History of actions and tool results:\n{obs_text}\n\n"
+                    "Provide a final, comprehensive, structured response to the user in the language used in their prompt. "
+                    "Explain the findings and results clearly. "
+                    "If search tools (e.g. web_search) were used, cite and explain the retrieved information accurately."
                 )
                 synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
                 syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Tool")
@@ -287,7 +288,7 @@ def run_agent_loop(
                     accumulated_reasonings.append(("Sintesi Risultati Tool", syn_reasoning))
                 syn_ans = clean_synthesis_content(raw_syn)
                 final_ans = syn_ans if syn_ans else (
-                    "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
+                    "The model processed the information but did not produce a text response. Please retry or adjust mode."
                 )
                 reasoning_content = "\n\n---\n\n".join(
                     f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
@@ -296,19 +297,19 @@ def run_agent_loop(
             # 3. Se la richiesta non richiede tool (es. domande concettuali o coperte da prefetch), generiamo una risposta diretta
             elif call_llm_fn:
                 direct_system_prompt = base_system_prompt + (
-                    "Sei in fase di dialogo diretto con l'utente.\n"
-                    "Rispondi in modo naturale, completo, chiaro ed esaustivo alla richiesta in italiano.\n"
-                    "Se sono presenti dati web nel contesto, usali per fornire una risposta aggiornata, precisa ed esaustiva.\n"
-                    "IMPORTANTE: se la richiesta riguarda eventi recenti, notizie o date non coperte dal contesto e non verificabili con certezza, "
-                    "dichiara che per dati aggiornati serve una ricerca e suggerisci di riprovare con ricerca web attiva."
+                    "You are in direct dialogue mode with the user.\n"
+                    "Respond in a natural, comprehensive, clear, and helpful manner in the language used by the user in their prompt.\n"
+                    "If web context is present, use it to provide an accurate, up-to-date response.\n"
+                    "If the request involves recent events or dates not covered in the context and unverifiable with certainty, "
+                    "transparently state that a web search is recommended."
                 )
                 direct_prompt_parts = []
                 if prefetch_block:
                     direct_prompt_parts.append(prefetch_block)
                 direct_prompt_parts.append(
-                    f"Rispondi in modo completo, chiaro ed esaustivo alla seguente richiesta dell'utente in italiano.\n"
-                    f"Richiesta: '{task}'\n"
-                    f"Contesto memoria:\n{memory_context or ''}"
+                    f"Respond completely, clearly, and thoroughly in the language used by the user in their prompt.\n"
+                    f"User request: '{task}'\n"
+                    f"Memory context:\n{memory_context or ''}"
                 )
                 direct_prompt = "\n\n".join(direct_prompt_parts)
                 syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
@@ -529,18 +530,19 @@ def run_agent_loop(
     if history_observations and call_llm_fn:
         from registry.search_security import UNTRUSTED_CONTEXT_POLICY
         summary_system_prompt = (
-            f"Data e Ora Corrente del Sistema: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
-            f"Sei l'Agente AI dell'Homelab Proxmox VE. Sintetizza i risultati delle azioni in italiano.\n"
+            f"Current System Date and Time: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
+            "You are the Proxmox VE Homelab AI Agent.\n"
+            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
             f"{UNTRUSTED_CONTEXT_POLICY}"
         )
         obs_text = "\n".join(history_observations)
         if len(obs_text) > config.TRUNCATION_LIMIT:
-            obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [osservazioni troncate per brevità]"
+            obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [observations truncated for brevity]"
         summary_prompt = (
-            f"Task utente: '{task}'\n\n"
-            f"Storico azioni eseguite:\n{obs_text}\n\n"
-            f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
-            f"Rispondi in prosa naturale (nessun JSON): questa è la risposta per l'utente."
+            f"User task: '{task}'\n\n"
+            f"History of executed actions:\n{obs_text}\n\n"
+            "Provide a final, comprehensive, structured response in the language used by the user in their prompt. "
+            "Respond in natural prose (no raw JSON dump): this is the final answer for the user."
         )
         synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
         syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Finali")

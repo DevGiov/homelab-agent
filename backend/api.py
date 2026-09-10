@@ -102,7 +102,7 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
     return x_api_key
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -356,7 +356,7 @@ async def get_uploaded_file(filename: str):
         headers={"X-Content-Type-Options": "nosniff"}
     )
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: bool = False, request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal"):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal"):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -908,17 +908,18 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
         obs_text = obs_text[:4000] + "\n... [output troncato per brevità]"
 
     summary_system_prompt = (
-        f"Data e Ora Corrente del Sistema: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
-        f"Sei l'Agente AI dell'Homelab Proxmox VE. Sintetizza i risultati delle azioni in italiano.\n"
+        f"Current System Date and Time: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
+        f"You are the Homelab Proxmox VE AI Assistant. Synthesize action results.\n"
+        f"Language Directive: Always detect and respond in the language used by the user in their request (e.g., Italian if the user writes in Italian, English if they write in English), unless explicitly instructed otherwise.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}"
     )
     summary_prompt = (
-        f"Richiesta originale dell'utente: '{user_task or 'Esegui il comando richiesto'}'\n\n"
-        f"Risultato dell'azione autorizzata ed eseguita:\n{obs_text}\n\n"
-        f"Fornisci una risposta finale completa, discorsiva e dettagliata in italiano. "
-        f"Interpreta l'output del tool, rispondi direttamente alla richiesta dell'utente "
-        f"e spiega chiaramente il risultato ottenuto (se vi sono errori come file o configurazioni mancanti o container inesistenti, indicalo chiaramente). "
-        f"Rispondi in prosa naturale (nessun JSON grezzo come unica risposta): questa è la risposta per l'utente."
+        f"User's original request: '{user_task or 'Execute the requested command'}'\n\n"
+        f"Authorized and executed action result:\n{obs_text}\n\n"
+        f"Provide a comprehensive, conversational, and detailed final response. "
+        f"Interpret the tool output, directly address the user's request, "
+        f"and clearly explain the outcome (highlight any errors such as missing files, missing configurations, or non-existent containers). "
+        f"Respond in natural prose (never provide raw JSON as your only response): this is the direct answer for the user."
     )
 
     synthesized_text = ""

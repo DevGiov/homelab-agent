@@ -115,13 +115,15 @@ def generate_and_save_title(thread_id: str, user_prompt: str) -> str:
         prompt_msgs = [
             {
                 "role": "system",
-                "content": "Sei un assistente che assegna un titolo conciso a una conversazione. "
-                           "Rispondi ESCLUSIVAMENTE con un titolo di 3-5 parole in italiano, "
-                           "senza virgolette, markdown o spiegazioni."
+                "content": (
+                    "You are an assistant that creates a concise conversation title. "
+                    "Respond EXCLUSIVELY with a 3-5 word title matching the language used in the prompt, "
+                    "without quotes, trailing punctuation, markdown, or explanations."
+                )
             },
             {
                 "role": "user",
-                "content": f"Titolo per questa richiesta iniziale:\n{user_prompt[:300]}"
+                "content": f"Title for this initial request:\n{user_prompt[:300]}"
             }
         ]
         res = provider.chat(prompt_msgs, max_tokens=25, temperature=0.3)

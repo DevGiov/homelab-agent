@@ -265,7 +265,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       reasoningBudget?: number,
       model?: string,
       incognito?: boolean,
-      webSearch?: boolean,
+      webSearch?: 'auto' | 'on' | 'off' | boolean,
       images?: string[],
       securityMode?: SecurityMode
     ) => {

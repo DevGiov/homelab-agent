@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ChatRequest(BaseModel):
@@ -12,8 +12,17 @@ class ChatRequest(BaseModel):
     execute: bool = False
     model: Optional[str] = None
     incognito: bool = False
-    web_search: bool = False
+    web_search: Union[Literal["auto", "on", "off"], bool] = "auto"
     security_mode: Optional[Literal["safest", "normal", "dangerous"]] = "normal"
+
+    @field_validator("web_search", mode="before")
+    @classmethod
+    def _normalize_web_search(cls, v: Any) -> str:
+        if v is True or v == "true" or v == "on":
+            return "on"
+        if v is False or v == "false" or v == "off":
+            return "off"
+        return "auto"
 
 class ChatResponse(BaseModel):
     thread_id: Optional[str] = None
