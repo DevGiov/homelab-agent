@@ -55,6 +55,32 @@ class TestThreadPersistence(unittest.TestCase):
         last = thread_store.get_last_message(thread_id)
         self.assertEqual(last, "La capitale della Francia è Parigi.")
 
+    def test_metrics_persistence(self):
+        thread_id = "test_thread_metrics_persisted"
+        thread_store.save_user_message(thread_id, "Test metrics")
+        thread_store.save_assistant_message(thread_id, {
+            "response": "Risposta con statistiche",
+            "mode": "chat",
+            "metrics": {
+                "prompt_tokens": 1500,
+                "completion_tokens": 80,
+                "total_tokens": 1580,
+                "duration_s": 2.5,
+                "llm_duration_s": 2.3,
+                "tok_per_s": 34.8
+            }
+        })
+
+        messages = thread_store.get_thread_messages(thread_id)
+        self.assertEqual(len(messages), 2)
+        self.assertIsNotNone(messages[1].get("metrics"))
+        m = messages[1]["metrics"]
+        self.assertEqual(m["prompt_tokens"], 1500)
+        self.assertEqual(m["completion_tokens"], 80)
+        self.assertEqual(m["total_tokens"], 1580)
+        self.assertEqual(m["llm_duration_s"], 2.3)
+        self.assertEqual(m["tok_per_s"], 34.8)
+
     def test_get_last_message_ignores_empty(self):
         thread_id = "test_thread_empty_assistant"
         thread_store.save_user_message(thread_id, "Prompt con assistente vuoto")

@@ -44,6 +44,7 @@ def init_db():
                 versions_json TEXT,
                 version_index INTEGER DEFAULT 0,
                 images_json TEXT,
+                metrics_json TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (thread_id, message_id)
             )
@@ -56,6 +57,7 @@ def init_db():
             "versions_json TEXT",
             "version_index INTEGER DEFAULT 0",
             "images_json TEXT",
+            "metrics_json TEXT",
         ]:
             try:
                 cursor.execute(f"ALTER TABLE thread_messages ADD COLUMN {col_def}")
@@ -224,12 +226,15 @@ def save_assistant_message(
         versions_json = json.dumps(versions, ensure_ascii=False) if versions else response_data.get("versions_json")
         v_idx = version_index if versions is not None else response_data.get("version_index", 0)
 
+        metrics = response_data.get("metrics")
+        metrics_json = json.dumps(metrics, ensure_ascii=False) if metrics else None
+
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-             is_error, reasoning_content, versions_json, version_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_error, reasoning_content, versions_json, version_index, metrics_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -246,7 +251,8 @@ def save_assistant_message(
             is_error,
             reasoning_content,
             versions_json,
-            v_idx
+            v_idx,
+            metrics_json
         ))
         conn.commit()
         return msg_id
@@ -321,7 +327,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         cursor.execute("""
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
                    plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-                   is_error, reasoning_content, versions_json, version_index, images_json
+                   is_error, reasoning_content, versions_json, version_index, images_json, metrics_json
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -333,7 +339,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         for row in rows:
             (m_id, sender, content, ts, mode, tool_used, reasoning,
              ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
-             vers_json, v_idx, img_json) = row
+             vers_json, v_idx, img_json, met_json) = row
 
             versions_parsed = None
             if vers_json:
@@ -348,6 +354,13 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                     images_parsed = json.loads(img_json)
                 except Exception:
                     images_parsed = None
+
+            metrics_parsed = None
+            if met_json:
+                try:
+                    metrics_parsed = json.loads(met_json)
+                except Exception:
+                    metrics_parsed = None
 
             msg_obj = {
                 "id": m_id,
@@ -365,7 +378,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "reasoning_content": reasoning_content,
                 "versions": versions_parsed,
                 "versionIndex": v_idx if v_idx is not None else 0,
-                "images": images_parsed
+                "images": images_parsed,
+                "metrics": metrics_parsed
             }
             messages.append(msg_obj)
 

@@ -141,6 +141,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             ).start()
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
+    sess = create_session(effective_thread_id, task=task, mode=force_mode)
+    current_session_var.set(sess)
     try:
         final_state = app_graph.invoke(initial_state, config=cfg)
 
@@ -155,6 +157,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         rollback_trace = final_state.get("rollback_trace")
         reasoning_content = final_state.get("reasoning_content")
         web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
+        metrics = sess.get_metrics()
 
         t_title = thread_store.get_thread_title(effective_thread_id)
         resp = ChatResponse(
@@ -168,6 +171,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             rollback_trace=rollback_trace,
             reasoning_content=reasoning_content,
             web_prefetch=web_prefetch,
+            metrics=metrics,
             thread_title=t_title,
             approval_required=final_state.get("approval_required"),
             request_id=final_state.get("request_id"),
@@ -183,7 +187,6 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
 
         return resp
-
     except Exception as e:
         if not incognito:
             thread_store.save_assistant_message(effective_thread_id, {
@@ -191,6 +194,8 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
                 "error": True
             })
         raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}")
+    finally:
+        remove_session(effective_thread_id)
 
 
 @api.get("/v1/health")
