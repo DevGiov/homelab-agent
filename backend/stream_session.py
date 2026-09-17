@@ -27,6 +27,7 @@ class StreamSession:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.total_tokens = 0
+        self.llm_duration_s = 0.0
 
         self.reasoning_content = ""
         self.partial_content = ""
@@ -81,16 +82,20 @@ class StreamSession:
         self.prompt_tokens += m.get("prompt_tokens", 0)
         self.completion_tokens += m.get("completion_tokens", 0)
         self.total_tokens += m.get("total_tokens", (m.get("prompt_tokens", 0) + m.get("completion_tokens", 0)))
+        self.llm_duration_s += m.get("duration_s", 0.0)
 
     def get_metrics(self) -> Dict[str, Any]:
         end_time = self.completed_time or time.time()
         duration_s = round(end_time - self.start_time, 2)
-        tok_per_s = round(self.completion_tokens / max(duration_s, 0.001), 1)
+        llm_duration_s = round(self.llm_duration_s, 2)
+        active_time = llm_duration_s if llm_duration_s > 0 else duration_s
+        tok_per_s = round(self.completion_tokens / max(active_time, 0.001), 1)
         return {
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
             "duration_s": duration_s,
+            "llm_duration_s": llm_duration_s,
             "tok_per_s": tok_per_s,
         }
 
@@ -113,7 +118,9 @@ class StreamSession:
             elif ev_type == "content":
                 self.partial_content += event.get("delta", "")
             elif ev_type == "metrics":
-                self.record_metrics(event.get("metrics"))
+                raw_m = event.get("metrics")
+                self.record_metrics(raw_m)
+                event = {"type": "metrics", "metrics": self.get_metrics()}
             elif ev_type == "final":
                 self.status = "completed"
                 self.completed_time = time.time()

@@ -128,6 +128,7 @@ export interface StreamMetrics {
   completion_tokens?: number;
   total_tokens?: number;
   duration_s?: number;
+  llm_duration_s?: number;
   tok_per_s?: number;
 }
 

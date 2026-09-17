@@ -824,12 +824,12 @@ export const Chat: React.FC<ChatProps> = ({
                       {msg.metrics && (
                         <span
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono text-[9px] sm:text-[10px]"
-                          title={`Prompt: ${msg.metrics.prompt_tokens ?? 0} tok • Generati: ${msg.metrics.completion_tokens ?? 0} tok • Durata: ${msg.metrics.duration_s ?? 0}s`}
+                          title={`Generati: ${msg.metrics.completion_tokens ?? 0} tok • Prompt: ${msg.metrics.prompt_tokens ?? 0} tok • Totale contesto: ${msg.metrics.total_tokens ?? 0} tok • Velocità LLM: ${msg.metrics.tok_per_s ?? 0} tok/s • Tempo LLM: ${msg.metrics.llm_duration_s ?? msg.metrics.duration_s ?? 0}s • Durata turno: ${msg.metrics.duration_s ?? 0}s`}
                         >
                           <Zap size={10} className="text-amber-400" />
                           <span>{msg.metrics.tok_per_s ?? 0} tok/s</span>
                           <span className="text-border">•</span>
-                          <span>{msg.metrics.total_tokens ?? 0} tok</span>
+                          <span>{msg.metrics.completion_tokens ?? 0} tok gen</span>
                           {msg.metrics.duration_s !== undefined && (
                             <>
                               <span className="text-border">•</span>

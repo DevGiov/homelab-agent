@@ -199,9 +199,9 @@ class OpenAICompatProvider(LLMProvider):
                                 "duration_s": duration_s,
                                 "tok_per_s": tok_per_s,
                             }
-                            if sess:
-                                sess.record_metrics(metrics)
-                            stream_callback({"type": "metrics", "metrics": sess.get_metrics() if sess else metrics})
+                            # Streaming metrics: emit delta to stream_callback.
+                            # StreamSession.put() will record the delta and broadcast cumulative metrics to subscribers.
+                            stream_callback({"type": "metrics", "metrics": metrics})
                             return {"content": content_acc.strip(), "reasoning_content": reasoning_acc.strip(), "metrics": metrics}
                 else:
                     with httpx.Client(timeout=self.timeout) as client:

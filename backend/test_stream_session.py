@@ -82,5 +82,47 @@ class TestStreamSession(unittest.TestCase):
         self.assertFalse(self.sess.is_active())
         self.assertEqual(self.sess.status, "stopped")
 
+    def test_multistep_metrics_aggregation_without_compounding(self):
+        sub = self.sess.subscribe()
+
+        # Step 1: initial reasoning / tool selection
+        m1 = {"prompt_tokens": 8000, "completion_tokens": 50, "total_tokens": 8050, "duration_s": 1.5}
+        self.sess.put({"type": "metrics", "metrics": m1})
+        ev1 = sub.get_nowait()
+        self.assertEqual(ev1["type"], "metrics")
+        self.assertEqual(ev1["metrics"]["completion_tokens"], 50)
+        self.assertEqual(ev1["metrics"]["prompt_tokens"], 8000)
+        self.assertEqual(ev1["metrics"]["total_tokens"], 8050)
+        self.assertEqual(ev1["metrics"]["llm_duration_s"], 1.5)
+        self.assertEqual(ev1["metrics"]["tok_per_s"], 33.3)
+
+        # Step 2: intermediate observation processing
+        m2 = {"prompt_tokens": 8500, "completion_tokens": 60, "total_tokens": 8560, "duration_s": 1.8}
+        self.sess.put({"type": "metrics", "metrics": m2})
+        ev2 = sub.get_nowait()
+        self.assertEqual(ev2["metrics"]["completion_tokens"], 110)
+        self.assertEqual(ev2["metrics"]["prompt_tokens"], 16500)
+        self.assertEqual(ev2["metrics"]["total_tokens"], 16610)
+        self.assertEqual(ev2["metrics"]["llm_duration_s"], 3.3)
+        self.assertEqual(ev2["metrics"]["tok_per_s"], 33.3)
+
+        # Step 3: final answer generation
+        m3 = {"prompt_tokens": 9000, "completion_tokens": 76, "total_tokens": 9076, "duration_s": 2.0}
+        self.sess.put({"type": "metrics", "metrics": m3})
+        ev3 = sub.get_nowait()
+        self.assertEqual(ev3["metrics"]["completion_tokens"], 186)
+        self.assertEqual(ev3["metrics"]["prompt_tokens"], 25500)
+        self.assertEqual(ev3["metrics"]["total_tokens"], 25686)
+        self.assertEqual(ev3["metrics"]["llm_duration_s"], 5.3)
+        self.assertEqual(ev3["metrics"]["tok_per_s"], 35.1)
+
+        # Final get_metrics check
+        final_metrics = self.sess.get_metrics()
+        self.assertEqual(final_metrics["completion_tokens"], 186)
+        self.assertEqual(final_metrics["prompt_tokens"], 25500)
+        self.assertEqual(final_metrics["total_tokens"], 25686)
+        self.assertEqual(final_metrics["llm_duration_s"], 5.3)
+        self.assertEqual(final_metrics["tok_per_s"], 35.1)
+
 if __name__ == '__main__':
     unittest.main()
