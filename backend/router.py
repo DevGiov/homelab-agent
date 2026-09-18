@@ -45,10 +45,12 @@ def classify_mode(
         logger.info(f"Visual direct request with image classified as mode=chat for input='{user_input}'")
         return "chat"
 
-    # 1. Multi-step planning intent
+    # 1. Multi-step planning & automation intent
     plan_keywords = [
         "pianifica", "piano per", "crea piano", "prepara sequenza", "workflow", "migra", "progetta architettura", "strategia",
-        "plan a", "plan for", "create a plan", "architecture plan", "migration plan", "multi-step plan"
+        "crea automazione", "crea un'automazione", "automatizza", "nuova automazione", "schedula", "task ricorrente", "crea loop", "programma ogni",
+        "plan a", "plan for", "create a plan", "architecture plan", "migration plan", "multi-step plan",
+        "create automation", "create an automation", "automate", "schedule recurring", "schedule daily"
     ]
     if any(kw in input_lower for kw in plan_keywords):
         logger.info(f"Rule router classified mode=plan for input='{user_input}'")

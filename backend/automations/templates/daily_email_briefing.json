@@ -1,0 +1,103 @@
+{
+  "id": "tpl-daily-email-briefing",
+  "name": "Daily Email Briefing & Triage",
+  "description": "Legge le email non lette ricevute dall'ultima esecuzione, le classifica per urgenza, genera un riepilogo strutturato e prepara bozze di risposta senza invio automatico.",
+  "version": 1,
+  "enabled": true,
+  "triggers": [
+    {
+      "id": "trg-daily-cron",
+      "type": "cron",
+      "cron_expression": "30 8 * * 1-5",
+      "timezone": "Europe/Rome",
+      "enabled": true
+    },
+    {
+      "id": "trg-manual",
+      "type": "manual",
+      "enabled": true
+    }
+  ],
+  "workflow": {
+    "initial_step_id": "fetch_emails",
+    "steps": [
+      {
+        "step_id": "fetch_emails",
+        "name": "Recupero Email Recenti",
+        "type": "deterministic_action",
+        "action_or_tool": "email_fetch_unread",
+        "parameters": {
+          "max_emails": 20,
+          "unread_only": true
+        },
+        "timeout_seconds": 30
+      },
+      {
+        "step_id": "triage_emails",
+        "name": "Triage e Classificazione Urgenza",
+        "type": "agentic_task",
+        "prompt_template": "Analizza il seguente elenco di email ricevute:\n{{steps.fetch_emails.output.emails}}\n\nPer ciascuna email:\n1. Identifica il mittente e l'argomento chiave.\n2. Classifica l'urgenza (ALTA, MEDIA, BASSA).\n3. Determina se richiede una risposta da parte dell'utente.\n4. Estrai eventuali scadenze o richieste d'azione immediate.\n\nFornisci un riepilogo analitico chiaro e organizzato per priorità decrescente.",
+        "timeout_seconds": 90
+      },
+      {
+        "step_id": "prepare_drafts",
+        "name": "Generazione Bozze di Risposta",
+        "type": "agentic_task",
+        "prompt_template": "Sulla base del triage precedente:\n{{steps.triage_emails.output}}\n\nPer ogni email con urgenza ALTA o MEDIA che richiede una risposta, genera una bozza di risposta professionale ed esaustiva, mantenendo il tono opportuno.\nUsa il tool 'email_create_draft' per salvare ciascuna bozza nell'account.\nNON tentare in nessun caso di inviare le email: salva solo le bozze.",
+        "timeout_seconds": 120
+      },
+      {
+        "step_id": "generate_report_artifact",
+        "name": "Generazione Artefatto Markdown",
+        "type": "deterministic_action",
+        "action_or_tool": "save_briefing_artifact",
+        "parameters": {
+          "title": "Daily Email Briefing & Triage Report",
+          "content_source": "steps.triage_emails.output"
+        },
+        "timeout_seconds": 15
+      }
+    ]
+  },
+  "permission_policy": {
+    "execution_identity": "email-assistant-sa",
+    "allowed_tools": [
+      "email_fetch_unread",
+      "email_create_draft",
+      "save_briefing_artifact"
+    ],
+    "allowed_registries": [
+      "email",
+      "code",
+      "memory"
+    ],
+    "security_mode": "normal",
+    "require_approval_for": [],
+    "target_scopes": {
+      "allowed_containers": [],
+      "allowed_repos": [],
+      "allowed_recipients": []
+    },
+    "secrets_whitelist": [
+      "IMAP_HOST",
+      "IMAP_USER",
+      "IMAP_PASSWORD"
+    ],
+    "dry_run_supported": true
+  },
+  "budget": {
+    "max_duration_seconds": 300,
+    "max_llm_calls": 8,
+    "max_tool_calls": 25,
+    "max_tokens": 40000,
+    "max_retries_per_step": 2
+  },
+  "notification_policy": {
+    "on_success": true,
+    "on_failure": true,
+    "on_approval_needed": true,
+    "channels": [
+      "ui_inbox"
+    ]
+  }
+}

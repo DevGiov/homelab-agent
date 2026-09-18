@@ -1,0 +1,69 @@
+{
+  "id": "tpl-github-issue-repair",
+  "name": "GitHub Issue Auto-Repair Loop",
+  "description": "Ciclo autonomo a tentativi per la diagnosi e riparazione di bug: crea un workspace isolato effimero, esegue i test runner, sintetizza la fix, valida il superamento dei test e produce la patch diff.",
+  "version": 1,
+  "enabled": true,
+  "triggers": [
+    {
+      "id": "trg-webhook-issue",
+      "type": "webhook",
+      "webhook_path": "/webhooks/github/issues",
+      "enabled": true
+    },
+    {
+      "id": "trg-manual-repair",
+      "type": "manual",
+      "enabled": true
+    }
+  ],
+  "workflow": {
+    "initial_step_id": "investigate_and_reproduce",
+    "steps": [
+      {
+        "step_id": "investigate_and_reproduce",
+        "name": "Ispezione e Riproduzione Bug",
+        "type": "agentic_task",
+        "prompt_template": "Analizza l'issue o la segnalazione ricevuta:\nTitolo: {{inputs.issue_title}}\nDescrizione:\n{{inputs.issue_body}}\n\n1. Identifica il componente o file interessato.\n2. Definisci il comando di test riproducibile (es. pytest o python -m unittest).\n3. Formula l'ipotesi di causa radice.",
+        "timeout_seconds": 120
+      },
+      {
+        "step_id": "repair_loop_execution",
+        "name": "Esecuzione Ciclo di Riparazione Deterministico",
+        "type": "deterministic_action",
+        "action_or_tool": "custom_code",
+        "parameters": {
+          "script_path": "automations/loops/coding_repair.py",
+          "entrypoint": "run_repair_loop"
+        },
+        "timeout_seconds": 180
+      },
+      {
+        "step_id": "approval_gate_merge_pr",
+        "name": "Controllo Approvazione Merge / Pull Request",
+        "type": "approval_gate",
+        "requires_approval": true
+      }
+    ]
+  },
+  "permission_policy": {
+    "execution_identity": "coding-subagent-sa",
+    "allowed_tools": ["custom_code"],
+    "allowed_registries": ["code"],
+    "security_mode": "normal",
+    "secrets_whitelist": ["GITHUB_TOKEN"],
+    "dry_run_supported": true
+  },
+  "budget": {
+    "max_duration_seconds": 360,
+    "max_llm_calls": 10,
+    "max_tokens": 50000,
+    "max_retries_per_step": 3
+  },
+  "notification_policy": {
+    "on_success": true,
+    "on_failure": true,
+    "on_approval_needed": true,
+    "channels": ["ui_inbox"]
+  }
+}

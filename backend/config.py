@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -36,6 +37,15 @@ class Settings(BaseSettings):
 
     # --- Storage ---
     checkpoint_db_path: str = Field(default=str(Path(__file__).parent / "checkpoints.db"), alias="CHECKPOINT_DB_PATH")
+    automations_db_path: str = Field(
+        default=str(Path("/data/automations.db") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "automations.db"),
+        alias="AUTOMATIONS_DB_PATH",
+    )
+    artifacts_dir: str = Field(
+        default=str(Path("/data/artifacts") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "data" / "artifacts"),
+        alias="ARTIFACTS_DIR",
+    )
+    enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
 
     # --- Firecracker ---
@@ -78,9 +88,13 @@ OLLAMA_URL = _settings.ollama_url
 LETTA_URL = _settings.letta_url
 LETTA_API_KEY = _settings.letta_api_key
 CHECKPOINT_DB_PATH = _settings.checkpoint_db_path
+AUTOMATIONS_DB_PATH = _settings.automations_db_path
+ARTIFACTS_DIR = _settings.artifacts_dir
+ENABLE_AUTOMATION_SCHEDULER = _settings.enable_automation_scheduler
 TRUNCATION_LIMIT = _settings.truncation_limit
 FIRECRACKER_API_URL = _settings.firecracker_api_url
 FIRECRACKER_LOG_URL = _settings.firecracker_log_url
 FIRECRACKER_KERNEL_PATH = _settings.firecracker_kernel_path
 FIRECRACKER_ROOTFS_PATH = _settings.firecracker_rootfs_path
+
 

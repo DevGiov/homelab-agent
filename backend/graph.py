@@ -1287,15 +1287,59 @@ def plan_graph_node(state: AgentState) -> AgentState:
     from registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
     now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
-    system_prompt = (
-        f"Current System Date and Time: {now_str}\n"
-        "You are the Homelab AI Management Agent (mode: PLAN).\n"
-        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
-        "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request "
-        "using the tools and connected MCP servers available in the system.\n"
-        f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        "Reply ONLY with the numbered list of execution steps."
-    )
+    task_lower = task.lower()
+    is_automation_request = any(kw in task_lower for kw in [
+        "crea automazione", "crea un'automazione", "automatizza", "nuova automazione",
+        "schedula", "task ricorrente", "crea loop", "programma ogni",
+        "create automation", "create an automation", "automate", "schedule recurring", "schedule daily"
+    ])
+
+    if is_automation_request:
+        system_prompt = (
+            f"Current System Date and Time: {now_str}\n"
+            "You are the Homelab AI Management Agent (mode: PLAN - AUTOMATION PROPOSAL).\n"
+            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+            "The user wants to create, schedule, or propose an automation/loop.\n"
+            "Explain your proposal clearly to the user, and include an exact ```automation_proposal fenced code block containing a valid JSON object matching this schema:\n"
+            "{\n"
+            '  "id": "auto_id_univoco_snake_case",\n'
+            '  "name": "Nome Descrittivo Automazione",\n'
+            '  "description": "Descrizione chiara del task",\n'
+            '  "triggers": [{"id": "trg_1", "type": "cron", "cron_expression": "0 8 * * *"}],\n'
+            '  "workflow": {\n'
+            '    "initial_step_id": "step_1",\n'
+            '    "steps": [\n'
+            '      {\n'
+            '        "step_id": "step_1",\n'
+            '        "name": "Nome Step",\n'
+            '        "type": "deterministic_action",\n'
+            '        "action_or_tool": "nome_tool",\n'
+            '        "parameters": {}\n'
+            '      }\n'
+            '    ]\n'
+            '  },\n'
+            '  "permission_policy": {\n'
+            '    "allowed_tools": ["nome_tool"],\n'
+            '    "allowed_registries": ["metamcp", "email", "code"]\n'
+            '  },\n'
+            '  "budget": {\n'
+            '    "max_duration_seconds": 120,\n'
+            '    "max_tokens": 10000\n'
+            '  }\n'
+            "}\n"
+            f"{UNTRUSTED_CONTEXT_POLICY}\n"
+            "Inform the user that they can inspect the proposal, run a safe Dry-Run test, or activate the automation with one click."
+        )
+    else:
+        system_prompt = (
+            f"Current System Date and Time: {now_str}\n"
+            "You are the Homelab AI Management Agent (mode: PLAN).\n"
+            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+            "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request "
+            "using the tools and connected MCP servers available in the system.\n"
+            f"{UNTRUSTED_CONTEXT_POLICY}\n"
+            "Reply ONLY with the numbered list of execution steps."
+        )
 
     prompt_sections = []
     if memory_context:
@@ -1424,13 +1468,19 @@ def plan_graph_node(state: AgentState) -> AgentState:
     formatted_plan = f"Piano multi-step generato per: '{task}'\n\nPassaggi di esecuzione:\n{formatted_steps_str}"
     formatted_plan += "\n\nNota: Stato 'dry-run' completato. In attesa di conferma per l'esecuzione dei tool in sequenza."
 
+    if is_automation_request:
+        direct_answer = llm_plan or "Ho generato la proposta di automazione richiesta."
+    else:
+        direct_answer = "Ho generato un piano di esecuzione. Scegli se eseguirlo o modificarlo."
+
     plan = {
         "mode": "plan",
         "tool_needed": False,
-        "direct_answer": "Ho generato un piano di esecuzione. Scegli se eseguirlo o modificarlo.",
+        "direct_answer": direct_answer,
         "multi_step": True,
         "plan_steps": plan_steps,
-        "plan_structure": plan_structure
+        "plan_structure": plan_structure,
+        "is_automation": is_automation_request,
     }
 
     reasoning = llm_plan_res.get("reasoning_content") if isinstance(llm_plan_res, dict) else None

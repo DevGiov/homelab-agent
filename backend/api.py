@@ -62,12 +62,47 @@ from stream_session import (
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
 config.get_settings().validate_security()
 
+from contextlib import asynccontextmanager
+from automations.db import init_automations_db
+from automations.router import router as automations_router
+
 app_graph = build_graph()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        init_automations_db()
+    except Exception as _e:
+        logging.getLogger("api").warning(f"Inizializzazione automations_db differita/fallita: {_e}")
+
+    if config.ENABLE_AUTOMATION_SCHEDULER:
+        try:
+            from automations.scheduler import get_scheduler
+            scheduler = get_scheduler()
+            scheduler.start()
+            logging.getLogger("api").info("Automation scheduler avviato con successo.")
+        except Exception as _e:
+            logging.getLogger("api").warning(f"Avvio scheduler automazioni fallito: {_e}")
+
+    yield
+
+    # Shutdown
+    try:
+        from automations.scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler.stop()
+        logging.getLogger("api").info("Automation scheduler arrestato.")
+    except Exception:
+        pass
+
 
 api = FastAPI(
     title="Home Lab Agent API",
     description="FastAPI service exposing LangGraph Agent with MetaMCP tools, Letta persistent memory, and SQLite Checkpointing",
-    version="1.0"
+    version="1.0",
+    lifespan=lifespan,
 )
 
 # --- Fase 0.1: CORS ristretto alle origini configurate ---
@@ -92,6 +127,9 @@ try:
 except ImportError:
     limiter = None
     _RATE_LIMIT_ENABLED = False
+
+# --- Automations & Loops ---
+api.include_router(automations_router)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

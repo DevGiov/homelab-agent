@@ -6,6 +6,7 @@ import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
+import { AutomationsView } from './components/automations/AutomationsView';
 
 function MainLayout() {
   const {
@@ -41,6 +42,9 @@ function MainLayout() {
     diagnostics,
   } = useChat(currentThreadId, (newId) => selectThread(newId));
 
+  // Top level view state: chat agent or automations & loops hub
+  const [currentView, setCurrentView] = useState<'chat' | 'automations'>('chat');
+
   // Mobile Drawers Navigation state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isMobileToolLogOpen, setIsMobileToolLogOpen] = useState<boolean>(false);
@@ -68,7 +72,7 @@ function MainLayout() {
         />
       )}
 
-      {/* Left Sidebar: Threads (Responsive Drawer) */}
+      {/* Left Sidebar: Threads & Navigation (Responsive Drawer) */}
       <div
         className={`fixed md:relative inset-y-0 left-0 z-50 md:z-auto transform ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -78,11 +82,13 @@ function MainLayout() {
           threads={threads}
           currentThreadId={currentThreadId}
           onSelectThread={(id) => {
+            setCurrentView('chat');
             selectThread(id);
             loadThreadHistory(id);
             setIsMobileSidebarOpen(false);
           }}
           onNewThread={() => {
+            setCurrentView('chat');
             createNewThread();
             setIsMobileSidebarOpen(false);
           }}
@@ -95,53 +101,65 @@ function MainLayout() {
           isLoading={isLoadingThreads}
           isBackendHealthy={isBackendHealthy}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          currentView={currentView}
+          onViewChange={(v) => {
+            setCurrentView(v);
+            setIsMobileSidebarOpen(false);
+          }}
         />
       </div>
 
-      {/* Main Area: Chat */}
-      <Chat
-        currentThreadId={currentThreadId}
-        currentThreadTitle={currentThreadTitle}
-        messages={currentMessages}
-        onSendMessage={handleSendMessage}
-        onRegenerate={handleRegenerateMessage}
-        onEditPrompt={handleEditPrompt}
-        onSwitchVersion={handleSwitchVersion}
-        onStop={handleStop}
-        onPause={handlePause}
-        onResume={handleResume}
-        onApprovalResolved={handleApprovalResolved}
-        isPaused={isPaused}
-        isLoading={isLoadingChat}
-        error={activeError}
-        onClearError={clearErrors}
-        onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-        onOpenMobileToolLog={() => setIsMobileToolLogOpen(true)}
-      />
+      {/* Center Area: Chat OR Automations Hub */}
+      {currentView === 'chat' ? (
+        <>
+          <Chat
+            currentThreadId={currentThreadId}
+            currentThreadTitle={currentThreadTitle}
+            messages={currentMessages}
+            onSendMessage={handleSendMessage}
+            onRegenerate={handleRegenerateMessage}
+            onEditPrompt={handleEditPrompt}
+            onSwitchVersion={handleSwitchVersion}
+            onStop={handleStop}
+            onPause={handlePause}
+            onResume={handleResume}
+            onApprovalResolved={handleApprovalResolved}
+            isPaused={isPaused}
+            isLoading={isLoadingChat}
+            error={activeError}
+            onClearError={clearErrors}
+            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+            onOpenMobileToolLog={() => setIsMobileToolLogOpen(true)}
+          />
 
-      {/* Right Sidebar: Tool & Plan Log (Responsive Drawer) */}
-      <div
-        className={`fixed md:relative inset-y-0 right-0 z-50 md:z-auto transform ${
-          isMobileToolLogOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
-        } transition-transform duration-300 ease-in-out flex shrink-0`}
-      >
-        <ToolLog
-          toolUsed={diagnostics.activeTool}
-          planSteps={diagnostics.activePlan}
-          planStructure={diagnostics.activePlanStructure}
-          executionTrace={diagnostics.activeExecutionTrace}
-          rollbackTrace={diagnostics.activeRollbackTrace}
-          mode={diagnostics.activeMode}
-          webPrefetch={diagnostics.activeWebPrefetch}
-          currentThreadId={currentThreadId}
-          isOpen={isToolLogOpen}
-          onToggle={() => setIsToolLogOpen(!isToolLogOpen)}
-          onCloseMobile={() => setIsMobileToolLogOpen(false)}
-        />
-      </div>
+          {/* Right Sidebar: Tool & Plan Log (Responsive Drawer) */}
+          <div
+            className={`fixed md:relative inset-y-0 right-0 z-50 md:z-auto transform ${
+              isMobileToolLogOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
+            } transition-transform duration-300 ease-in-out flex shrink-0`}
+          >
+            <ToolLog
+              toolUsed={diagnostics.activeTool}
+              planSteps={diagnostics.activePlan}
+              planStructure={diagnostics.activePlanStructure}
+              executionTrace={diagnostics.activeExecutionTrace}
+              rollbackTrace={diagnostics.activeRollbackTrace}
+              mode={diagnostics.activeMode}
+              webPrefetch={diagnostics.activeWebPrefetch}
+              currentThreadId={currentThreadId}
+              isOpen={isToolLogOpen}
+              onToggle={() => setIsToolLogOpen(!isToolLogOpen)}
+              onCloseMobile={() => setIsMobileToolLogOpen(false)}
+            />
+          </div>
+        </>
+      ) : (
+        <AutomationsView />
+      )}
     </div>
   );
 }
+
 
 export function App() {
   return (

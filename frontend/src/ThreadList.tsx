@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ThreadItem } from './api';
-import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings } from 'lucide-react';
+import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings, Workflow } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
 
 interface ThreadListProps {
@@ -14,6 +14,8 @@ interface ThreadListProps {
   isLoading: boolean;
   isBackendHealthy: boolean | null;
   onCloseMobile?: () => void;
+  currentView?: 'chat' | 'automations';
+  onViewChange?: (view: 'chat' | 'automations') => void;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -27,6 +29,8 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   isLoading,
   isBackendHealthy,
   onCloseMobile,
+  currentView = 'chat',
+  onViewChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfirmClearAll, setShowConfirmClearAll] = useState(false);
@@ -113,6 +117,34 @@ export const ThreadList: React.FC<ThreadListProps> = ({
           )}
         </div>
       </div>
+
+      {/* View Switcher: Chat vs Automations */}
+      {onViewChange && (
+        <div className="p-2 border-b border-border bg-panel-header/30 flex items-center gap-1.5 text-xs">
+          <button
+            onClick={() => onViewChange('chat')}
+            className={`flex-1 py-1.5 px-2.5 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              currentView === 'chat'
+                ? 'bg-accent text-white shadow-sm'
+                : 'text-fg-muted hover:text-fg hover:bg-panel'
+            }`}
+          >
+            <MessageSquare size={14} />
+            <span>Chat Agent</span>
+          </button>
+          <button
+            onClick={() => onViewChange('automations')}
+            className={`flex-1 py-1.5 px-2.5 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              currentView === 'automations'
+                ? 'bg-accent text-white shadow-sm'
+                : 'text-fg-muted hover:text-fg hover:bg-panel'
+            }`}
+          >
+            <Workflow size={14} />
+            <span>Automations</span>
+          </button>
+        </div>
+      )}
 
       {/* Clear All Confirmation Banner */}
       {showConfirmClearAll && (

@@ -28,10 +28,26 @@ def init_audit_db():
                 arguments_json TEXT,
                 result_summary TEXT,
                 is_error INTEGER DEFAULT 0,
-                duration_ms INTEGER
+                duration_ms INTEGER,
+                automation_id TEXT,
+                run_id TEXT,
+                step_run_id TEXT
             )
         """)
+        # Migrazione schema dinamica se la tabella esisteva già senza le colonne automazione
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(audit_log)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        if "automation_id" not in existing_cols:
+            conn.execute("ALTER TABLE audit_log ADD COLUMN automation_id TEXT")
+        if "run_id" not in existing_cols:
+            conn.execute("ALTER TABLE audit_log ADD COLUMN run_id TEXT")
+        if "step_run_id" not in existing_cols:
+            conn.execute("ALTER TABLE audit_log ADD COLUMN step_run_id TEXT")
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_thread ON audit_log(thread_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_auto ON audit_log(automation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_run ON audit_log(run_id)")
         conn.commit()
         conn.close()
     except Exception as e:
@@ -51,6 +67,9 @@ def log_tool_call(
     result: Any = None,
     is_error: bool = False,
     duration_ms: Optional[int] = None,
+    automation_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    step_run_id: Optional[str] = None,
 ) -> None:
     """Registra in modo persistente una chiamata a un tool. Mai bloccante."""
     try:
@@ -62,8 +81,8 @@ def log_tool_call(
         conn = _get_conn()
         conn.execute(
             """INSERT INTO audit_log
-               (timestamp, thread_id, mode, tool_name, registry, arguments_json, result_summary, is_error, duration_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (timestamp, thread_id, mode, tool_name, registry, arguments_json, result_summary, is_error, duration_ms, automation_id, run_id, step_run_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 datetime.now(timezone.utc).isoformat(),
                 thread_id,
@@ -74,6 +93,9 @@ def log_tool_call(
                 result_str,
                 1 if is_error else 0,
                 duration_ms,
+                automation_id,
+                run_id,
+                step_run_id,
             ),
         )
         conn.commit()
@@ -82,17 +104,35 @@ def log_tool_call(
         logger.warning(f"Impossibile scrivere audit log: {e}")
 
 
-def get_recent(limit: int = 100, thread_id: Optional[str] = None):
-    """Restituisce le ultime N voci di audit (per endpoint diagnostico)."""
+def get_recent(
+    limit: int = 100,
+    thread_id: Optional[str] = None,
+    automation_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+):
+    """Restituisce le ultime N voci di audit (per endpoint diagnostico o run inspector)."""
     try:
         conn = _get_conn()
         conn.row_factory = sqlite3.Row
+        conditions = []
+        params = []
         if thread_id:
-            rows = conn.execute(
-                "SELECT * FROM audit_log WHERE thread_id = ? ORDER BY id DESC LIMIT ?", (thread_id, limit)
-            ).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+            conditions.append("thread_id = ?")
+            params.append(thread_id)
+        if automation_id:
+            conditions.append("automation_id = ?")
+            params.append(automation_id)
+        if run_id:
+            conditions.append("run_id = ?")
+            params.append(run_id)
+
+        query = "SELECT * FROM audit_log"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(query, tuple(params)).fetchall()
         conn.close()
         return [dict(r) for r in rows]
     except Exception as e:

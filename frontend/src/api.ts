@@ -877,3 +877,172 @@ export async function saveMessageVersions(
     console.warn('Failed to persist versions on backend:', err);
   }
 }
+
+// ==========================================
+// Automations & Loops API Client (Milestone M3)
+// ==========================================
+
+export interface AutomationSummary {
+  id: string;
+  name: string;
+  description: string;
+  version: number;
+  enabled: boolean;
+  triggers_count: number;
+  steps_count: number;
+  created_by: string;
+  source_type: string;
+}
+
+export interface AutomationRunSummary {
+  run_id: string;
+  automation_id: string;
+  version_applied: number;
+  trigger_type: string;
+  status: string;
+  current_step_id?: string | null;
+  is_dry_run: boolean;
+  started_at: string;
+  completed_at?: string | null;
+  total_tokens: number;
+  total_duration_ms: number;
+  error_message?: string | null;
+}
+
+export interface StepRun {
+  step_run_id: string;
+  run_id: string;
+  step_id: string;
+  status: string;
+  attempt: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  input_payload?: any;
+  output_payload?: any;
+  error_message?: string | null;
+  tool_calls?: Array<{ tool_name: string; args?: any; result?: any; dry_run?: boolean }>;
+  tokens_consumed: number;
+  approval_request_id?: string | null;
+}
+
+export interface AutomationArtifact {
+  artifact_id: string;
+  run_id: string;
+  type: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+export interface AutomationRunDetails extends AutomationRunSummary {
+  step_runs: StepRun[];
+  artifacts: AutomationArtifact[];
+}
+
+export interface AutomationApprovalItem {
+  request_id: string;
+  run_id: string;
+  step_run_id?: string | null;
+  tool_name: string;
+  arguments?: any;
+  command_preview?: string;
+  risk_reason?: string;
+  status: string;
+  created_at: string;
+  expires_at?: string | null;
+}
+
+export interface ScheduledJobInfo {
+  job_id: string;
+  name: string;
+  next_run_time?: string | null;
+  trigger: string;
+}
+
+export async function fetchAutomations(): Promise<AutomationSummary[]> {
+  const res = await api.get<AutomationSummary[]>('/automations');
+  return res.data;
+}
+
+export async function getAutomation(id: string): Promise<any> {
+  const res = await api.get<any>(`/automations/${id}`);
+  return res.data;
+}
+
+export async function createOrUpdateAutomation(automation: any): Promise<any> {
+  const res = await api.post<any>('/automations', automation);
+  return res.data;
+}
+
+export async function deleteAutomation(id: string): Promise<void> {
+  await api.delete(`/automations/${id}`);
+}
+
+export async function triggerAutomationRun(
+  autoId: string,
+  dryRun: boolean = false,
+  sync: boolean = false,
+  triggerPayload?: Record<string, any>
+): Promise<any> {
+  const res = await api.post<any>(
+    `/automations/${autoId}/run`,
+    { dry_run: dryRun, trigger_payload: triggerPayload || {} },
+    { params: { sync } }
+  );
+  return res.data;
+}
+
+export async function fetchAutomationRuns(
+  automationId?: string,
+  status?: string,
+  limit: number = 50
+): Promise<AutomationRunSummary[]> {
+  const res = await api.get<AutomationRunSummary[]>('/automations/runs', {
+    params: {
+      automation_id: automationId || undefined,
+      status: status || undefined,
+      limit,
+    },
+  });
+  return res.data;
+}
+
+export async function getAutomationRunDetails(runId: string): Promise<AutomationRunDetails> {
+  const res = await api.get<AutomationRunDetails>(`/automations/runs/${runId}`);
+  return res.data;
+}
+
+export async function cancelAutomationRun(runId: string): Promise<void> {
+  await api.post(`/automations/runs/${runId}/cancel`);
+}
+
+export async function fetchAutomationApprovals(runId?: string): Promise<AutomationApprovalItem[]> {
+  const res = await api.get<AutomationApprovalItem[]>('/automations/approvals', {
+    params: runId ? { run_id: runId } : undefined,
+  });
+  return res.data;
+}
+
+export async function resolveAutomationApproval(
+  runId: string,
+  approvalId: string,
+  action: 'approve' | 'deny',
+  resolvedBy: string = 'user'
+): Promise<any> {
+  const res = await api.post(
+    `/automations/runs/${runId}/approvals/${approvalId}/resolve`,
+    { action, resolved_by: resolvedBy },
+    { params: { sync: true } }
+  );
+  return res.data;
+}
+
+export async function fetchAutomationTemplates(): Promise<any[]> {
+  const res = await api.get<any[]>('/automations/templates');
+  return res.data;
+}
+
+export async function fetchScheduledJobs(): Promise<{ running: boolean; jobs: ScheduledJobInfo[] }> {
+  const res = await api.get<{ running: boolean; jobs: ScheduledJobInfo[] }>('/automations/scheduler/jobs');
+  return res.data;
+}

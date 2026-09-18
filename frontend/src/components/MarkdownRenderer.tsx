@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { Copy, Check, ExternalLink } from 'lucide-react';
+import { AutomationProposalCard } from './automations/AutomationProposalCard';
 
 interface MarkdownRendererProps {
   content: string;
@@ -127,8 +128,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               );
             }
 
+            const lang = match ? match[1] : '';
+            if (lang === 'automation_proposal' || lang === 'automation') {
+              return <AutomationProposalCard rawJson={rawText} />;
+            }
+
             return (
-              <CodeBlock language={match ? match[1] : ''} rawCode={rawText}>
+              <CodeBlock language={lang} rawCode={rawText}>
                 {children}
               </CodeBlock>
             );

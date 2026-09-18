@@ -16,6 +16,7 @@ from registry.memory import MemoryRegistry
 from registry.metamcp import MetaMCPRegistry
 from registry.vision import VisionRegistry
 from registry.web_search import WebSearchRegistry
+from registry.email_tool import EmailRegistry
 
 logger = logging.getLogger("registry_manager")
 
@@ -28,6 +29,7 @@ class ToolRegistryManager:
         self.register_registry(CodeExecRegistry())
         self.register_registry(MemoryRegistry())
         self.register_registry(VisionRegistry())
+        self.register_registry(EmailRegistry())
 
     def register_registry(self, registry: BaseToolRegistry):
         self._registries[registry.name] = registry
@@ -49,7 +51,9 @@ class ToolRegistryManager:
 
     def execute_tool(self, tool_name: str, args: Dict[str, Any], allowed_registries: List[str],
                      thread_id: Optional[str] = None, mode: Optional[str] = None,
-                     security_mode: str = "normal", task: Optional[str] = None) -> Any:
+                     security_mode: str = "normal", task: Optional[str] = None,
+                     automation_id: Optional[str] = None, run_id: Optional[str] = None,
+                     step_run_id: Optional[str] = None) -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit."""
         start_ms = time.monotonic() * 1000
 
@@ -69,6 +73,7 @@ class ToolRegistryManager:
                             tool_name, args, thread_id=thread_id, mode=mode,
                             registry=reg_name, result={"blocked": guard["reason"]},
                             is_error=True, duration_ms=0,
+                            automation_id=automation_id, run_id=run_id, step_run_id=step_run_id,
                         )
                         return {"error": guard["reason"], "blocked_by_guardrail": True}
                     if guard.get("approval_required"):
@@ -76,6 +81,7 @@ class ToolRegistryManager:
                             tool_name, args, thread_id=thread_id, mode=mode,
                             registry=reg_name, result={"approval_pending": guard["request_id"]},
                             is_error=False, duration_ms=0,
+                            automation_id=automation_id, run_id=run_id, step_run_id=step_run_id,
                         )
                         return guard
 
@@ -87,11 +93,12 @@ class ToolRegistryManager:
 
                 duration_ms = int(time.monotonic() * 1000 - start_ms)
                 is_error = isinstance(result, dict) and bool(result.get("error"))
-                # --- Audit log (Fase 0.4) ---
+                # --- Audit log (Fase 0.4 & Fase M4) ---
                 audit_log.log_tool_call(
                     tool_name, args, thread_id=thread_id, mode=mode,
                     registry=reg_name, result=result,
                     is_error=is_error, duration_ms=duration_ms,
+                    automation_id=automation_id, run_id=run_id, step_run_id=step_run_id,
                 )
                 return result
 

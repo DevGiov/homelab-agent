@@ -77,3 +77,5 @@ fastembed>=0.7
 pypdf>=6
 Pillow>=10.0.0
 pillow-heif>=1.0.0
+apscheduler>=3.10.4
+tzlocal>=3.0
