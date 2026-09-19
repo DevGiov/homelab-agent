@@ -1037,6 +1037,16 @@ export async function resolveAutomationApproval(
   return res.data;
 }
 
+export async function deleteAutomationApproval(approvalId: string): Promise<{ status: string; deleted: string }> {
+  const res = await api.delete(`/automations/approvals/${approvalId}`);
+  return res.data;
+}
+
+export async function clearExpiredAutomationApprovals(): Promise<{ status: string; cleared_count: number }> {
+  const res = await api.post('/automations/approvals/clear-expired');
+  return res.data;
+}
+
 export async function fetchAutomationTemplates(): Promise<any[]> {
   const res = await api.get<any[]>('/automations/templates');
   return res.data;

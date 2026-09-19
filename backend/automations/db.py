@@ -527,7 +527,27 @@ def get_automation_approval(request_id: str, db_path: Optional[str] = None) -> O
         conn.close()
 
 
+def clear_expired_automation_approvals(db_path: Optional[str] = None) -> int:
+    """Aggiorna lo stato delle approvazioni scadute a 'expired'."""
+    conn = get_db_connection(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE automation_approvals
+            SET status = 'expired'
+            WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < ?
+        """, (now,))
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
+
+
 def list_pending_approvals(run_id: Optional[str] = None, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    # Aggiorna automaticamente le richieste scadute prima della lettura
+    clear_expired_automation_approvals(db_path=db_path)
+
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
@@ -542,6 +562,18 @@ def list_pending_approvals(run_id: Optional[str] = None, db_path: Optional[str] 
             d["arguments"] = json.loads(d.pop("arguments_json", "{}"))
             result.append(d)
         return result
+    finally:
+        conn.close()
+
+
+def delete_automation_approval(request_id: str, db_path: Optional[str] = None) -> bool:
+    """Elimina definitivamente un'approvazione dal database."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM automation_approvals WHERE request_id = ?", (request_id,))
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()
 
@@ -685,3 +717,10 @@ def sum_recent_tokens(automation_id: str, window_seconds: int = 86400, db_path: 
         return int(row["tok"]) if row else 0
     finally:
         conn.close()
+
+
+# Alias comodi per compatibilità semantica
+get_automation = get_definition
+list_automations = list_definitions
+save_automation = save_definition
+delete_automation = delete_definition

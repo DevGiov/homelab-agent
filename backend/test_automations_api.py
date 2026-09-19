@@ -104,6 +104,93 @@ class TestAutomationsAPI(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIsInstance(res.json(), list)
 
+    def test_chat_session_approval_resolution_and_deletion(self):
+        """Verifica che un'approvazione da chat thread (es. run_id='t_safest') possa essere risolta o eliminata senza errore 400."""
+        from datetime import datetime, timedelta, timezone
+
+        # 1. Inserisci approvazione originata da chat (senza run_id reale su automations.db)
+        auto_db.create_automation_approval({
+            "request_id": "apr_test_chat_1",
+            "run_id": "t_safest",
+            "tool_name": "exec_lxc_command",
+            "arguments": {"vmid": 125, "command": "echo test"},
+            "command_preview": "echo test",
+            "risk_reason": "Guardrail require approval",
+            "status": "pending",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        }, db_path=self.db_path)
+
+        # Risolvi tramite endpoint delle automazioni
+        with patch("guardrails.resolve_approval") as mock_resolve:
+            mock_resolve.return_value = MagicMock(status="approved")
+            res_resolve = self.client.post(
+                "/v1/automations/runs/t_safest/approvals/apr_test_chat_1/resolve",
+                json={"action": "approve", "resolved_by": "user"},
+                headers=self.headers
+            )
+            self.assertEqual(res_resolve.status_code, 200)
+            data = res_resolve.json()
+            self.assertIn(data["status"], ["resolved", "approved"])
+
+        # Verifica stato aggiornato su DB
+        appr = auto_db.get_automation_approval("apr_test_chat_1", db_path=self.db_path)
+        self.assertEqual(appr["status"], "approved")
+
+        # 2. Test eliminazione esplicita
+        auto_db.create_automation_approval({
+            "request_id": "apr_test_chat_2",
+            "run_id": "t_safest",
+            "tool_name": "exec_lxc_command",
+            "arguments": {"vmid": 125, "command": "echo delete me"},
+            "command_preview": "echo delete me",
+            "status": "pending",
+        }, db_path=self.db_path)
+
+        res_del = self.client.delete("/v1/automations/approvals/apr_test_chat_2", headers=self.headers)
+        self.assertEqual(res_del.status_code, 200)
+        self.assertEqual(res_del.json()["status"], "deleted")
+        self.assertIsNone(auto_db.get_automation_approval("apr_test_chat_2", db_path=self.db_path))
+
+    def test_clear_expired_approvals_endpoint(self):
+        """Verifica la pulizia massiva delle richieste scadute."""
+        auto_db.create_automation_approval({
+            "request_id": "apr_past_expired",
+            "run_id": "t_chat_past",
+            "tool_name": "exec_lxc_command",
+            "arguments": {},
+            "status": "pending",
+            "expires_at": "2020-01-01T00:00:00+00:00",
+        }, db_path=self.db_path)
+
+        res_clear = self.client.post("/v1/automations/approvals/clear-expired", headers=self.headers)
+        self.assertEqual(res_clear.status_code, 200)
+        self.assertGreaterEqual(res_clear.json()["cleared_count"], 1)
+
+        appr = auto_db.get_automation_approval("apr_past_expired", db_path=self.db_path)
+        self.assertEqual(appr["status"], "expired")
+
+    def test_automations_registry_tools(self):
+        """Verifica che l'AutomationRegistry esponga i tool e ritorni i template canonici."""
+        from registry.automations_tool import AutomationRegistry
+        reg = AutomationRegistry()
+        tools = reg.get_tools()
+        tool_names = [t["name"] for t in tools]
+        self.assertIn("list_automation_templates", tool_names)
+        self.assertIn("list_automations", tool_names)
+        self.assertIn("get_automation_details", tool_names)
+        self.assertIn("create_automation_from_template", tool_names)
+
+        # Test esecuzione list_automation_templates
+        templates = reg.execute_tool("list_automation_templates", {})
+        self.assertIsInstance(templates, list)
+        tpl_ids = [t["id"] for t in templates]
+        self.assertIn("tpl-daily-email-briefing", tpl_ids)
+        self.assertIn("tpl-github-issue-repair", tpl_ids)
+
+        # Test alias matching in get_automation_details
+        details = reg.execute_tool("get_automation_details", {"automation_id": "tpl_email_briefing"})
+        self.assertEqual(details.get("id"), "tpl-daily-email-briefing")
+
 
 if __name__ == "__main__":
     unittest.main()

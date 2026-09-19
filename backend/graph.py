@@ -818,6 +818,13 @@ def chat_graph_node(state: AgentState) -> AgentState:
         "You are the Homelab AI Management Assistant (mode: CHAT).\n"
         "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
         "You do not have access to execution tools in this mode: respond directly in conversational natural language using your internal knowledge, visual perception, and web prefetch data if provided.\n"
+        "Homelab Core Knowledge:\n"
+        "- The homelab has a dedicated native 'Automazioni & Loop' engine and UI tab.\n"
+        "- It allows scheduled cron automations, multi-step deterministic pipelines, and autonomous agent loops.\n"
+        "- Built-in templates include:\n"
+        "  1) Daily Email Briefing & Triage (tpl_email_briefing): Scheduled morning digest checking unread emails and Proxmox CT status, drafting replies safely (zero auto-send policy).\n"
+        "  2) GitHub Issue Auto-Repair Loop (tpl_github_repair_loop): Autonomous loop monitoring GitHub repo issues, testing container health, analyzing error logs, and preparing proposed fixes with human-in-the-loop approval.\n"
+        "- Never confuse Homelab Automations with third-party software like Home Assistant or ActiveCampaign. Inform the user they can ask you to list templates or propose an automation directly in the chat, or navigate to the 'Automazioni' tab.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 

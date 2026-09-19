@@ -72,8 +72,8 @@ def classify_mode(
     # 3. Purely conceptual / educational queries (ASK, NOT ACT even if mentioning container/lxc/docker/proxmox)
     # e.g. "cosa è un container lxc", "what is proxmox", "differenza tra docker e lxc", "how does a container work"
     is_conceptual_question = (
-        input_lower.startswith(("cosa è", "cos'è", "cosa sono", "qual è la differenza", "quali sono le differenze", "come funziona", "spiegami come", "spiegami cosa", "perché si usa", "perché usare"))
-        or input_lower.startswith(("what is", "what are", "what's", "difference between", "how does", "how do", "explain how", "explain what", "why use", "why is"))
+        input_lower.startswith(("cosa è", "cos'è", "cosa sono", "qual è la differenza", "quali sono le differenze", "come funziona", "spiegami come", "spiegami cosa", "spiegami", "perché si usa", "perché usare", "parlami di", "parlami del", "parlami della", "parlami delle", "parlami dei", "parlami"))
+        or input_lower.startswith(("what is", "what are", "what's", "difference between", "how does", "how do", "explain how", "explain what", "explain", "why use", "why is", "tell me about"))
     )
     has_specific_target_instance = bool(re.search(r'\b(ct|container|vmid|vm)\s*\d+\b|\b\d{3}\b', input_lower))
     has_directory_inspection = any(p in input_lower for p in ["/opt", "/etc", "/var", "/tmp", "/home", "/root", "cartella", "directory", "cartelle", "directories", "folder"])
@@ -108,7 +108,8 @@ def classify_mode(
         "container", "containers", "lxc", "ct", "vm", "vms", "vmid", "proxmox", "pve",
         "immich", "pihole", "dns", "npm", "ipam", "template", "templates", "storage", "nodo",
         "node", "host", "macchina", "macchine", "nginx", "servizio", "servizi", "service", "services",
-        "daemon", "zfs", "disco", "disk", "ram", "memory", "memoria", "cpu", "ip"
+        "daemon", "zfs", "disco", "disk", "ram", "memory", "memoria", "cpu", "ip",
+        "automazione", "automazioni", "automation", "automations", "loop", "loops"
     ]
     # Filesystem and command inspection keywords
     filesystem_inspection = [
@@ -164,7 +165,7 @@ def classify_mode(
     prompt = f"""Analyze the following user request and classify it into EXACTLY ONE of these 4 operational modes:
 - chat: Casual conversation, greetings, pleasantries, philosophical/identity questions, or direct visual description of an image without tools.
 - ask: External web search queries, general research, pricing/news lookup, theoretical/conceptual questions, or documentation reading.
-- act: Interacting with local infrastructure (Proxmox, LXC containers, VMs, Docker, host commands, filesystem inspection, DNS, proxy, network, checking status or executing commands).
+- act: Interacting with local infrastructure (Proxmox, LXC containers, VMs, Docker, automations & loops, host commands, filesystem inspection, DNS, proxy, network, checking status or executing commands).
 - plan: Strategic planning of complex multi-step migrations, architectural redesigns, or multi-phase workflows.
 
 Request: "{user_input}"

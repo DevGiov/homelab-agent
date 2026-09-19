@@ -72,6 +72,9 @@ VIEW_TOOLS = {
 
     # Email & Briefing (Milestone M2 & M4)
     "email_fetch_unread", "email_create_draft", "save_briefing_artifact",
+
+    # Automations & Loops (Inspection / Read-only)
+    "list_automation_templates", "list_automations", "get_automation_details",
 }
 
 SAFE_TOOLS = VIEW_TOOLS  # Retrocompatibilità
@@ -127,6 +130,9 @@ TOOL_CATEGORIES = {
     "run_agy_bootstrap": "provisioning", "create_service": "provisioning",
     "python_interpreter": "code.sandboxed", "web_search": "web.read",
     "recall_memory": "memory.read", "knowledge_search": "kb.read", "inspect_image": "vision.read",
+    "list_automation_templates": "automations.read", "list_automations": "automations.read",
+    "get_automation_details": "automations.read", "create_automation_from_template": "automations.write",
+    "create_custom_automation": "automations.write", "trigger_automation_run": "automations.exec",
 }
 
 

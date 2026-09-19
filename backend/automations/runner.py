@@ -11,7 +11,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 import config
@@ -300,13 +300,13 @@ class AutomationRunner:
         resolved_by: str = "user"
     ) -> AutomationRun:
         """Risolve l'approvazione pendente e riprende l'esecuzione della run."""
-        resolved = auto_db.resolve_automation_approval(approval_id, action, resolved_by=resolved_by, db_path=self.db_path)
-        if not resolved:
-            raise ValueError(f"Approvazione '{approval_id}' non trovata o già risolta.")
-
         run_dict = auto_db.get_run(run_id, db_path=self.db_path)
         if not run_dict:
             raise ValueError(f"Run '{run_id}' non trovata.")
+
+        resolved = auto_db.resolve_automation_approval(approval_id, action, resolved_by=resolved_by, db_path=self.db_path)
+        if not resolved:
+            raise ValueError(f"Approvazione '{approval_id}' non trovata o già risolta.")
 
         if action.lower() in ("deny", "false", "refuse"):
             auto_db.update_run_status(
@@ -361,7 +361,7 @@ class AutomationRunner:
                 "command_preview": f"Step '{step_def.name}' richiede conferma esplicita",
                 "risk_reason": f"Approval Gate richiesto dalla definizione del workflow per '{step_def.name}'",
                 "status": "pending",
-                "expires_at": datetime.now(timezone.utc).isoformat(),
+                "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
             }, db_path=self.db_path)
             return {
                 "status": RunStatus.WAITING_APPROVAL,

@@ -163,8 +163,17 @@ def run_agent_loop(
         base_system_prompt = (
             f"Current System Date and Time: {now_str}\n"
             f"You are the Homelab AI Management Agent (mode: {mode.upper()}).\n"
-            "You have access to the connected MCP ecosystem, infrastructure tools, visual analysis, web search, and code execution.\n"
+            "You have access to the connected MCP ecosystem, infrastructure tools, visual analysis, web search, code execution, and the integrated Homelab Automations & Loops engine.\n"
             "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+            "HOMELAB AUTOMATIONS & LOOPS SUBSYSTEM:\n"
+            "- Homelab-agent has a built-in 'Automazioni' (Automations & Loops) engine supporting durable step workflows, background cron schedules, approval gates, and sandboxed code execution.\n"
+            "- Pre-packaged canonical templates available:\n"
+            "  * `tpl-daily-email-briefing`: Daily Email Briefing & Triage (reads unread emails, triages urgency, prepares drafts with zero auto-send policy, saves markdown report).\n"
+            "  * `tpl-github-issue-repair`: GitHub Issue Auto-Repair Loop (diagnoses bugs in isolated workspaces, tests baseline, runs repair loop, validates fixes, generates unified diff patch).\n"
+            "- If the user asks about the Automations section, templates, or creating workflows:\n"
+            "  1. Use `list_automation_templates` to view available templates or `list_automations` to view active ones.\n"
+            "  2. Use `create_automation_from_template` or `create_custom_automation` to activate an automation directly.\n"
+            "  3. You can also output an interactive proposal in chat using an ````automation_proposal fenced code block containing the full JSON definition (id, name, description, triggers, workflow, permission_policy, budget). The frontend renders an interactive card with Dry-Run and 1-click Activate buttons!\n"
             f"{UNTRUSTED_CONTEXT_POLICY}\n"
         )
 
@@ -196,8 +205,8 @@ def run_agent_loop(
             f"History of actions executed in this turn:\n{obs_context}\n\n"
             "CORE TOOL SELECTION RULES:\n"
             "1. DISTINCTION BETWEEN VIEW vs EXECUTE TOOLS:\n"
-            "   - `[VIEW]`: Purely informational, read-only diagnostic tools (e.g. `get_container_status`, `list_containers`, `list_templates`, `web_search`). These run automatically without interrupting the flow.\n"
-            "   - `[EXECUTE]`: Shell commands on host/containers and operations that mutate infrastructure, DNS, or configs (e.g. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`). These trigger Human-In-The-Loop (HITL) approval in the UI. In the `reasoning` field, always clearly explain what action you intend to take before calling them.\n"
+            "   - `[VIEW]`: Purely informational, read-only diagnostic tools (e.g. `get_container_status`, `list_containers`, `list_templates`, `list_automation_templates`, `list_automations`, `web_search`). These run automatically without interrupting the flow.\n"
+            "   - `[EXECUTE]`: Shell commands on host/containers and operations that mutate infrastructure, DNS, configs, or automations (e.g. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`, `create_automation_from_template`, `create_custom_automation`). These trigger Human-In-The-Loop (HITL) approval in the UI when required. In the `reasoning` field, always clearly explain what action you intend to take before calling them.\n"
             "2. If the user request asks about recent events, latest news, updates, dates, live prices, or information not present in your certain knowledge (and not covered by prefetch), set `tool_needed=true` and select `tool_name='web_search'`.\n"
             "3. If the request requires operating on homelab resources, files, network configs, DNS, or any service managed via the MCP ecosystem, set `tool_needed=true` and specify the corresponding MCP tool.\n"
             "4. If the request can be answered with absolute certainty from internal knowledge, the attached image, or the web prefetch without further actions (and does not ask for live market prices), set `tool_needed=false` and provide the complete response in `final_answer`.\n"
@@ -206,7 +215,8 @@ def run_agent_loop(
             "7. IF AN ACTION OR TOOL HAS ALREADY BEEN EXECUTED (e.g. `inspect_image`, `web_search`, infrastructure command) and the result is in 'History of actions executed in this turn', that action is ALREADY COMPLETED: DO NOT repeat the same call or analogous tools. Set `tool_needed=false` and summarize the results in `final_answer` for the user.\n"
             "8. ANTI-HALLUCINATION ON EMPTY SEARCH: If web searches return no matches for the requested terms, DO NOT search in an endless loop and DO NOT invent that entities are fictitious. Transparently report what was found or the absence of official records in consulted sources.\n"
             "9. REASONING: Reason freely in the `reasoning` field. When `tool_needed=false`, ALWAYS provide the final response for the user in `final_answer` in the user's language.\n"
-            "10. ALWAYS PREFER DEDICATED MCP TOOLS: To create or clone containers, check status, manage DNS or proxy, ALWAYS use the dedicated MCP tools (e.g. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, etc.). DO NOT attempt raw shell commands like `pct clone` when a dedicated tool exists."
+            "10. ALWAYS PREFER DEDICATED MCP TOOLS: To create or clone containers, check status, manage DNS or proxy, ALWAYS use the dedicated MCP tools (e.g. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, etc.). DO NOT attempt raw shell commands like `pct clone` when a dedicated tool exists.\n"
+            "11. HOMELAB AUTOMATIONS & TEMPLATES: If the user asks about the Automations section, available templates, or scheduling workflows, DO NOT search external web sources for third-party platforms (like Home Assistant or SaaS tools). Use `list_automation_templates` or `list_automations` to fetch the homelab's native workflows and templates, or `create_automation_from_template` to activate one. You can also generate an interactive proposal card in chat using ````automation_proposal { ... } ````."
         )
 
         if not call_llm_structured_fn:

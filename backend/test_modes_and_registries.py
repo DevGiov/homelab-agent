@@ -19,9 +19,10 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertFalse(chat_p.allow_react_loop)
 
         ask_p = get_mode_policy("ask")
-        self.assertEqual(ask_p.max_tool_calls, 3)
+        self.assertEqual(ask_p.max_tool_calls, 5)
         self.assertIn("web", ask_p.allowed_registries)
         self.assertIn("code", ask_p.allowed_registries)
+        self.assertIn("automations", ask_p.allowed_registries)
 
         act_p = get_mode_policy("act")
         self.assertIn("metamcp", act_p.allowed_registries)

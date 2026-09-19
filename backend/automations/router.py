@@ -148,6 +148,39 @@ async def resolve_approval(
     """Risolve un'approvazione pendente e riprende l'esecuzione della run."""
     runner = get_runner()
     try:
+        # Verifica se si tratta di una vera run di automazione o di una richiesta originata da chat/guardrails
+        run_dict = auto_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+        if not run_dict:
+            # Risoluzione per approvazioni di sessione Chat (guardrails)
+            import guardrails
+            from registry.manager import get_registry_manager
+
+            # 1. Aggiorna DB automazioni
+            auto_db.resolve_automation_approval(
+                approval_id, body.action, resolved_by=body.resolved_by, db_path=config.AUTOMATIONS_DB_PATH
+            )
+
+            # 2. Risolvi in guardrails memory/permissions
+            guard_req = guardrails.resolve_approval(
+                request_id=approval_id, action=body.action, resolved_by=body.resolved_by
+            )
+
+            # 3. Se approvata ed è presente nel tool manager per esecuzione immediata
+            if body.action.lower() in ("approve", "approved", "true"):
+                try:
+                    get_registry_manager().execute_approved_tool(approval_id)
+                except Exception as ex:
+                    logger.warning(f"Esecuzione tool chat approvato '{approval_id}' non riuscita o già gestita: {ex}")
+
+            norm_status = "approved" if body.action.lower() in ("approve", "approved", "true") else "denied"
+            return {
+                "status": norm_status,
+                "run_id": run_id,
+                "approval_id": approval_id,
+                "type": "chat_approval",
+                "message": f"Approvazione chat '{approval_id}' ({norm_status}) elaborata con successo."
+            }
+
         if sync:
             resumed_run = runner.resume_run(
                 run_id=run_id,
@@ -165,6 +198,22 @@ async def resolve_approval(
             return {"status": resolved["status"], "run_id": run_id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/approvals/{approval_id}")
+async def delete_approval(approval_id: str):
+    """Elimina definitivamente un'approvazione dal database."""
+    deleted = auto_db.delete_automation_approval(approval_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Richiesta di approvazione '{approval_id}' non trovata.")
+    return {"status": "deleted", "approval_id": approval_id}
+
+
+@router.post("/approvals/clear-expired")
+async def clear_expired_approvals():
+    """Aggiorna lo stato di tutte le approvazioni scadute a 'expired'."""
+    cleared = auto_db.clear_expired_automation_approvals(db_path=config.AUTOMATIONS_DB_PATH)
+    return {"cleared_count": cleared}
 
 
 # --- 4. Artefatti ---
