@@ -58,7 +58,7 @@ class Budget(BaseModel):
 class ExecutionPolicy(BaseModel):
     execution_identity: str = Field(default="automation-default-sa", description="Identità/Service Account per permessi")
     allowed_tools: List[str] = Field(default_factory=list, description="Allowlist rigida di tool invocabili")
-    allowed_registries: List[str] = Field(default_factory=lambda: ["metamcp", "web", "code", "memory", "vision"])
+    allowed_registries: List[str] = Field(default_factory=lambda: ["metamcp", "web", "code", "memory", "vision", "email", "automations"])
     security_mode: str = Field(default="normal", description="safest | normal | dangerous")
     require_approval_for: List[str] = Field(default_factory=list, description="Azioni che forzano l'approval gate")
     target_scopes: Dict[str, List[str]] = Field(

@@ -95,6 +95,9 @@ class AutomationScheduler:
 
         logger.info(f"Sincronizzazione completata: {scheduled_count} trigger cron pianificati.")
 
+    # Alias per retrocompatibilità e chiamate da registry/tool
+    sync_from_db = sync_triggers
+
     def _schedule_trigger(self, auto_def: AutomationDefinition, trigger):
         """Pianifica un singolo trigger cron."""
         job_id = f"auto_job_{auto_def.id}_{trigger.id}"

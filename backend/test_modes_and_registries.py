@@ -64,5 +64,25 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertEqual(res["final_response"], "Ciao! Risposta chat mock.")
         self.assertEqual(len(res["execution_trace"]), 0)
 
+    def test_execute_approved_tool_includes_automations_and_email(self):
+        """Verifica che execute_approved_tool cerchi su tutti i registry registrati (inclusi automations ed email)."""
+        import guardrails
+        mgr = get_registry_manager()
+
+        req = guardrails.ApprovalRequest(
+            request_id="apr_test_automations_reg",
+            tool_name="list_automation_templates",
+            arguments={},
+            thread_id="test_thread",
+            mode="plan"
+        )
+        req.status = "approved"
+        guardrails._APPROVALS[req.request_id] = req
+
+        res = mgr.execute_approved_tool(req.request_id)
+        self.assertIsInstance(res, list)
+        self.assertTrue(any(t.get("id") == "tpl-daily-email-briefing" or t.get("template_id") == "tpl-daily-email-briefing" for t in res))
+
+
 if __name__ == "__main__":
     unittest.main()

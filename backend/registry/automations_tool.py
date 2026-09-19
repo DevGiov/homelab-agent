@@ -297,6 +297,14 @@ class AutomationRegistry(BaseToolRegistry):
             data["name"] = custom_name
         data["enabled"] = enabled
 
+        # Assegna un ID operativo univoco distinto dal template
+        base_id = data.get("id", "auto").replace("tpl-", "auto-").replace("tpl_", "auto_")
+        candidate_id = base_id
+        if auto_db.get_definition(candidate_id, db_path=config.AUTOMATIONS_DB_PATH):
+            import uuid
+            candidate_id = f"{base_id}_{uuid.uuid4().hex[:6]}"
+        data["id"] = candidate_id
+
         if custom_cron:
             for trg in data.get("triggers", []):
                 if trg.get("type") == "cron":
@@ -310,7 +318,7 @@ class AutomationRegistry(BaseToolRegistry):
             try:
                 from automations.scheduler import get_scheduler
                 sched = get_scheduler()
-                sched.sync_from_db()
+                sched.sync_triggers()
             except Exception as e:
                 logger.warning(f"Sincronizzazione scheduler dopo creazione template non riuscita: {e}")
 
@@ -335,7 +343,7 @@ class AutomationRegistry(BaseToolRegistry):
             try:
                 from automations.scheduler import get_scheduler
                 sched = get_scheduler()
-                sched.sync_from_db()
+                sched.sync_triggers()
             except Exception as e:
                 logger.warning(f"Sincronizzazione scheduler dopo creazione custom non riuscita: {e}")
 

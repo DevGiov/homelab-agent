@@ -191,6 +191,34 @@ class TestAutomationsAPI(unittest.TestCase):
         details = reg.execute_tool("get_automation_details", {"automation_id": "tpl_email_briefing"})
         self.assertEqual(details.get("id"), "tpl-daily-email-briefing")
 
+    def test_resolve_approval_create_automation_from_template(self):
+        """Verifica che la risoluzione di un'approvazione per create_automation_from_template crei l'automazione senza errore di registry."""
+        import guardrails
+        req = guardrails.ApprovalRequest(
+            request_id="apr_test_tpl_create",
+            tool_name="create_automation_from_template",
+            arguments={
+                "template_id": "tpl-daily-email-briefing",
+                "custom_name": "Test Daily Briefing Auto",
+                "custom_cron": "0 9 * * *",
+                "enabled": True
+            },
+            thread_id="thread_test_create",
+            mode="plan"
+        )
+        guardrails._APPROVALS[req.request_id] = req
+
+        res = self.client.post(
+            f"/v1/approvals/{req.request_id}/resolve",
+            json={"action": "approve", "resolved_by": "user"},
+            headers=self.headers
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "approved")
+        self.assertNotIn("error", data.get("result", {}))
+        self.assertEqual(data["result"].get("status"), "created")
+
 
 if __name__ == "__main__":
     unittest.main()

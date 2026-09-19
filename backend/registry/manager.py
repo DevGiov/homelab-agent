@@ -119,7 +119,8 @@ class ToolRegistryManager:
             return {"error": "Richiesta non ancora approvata.", "status": req.status}
 
         logger.info(f"Esecuzione tool approvato '{req.tool_name}' (richiesta {request_id})")
-        return self.execute_tool(req.tool_name, req.arguments, ["metamcp", "web", "code", "memory", "vision"],
+        all_registries = list(self._registries.keys())
+        return self.execute_tool(req.tool_name, req.arguments, all_registries,
                                  thread_id=req.thread_id, mode=req.mode, security_mode="dangerous")
 
     def execute_tools_parallel(self, calls: List[Dict[str, Any]], allowed_registries: List[str],
