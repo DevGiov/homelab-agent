@@ -313,27 +313,27 @@ def _limit(rate: str):
 
 @api.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
-async def chat_endpoint(req: ChatRequest, request: Request = None):
+def chat_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
-async def ask_endpoint(req: ChatRequest, request: Request = None):
+def ask_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
-async def act_endpoint(req: ChatRequest, request: Request = None):
+def act_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
-async def plan_endpoint(req: ChatRequest, request: Request = None):
+def plan_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 @api.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @_limit(config.RATE_LIMIT)
-async def invoke_endpoint(req: ChatRequest, request: Request = None):
+def invoke_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 # Gestione upload file multimodali
