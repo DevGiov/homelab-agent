@@ -7,6 +7,7 @@ import { useChat } from './hooks/useChat';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
 import { AutomationsView } from './components/automations/AutomationsView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function MainLayout() {
   const {
@@ -163,9 +164,11 @@ function MainLayout() {
 
 export function App() {
   return (
-    <ThemeProvider>
-      <MainLayout />
-    </ThemeProvider>
+    <ErrorBoundary title="Errore nell'applicazione">
+      <ThemeProvider>
+        <MainLayout />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -7,7 +7,7 @@ budget, run, step ed esecuzioni.
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SourceType(str, Enum):
@@ -127,6 +127,125 @@ class AutomationDefinition(BaseModel):
     source_reference: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_proposal(cls, data: Any) -> Any:
+        """Normalizza tollerantemente payload raw generati da LLM o client UI."""
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
+
+        # 1. Normalizzazione ID e nome
+        if not d.get("id"):
+            import uuid
+            d["id"] = f"auto_{uuid.uuid4().hex[:8]}"
+        if not d.get("name"):
+            d["name"] = d.get("id", "Nuova Automazione")
+
+        # 2. Normalizzazione Workflow (array -> oggetto WorkflowSpec)
+        wf = d.get("workflow")
+        if isinstance(wf, list):
+            steps = list(wf)
+            initial_id = steps[0].get("step_id", "step_1") if (steps and isinstance(steps[0], dict)) else "step_1"
+            d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
+        elif isinstance(wf, dict):
+            wf = dict(wf)
+            if not wf.get("initial_step_id") and wf.get("steps"):
+                first_step = wf["steps"][0]
+                if isinstance(first_step, dict):
+                    wf["initial_step_id"] = first_step.get("step_id", "step_1")
+            d["workflow"] = wf
+        elif not wf and "steps" in d:
+            steps = list(d.pop("steps", []))
+            initial_id = steps[0].get("step_id", "step_1") if (steps and isinstance(steps[0], dict)) else "step_1"
+            d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
+
+        # 3. Normalizzazione Steps all'interno del workflow
+        if isinstance(d.get("workflow"), dict) and "steps" in d["workflow"]:
+            norm_steps = []
+            for idx, s in enumerate(d["workflow"].get("steps", [])):
+                if not isinstance(s, dict):
+                    continue
+                s = dict(s)
+                if not s.get("step_id"):
+                    s["step_id"] = s.get("id") or f"step_{idx+1}"
+                if not s.get("name"):
+                    s["name"] = s.get("title") or s.get("step_id") or f"Step {idx+1}"
+                if not s.get("action_or_tool"):
+                    s["action_or_tool"] = s.get("action") or s.get("tool")
+                if not s.get("parameters"):
+                    s["parameters"] = s.get("params") or {}
+                if not s.get("prompt_template") and s.get("parameters", {}).get("prompt"):
+                    s["prompt_template"] = s["parameters"]["prompt"]
+
+                raw_type = str(s.get("type", "")).lower()
+                valid_step_types = {t.value for t in StepType}
+                if raw_type in valid_step_types:
+                    s["type"] = raw_type
+                elif raw_type in ("llm_call", "agent", "llm") or s.get("prompt_template"):
+                    s["type"] = StepType.AGENTIC_TASK.value
+                elif raw_type in ("code", "python"):
+                    s["type"] = StepType.CUSTOM_CODE.value
+                elif raw_type in ("approval", "gate"):
+                    s["type"] = StepType.APPROVAL_GATE.value
+                else:
+                    s["type"] = StepType.DETERMINISTIC_ACTION.value
+
+                if "timeout" in s and "timeout_seconds" not in s:
+                    s["timeout_seconds"] = int(s["timeout"])
+                norm_steps.append(s)
+            d["workflow"]["steps"] = norm_steps
+
+        # 4. Normalizzazione Triggers
+        trgs = d.get("triggers")
+        if not trgs or not isinstance(trgs, list):
+            d["triggers"] = [{"id": "trg_manual", "type": "manual", "enabled": True}]
+        else:
+            norm_trgs = []
+            for idx, t in enumerate(trgs):
+                if not isinstance(t, dict):
+                    continue
+                t = dict(t)
+                if not t.get("id"):
+                    t["id"] = f"trg_{idx+1}"
+                raw_t_type = str(t.get("type", "")).lower()
+                if not raw_t_type:
+                    raw_t_type = "cron" if ("cron_expression" in t or "schedule" in t) else "manual"
+                t["type"] = raw_t_type if raw_t_type in {tt.value for tt in TriggerType} else "cron"
+                if t["type"] == "cron" and not t.get("cron_expression"):
+                    t["cron_expression"] = t.get("schedule") or t.get("cron") or "0 9 * * *"
+                if not t.get("timezone"):
+                    t["timezone"] = "Europe/Rome"
+                norm_trgs.append(t)
+            d["triggers"] = norm_trgs
+
+        # 5. Normalizzazione Budget
+        b = d.get("budget")
+        if isinstance(b, dict):
+            b_copy = dict(b)
+            if "max_tokens_per_run" in b_copy and "max_tokens" not in b_copy:
+                b_copy["max_tokens"] = b_copy["max_tokens_per_run"]
+            if "timeout_seconds" in b_copy and "max_duration_seconds" not in b_copy:
+                b_copy["max_duration_seconds"] = b_copy["timeout_seconds"]
+            d["budget"] = b_copy
+
+        # 6. Normalizzazione Permission Policy
+        p = d.get("permission_policy")
+        if isinstance(p, dict):
+            p_copy = dict(p)
+            if "allowed_tools" not in p_copy:
+                tools = []
+                if isinstance(d.get("workflow"), dict):
+                    for st in d["workflow"].get("steps", []):
+                        if isinstance(st, dict) and st.get("action_or_tool"):
+                            tools.append(st["action_or_tool"])
+                p_copy["allowed_tools"] = tools
+            if "allowed_registries" not in p_copy:
+                p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
+            d["permission_policy"] = p_copy
+
+        return d
 
 
 # --- Runtime Models ---

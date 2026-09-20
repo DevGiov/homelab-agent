@@ -219,6 +219,59 @@ class TestAutomationsAPI(unittest.TestCase):
         self.assertNotIn("error", data.get("result", {}))
         self.assertEqual(data["result"].get("status"), "created")
 
+    def test_create_automation_from_raw_llm_proposal(self):
+        """Verifica che un payload raw/flessibile generato da LLM venga normalizzato e salvato con successo (HTTP 201)."""
+        raw_proposal = {
+            "id": "ai-paper-daily-briefing",
+            "name": "Daily AI Papers Briefing",
+            "description": "Ogni giorno alle 10:00 recupera gli ultimi paper su arXiv...",
+            "triggers": [
+                {
+                    "type": "cron",
+                    "schedule": "0 10 * * *",
+                    "timezone": "Europe/Rome"
+                }
+            ],
+            "workflow": [
+                {
+                    "step_id": "fetch_arxiv",
+                    "action": "http_get",
+                    "params": {
+                        "url": "https://export.arxiv.org/api/query?search_query=cat:cs.AI"
+                    }
+                },
+                {
+                    "step_id": "parse_and_score",
+                    "action": "llm_call",
+                    "params": {
+                        "prompt": "Analizza i seguenti abstract..."
+                    }
+                }
+            ],
+            "permission_policy": {
+                "network_outbound": ["arxiv.org"],
+                "file_access": ["read_write:/homelab/reports/"]
+            },
+            "budget": {
+                "max_tokens_per_run": 12000,
+                "timeout_seconds": 300
+            }
+        }
+
+        res = self.client.post("/v1/automations", json=raw_proposal, headers=self.headers)
+        self.assertEqual(res.status_code, 201, f"Expected 201 Created, got {res.status_code}: {res.text}")
+        data = res.json()
+        self.assertEqual(data["id"], "ai-paper-daily-briefing")
+        self.assertEqual(data["triggers"][0]["cron_expression"], "0 10 * * *")
+        self.assertTrue(data["triggers"][0]["id"].startswith("trg_"))
+        self.assertEqual(data["workflow"]["initial_step_id"], "fetch_arxiv")
+        self.assertEqual(len(data["workflow"]["steps"]), 2)
+        self.assertEqual(data["workflow"]["steps"][0]["type"], "deterministic_action")
+        self.assertEqual(data["workflow"]["steps"][1]["type"], "agentic_task")
+        self.assertEqual(data["budget"]["max_tokens"], 12000)
+        self.assertEqual(data["budget"]["max_duration_seconds"], 300)
+
 
 if __name__ == "__main__":
     unittest.main()
+

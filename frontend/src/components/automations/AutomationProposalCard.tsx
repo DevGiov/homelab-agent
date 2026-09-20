@@ -15,9 +15,71 @@ import {
   Layers,
 } from 'lucide-react';
 import { createOrUpdateAutomation, triggerAutomationRun } from '../../api';
+import { formatApiError } from '../../utils/error';
 
 interface AutomationProposalCardProps {
   rawJson: string;
+}
+
+function normalizeProposalClient(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+  const p = { ...raw };
+
+  // 1. Workflow
+  if (Array.isArray(p.workflow)) {
+    const steps = p.workflow;
+    const initialId = steps[0]?.step_id || steps[0]?.id || 'step_1';
+    p.workflow = { initial_step_id: initialId, steps };
+  } else if (p.workflow && typeof p.workflow === 'object') {
+    p.workflow = { ...p.workflow };
+    if (!p.workflow.initial_step_id && p.workflow.steps?.length) {
+      p.workflow.initial_step_id = p.workflow.steps[0].step_id || p.workflow.steps[0].id || 'step_1';
+    }
+  } else if (!p.workflow && Array.isArray(p.steps)) {
+    p.workflow = { initial_step_id: p.steps[0]?.step_id || p.steps[0]?.id || 'step_1', steps: p.steps };
+  } else {
+    p.workflow = { initial_step_id: 'step_1', steps: [] };
+  }
+
+  // Steps normalization
+  if (Array.isArray(p.workflow.steps)) {
+    p.workflow.steps = p.workflow.steps.map((s: any, idx: number) => ({
+      ...s,
+      step_id: s.step_id || s.id || `step_${idx + 1}`,
+      name: s.name || s.title || s.step_id || `Step ${idx + 1}`,
+      action_or_tool: s.action_or_tool || s.action || s.tool,
+      parameters: s.parameters || s.params || {},
+      type: s.type || (s.action === 'llm_call' || s.params?.prompt || s.prompt ? 'agentic_task' : 'deterministic_action'),
+    }));
+  }
+
+  // 2. Triggers normalization
+  if (Array.isArray(p.triggers) && p.triggers.length > 0) {
+    p.triggers = p.triggers.map((t: any, idx: number) => ({
+      ...t,
+      id: t.id || `trg_${idx + 1}`,
+      type: t.type || (t.cron_expression || t.schedule ? 'cron' : 'manual'),
+      cron_expression: t.cron_expression || t.schedule || t.cron || (t.type === 'cron' ? '0 9 * * *' : undefined),
+    }));
+  } else {
+    p.triggers = [{ id: 'trg_manual', type: 'manual', enabled: true }];
+  }
+
+  // 3. Permission policy
+  if (p.permission_policy && typeof p.permission_policy === 'object') {
+    const allowed = Array.isArray(p.permission_policy.allowed_tools)
+      ? p.permission_policy.allowed_tools
+      : p.workflow.steps.map((s: any) => s.action_or_tool).filter(Boolean);
+    p.permission_policy = {
+      ...p.permission_policy,
+      allowed_tools: allowed,
+      allowed_registries: p.permission_policy.allowed_registries || [
+        'metamcp', 'web', 'code', 'memory', 'vision', 'email', 'automations'
+      ]
+    };
+  }
+
+  return p;
 }
 
 export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ rawJson }) => {
@@ -29,17 +91,19 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
   const [dryRunResult, setDryRunResult] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  let proposal: any = null;
+  let rawParsed: any = null;
   try {
-    proposal = JSON.parse(rawJson);
+    rawParsed = JSON.parse(rawJson);
   } catch (err) {
     // If not valid JSON, fallback
     return null;
   }
 
-  if (!proposal || typeof proposal !== 'object' || (!proposal.workflow && !proposal.name)) {
+  if (!rawParsed || typeof rawParsed !== 'object' || (!rawParsed.workflow && !rawParsed.name && !rawParsed.steps)) {
     return null;
   }
+
+  const proposal = normalizeProposalClient(rawParsed);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(rawJson);
@@ -51,7 +115,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
     setIsActivating(true);
     setErrorMsg(null);
     try {
-      // Assicura che l'ID esista
+      // Assicura che l'ID esista e che i dati siano normalizzati
       const payload = {
         ...proposal,
         id: proposal.id || `auto_${Date.now()}`,
@@ -60,7 +124,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
       await createOrUpdateAutomation(payload);
       setActivated(true);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.detail || err?.message || 'Errore durante il salvataggio');
+      setErrorMsg(formatApiError(err, 'Errore durante il salvataggio dell\'automazione'));
     } finally {
       setIsActivating(false);
     }
@@ -82,7 +146,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
       const res = await triggerAutomationRun(autoId, true, true);
       setDryRunResult(`Dry-Run completato con successo! Stato: ${res.status}`);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.detail || err?.message || 'Errore durante il dry-run');
+      setErrorMsg(formatApiError(err, 'Errore durante il dry-run'));
     } finally {
       setIsDryRunning(false);
     }

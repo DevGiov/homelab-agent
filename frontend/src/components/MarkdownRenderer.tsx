@@ -5,6 +5,7 @@ import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 import { AutomationProposalCard } from './automations/AutomationProposalCard';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface MarkdownRendererProps {
   content: string;
@@ -130,7 +131,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
 
             const lang = match ? match[1] : '';
             if (lang === 'automation_proposal' || lang === 'automation') {
-              return <AutomationProposalCard rawJson={rawText} />;
+              return (
+                <ErrorBoundary
+                  title="Errore anteprima automazione"
+                  fallback={
+                    <CodeBlock language="json" rawCode={rawText}>
+                      {children}
+                    </CodeBlock>
+                  }
+                >
+                  <AutomationProposalCard rawJson={rawText} />
+                </ErrorBoundary>
+              );
             }
 
             return (
