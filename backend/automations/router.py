@@ -79,6 +79,59 @@ async def list_scheduled_jobs():
         return {"running": False, "jobs": [], "error": str(e)}
 
 
+# --- 1.1 Integrazioni e Credenziali Servizi (Rotte statiche prioritarie) ---
+
+@router.get("/integrations")
+async def list_service_integrations(service_type: Optional[str] = Query(default=None)):
+    """Elenca le integrazioni configurate (con credenziali mascherate)."""
+    from integrations.manager import get_integration_manager
+    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    return mgr.list_integrations(service_type=service_type, decrypt=False)
+
+
+@router.get("/integrations/{integration_id}")
+async def get_service_integration(integration_id: str):
+    """Dettaglio di un'integrazione configurata."""
+    from integrations.manager import get_integration_manager
+    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    item = mgr.get_integration(integration_id, decrypt=False)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Integrazione '{integration_id}' non trovata.")
+    return item
+
+
+@router.post("/integrations", status_code=200)
+async def save_service_integration(data: Dict[str, Any]):
+    """Salva o aggiorna un'integrazione (con cifratura dei campi sensibili)."""
+    from integrations.manager import get_integration_manager
+    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    try:
+        saved = mgr.save_integration(data)
+        return saved
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/integrations/{integration_id}/test")
+async def test_service_integration(integration_id: str):
+    """Esegue un test di connettività in tempo reale per l'integrazione."""
+    from integrations.manager import get_integration_manager
+    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    res = mgr.test_connection(integration_id)
+    return res
+
+
+@router.delete("/integrations/{integration_id}")
+async def delete_service_integration(integration_id: str):
+    """Elimina un'integrazione."""
+    from integrations.manager import get_integration_manager
+    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    deleted = mgr.delete_integration(integration_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Integrazione '{integration_id}' non trovata.")
+    return {"deleted": True, "id": integration_id}
+
+
 # --- 2. Gestione Runs & Storico (Rotte statiche prioritarie rispetto a /{auto_id}) ---
 
 @router.get("/runs", response_model=List[AutomationRunSummary])

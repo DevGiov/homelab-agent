@@ -17,6 +17,8 @@ import {
   Check,
   X,
   Mail,
+  Key,
+  Sliders,
 } from 'lucide-react';
 import {
   fetchAutomations,
@@ -38,9 +40,11 @@ import {
   type ScheduledJobInfo,
 } from '../../api';
 import { RunInspectorModal } from './RunInspectorModal';
+import { IntegrationsTab } from './IntegrationsTab';
+import { ParametersModal } from './ParametersModal';
 
 export const AutomationsView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'automations' | 'runs' | 'approvals' | 'templates'>('automations');
+  const [activeTab, setActiveTab] = useState<'automations' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
   const [automations, setAutomations] = useState<AutomationSummary[]>([]);
   const [runs, setRuns] = useState<AutomationRunSummary[]>([]);
   const [approvals, setApprovals] = useState<AutomationApprovalItem[]>([]);
@@ -54,8 +58,19 @@ export const AutomationsView: React.FC = () => {
   const [selectedRun, setSelectedRun] = useState<AutomationRunDetails | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
 
+  // Parameters Modal State
+  const [isParamModalOpen, setIsParamModalOpen] = useState<boolean>(false);
+  const [paramModalMode, setParamModalMode] = useState<'edit' | 'run'>('edit');
+  const [selectedAutoForParams, setSelectedAutoForParams] = useState<AutomationSummary | null>(null);
+
   // Filter state
   const [runStatusFilter, setRunStatusFilter] = useState<string>('all');
+
+  const handleOpenParams = (auto: AutomationSummary, mode: 'edit' | 'run') => {
+    setSelectedAutoForParams(auto);
+    setParamModalMode(mode);
+    setIsParamModalOpen(true);
+  };
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setActionMessage({ type, text });
@@ -285,11 +300,19 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('templates')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer ${
             activeTab === 'templates' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
           <Sparkles size={15} /> Template Gallery ({templates.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('integrations')}
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer ${
+            activeTab === 'integrations' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
+          }`}
+        >
+          <Key size={15} /> Integrazioni & Servizi
         </button>
       </div>
 
@@ -359,34 +382,75 @@ export const AutomationsView: React.FC = () => {
                           <Calendar size={13} className="text-emerald-400" /> {auto.triggers_count} trigger
                         </span>
                       </div>
+
+                      {/* Parameters preview */}
+                      {auto.parameters && Object.keys(auto.parameters).length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-border/40">
+                          <div className="text-[10px] text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                            <Sliders size={11} className="text-accent" /> Parametri di default
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(auto.parameters).slice(0, 3).map(([k, v]) => (
+                              <span
+                                key={k}
+                                className="text-[10px] px-2 py-0.5 rounded-md bg-panel-header/70 border border-border text-fg-muted font-mono"
+                                title={`${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`}
+                              >
+                                {k}: <span className="text-fg font-medium">{typeof v === 'object' ? '{...}' : String(v)}</span>
+                              </span>
+                            ))}
+                            {Object.keys(auto.parameters).length > 3 && (
+                              <span className="text-[10px] text-fg-muted self-center">
+                                +{Object.keys(auto.parameters).length - 3} altri
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action buttons */}
-                    <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                    <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           onClick={() => handleTriggerRun(auto.id, false)}
-                          className="px-3 py-1.5 bg-accent/90 hover:bg-accent text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition"
-                          title="Lancia esecuzione completa"
+                          className="px-3 py-1.5 bg-accent/90 hover:bg-accent text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                          title="Lancia esecuzione completa con parametri di default"
                         >
                           <Play size={12} /> Esegui
                         </button>
                         <button
                           onClick={() => handleTriggerRun(auto.id, true)}
-                          className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition"
-                          title="Anteprima sicura senza modifiche"
+                          className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                          title="Anteprima sicura senza modifiche (Dry-Run)"
                         >
                           <Shield size={12} /> Dry-Run
                         </button>
+                        <button
+                          onClick={() => handleOpenParams(auto, 'run')}
+                          className="px-2.5 py-1.5 bg-panel-header/60 hover:bg-panel-header text-fg-muted hover:text-fg border border-border rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                          title="Esegui con parametri personalizzati per questa istanza"
+                        >
+                          <Play size={11} className="text-emerald-400" /> + Parametri
+                        </button>
                       </div>
 
-                      <button
-                        onClick={() => handleDeleteAutomation(auto.id)}
-                        className="p-1.5 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-lg transition"
-                        title="Elimina automazione"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenParams(auto, 'edit')}
+                          className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
+                          title="Configura o modifica parametri di default"
+                        >
+                          <Sliders size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAutomation(auto.id)}
+                          className="p-1.5 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-lg transition cursor-pointer"
+                          title="Elimina automazione"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -661,6 +725,11 @@ export const AutomationsView: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* TAB 5: INTEGRAZIONI & SERVIZI */}
+        {activeTab === 'integrations' && (
+          <IntegrationsTab onFeedback={showFeedback} />
+        )}
       </div>
 
       {/* Run Inspector Modal */}
@@ -671,6 +740,21 @@ export const AutomationsView: React.FC = () => {
         onRefresh={() => {
           if (selectedRun) handleInspectRun(selectedRun.run_id);
         }}
+      />
+
+      {/* Parameters Configuration & Run Modal */}
+      <ParametersModal
+        automation={selectedAutoForParams}
+        isOpen={isParamModalOpen}
+        mode={paramModalMode}
+        onClose={() => {
+          setIsParamModalOpen(false);
+          setSelectedAutoForParams(null);
+        }}
+        onSuccess={() => {
+          loadData();
+        }}
+        onFeedback={showFeedback}
       />
     </div>
   );

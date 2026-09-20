@@ -890,8 +890,30 @@ export interface AutomationSummary {
   enabled: boolean;
   triggers_count: number;
   steps_count: number;
+  parameters?: Record<string, any>;
   created_by: string;
   source_type: string;
+}
+
+export interface ServiceIntegration {
+  id: string;
+  service_type: 'email' | 'github' | 'home_assistant' | 'generic_secret' | string;
+  name: string;
+  status: 'connected' | 'untested' | 'error' | string;
+  config: Record<string, any>;
+  secrets: Record<string, any>;
+  last_tested_at?: string;
+  last_error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface IntegrationTestResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  latency_ms?: number;
+  [key: string]: any;
 }
 
 export interface AutomationRunSummary {
@@ -976,6 +998,28 @@ export async function createOrUpdateAutomation(automation: any): Promise<any> {
 
 export async function deleteAutomation(id: string): Promise<void> {
   await api.delete(`/automations/${id}`);
+}
+
+export async function fetchIntegrations(serviceType?: string): Promise<ServiceIntegration[]> {
+  const res = await api.get<ServiceIntegration[]>('/automations/integrations', {
+    params: serviceType ? { service_type: serviceType } : undefined,
+  });
+  return res.data;
+}
+
+export async function saveIntegration(data: Partial<ServiceIntegration>): Promise<ServiceIntegration> {
+  const res = await api.post<ServiceIntegration>('/automations/integrations', data);
+  return res.data;
+}
+
+export async function testIntegration(id: string): Promise<IntegrationTestResult> {
+  const res = await api.post<IntegrationTestResult>(`/automations/integrations/${id}/test`);
+  return res.data;
+}
+
+export async function deleteIntegration(id: string): Promise<{ deleted: boolean; id: string }> {
+  const res = await api.delete<{ deleted: boolean; id: string }>(`/automations/integrations/${id}`);
+  return res.data;
 }
 
 export async function triggerAutomationRun(

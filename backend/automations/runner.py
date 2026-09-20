@@ -31,14 +31,25 @@ logger = logging.getLogger("automations.runner")
 
 
 def _render_template(template_str: str, context: Dict[str, Any]) -> str:
-    """Sostituisce espressioni tipo {{steps.step_id.output}} o {{inputs.key}}."""
+    """Sostituisce espressioni tipo {{steps.step_id.output}}, {{inputs.key}}, {{config.key}}, {{date}}."""
     if not template_str or not isinstance(template_str, str):
         return template_str
 
     result = template_str
-    # Sostituzioni dirette da context
+
+    # Risoluzione variabili di sistema
+    now_utc = datetime.now(timezone.utc)
+    result = result.replace("{{date}}", now_utc.strftime("%Y-%m-%d"))
+    result = result.replace("{{datetime}}", now_utc.isoformat())
+    result = result.replace("{{run_id}}", str(context.get("run_id", "")))
+    result = result.replace("{{automation_id}}", str(context.get("automation_id", "")))
+
+    # Normalizzazione espressioni shell frequenti generate da LLM (es. $(date +%Y-%m-%d))
     import re
-    placeholders = re.findall(r"\{\{([a-zA-Z0-9_\.]+)\}\}", template_str)
+    result = re.sub(r"\$\(date[^\)]*\)", now_utc.strftime("%Y-%m-%d"), result)
+
+    # Sostituzioni gerarchiche da context (inputs, config, steps, secrets)
+    placeholders = re.findall(r"\{\{([a-zA-Z0-9_\.]+)\}\}", result)
     for p in placeholders:
         parts = p.split(".")
         val = context
@@ -160,9 +171,31 @@ class AutomationRunner:
         auto_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
         run.status = RunStatus.RUNNING
 
+        # Parametri effettivi: i parametri del trigger_payload sovrascrivono i default
+        default_params = dict(auto_def.parameters or {})
+        effective_inputs = {**default_params, **(run.trigger_payload or {})}
+
+        # Recupero secrets autorizzati per la whitelist da Integrazioni ed env
+        secrets_map: Dict[str, str] = {}
+        try:
+            from integrations.manager import get_integration_manager
+            int_mgr = get_integration_manager(db_path=self.db_path)
+            for int_item in int_mgr.list_integrations(decrypt=True):
+                for sk, sv in int_item.get("secrets", {}).items():
+                    if sk in auto_def.permission_policy.secrets_whitelist:
+                        secrets_map[sk] = str(sv)
+        except Exception as e:
+            logger.warning(f"Errore recupero secrets da integrazioni: {e}")
+
+        for sec_name in auto_def.permission_policy.secrets_whitelist:
+            if sec_name not in secrets_map and sec_name in os.environ:
+                secrets_map[sec_name] = os.environ[sec_name]
+
         # Ricostruzione contesto dalle esecuzioni precedenti
         context: Dict[str, Any] = {
-            "inputs": run.trigger_payload,
+            "inputs": effective_inputs,
+            "config": default_params,
+            "secrets": secrets_map,
             "steps": {},
             "is_dry_run": run.is_dry_run,
             "run_id": run_id,

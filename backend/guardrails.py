@@ -68,10 +68,10 @@ VIEW_TOOLS = {
     "list_ip_reservations", "list_pihole_dns_records", "list_npm_proxy_hosts",
 
     # Conoscenza, Memoria & Web
-    "web_search", "recall_memory", "knowledge_search", "inspect_image",
+    "web_search", "http_get", "recall_memory", "knowledge_search", "inspect_image",
 
     # Email & Briefing (Milestone M2 & M4)
-    "email_fetch_unread", "email_create_draft", "save_briefing_artifact",
+    "email_fetch_unread", "email_create_draft", "save_briefing_artifact", "save_artifact", "save_report",
 
     # Automations & Loops (Inspection / Read-only)
     "list_automation_templates", "list_automations", "get_automation_details",

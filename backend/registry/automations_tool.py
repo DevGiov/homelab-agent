@@ -150,6 +150,39 @@ class AutomationRegistry(BaseToolRegistry):
                     "required": ["automation_id"],
                 },
             },
+            {
+                "name": "save_artifact",
+                "description": (
+                    "Salva un report o artefatto generato (Markdown, JSON o testo) nell'archivio persistente del sistema e nel database."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Titolo dell'artefatto o del report."
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Testo o markdown del contenuto da archiviare."
+                        },
+                        "content_source": {
+                            "type": "string",
+                            "description": "Sorgente o riferimento alternativo per il contenuto."
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Percorso facoltativo su filesystem in cui persistere il file."
+                        },
+                        "type": {
+                            "type": "string",
+                            "description": "Tipo dell'artefatto (default 'report').",
+                            "default": "report"
+                        }
+                    },
+                    "required": ["title"]
+                },
+            },
         ]
 
     def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
@@ -174,8 +207,53 @@ class AutomationRegistry(BaseToolRegistry):
                 automation_id=args.get("automation_id", ""),
                 dry_run=args.get("dry_run", False),
             )
+        elif tool_name in ("save_artifact", "save_report"):
+            return self._save_artifact(args)
         else:
             return {"error": f"Tool '{tool_name}' non gestito dal registry 'automations'."}
+
+    def _save_artifact(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        import uuid
+        from datetime import datetime, timezone
+        from pathlib import Path
+        title = args.get("title") or "Report Automazione"
+        content = args.get("content") or args.get("content_source") or args.get("body") or ""
+        art_type = args.get("type", "report")
+        target_path = args.get("path")
+
+        art_id = f"art_{uuid.uuid4().hex[:10]}"
+        now_str = datetime.now(timezone.utc).isoformat()
+
+        storage_uri = target_path or f"/data/artifacts/{art_id}.md"
+        try:
+            p = Path(storage_uri)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(str(content), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Impossibile salvare artefatto su file ({storage_uri}): {e}")
+            storage_uri = f"db://artifacts/{art_id}"
+
+        try:
+            auto_db.save_artifact({
+                "artifact_id": art_id,
+                "run_id": "manual_or_direct",
+                "step_run_id": None,
+                "name": title,
+                "type": art_type,
+                "mime_type": "text/markdown" if "md" in storage_uri else "text/plain",
+                "storage_uri": storage_uri,
+                "created_at": now_str,
+            }, db_path=config.AUTOMATIONS_DB_PATH)
+        except Exception as ex:
+            logger.warning(f"Errore salvataggio metadati artefatto su DB: {ex}")
+
+        return {
+            "artifact_id": art_id,
+            "title": title,
+            "storage_uri": storage_uri,
+            "status": "saved",
+            "message": f"Artefatto '{title}' salvato con successo."
+        }
 
     def _list_templates(self) -> List[Dict[str, Any]]:
         templates = []

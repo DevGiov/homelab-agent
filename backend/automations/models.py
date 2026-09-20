@@ -4,6 +4,7 @@ Include schemi canonici validati per definizioni, workflow, policy,
 budget, run, step ed esecuzioni.
 """
 
+import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -118,6 +119,7 @@ class AutomationDefinition(BaseModel):
     enabled: bool = True
     triggers: List[Trigger] = Field(default_factory=list)
     workflow: WorkflowSpec
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Parametri e variabili configurabili per l'automazione")
     input_schema: Optional[Dict[str, Any]] = None
     permission_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     budget: Budget = Field(default_factory=Budget)
@@ -143,6 +145,13 @@ class AutomationDefinition(BaseModel):
         if not d.get("name"):
             d["name"] = d.get("id", "Nuova Automazione")
 
+        # 1.1 Normalizzazione Parametri
+        raw_params = d.get("parameters") or d.get("params") or d.get("inputs") or d.get("config") or {}
+        if isinstance(raw_params, dict):
+            d["parameters"] = dict(raw_params)
+        else:
+            d["parameters"] = {}
+
         # 2. Normalizzazione Workflow (array -> oggetto WorkflowSpec)
         wf = d.get("workflow")
         if isinstance(wf, list):
@@ -161,6 +170,30 @@ class AutomationDefinition(BaseModel):
             initial_id = steps[0].get("step_id", "step_1") if (steps and isinstance(steps[0], dict)) else "step_1"
             d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
 
+        # 2.1 Template Expansion Auto-Fix: se il workflow ha un singolo step con action che coincide con un template noto
+        if isinstance(d.get("workflow"), dict) and "steps" in d["workflow"]:
+            cur_steps = d["workflow"]["steps"]
+            if len(cur_steps) == 1 and isinstance(cur_steps[0], dict):
+                act = str(cur_steps[0].get("action_or_tool") or cur_steps[0].get("action") or "").lower()
+                clean_act = act.replace("-", "_")
+                from pathlib import Path
+                tpl_dir = Path(__file__).parent / "templates"
+                if tpl_dir.exists():
+                    for tpl_file in tpl_dir.glob("*.json"):
+                        stem_clean = tpl_file.stem.lower().replace("-", "_")
+                        if (stem_clean in clean_act or clean_act in stem_clean) and len(clean_act) >= 5:
+                            try:
+                                with open(tpl_file, "r", encoding="utf-8") as tf:
+                                    tpl_data = json.load(tf)
+                                    if "workflow" in tpl_data and "steps" in tpl_data["workflow"]:
+                                        d["workflow"]["steps"] = tpl_data["workflow"]["steps"]
+                                        d["workflow"]["initial_step_id"] = tpl_data["workflow"].get("initial_step_id", "step_1")
+                                        if "permission_policy" in tpl_data:
+                                            d["permission_policy"] = tpl_data["permission_policy"]
+                                        break
+                            except Exception:
+                                pass
+
         # 3. Normalizzazione Steps all'interno del workflow
         if isinstance(d.get("workflow"), dict) and "steps" in d["workflow"]:
             norm_steps = []
@@ -178,6 +211,15 @@ class AutomationDefinition(BaseModel):
                     s["parameters"] = s.get("params") or {}
                 if not s.get("prompt_template") and s.get("parameters", {}).get("prompt"):
                     s["prompt_template"] = s["parameters"]["prompt"]
+
+                # Normalizzazione alias per tool noti
+                tool = s.get("action_or_tool")
+                if tool:
+                    tool_lower = str(tool).lower()
+                    if tool_lower in ("http_get", "curl", "fetch_url", "web_fetch", "fetch_web"):
+                        s["action_or_tool"] = "http_get"
+                    elif tool_lower in ("file_write", "write_file", "save_file", "save_report", "save_artifact"):
+                        s["action_or_tool"] = "save_artifact"
 
                 raw_type = str(s.get("type", "")).lower()
                 valid_step_types = {t.value for t in StepType}
@@ -231,19 +273,17 @@ class AutomationDefinition(BaseModel):
             d["budget"] = b_copy
 
         # 6. Normalizzazione Permission Policy
-        p = d.get("permission_policy")
-        if isinstance(p, dict):
-            p_copy = dict(p)
-            if "allowed_tools" not in p_copy:
-                tools = []
-                if isinstance(d.get("workflow"), dict):
-                    for st in d["workflow"].get("steps", []):
-                        if isinstance(st, dict) and st.get("action_or_tool"):
-                            tools.append(st["action_or_tool"])
-                p_copy["allowed_tools"] = tools
-            if "allowed_registries" not in p_copy:
-                p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
-            d["permission_policy"] = p_copy
+        p = d.get("permission_policy") or {}
+        p_copy = dict(p) if isinstance(p, dict) else {}
+        tools = set(p_copy.get("allowed_tools") or [])
+        if isinstance(d.get("workflow"), dict):
+            for st in d["workflow"].get("steps", []):
+                if isinstance(st, dict) and st.get("action_or_tool"):
+                    tools.add(st["action_or_tool"])
+        p_copy["allowed_tools"] = list(tools)
+        if "allowed_registries" not in p_copy:
+            p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
+        d["permission_policy"] = p_copy
 
         return d
 

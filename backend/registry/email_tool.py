@@ -101,16 +101,27 @@ class EmailRegistry(BaseToolRegistry):
             return {"error": f"Tool '{tool_name}' non gestito da {self.name}"}
 
     def _fetch_unread(self, max_emails: int = 20, unread_only: bool = True) -> Dict[str, Any]:
-        """Tenta la connessione IMAP reale se configurata, altrimenti usa mock realistico homelab."""
-        imap_host = os.getenv("IMAP_HOST")
-        imap_user = os.getenv("IMAP_USER")
-        imap_pass = os.getenv("IMAP_PASSWORD")
-        imap_port = int(os.getenv("IMAP_PORT", "993"))
+        """Tenta la connessione IMAP reale con credenziali da Integrazioni o env, altrimenti usa mock realistico."""
+        try:
+            from integrations.manager import get_integration_manager
+            creds = get_integration_manager().get_active_credentials("email") or {}
+        except Exception:
+            creds = {}
+
+        imap_host = creds.get("imap_host") or os.getenv("IMAP_HOST")
+        imap_user = creds.get("imap_user") or os.getenv("IMAP_USER")
+        imap_pass = creds.get("imap_password") or os.getenv("IMAP_PASSWORD")
+        imap_port = int(creds.get("imap_port") or os.getenv("IMAP_PORT", "993"))
+        imap_use_ssl = bool(creds.get("imap_use_ssl", True))
 
         if imap_host and imap_user and imap_pass:
             try:
-                logger.info(f"Connessione IMAP a {imap_host}:{imap_port} per utente {imap_user}...")
-                mail = imaplib.IMAP4_SSL(imap_host, imap_port)
+                logger.info(f"Connessione IMAP a {imap_host}:{imap_port} per utente {imap_user} (ssl={imap_use_ssl})...")
+                if imap_use_ssl:
+                    mail = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=12.0)
+                else:
+                    mail = imaplib.IMAP4(imap_host, imap_port, timeout=12.0)
+
                 mail.login(imap_user, imap_pass)
                 mail.select("INBOX")
                 search_criteria = "UNSEEN" if unread_only else "ALL"
@@ -135,10 +146,20 @@ class EmailRegistry(BaseToolRegistry):
                     mail.close()
                     mail.logout()
                     return {"emails": results, "count": len(results), "source": "imap"}
+                else:
+                    mail.close()
+                    mail.logout()
+                    return {"emails": [], "count": 0, "source": "imap", "message": "Nessuna email trovata con i criteri specificati."}
             except Exception as e:
-                logger.warning(f"Connessione IMAP fallita ({e}). Utilizzo fallback homelab simulato.")
+                logger.warning(f"Connessione IMAP fallita ({e}).")
+                return {
+                    "error": f"Errore connessione IMAP ({e}). Verifica host, porta e credenziali nella tab 'Integrazioni'.",
+                    "emails": [],
+                    "count": 0,
+                    "source": "imap_failed",
+                }
 
-        # Fallback dataset realistico homelab
+        # Fallback dataset realistico homelab (quando non è configurato alcun account)
         mock_emails = [
             {
                 "id": "msg_hl_01",
