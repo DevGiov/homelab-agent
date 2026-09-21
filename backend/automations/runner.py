@@ -66,6 +66,113 @@ def _render_template(template_str: str, context: Dict[str, Any]) -> str:
     return result
 
 
+def _parse_xml_feed_to_text(xml_text: str, max_entries: int = 50) -> Optional[str]:
+    """Se il testo è un feed XML (Atom / RSS), estrae gli item in formato testo compatto."""
+    if not isinstance(xml_text, str) or not ("<feed" in xml_text or "<rss" in xml_text or "<xml" in xml_text):
+        return None
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(xml_text)
+        for elem in root.iter():
+            if "}" in elem.tag:
+                elem.tag = elem.tag.split("}", 1)[1]
+
+        entries = root.findall(".//entry") or root.findall(".//item")
+        if not entries:
+            return None
+
+        lines = [f"=== Feed con {len(entries)} elementi ==="]
+        for idx, entry in enumerate(entries[:max_entries], 1):
+            title_elem = entry.find("title")
+            title = "".join(title_elem.itertext()).strip() if title_elem is not None else "Senza titolo"
+            summary_elem = entry.find("summary") or entry.find("description")
+            summary = "".join(summary_elem.itertext()).strip() if summary_elem is not None else ""
+            link_elem = entry.find("link")
+            link = ""
+            if link_elem is not None:
+                link = link_elem.attrib.get("href", "") or "".join(link_elem.itertext()).strip()
+            published_elem = entry.find("published") or entry.find("pubDate")
+            published = "".join(published_elem.itertext()).strip() if published_elem is not None else ""
+
+            authors = []
+            for a in entry.findall(".//author"):
+                name_elem = a.find("name")
+                if name_elem is not None and name_elem.text:
+                    authors.append(name_elem.text.strip())
+            authors_str = ", ".join(authors[:3]) + (" et al." if len(authors) > 3 else "") if authors else ""
+
+            entry_lines = [f"[{idx}] {title}"]
+            if published:
+                entry_lines.append(f"    Data: {published}")
+            if authors_str:
+                entry_lines.append(f"    Autori: {authors_str}")
+            if link:
+                entry_lines.append(f"    Link: {link}")
+            if summary:
+                clean_summary = " ".join(summary.split())
+                entry_lines.append(f"    Abstract: {clean_summary}")
+            lines.append("\n".join(entry_lines))
+
+        return "\n\n".join(lines)
+    except Exception as e:
+        logger.debug(f"Parsing XML feed non riuscito: {e}")
+        return None
+
+
+def _extract_step_content(step_ref: str, context: Dict[str, Any], max_chars: int = 30000) -> str:
+    """Estrae il contenuto testuale o strutturato di uno step dal context delle run."""
+    if not step_ref or not isinstance(step_ref, str):
+        return ""
+
+    clean_ref = step_ref.strip()
+    if clean_ref.startswith("step:"):
+        clean_ref = clean_ref[5:]
+    elif clean_ref.startswith("steps."):
+        clean_ref = clean_ref[6:]
+
+    parts = clean_ref.split(".")
+    target_step_id = parts[0]
+    subfield = parts[1] if len(parts) > 1 else None
+
+    step_info = context.get("steps", {}).get(target_step_id)
+    if not step_info:
+        logger.warning(f"Riferimento step '{step_ref}' non trovato nel context delle run.")
+        return ""
+
+    payload = step_info.get("output")
+    if payload is None:
+        return ""
+
+    if subfield and isinstance(payload, dict) and subfield in payload:
+        raw_val = payload[subfield]
+    elif isinstance(payload, dict):
+        if "text" in payload and isinstance(payload["text"], str):
+            raw_val = payload["text"]
+        elif "content" in payload and isinstance(payload["content"], str):
+            raw_val = payload["content"]
+        elif "data" in payload:
+            raw_val = json.dumps(payload["data"], ensure_ascii=False, indent=2)
+        else:
+            raw_val = payload
+    else:
+        raw_val = payload
+
+    if isinstance(raw_val, (dict, list)):
+        raw_text = json.dumps(raw_val, ensure_ascii=False, indent=2)
+    else:
+        raw_text = str(raw_val)
+
+    # Se il testo è un feed XML (Atom/RSS), compattalo
+    parsed_feed = _parse_xml_feed_to_text(raw_text)
+    if parsed_feed:
+        raw_text = parsed_feed
+
+    if len(raw_text) > max_chars:
+        raw_text = raw_text[:max_chars] + f"\n\n[... Troncato per limite di contesto ({len(raw_text)} caratteri totali) ...]"
+
+    return raw_text
+
+
 def _resolve_parameters(params: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     resolved = {}
     for k, v in params.items():
@@ -75,6 +182,27 @@ def _resolve_parameters(params: Dict[str, Any], context: Dict[str, Any]) -> Dict
             resolved[k] = _resolve_parameters(v, context)
         else:
             resolved[k] = v
+
+    # Risoluzione automatica di content_source / input_source per step deterministici
+    if "content_source" in resolved and resolved["content_source"]:
+        cs = str(resolved["content_source"])
+        if cs.startswith("step:") or cs.startswith("steps.") or cs in context.get("steps", {}):
+            extracted = _extract_step_content(cs, context)
+            if extracted:
+                resolved["content"] = extracted
+                resolved["body"] = extracted
+
+    if "input_source" in resolved and resolved["input_source"]:
+        is_src = str(resolved["input_source"])
+        if is_src.startswith("step:") or is_src.startswith("steps.") or is_src in context.get("steps", {}):
+            extracted = _extract_step_content(is_src, context)
+            if extracted:
+                resolved["input_data"] = extracted
+
+    # Risoluzione alias percorsi (filename -> path)
+    if "filename" in resolved and "path" not in resolved:
+        resolved["path"] = resolved["filename"]
+
     return resolved
 
 
@@ -485,6 +613,10 @@ class AutomationRunner:
                 raise PermissionError(f"Tool '{tool_name}' non autorizzato dalla policy dell'automazione.")
 
             params = _resolve_parameters(step_def.parameters, context)
+            params["run_id"] = run.run_id
+            params["step_run_id"] = f"sr_{run.run_id}_{step_def.step_id}"
+            params["_run_id"] = run.run_id
+            params["_step_run_id"] = f"sr_{run.run_id}_{step_def.step_id}"
 
             if run.is_dry_run:
                 return {
@@ -549,6 +681,34 @@ class AutomationRunner:
         # Step Agentico (Ragionamento / Sintesi LLM)
         if step_type == StepType.AGENTIC_TASK:
             rendered_prompt = _render_template(step_def.prompt_template or "", context)
+
+            # Risoluzione input_source o auto-pipelining da step precedente
+            input_source = step_def.parameters.get("input_source") if step_def.parameters else None
+            injected_data = ""
+            injected_source_name = ""
+
+            if input_source:
+                injected_data = _extract_step_content(str(input_source), context)
+                injected_source_name = str(input_source)
+            elif "{{steps." not in (step_def.prompt_template or ""):
+                # Se non è specificato input_source né {{steps. nel template,
+                # cerchiamo l'ultimo step precedente eseguito con successo
+                prev_step_ids = [s.step_id for s in auto_def.workflow.steps if s.step_id != step_def.step_id]
+                for p_id in reversed(prev_step_ids):
+                    if p_id in context.get("steps", {}):
+                        candidate = _extract_step_content(p_id, context)
+                        if candidate:
+                            injected_data = candidate
+                            injected_source_name = p_id
+                            break
+
+            if injected_data:
+                rendered_prompt = (
+                    f"{rendered_prompt}\n\n"
+                    f"--- DATI DI INPUT (da Step: {injected_source_name}) ---\n"
+                    f"{injected_data}\n"
+                    f"--- FINE DATI DI INPUT ---"
+                )
 
             if run.is_dry_run:
                 return {

@@ -216,10 +216,12 @@ class AutomationRegistry(BaseToolRegistry):
         import uuid
         from datetime import datetime, timezone
         from pathlib import Path
-        title = args.get("title") or "Report Automazione"
+        title = args.get("title") or args.get("name") or "Report Automazione"
         content = args.get("content") or args.get("content_source") or args.get("body") or ""
         art_type = args.get("type", "report")
-        target_path = args.get("path")
+        target_path = args.get("path") or args.get("filename") or args.get("target_path") or args.get("storage_uri")
+        run_id = args.get("run_id") or args.get("_run_id") or "manual_or_direct"
+        step_run_id = args.get("step_run_id") or args.get("_step_run_id")
 
         art_id = f"art_{uuid.uuid4().hex[:10]}"
         now_str = datetime.now(timezone.utc).isoformat()
@@ -236,8 +238,8 @@ class AutomationRegistry(BaseToolRegistry):
         try:
             auto_db.save_artifact({
                 "artifact_id": art_id,
-                "run_id": "manual_or_direct",
-                "step_run_id": None,
+                "run_id": run_id,
+                "step_run_id": step_run_id,
                 "name": title,
                 "type": art_type,
                 "mime_type": "text/markdown" if "md" in storage_uri else "text/plain",
@@ -249,7 +251,9 @@ class AutomationRegistry(BaseToolRegistry):
 
         return {
             "artifact_id": art_id,
+            "run_id": run_id,
             "title": title,
+            "content": str(content),
             "storage_uri": storage_uri,
             "status": "saved",
             "message": f"Artefatto '{title}' salvato con successo."

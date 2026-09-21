@@ -131,9 +131,23 @@ class TestAutomationsDB(unittest.TestCase):
         self.assertEqual(full_run["step_runs"][0]["step_id"], "step_fetch")
         self.assertEqual(len(full_run["artifacts"]), 1)
         self.assertEqual(full_run["artifacts"][0]["name"], "report.md")
+        self.assertEqual(full_run["artifacts"][0]["title"], "report.md")
+
+        # Verifica salvataggio resiliente senza run pre-esistente (nessuna violazione FK)
+        standalone_art = auto_db.save_artifact({
+            "artifact_id": "art_standalone",
+            "run_id": "manual_or_direct",
+            "name": "manual_report.md",
+            "storage_uri": "/tmp/test.md"
+        }, db_path=self.db_path)
+        self.assertEqual(standalone_art["artifact_id"], "art_standalone")
+        saved_art = auto_db.get_artifact("art_standalone", db_path=self.db_path)
+        self.assertIsNotNone(saved_art)
+        self.assertEqual(saved_art["title"], "manual_report.md")
 
     def test_approval_persistence_and_resolution(self):
         """Verifica creazione, query e risoluzione delle approvazioni persistenti."""
+        from datetime import datetime, timedelta, timezone
         appr_data = {
             "request_id": "apr_test_persist",
             "run_id": "run_999",
@@ -144,7 +158,7 @@ class TestAutomationsDB(unittest.TestCase):
             "command_prefix": "systemctl restart",
             "risk_reason": "Comando di sistema",
             "status": "pending",
-            "expires_at": "2026-09-21T00:00:00Z"
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
         }
         auto_db.create_automation_approval(appr_data, db_path=self.db_path)
 

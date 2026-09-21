@@ -95,7 +95,9 @@ class EmailRegistry(BaseToolRegistry):
         elif tool_name == "save_briefing_artifact":
             return self._save_artifact(
                 title=str(args.get("title", "Email Briefing Report")),
-                content=args.get("content") or args.get("content_source") or ""
+                content=args.get("content") or args.get("content_source") or "",
+                run_id=args.get("run_id") or args.get("_run_id"),
+                step_run_id=args.get("step_run_id") or args.get("_step_run_id"),
             )
         else:
             return {"error": f"Tool '{tool_name}' non gestito da {self.name}"}
@@ -214,30 +216,43 @@ class EmailRegistry(BaseToolRegistry):
             "warning": "Bozza creata con successo. Nessuna email è stata inviata (auto-send categoricamente disabilitato).",
         }
 
-    def _save_artifact(self, title: str, content: str) -> Dict[str, Any]:
+    def _save_artifact(self, title: str, content: str, run_id: Optional[str] = None, step_run_id: Optional[str] = None) -> Dict[str, Any]:
         """Salva il report Markdown dell'automazione."""
         artifact_id = f"art_{uuid.uuid4().hex[:10]}"
         now_str = datetime.now(timezone.utc).isoformat()
-        
+        eff_run_id = run_id or "manual_or_direct"
+        storage_uri = f"/data/artifacts/{artifact_id}.md"
+
+        try:
+            from pathlib import Path
+            p = Path(storage_uri)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(str(content), encoding="utf-8")
+        except Exception:
+            storage_uri = f"db://artifacts/{artifact_id}"
+
         # Tenta il salvataggio su tabella DB 'artifacts' se disponibile
         try:
             from automations import db as auto_db
             auto_db.save_artifact({
                 "artifact_id": artifact_id,
-                "run_id": "manual_or_direct",
-                "type": "markdown",
-                "title": title,
-                "content": content,
+                "run_id": eff_run_id,
+                "step_run_id": step_run_id,
+                "name": title,
+                "type": "report",
+                "mime_type": "text/markdown",
+                "storage_uri": storage_uri,
                 "created_at": now_str,
-                "meta_json": "{}",
             })
         except Exception as e:
             logger.debug(f"Salvataggio artefatto su DB non riuscito o opzionale: {e}")
 
         return {
             "artifact_id": artifact_id,
+            "run_id": eff_run_id,
             "title": title,
             "content": content,
+            "storage_uri": storage_uri,
             "status": "saved",
             "format": "markdown",
             "length": len(content),

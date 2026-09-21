@@ -205,6 +205,61 @@ class TestAutomationRunner(unittest.TestCase):
 
             self.assertEqual(exhausted_run.status, RunStatus.EXHAUSTED)
 
+    def test_xml_feed_parsing_and_content_extraction(self):
+        """Verifica estrazione pulita e parsing di feed XML Atom/RSS."""
+        from automations.runner import _extract_step_content, _parse_xml_feed_to_text
+
+        sample_atom_xml = """<?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <title>ArXiv Query</title>
+          <entry>
+            <title>Advances in Multi-Agent Reasoning</title>
+            <summary>This paper explores durable workflows and step runner patterns.</summary>
+            <author><name>Alice Smith</name></author>
+            <published>2026-09-20T10:00:00Z</published>
+            <link href="http://arxiv.org/abs/2609.99999"/>
+          </entry>
+        </feed>"""
+
+        parsed = _parse_xml_feed_to_text(sample_atom_xml)
+        self.assertIsNotNone(parsed)
+        self.assertIn("Advances in Multi-Agent Reasoning", parsed)
+        self.assertIn("Alice Smith", parsed)
+        self.assertIn("This paper explores durable workflows", parsed)
+
+        ctx = {
+            "steps": {
+                "fetch": {"output": {"status": 200, "content": sample_atom_xml}},
+                "agent": {"output": {"text": "Ecco la sintesi dei paper selezionati."}}
+            }
+        }
+
+        extracted_fetch = _extract_step_content("step:fetch", ctx)
+        self.assertIn("Advances in Multi-Agent Reasoning", extracted_fetch)
+
+        extracted_agent = _extract_step_content("step:agent", ctx)
+        self.assertEqual(extracted_agent, "Ecco la sintesi dei paper selezionati.")
+
+    def test_input_source_and_content_source_resolution(self):
+        """Verifica che _resolve_parameters popoli content/body e path da content_source e filename."""
+        from automations.runner import _resolve_parameters
+
+        ctx = {
+            "steps": {
+                "step_report": {"output": {"text": "# Report Finale\nOttimi risultati."}}
+            }
+        }
+
+        params = {
+            "content_source": "step:step_report",
+            "filename": "/tmp/test_report.md",
+            "title": "Report Test"
+        }
+
+        resolved = _resolve_parameters(params, ctx)
+        self.assertEqual(resolved["content"], "# Report Finale\nOttimi risultati.")
+        self.assertEqual(resolved["path"], "/tmp/test_report.md")
+
 
 if __name__ == "__main__":
     unittest.main()

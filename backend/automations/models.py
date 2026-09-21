@@ -209,6 +209,14 @@ class AutomationDefinition(BaseModel):
                     s["action_or_tool"] = s.get("action") or s.get("tool")
                 if not s.get("parameters"):
                     s["parameters"] = s.get("params") or {}
+                # Normalizza input_source e content_source sia da top-level che da parameters
+                if "input_source" in s and "input_source" not in s["parameters"]:
+                    s["parameters"]["input_source"] = s["input_source"]
+                if "content_source" in s and "content_source" not in s["parameters"]:
+                    s["parameters"]["content_source"] = s["content_source"]
+                if "filename" in s["parameters"] and "path" not in s["parameters"]:
+                    s["parameters"]["path"] = s["parameters"]["filename"]
+
                 if not s.get("prompt_template") and s.get("parameters", {}).get("prompt"):
                     s["prompt_template"] = s["parameters"]["prompt"]
 

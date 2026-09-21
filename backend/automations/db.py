@@ -339,8 +339,24 @@ def get_run(run_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, An
         d["step_runs"] = steps
 
         # Fetch artifacts
-        cursor.execute("SELECT * FROM artifacts WHERE run_id = ?", (run_id,))
-        d["artifacts"] = [dict(a) for a in cursor.fetchall()]
+        cursor.execute("SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC", (run_id,))
+        artifacts = []
+        for a in cursor.fetchall():
+            art = dict(a)
+            if "name" in art and "title" not in art:
+                art["title"] = art["name"]
+            if "content" not in art or not art["content"]:
+                storage_uri = art.get("storage_uri", "")
+                if storage_uri and os.path.isfile(storage_uri):
+                    try:
+                        with open(storage_uri, "r", encoding="utf-8", errors="replace") as f:
+                            art["content"] = f.read()
+                    except Exception:
+                        art["content"] = ""
+                else:
+                    art["content"] = ""
+            artifacts.append(art)
+        d["artifacts"] = artifacts
 
         # Fetch pending approval if any
         cursor.execute("SELECT request_id FROM automation_approvals WHERE run_id = ? AND status = 'pending'", (run_id,))
@@ -618,16 +634,39 @@ def resolve_automation_approval(request_id: str, action: str, resolved_by: str =
 
 def save_artifact(artifact_data: Dict[str, Any], db_path: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db_connection(db_path)
+    run_id = artifact_data.get("run_id") or "manual_or_direct"
     try:
-        conn.execute("""
+        cursor = conn.cursor()
+        # Verifica se run_id esiste in automation_runs. Se assente (es. chiamata standalone o manuale),
+        # garantiamo un placeholder run per rispettare il vincolo FOREIGN KEY(run_id).
+        cursor.execute("SELECT 1 FROM automation_runs WHERE run_id = ?", (run_id,))
+        if not cursor.fetchone():
+            cursor.execute("""
+                INSERT OR IGNORE INTO automations (id, name, description, enabled)
+                VALUES ('system_manual', 'System Manual Actions', 'Automazione virtuale di sistema', 1)
+            """)
+            cursor.execute("""
+                INSERT OR IGNORE INTO automation_runs (
+                    run_id, automation_id, version_applied, trigger_type, status, started_at
+                ) VALUES (?, 'system_manual', 1, 'manual', 'completed', ?)
+            """, (run_id, datetime.now(timezone.utc).isoformat()))
+            conn.commit()
+
+        cursor.execute("""
             INSERT INTO artifacts (
                 artifact_id, run_id, step_run_id, name, type, mime_type, storage_uri, checksum_sha256, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(artifact_id) DO UPDATE SET
+                name = excluded.name,
+                type = excluded.type,
+                mime_type = excluded.mime_type,
+                storage_uri = excluded.storage_uri,
+                checksum_sha256 = excluded.checksum_sha256
         """, (
             artifact_data["artifact_id"],
-            artifact_data["run_id"],
+            run_id,
             artifact_data.get("step_run_id"),
-            artifact_data["name"],
+            artifact_data.get("name") or artifact_data.get("title", "Report Automazione"),
             artifact_data.get("type", "report"),
             artifact_data.get("mime_type", "text/plain"),
             artifact_data["storage_uri"],
@@ -646,7 +685,22 @@ def get_artifact(artifact_id: str, db_path: Optional[str] = None) -> Optional[Di
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM artifacts WHERE artifact_id = ?", (artifact_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        art = dict(row)
+        if "name" in art and "title" not in art:
+            art["title"] = art["name"]
+        if "content" not in art or not art["content"]:
+            storage_uri = art.get("storage_uri", "")
+            if storage_uri and os.path.isfile(storage_uri):
+                try:
+                    with open(storage_uri, "r", encoding="utf-8", errors="replace") as f:
+                        art["content"] = f.read()
+                except Exception:
+                    art["content"] = ""
+            else:
+                art["content"] = ""
+        return art
     finally:
         conn.close()
 
