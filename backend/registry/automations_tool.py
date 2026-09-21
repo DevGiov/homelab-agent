@@ -191,6 +191,31 @@ class AutomationRegistry(BaseToolRegistry):
                 },
             },
             {
+                "name": "update_automation",
+                "description": (
+                    "Aggiorna o modifica un'automazione esistente (es. per modificare i prompt degli step, "
+                    "aggiungere/rimuovere step, modificare orari cron, parametri o budget). "
+                    "Non crea duplicati ma aggiorna la definizione esistente."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "automation_id": {
+                            "type": "string",
+                            "description": "ID dell'automazione da modificare (es. 'auto_github_trending').",
+                        },
+                        "updates": {
+                            "type": "object",
+                            "description": (
+                                "Campi da aggiornare nella definizione (es. name, description, workflow, "
+                                "triggers, budget, permission_policy, enabled, retention_days)."
+                            ),
+                        },
+                    },
+                    "required": ["automation_id", "updates"],
+                },
+            },
+            {
                 "name": "trigger_automation_run",
                 "description": (
                     "Avvia immediatamente un'esecuzione di un'automazione registrata. "
@@ -264,6 +289,8 @@ class AutomationRegistry(BaseToolRegistry):
             )
         elif tool_name == "create_custom_automation":
             return self._create_custom(args.get("automation_def", {}))
+        elif tool_name == "update_automation":
+            return self._update_automation(args.get("automation_id", ""), args.get("updates", {}))
         elif tool_name == "trigger_automation_run":
             return self._trigger_run(
                 automation_id=args.get("automation_id", ""),
@@ -526,6 +553,63 @@ class AutomationRegistry(BaseToolRegistry):
             }
         except Exception as e:
             return {"error": f"Errore durante la creazione dell'automazione custom: {str(e)}"}
+
+    def _update_automation(self, automation_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        if not automation_id:
+            return {"error": "automation_id obbligatorio."}
+        if not updates or not isinstance(updates, dict):
+            return {"error": "updates deve essere un oggetto JSON con i campi da aggiornare."}
+
+        existing = auto_db.get_automation(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
+        if not existing:
+            return {"error": f"Automazione '{automation_id}' non trovata."}
+
+        try:
+            merged = dict(existing)
+            for k, v in updates.items():
+                if v is not None:
+                    if k in ("workflow", "budget", "permission_policy", "parameters", "settings") and isinstance(v, dict) and isinstance(merged.get(k), dict):
+                        merged[k] = {**merged[k], **v}
+                    else:
+                        merged[k] = v
+
+            merged["id"] = automation_id
+            merged["version"] = int(existing.get("version", 1)) + 1
+
+            clean_def = {k: v for k, v in merged.items() if v is not None}
+            auto_obj = AutomationDefinition(**clean_def)
+
+            step_ids = [s.step_id for s in auto_obj.workflow.steps]
+            if not step_ids:
+                return {"error": "Il workflow deve contenere almeno uno step."}
+            if auto_obj.workflow.initial_step_id not in step_ids:
+                return {
+                    "error": (
+                        f"initial_step_id '{auto_obj.workflow.initial_step_id}' non corrisponde a nessuno "
+                        f"degli step definiti ({step_ids})."
+                    )
+                }
+
+            saved = auto_db.save_automation(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+
+            try:
+                from automations.scheduler import get_scheduler
+                sched = get_scheduler()
+                if sched.is_running:
+                    sched.sync_triggers()
+            except Exception as e:
+                logger.warning(f"Sincronizzazione scheduler dopo update non riuscita: {e}")
+
+            return {
+                "status": "updated",
+                "automation_id": saved.get("id"),
+                "name": saved.get("name"),
+                "version": saved.get("version"),
+                "enabled": saved.get("enabled"),
+                "message": f"Automazione '{saved.get('name')}' aggiornata con successo (versione {saved.get('version')})!",
+            }
+        except Exception as e:
+            return {"error": f"Errore durante l'aggiornamento dell'automazione: {str(e)}"}
 
     def _trigger_run(self, automation_id: str, dry_run: bool = False) -> Dict[str, Any]:
         if not automation_id:

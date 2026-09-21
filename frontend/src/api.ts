@@ -1015,6 +1015,11 @@ export async function createOrUpdateAutomation(automation: any): Promise<any> {
   return res.data;
 }
 
+export async function updateAutomation(id: string, automation: any): Promise<any> {
+  const res = await api.put<any>(`/automations/${id}`, automation);
+  return res.data;
+}
+
 export async function deleteAutomation(id: string): Promise<void> {
   await api.delete(`/automations/${id}`);
 }

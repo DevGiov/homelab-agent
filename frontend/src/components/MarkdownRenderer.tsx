@@ -130,7 +130,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             }
 
             const lang = match ? match[1] : '';
-            if (lang === 'automation_proposal' || lang === 'automation') {
+            const isAutomationProposal =
+              lang === 'automation_proposal' ||
+              lang === 'automation' ||
+              Boolean(className?.includes('automation_proposal') || className?.includes('automation-proposal'));
+
+            if (isAutomationProposal) {
               return (
                 <ErrorBoundary
                   title="Errore anteprima automazione"

@@ -31,7 +31,7 @@ logger = logging.getLogger("automations.runner")
 
 
 def _render_template(template_str: str, context: Dict[str, Any]) -> str:
-    """Sostituisce espressioni tipo {{steps.step_id.output}}, {{inputs.key}}, {{config.key}}, {{date}}."""
+    """Sostituisce espressioni tipo {{steps.step_id.output}}, {{inputs.key}}, {{config.key}}, {{date}} con fallback fuzzy."""
     if not template_str or not isinstance(template_str, str):
         return template_str
 
@@ -39,14 +39,34 @@ def _render_template(template_str: str, context: Dict[str, Any]) -> str:
 
     # Risoluzione variabili di sistema
     now_utc = datetime.now(timezone.utc)
-    result = result.replace("{{date}}", now_utc.strftime("%Y-%m-%d"))
+    today_str = now_utc.strftime("%Y-%m-%d")
+    result = result.replace("{{date}}", today_str)
     result = result.replace("{{datetime}}", now_utc.isoformat())
     result = result.replace("{{run_id}}", str(context.get("run_id", "")))
     result = result.replace("{{automation_id}}", str(context.get("automation_id", "")))
 
     # Normalizzazione espressioni shell frequenti generate da LLM (es. $(date +%Y-%m-%d))
     import re
-    result = re.sub(r"\$\(date[^\)]*\)", now_utc.strftime("%Y-%m-%d"), result)
+    result = re.sub(r"\$\(date[^\)]*\)", today_str, result)
+
+    # Chiavi testuali standard per estrazione fuzzy
+    TEXT_KEYS = ("text", "result", "content", "body", "output", "response", "data", "summary")
+
+    def _smart_lookup(val: Any, part: str) -> tuple[bool, Any]:
+        if isinstance(val, dict):
+            if part in val:
+                return True, val[part]
+            # Se cerca proprietà testuali (es. .text o .result o .content)
+            if part in TEXT_KEYS:
+                for alt in TEXT_KEYS:
+                    if alt in val and val[alt] is not None:
+                        return True, val[alt]
+            # Se cerca .date
+            if part == "date":
+                if "date" in val and val["date"] is not None:
+                    return True, str(val["date"])
+                return True, today_str
+        return False, None
 
     # Sostituzioni gerarchiche da context (inputs, config, steps, secrets)
     placeholders = re.findall(r"\{\{([a-zA-Z0-9_\.]+)\}\}", result)
@@ -55,14 +75,56 @@ def _render_template(template_str: str, context: Dict[str, Any]) -> str:
         val = context
         found = True
         for part in parts:
-            if isinstance(val, dict) and part in val:
-                val = val[part]
+            found, next_val = _smart_lookup(val, part)
+            if found:
+                val = next_val
             else:
-                found = False
                 break
+
         if found:
-            replacement = json.dumps(val, ensure_ascii=False, indent=2) if isinstance(val, (dict, list)) else str(val)
+            # Se val è un dict, estrai il campo testuale principale se disponibile
+            if isinstance(val, dict):
+                extracted = False
+                for tk in TEXT_KEYS:
+                    if tk in val and isinstance(val[tk], str):
+                        replacement = val[tk]
+                        extracted = True
+                        break
+                if not extracted:
+                    replacement = json.dumps(val, ensure_ascii=False, indent=2)
+            elif isinstance(val, list):
+                replacement = json.dumps(val, ensure_ascii=False, indent=2)
+            else:
+                replacement = str(val)
+
             result = result.replace(f"{{{{{p}}}}}", replacement)
+        else:
+            # Se il placeholder era relativo a steps (es. {{steps.step_1.output.text}}),
+            # verifica se almeno il genitore esiste (es. output)
+            if p.startswith("steps."):
+                subparts = parts
+                parent_val = context
+                parent_found = True
+                for sp in subparts[:-1]:
+                    parent_found, next_v = _smart_lookup(parent_val, sp)
+                    if parent_found:
+                        parent_val = next_v
+                    else:
+                        break
+                if parent_found and isinstance(parent_val, dict):
+                    # Prova ad estrarre qualsiasi valore testuale dal genitore
+                    extracted_fallback = False
+                    for tk in TEXT_KEYS:
+                        if tk in parent_val and parent_val[tk] is not None:
+                            rep = str(parent_val[tk])
+                            result = result.replace(f"{{{{{p}}}}}", rep)
+                            extracted_fallback = True
+                            break
+                    if not extracted_fallback:
+                        result = result.replace(f"{{{{{p}}}}}", json.dumps(parent_val, ensure_ascii=False))
+                elif not parent_found:
+                    logger.warning(f"Variabile template '{{{{{p}}}}}' non risolta nel contesto della run.")
+
     return result
 
 

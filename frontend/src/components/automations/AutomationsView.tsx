@@ -27,6 +27,7 @@ import {
   Lock,
   Unlock,
   Star,
+  Edit2,
 } from 'lucide-react';
 import {
   fetchAutomations,
@@ -58,6 +59,7 @@ import { RunInspectorModal } from './RunInspectorModal';
 import { IntegrationsTab } from './IntegrationsTab';
 import { ParametersModal } from './ParametersModal';
 import { ArtifactsView } from './ArtifactsView';
+import { EditAutomationModal } from './EditAutomationModal';
 
 export const AutomationsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'automations' | 'artifacts' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
@@ -85,6 +87,20 @@ export const AutomationsView: React.FC = () => {
   const [isParamModalOpen, setIsParamModalOpen] = useState<boolean>(false);
   const [paramModalMode, setParamModalMode] = useState<'edit' | 'run'>('edit');
   const [selectedAutoForParams, setSelectedAutoForParams] = useState<AutomationSummary | null>(null);
+
+  // Edit Automation Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [selectedAutoForEdit, setSelectedAutoForEdit] = useState<any | null>(null);
+
+  const handleOpenEdit = async (auto: AutomationSummary) => {
+    try {
+      const fullDef = autoDetailsCache[auto.id] || (await getAutomation(auto.id));
+      setSelectedAutoForEdit(fullDef);
+      setIsEditModalOpen(true);
+    } catch (err: any) {
+      showFeedback('error', `Impossibile caricare l'automazione: ${err.message}`);
+    }
+  };
 
   // Filter state
   const [runStatusFilter, setRunStatusFilter] = useState<string>('all');
@@ -755,6 +771,13 @@ export const AutomationsView: React.FC = () => {
 
                         <div className="flex items-center gap-1">
                           <button
+                            onClick={() => handleOpenEdit(auto)}
+                            className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
+                            title="Modifica workflow, trigger, prompt e parametri dell'automazione"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
                             onClick={() => handleOpenParams(auto, 'edit')}
                             className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
                             title="Configura o modifica parametri di default"
@@ -1170,6 +1193,23 @@ export const AutomationsView: React.FC = () => {
         }}
         onFeedback={showFeedback}
       />
+
+      {/* Edit Automation Modal */}
+      {isEditModalOpen && selectedAutoForEdit && (
+        <EditAutomationModal
+          automation={selectedAutoForEdit}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedAutoForEdit(null);
+          }}
+          onSuccess={() => {
+            loadData();
+          }}
+          onFeedback={(type, msg) => {
+            showFeedback(type === 'error' ? 'error' : 'success', msg);
+          }}
+        />
+      )}
     </div>
   );
 };

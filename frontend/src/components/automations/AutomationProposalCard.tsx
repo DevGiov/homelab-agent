@@ -127,9 +127,32 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
 
   let rawParsed: any = null;
   try {
-    rawParsed = JSON.parse(rawJson);
-  } catch (err) {
-    // If not valid JSON, fallback
+    let textToParse = (rawJson || '').trim();
+    // Se il testo non inizia con { ma contiene una graffa aperta (es. fence con ````automation_proposal {)
+    if (!textToParse.startsWith('{')) {
+      const firstBrace = textToParse.indexOf('{');
+      if (firstBrace !== -1) {
+        textToParse = textToParse.substring(firstBrace);
+      } else if (textToParse.endsWith('}')) {
+        textToParse = '{' + textToParse;
+      }
+    }
+    rawParsed = JSON.parse(textToParse);
+  } catch (err: any) {
+    // Fallback: visualizza box informativo invece di sparire
+    return (
+      <div className="my-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
+        <div className="font-semibold flex items-center gap-1.5 mb-1 text-amber-300">
+          <AlertCircle size={14} />
+          <span>Anteprima proposta automazione (JSON non valido)</span>
+        </div>
+        <p className="text-fg-muted mb-2">Il blocco di proposta non ha una sintassi JSON valida:</p>
+        <pre className="bg-panel/80 p-2 rounded text-[11px] font-mono text-fg-muted overflow-x-auto max-h-40">{rawJson}</pre>
+      </div>
+    );
+  }
+
+  if (!rawParsed || typeof rawParsed !== 'object') {
     return null;
   }
 
@@ -358,12 +381,18 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
             {activated ? (
               <>
                 <CheckCircle2 size={13} />
-                <span>Attivata</span>
+                <span>{proposal.version && proposal.version > 1 ? 'Aggiornata' : 'Attivata'}</span>
               </>
             ) : (
               <>
                 <Zap size={13} />
-                <span>{isActivating ? 'Salvataggio...' : 'Attiva Automazione'}</span>
+                <span>
+                  {isActivating
+                    ? 'Salvataggio...'
+                    : (proposal.version && proposal.version > 1)
+                      ? `Aggiorna Automazione (v${proposal.version})`
+                      : 'Attiva Automazione'}
+                </span>
               </>
             )}
           </button>
