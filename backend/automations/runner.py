@@ -614,8 +614,19 @@ class AutomationRunner:
             if not tool_name:
                 raise ValueError(f"Step '{step_def.step_id}' non specifica 'action_or_tool'.")
 
-            # Verifica tool allowlist
-            if auto_def.permission_policy.allowed_tools and tool_name not in auto_def.permission_policy.allowed_tools:
+            # Normalizzazione alias per tool deterministici comuni
+            if tool_name in ("file_write", "write_file", "save_file", "save_report"):
+                tool_name = "save_artifact"
+
+            # Verifica tool allowlist (con tolleranza per alias)
+            allowed = set(auto_def.permission_policy.allowed_tools or [])
+            if "file_write" in allowed or "save_report" in allowed or "save_file" in allowed:
+                allowed.add("save_artifact")
+            if "save_artifact" in allowed:
+                allowed.add("file_write")
+                allowed.add("save_report")
+
+            if auto_def.permission_policy.allowed_tools and tool_name not in allowed:
                 raise PermissionError(f"Tool '{tool_name}' non autorizzato dalla policy dell'automazione.")
 
             params = _resolve_parameters(step_def.parameters, context)

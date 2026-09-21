@@ -207,7 +207,7 @@ class AutomationRegistry(BaseToolRegistry):
                 automation_id=args.get("automation_id", ""),
                 dry_run=args.get("dry_run", False),
             )
-        elif tool_name in ("save_artifact", "save_report"):
+        elif tool_name in ("save_artifact", "save_report", "file_write", "write_file", "save_file"):
             return self._save_artifact(args)
         else:
             return {"error": f"Tool '{tool_name}' non gestito dal registry 'automations'."}
