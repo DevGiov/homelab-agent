@@ -66,16 +66,50 @@ function normalizeProposalClient(raw: any): any {
   }
 
   // 3. Permission policy
+  const defaultTools = p.workflow.steps.map((s: any) => s.action_or_tool).filter(Boolean);
   if (p.permission_policy && typeof p.permission_policy === 'object') {
-    const allowed = Array.isArray(p.permission_policy.allowed_tools)
+    const allowed = Array.isArray(p.permission_policy.allowed_tools) && p.permission_policy.allowed_tools.length > 0
       ? p.permission_policy.allowed_tools
-      : p.workflow.steps.map((s: any) => s.action_or_tool).filter(Boolean);
+      : defaultTools;
     p.permission_policy = {
-      ...p.permission_policy,
+      security_mode: p.permission_policy.security_mode || 'normal',
       allowed_tools: allowed,
       allowed_registries: p.permission_policy.allowed_registries || [
         'metamcp', 'web', 'code', 'memory', 'vision', 'email', 'automations'
       ]
+    };
+  } else if (typeof p.permission_policy === 'string') {
+    p.permission_policy = {
+      security_mode: ['safest', 'normal', 'dangerous'].includes(p.permission_policy.toLowerCase())
+        ? p.permission_policy.toLowerCase()
+        : 'normal',
+      allowed_tools: defaultTools,
+      allowed_registries: ['metamcp', 'web', 'code', 'memory', 'vision', 'email', 'automations']
+    };
+  } else {
+    p.permission_policy = {
+      security_mode: 'normal',
+      allowed_tools: defaultTools,
+      allowed_registries: ['metamcp', 'web', 'code', 'memory', 'vision', 'email', 'automations']
+    };
+  }
+
+  // 4. Budget normalization
+  if (!p.budget || typeof p.budget !== 'object') {
+    p.budget = {
+      max_duration_seconds: 300,
+      max_tokens: 50000,
+      max_llm_calls: 10,
+      max_tool_calls: 25,
+      max_retries_per_step: 2,
+    };
+  } else {
+    p.budget = {
+      max_duration_seconds: p.budget.max_duration_seconds || p.budget.timeout_seconds || 300,
+      max_tokens: p.budget.max_tokens || p.budget.max_tokens_per_run || 50000,
+      max_llm_calls: p.budget.max_llm_calls ?? 10,
+      max_tool_calls: p.budget.max_tool_calls ?? 25,
+      max_retries_per_step: p.budget.max_retries_per_step ?? 2,
     };
   }
 

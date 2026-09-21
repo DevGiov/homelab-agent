@@ -120,9 +120,71 @@ class AutomationRegistry(BaseToolRegistry):
                         "automation_def": {
                             "type": "object",
                             "description": (
-                                "Oggetto JSON conforme al modello AutomationDefinition con campi: "
-                                "id, name, description, triggers, workflow (con steps), permission_policy, budget."
+                                "Oggetto JSON conforme ad AutomationDefinition. Campi: id (univoco), name (titolo), "
+                                "description (spiegazione), triggers (array trigger), workflow (oggetto con initial_step_id e steps), "
+                                "permission_policy (oggetto con allowed_tools e security_mode), budget (guardrail risorse)."
                             ),
+                            "properties": {
+                                "id": {"type": "string", "description": "ID univoco in snake_case (es. 'auto_github_trending')"},
+                                "name": {"type": "string", "description": "Nome descrittivo dell'automazione"},
+                                "description": {"type": "string", "description": "Descrizione chiara del task"},
+                                "triggers": {
+                                    "type": "array",
+                                    "description": "Trigger di avvio (cron o manuale)",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {"type": "string", "enum": ["cron", "manual"]},
+                                            "cron_expression": {"type": "string", "description": "Espressione cron standard (es. '0 12 * * *')"},
+                                            "timezone": {"type": "string", "default": "Europe/Rome"}
+                                        }
+                                    }
+                                },
+                                "workflow": {
+                                    "type": "object",
+                                    "description": "Flusso di esecuzione a step",
+                                    "properties": {
+                                        "initial_step_id": {"type": "string", "description": "ID del primo step da eseguire (es. 'step_1')"},
+                                        "steps": {
+                                            "type": "array",
+                                            "description": "Lista ordinata degli step",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "step_id": {"type": "string", "description": "ID univoco step (es. 'step_1_search')"},
+                                                    "name": {"type": "string", "description": "Titolo step"},
+                                                    "type": {"type": "string", "enum": ["deterministic_action", "agentic_task", "approval_gate"]},
+                                                    "action_or_tool": {"type": "string", "description": "Nome tool (es. 'web_search', 'save_artifact', 'http_get')"},
+                                                    "parameters": {"type": "object", "description": "Argomenti del tool (es. {'query': '...'})"},
+                                                    "prompt_template": {"type": "string", "description": "Prompt per step agentici"}
+                                                },
+                                                "required": ["step_id", "type"]
+                                            }
+                                        }
+                                    },
+                                    "required": ["initial_step_id", "steps"]
+                                },
+                                "permission_policy": {
+                                    "type": "object",
+                                    "description": "Policy di sicurezza e tool consentiti",
+                                    "properties": {
+                                        "allowed_tools": {"type": "array", "items": {"type": "string"}},
+                                        "security_mode": {"type": "string", "enum": ["safest", "normal", "dangerous"], "default": "normal"}
+                                    }
+                                },
+                                "budget": {
+                                    "type": "object",
+                                    "description": "Guardrail di risorse e sicurezza per la run (opzionale, default sicuri se omesso)",
+                                    "properties": {
+                                        "max_duration_seconds": {"type": "integer", "default": 300, "description": "Timeout globale run in secondi"},
+                                        "max_tokens": {"type": "integer", "default": 50000, "description": "Tetto token consumabili per run"},
+                                        "max_llm_calls": {"type": "integer", "default": 10, "description": "Numero max chiamate LLM"},
+                                        "max_tool_calls": {"type": "integer", "default": 25, "description": "Numero max tool invocabili"},
+                                        "max_retries_per_step": {"type": "integer", "default": 2, "description": "Tentativi retry per step fallito"}
+                                    }
+                                }
+                            },
+                            "required": ["name", "workflow"]
                         }
                     },
                     "required": ["automation_def"],
@@ -419,7 +481,9 @@ class AutomationRegistry(BaseToolRegistry):
             return {"error": "automation_def deve essere un oggetto JSON valido."}
 
         try:
-            auto_obj = AutomationDefinition(**automation_def)
+            # Preprocessing difensivo: ripulisce chiavi con valore None o stringhe vuote non desiderate
+            sanitized_def = {k: v for k, v in automation_def.items() if v is not None}
+            auto_obj = AutomationDefinition(**sanitized_def)
 
             # Pre-flight Validation
             step_ids = [s.step_id for s in auto_obj.workflow.steps]

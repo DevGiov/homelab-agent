@@ -55,6 +55,20 @@ class Budget(BaseModel):
     max_cost_usd: float = Field(default=0.0, ge=0.0, description="Budget di spesa stimato")
     max_retries_per_step: int = Field(default=2, ge=0, description="Tentativi di retry ammessi per step")
 
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_budget_input(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return {}
+        d = dict(data)
+        if "max_tokens_per_run" in d and "max_tokens" not in d:
+            d["max_tokens"] = d["max_tokens_per_run"]
+        if "timeout_seconds" in d and "max_duration_seconds" not in d:
+            d["max_duration_seconds"] = d["timeout_seconds"]
+        if "duration_seconds" in d and "max_duration_seconds" not in d:
+            d["max_duration_seconds"] = d["duration_seconds"]
+        return {k: v for k, v in d.items() if v is not None}
+
 
 class ExecutionPolicy(BaseModel):
     execution_identity: str = Field(default="automation-default-sa", description="Identità/Service Account per permessi")
@@ -302,19 +316,44 @@ class AutomationDefinition(BaseModel):
                 norm_trgs.append(t)
             d["triggers"] = norm_trgs
 
-        # 5. Normalizzazione Budget
+        # 5. Normalizzazione Budget (robusto contro None, dict vuoto, istanze o tipi non dict)
         b = d.get("budget")
-        if isinstance(b, dict):
-            b_copy = dict(b)
-            if "max_tokens_per_run" in b_copy and "max_tokens" not in b_copy:
-                b_copy["max_tokens"] = b_copy["max_tokens_per_run"]
-            if "timeout_seconds" in b_copy and "max_duration_seconds" not in b_copy:
-                b_copy["max_duration_seconds"] = b_copy["timeout_seconds"]
-            d["budget"] = b_copy
+        if isinstance(b, Budget):
+            b_dict = b.model_dump()
+        elif isinstance(b, dict):
+            b_dict = dict(b)
+        else:
+            b_dict = None
 
-        # 6. Normalizzazione Permission Policy
-        p = d.get("permission_policy") or {}
-        p_copy = dict(p) if isinstance(p, dict) else {}
+        if b_dict is None:
+            d["budget"] = Budget().model_dump()
+        else:
+            if "max_tokens_per_run" in b_dict and "max_tokens" not in b_dict:
+                b_dict["max_tokens"] = b_dict["max_tokens_per_run"]
+            if "timeout_seconds" in b_dict and "max_duration_seconds" not in b_dict:
+                b_dict["max_duration_seconds"] = b_dict["timeout_seconds"]
+            if "duration_seconds" in b_dict and "max_duration_seconds" not in b_dict:
+                b_dict["max_duration_seconds"] = b_dict["duration_seconds"]
+            clean_b = {k: v for k, v in b_dict.items() if v is not None}
+            default_b = Budget().model_dump()
+            default_b.update(clean_b)
+            d["budget"] = default_b
+
+        # 6. Normalizzazione Permission Policy (robusto contro None, istanze o stringhe tipo 'auto_execute')
+        p = d.get("permission_policy")
+        if isinstance(p, ExecutionPolicy):
+            p_copy = p.model_dump()
+        elif isinstance(p, dict):
+            p_copy = dict(p)
+        elif isinstance(p, str):
+            p_lower = p.lower()
+            if p_lower in ("safest", "normal", "dangerous"):
+                p_copy = {"security_mode": p_lower}
+            else:
+                p_copy = {"security_mode": "normal"}
+        else:
+            p_copy = {}
+
         if not p_copy.get("allowed_tools"):
             tools = set()
             if isinstance(d.get("workflow"), dict):
@@ -335,9 +374,26 @@ class AutomationDefinition(BaseModel):
                 elif t_lower in ("web_search", "search", "google", "brave_search"):
                     norm_tools.add("web_search")
             p_copy["allowed_tools"] = list(norm_tools)
-        if "allowed_registries" not in p_copy:
+        if "allowed_registries" not in p_copy or not p_copy["allowed_registries"]:
             p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
         d["permission_policy"] = p_copy
+
+        # 7. Normalizzazione Notification Policy
+        n = d.get("notification_policy")
+        if isinstance(n, NotificationPolicy):
+            n_copy = n.model_dump()
+        elif isinstance(n, dict):
+            n_copy = dict(n)
+        else:
+            n_copy = None
+
+        if n_copy is None:
+            d["notification_policy"] = NotificationPolicy().model_dump()
+        else:
+            clean_n = {k: v for k, v in n_copy.items() if v is not None}
+            default_n = NotificationPolicy().model_dump()
+            default_n.update(clean_n)
+            d["notification_policy"] = default_n
 
         return d
 

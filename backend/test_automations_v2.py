@@ -27,11 +27,16 @@ from registry.automations_tool import AutomationRegistry
 
 class TestAutomationsV2(unittest.TestCase):
     def setUp(self):
+        import config
+        self.orig_db_path = config.AUTOMATIONS_DB_PATH
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_automations.db")
+        config.AUTOMATIONS_DB_PATH = self.db_path
         auto_db.init_automations_db(self.db_path)
 
     def tearDown(self):
+        import config
+        config.AUTOMATIONS_DB_PATH = self.orig_db_path
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_artifacts_crud_and_toggles(self):
@@ -210,6 +215,56 @@ class TestAutomationsV2(unittest.TestCase):
         self.assertIn("error", res_web)
         self.assertIn("query", res_web["error"])
 
+    def test_create_custom_with_null_or_string_budget_and_policy(self):
+        """Verifica che payload con budget: null o permission_policy: string vengano gestiti e normalizzati con successo."""
+        from automations.models import AutomationDefinition, Budget, ExecutionPolicy
+        from registry.automations_tool import AutomationRegistry
+        reg = AutomationRegistry()
+
+        payload = {
+            "id": "auto_github_trending_null_budget",
+            "name": "GitHub Trending Daily Report",
+            "description": "Test con budget null e permission_policy stringa",
+            "triggers": [{"type": "cron", "cron_expression": "0 12 * * *"}],
+            "workflow": {
+                "initial_step_id": "step_1_search",
+                "steps": [
+                    {
+                        "step_id": "step_1_search",
+                        "name": "Ricerca Trending GitHub",
+                        "type": "deterministic_action",
+                        "action_or_tool": "web_search",
+                        "parameters": {"query": "github trending repositories today"},
+                    },
+                    {
+                        "step_id": "step_2_save",
+                        "name": "Salvataggio",
+                        "type": "deterministic_action",
+                        "action_or_tool": "save_artifact",
+                        "parameters": {"title": "Trending"},
+                    },
+                ],
+            },
+            "permission_policy": "auto_execute",
+            "budget": None,
+        }
+
+        # 1. Istanziazione diretta del modello Pydantic
+        auto = AutomationDefinition(**payload)
+        self.assertIsInstance(auto.budget, Budget)
+        self.assertEqual(auto.budget.max_duration_seconds, 300)
+        self.assertEqual(auto.budget.max_tokens, 50000)
+        self.assertIsInstance(auto.permission_policy, ExecutionPolicy)
+        self.assertIn("web_search", auto.permission_policy.allowed_tools)
+        self.assertIn("save_artifact", auto.permission_policy.allowed_tools)
+
+        # 2. Creazione tramite registry tool (come fa l'agente)
+        res = reg.execute_tool("create_custom_automation", {"automation_def": payload})
+        self.assertNotIn("error", res)
+        self.assertEqual(res.get("status"), "created")
+        self.assertEqual(res.get("automation_id"), "auto_github_trending_null_budget")
+
 
 if __name__ == "__main__":
     unittest.main()
+
