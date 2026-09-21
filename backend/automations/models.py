@@ -319,11 +319,21 @@ class Artifact(BaseModel):
     run_id: str
     step_run_id: Optional[str] = None
     name: str
+    title: Optional[str] = None
+    content: Optional[str] = None
     type: str = "report"
     mime_type: str = "text/plain"
     storage_uri: str
     checksum_sha256: Optional[str] = None
     created_at: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_title_and_content(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("title") and data.get("name"):
+                data["title"] = data["name"]
+        return data
 
 
 class AutomationRun(BaseModel):
