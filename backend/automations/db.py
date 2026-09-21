@@ -642,8 +642,8 @@ def save_artifact(artifact_data: Dict[str, Any], db_path: Optional[str] = None) 
         cursor.execute("SELECT 1 FROM automation_runs WHERE run_id = ?", (run_id,))
         if not cursor.fetchone():
             cursor.execute("""
-                INSERT OR IGNORE INTO automations (id, name, description, enabled)
-                VALUES ('system_manual', 'System Manual Actions', 'Automazione virtuale di sistema', 1)
+                INSERT OR IGNORE INTO automation_definitions (id, name, description, enabled, spec_json)
+                VALUES ('system_manual', 'System Manual Actions', 'Automazione virtuale di sistema', 1, '{}')
             """)
             cursor.execute("""
                 INSERT OR IGNORE INTO automation_runs (

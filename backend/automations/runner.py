@@ -85,13 +85,19 @@ def _parse_xml_feed_to_text(xml_text: str, max_entries: int = 50) -> Optional[st
         for idx, entry in enumerate(entries[:max_entries], 1):
             title_elem = entry.find("title")
             title = "".join(title_elem.itertext()).strip() if title_elem is not None else "Senza titolo"
-            summary_elem = entry.find("summary") or entry.find("description")
+            summary_elem = entry.find("summary")
+            if summary_elem is None:
+                summary_elem = entry.find("description")
             summary = "".join(summary_elem.itertext()).strip() if summary_elem is not None else ""
+
             link_elem = entry.find("link")
             link = ""
             if link_elem is not None:
                 link = link_elem.attrib.get("href", "") or "".join(link_elem.itertext()).strip()
-            published_elem = entry.find("published") or entry.find("pubDate")
+
+            published_elem = entry.find("published")
+            if published_elem is None:
+                published_elem = entry.find("pubDate")
             published = "".join(published_elem.itertext()).strip() if published_elem is not None else ""
 
             authors = []
