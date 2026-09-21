@@ -309,20 +309,37 @@ class AutomationRunner:
         default_params = dict(auto_def.parameters or {})
         effective_inputs = {**default_params, **(run.trigger_payload or {})}
 
-        # Recupero secrets autorizzati per la whitelist da Integrazioni ed env
+        # Recupero secrets autorizzati con architettura a 3 livelli:
+        # Tier 1: Base globale (Integrazioni)
+        # Tier 2: Override specifici di automazione (es. account_id per service_type)
+        # Tier 3: Configurazione dinamica / secrets diretti in settings
         secrets_map: Dict[str, str] = {}
         try:
             from integrations.manager import get_integration_manager
             int_mgr = get_integration_manager(db_path=self.db_path)
+            whitelist = auto_def.permission_policy.secrets_whitelist or []
+
+            # Tier 2: override account integrazioni per automazione
+            account_overrides = auto_def.settings.get("integrations", {}) if isinstance(auto_def.settings, dict) else {}
+
             for int_item in int_mgr.list_integrations(decrypt=True):
+                stype = int_item.get("service_type")
+                if stype in account_overrides and int_item.get("id") != account_overrides[stype]:
+                    continue
+
                 for sk, sv in int_item.get("secrets", {}).items():
-                    if sk in auto_def.permission_policy.secrets_whitelist:
+                    if not whitelist or sk in whitelist or "*" in whitelist:
                         secrets_map[sk] = str(sv)
         except Exception as e:
             logger.warning(f"Errore recupero secrets da integrazioni: {e}")
 
-        for sec_name in auto_def.permission_policy.secrets_whitelist:
-            if sec_name not in secrets_map and sec_name in os.environ:
+        # Tier 3: Secrets diretti definiti in settings
+        if isinstance(auto_def.settings, dict) and "secrets" in auto_def.settings and isinstance(auto_def.settings["secrets"], dict):
+            for sk, sv in auto_def.settings["secrets"].items():
+                secrets_map[sk] = str(sv)
+
+        for sec_name in (auto_def.permission_policy.secrets_whitelist or []):
+            if sec_name != "*" and sec_name not in secrets_map and sec_name in os.environ:
                 secrets_map[sec_name] = os.environ[sec_name]
 
         # Ricostruzione contesto dalle esecuzioni precedenti
@@ -346,6 +363,20 @@ class AutomationRunner:
         total_tokens = run.total_tokens
 
         while current_step_id:
+            # 0. Controllo cooperativo di stato (PAUSED o CANCELLED)
+            db_run = auto_db.get_run(run_id, db_path=self.db_path)
+            if db_run:
+                if db_run["status"] == RunStatus.PAUSED.value:
+                    logger.info(f"Run '{run_id}' congelata in PAUSA prima dello step '{current_step_id}'.")
+                    auto_db.update_run_status(run_id, RunStatus.PAUSED.value, current_step_id=current_step_id, db_path=self.db_path)
+                    run.status = RunStatus.PAUSED
+                    run.current_step_id = current_step_id
+                    return run
+                if db_run["status"] == RunStatus.CANCELLED.value:
+                    logger.info(f"Run '{run_id}' annullata dall'utente.")
+                    run.status = RunStatus.CANCELLED
+                    return run
+
             step_def = steps_map.get(current_step_id)
             if not step_def:
                 logger.error(f"Step '{current_step_id}' non trovato nel workflow.")
@@ -506,6 +537,30 @@ class AutomationRunner:
         logger.info(f"Approvazione '{approval_id}' concessa. Ripresa esecuzione run '{run_id}'...")
         return self.execute_run(run_id)
 
+    def pause_run(self, run_id: str) -> Dict[str, Any]:
+        """Richiede la messa in pausa cooperativa di una run in corso."""
+        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        if not run_dict:
+            raise ValueError(f"Run '{run_id}' non trovata.")
+        if run_dict["status"] not in (RunStatus.RUNNING.value, RunStatus.PENDING.value):
+            raise ValueError(f"Impossibile mettere in pausa una run in stato '{run_dict['status']}'.")
+
+        auto_db.update_run_status(run_id, RunStatus.PAUSED.value, db_path=self.db_path)
+        logger.info(f"Stato della run '{run_id}' impostato a PAUSED.")
+        return {"paused": True, "run_id": run_id, "status": RunStatus.PAUSED.value}
+
+    def resume_paused_run(self, run_id: str) -> AutomationRun:
+        """Riprende l'esecuzione di una run precedentemente messa in pausa."""
+        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        if not run_dict:
+            raise ValueError(f"Run '{run_id}' non trovata.")
+        if run_dict["status"] != RunStatus.PAUSED.value:
+            raise ValueError(f"La run '{run_id}' non è in pausa (stato attuale: {run_dict['status']}).")
+
+        auto_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
+        logger.info(f"Ripresa esecuzione della run in pausa '{run_id}'...")
+        return self.execute_run(run_id)
+
     def _execute_step(
         self,
         step_def: WorkflowStepDefinition,
@@ -615,16 +670,17 @@ class AutomationRunner:
                 raise ValueError(f"Step '{step_def.step_id}' non specifica 'action_or_tool'.")
 
             # Normalizzazione alias per tool deterministici comuni
-            if tool_name in ("file_write", "write_file", "save_file", "save_report"):
+            if tool_name in ("file_write", "write_file", "save_file", "save_report", "save_briefing_artifact"):
                 tool_name = "save_artifact"
 
             # Verifica tool allowlist (con tolleranza per alias)
             allowed = set(auto_def.permission_policy.allowed_tools or [])
-            if "file_write" in allowed or "save_report" in allowed or "save_file" in allowed:
+            if "file_write" in allowed or "save_report" in allowed or "save_file" in allowed or "save_briefing_artifact" in allowed:
                 allowed.add("save_artifact")
             if "save_artifact" in allowed:
                 allowed.add("file_write")
                 allowed.add("save_report")
+                allowed.add("save_briefing_artifact")
 
             if auto_def.permission_policy.allowed_tools and tool_name not in allowed:
                 raise PermissionError(f"Tool '{tool_name}' non autorizzato dalla policy dell'automazione.")

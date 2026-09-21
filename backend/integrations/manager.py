@@ -287,14 +287,18 @@ class IntegrationManager:
         except Exception as e:
             return {"success": False, "error": f"Errore connessione Home Assistant su {base_url}: {str(e)}"}
 
-    def get_active_credentials(self, service_type: str) -> Optional[Dict[str, Any]]:
-        """Restituisce la configurazione e i secret decifrati dell'integrazione attiva per il service_type."""
+    def get_active_credentials(self, service_type: str, account_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restituisce la configurazione e i secret decifrati dell'integrazione attiva per il service_type (e opzionale account_id)."""
         integrations = self.list_integrations(service_type=service_type, decrypt=True)
-        if integrations:
-            # Preferisci integrazioni con status 'connected' o la prima disponibile
-            connected = next((i for i in integrations if i.get("status") == "connected"), integrations[0])
-            return {**connected.get("config", {}), **connected.get("secrets", {})}
-        return None
+        if not integrations:
+            return None
+        if account_id:
+            match = next((i for i in integrations if i.get("id") == account_id), None)
+            if match:
+                return {**match.get("config", {}), **match.get("secrets", {})}
+        # Preferisci integrazioni con status 'connected' o la prima disponibile
+        connected = next((i for i in integrations if i.get("status") == "connected"), integrations[0])
+        return {**connected.get("config", {}), **connected.get("secrets", {})}
 
 
 # Singleton helper

@@ -1,14 +1,14 @@
 # Implementation Tracker — Automations & Loops
 **Progetto:** `homelab-agent`  
-**Ultimo Aggiornamento:** 18 Settembre 2026  
-**Stato Complessivo:** 🟢 COMPLETATO (Tutte le 9 Milestone M0–M8 Completate con Successo)
+**Ultimo Aggiornamento:** 21 Settembre 2026  
+**Stato Complessivo:** 🟢 COMPLETATO — Milestone M9 (Automations v2: First-Class Artifacts, Lifecycle Retention & Modular Integrations)
 
 ---
 
 ## 1. Stato Avanzamento Generale
 
 ```
-[██████████████████████] 100% Completato (9 / 9 Milestone)
+[████████████████████] 100% Completato (10 / 10 Milestone)
 ```
 
 | Milestone | Descrizione | Stato | Inizio Previsto | Completamento |
@@ -22,6 +22,7 @@
 | **M6** | Creazione Assistita da Chat con l'Agente | 🟢 Completata | 2026-09-18 | 2026-09-18 |
 | **M7** | Subagent Coding Loop (GitHub Issue Auto-Repair) | 🟢 Completata | 2026-09-18 | 2026-09-18 |
 | **M8** | Valutazione Migrazione Durable Orchestrator | 🟢 Completata | 2026-09-18 | 2026-09-18 |
+| **M9** | Automations v2: Artefatti First-Class, Retention, Card Dinamiche & Integrazioni Modulari | 🟢 Completata | 2026-09-21 | 2026-09-21 |
 
 ---
 
@@ -139,6 +140,31 @@
 
 ---
 
+### Milestone M9: Automations v2 — Artefatti First-Class, Retention, Card Dinamiche & Integrazioni Modulari
+- [x] **Task 9.1 (Sezione Artefatti Dedicata)**:
+  - Estensione DB `artifacts` (`is_preserved`, `is_favorite`, `title`, `metadata`) e API REST (`GET /v1/automations/artifacts`, `GET /v1/automations/{id}/latest-artifact`, `PATCH .../favorite`, `PATCH .../preserve`, `DELETE .../{artifact_id}`).
+  - Frontend: Nuova scheda primaria "Artefatti & Report" con split-pane master-detail, raggruppamento temporale ("Oggi", "Ieri", "Ultimi 7gg", "Questo Mese", "Precedenti"), ricerca, filtri, download, copia Markdown, toggle Markdown Renderizzato/Raw e pillola 1-click dalla card automazione.
+- [x] **Task 9.2 (Gestione Storico Run & Retention)**:
+  - Estensione DB `automation_runs` (`is_preserved`, `is_favorite`, `artifacts_count`).
+  - API REST: `DELETE /v1/automations/runs/{run_id}`, `DELETE /v1/automations/runs` (bulk con `failed_only=true`, `older_than_days`), toggle preferito e conservazione con protezione delle run preservate.
+  - Retention Service: Job notturno APScheduler (`auto_retention_cleanup` alle 03:30 Europe/Rome) per pulizia automatica delle run scadute in base al TTL (`retention_days`, default 14gg), preservando quelle bloccate con lucchetto.
+  - Frontend: Toolbar con "Elimina tutte le fallite", indicatori di stato, pulsanti rapidi stella e lucchetto su ogni riga dello storico.
+- [x] **Task 9.3 (Card Automazioni Dinamiche & Controlli Real-Time)**:
+  - Feedback visivo animato durante l'esecuzione (bordo pulsante e glow, pulse ring azzurro).
+  - Macchina a stati controlli: *Esegui* / *Dry-Run* -> *Pausa* -> *Riprendi*, con pulsante *Stop* di arresto immediato.
+  - Runner: Cooperative check tra i singoli step per intercettare gli stati `PAUSED` e `CANCELLED`.
+  - Drawer espandibile della card (`ChevronDown`/`ChevronUp`): Pipeline visuale degli step (ordine, tool, tipo), statistiche rapide (ultima esecuzione, timestamp, totale run registrate, TTL retention).
+- [x] **Task 9.4 (Parametri Tipizzati & Integrazioni su 3 Livelli)**:
+  - Introspection Engine in `backend/automations/introspection.py` basato su analisi AST e template inspection (`{{inputs.*}}`, `{{secrets.*}}`, `os.environ["*"]`).
+  - Modale parametri con distinzione tra parametri rilevati dal workflow (con badge tipizzati string/number/boolean/secret) e parametri personalizzati.
+  - Architettura a 3 livelli: Livello 1 (Integrazioni Globali Base), Livello 2 (Multi-account / override per singola automazione), Livello 3 (Credenziali dinamiche in `settings["secrets"]`).
+  - Iniezione delle integrazioni attive nel system prompt dell'agente chat per grounding contestuale.
+- [x] **Task 9.5 (Robustezza Harness & Fix Creazione Agentica)**:
+  - Risoluzione anomalie in `normalize_proposal` e validazione pre-flight in `_create_custom`: step non vuoti, `initial_step_id` coerente, argomenti obbligatori per tool deterministici (es. `query` per `web_search`).
+  - Schema contract e istruzioni canoniche aggiunte nel prompt di sistema dell'agente per grounding impeccabile.
+
+---
+
 ## 3. Registro delle Modifiche e Diario di Implementazione
 
 | Data | Milestone / Task | Componenti Coinvolti | Descrizione Modifiche | Esito Test |
@@ -155,4 +181,5 @@
 | 2026-09-18 | Milestone M8 | `docs/automations/MIGRATION_EVALUATION.md` | Benchmarking reale su CT 125, analisi overhead Temporal vs SQLite WAL (<35MB vs 690MB+), decisione architetturale consolidata | PASS |
 | 2026-09-20 | Post-Deploy Fixes | `backend/automations/*`, `backend/registry/automations_tool.py`, `backend/graph.py`, `backend/router.py`, `frontend/src/*` | Fix risoluzione approvazioni chat senza 400 'Run not found', eliminazione manuale e pulizia scadute; piena consapevolezza e tool automazioni per l'agente chat | PASS (56/56 + Live CT 125) |
 | 2026-09-20 | Bugfix Chat Tools | `backend/registry/manager.py`, `backend/registry/automations_tool.py`, `backend/automations/scheduler.py`, `backend/automations/models.py`, `backend/api.py` | Fix execute_approved_tool con supporto a tutti i registry (automations, email); fix scheduler sync_triggers(); prevenzione blocco asyncio event loop su endpoint sincroni | PASS (CT 125 Live OK) |
+| 2026-09-21 | Milestone M9 | `backend/automations/*`, `backend/integrations/*`, `frontend/src/*`, `docs/*` | Automations v2 completa: Sezione Artefatti e Report con split-pane e temporal grouping, retention auto-cleanup job e bulk delete, card live con morphing e drawer pipeline, introspezione parametri AST e integrazioni 3-tier, harness self-healing | PASS (29/29 test passati + Vite build OK) |
 

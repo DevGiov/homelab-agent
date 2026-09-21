@@ -42,8 +42,27 @@ def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_v2_columns(cursor: sqlite3.Cursor):
+    """Assicura l'esistenza delle colonne v2 in modo trasparente e performante."""
+    def add_col(tbl: str, col: str, typedef: str):
+        cursor.execute(f"PRAGMA table_info({tbl});")
+        cols = [r[1] for r in cursor.fetchall()]
+        if col not in cols:
+            try:
+                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typedef};")
+            except Exception:
+                pass
+
+    add_col("automation_definitions", "retention_days", "INTEGER DEFAULT NULL")
+    add_col("automation_definitions", "settings_json", "TEXT DEFAULT '{}'")
+    add_col("automation_runs", "is_preserved", "INTEGER NOT NULL DEFAULT 0")
+    add_col("automation_runs", "is_favorite", "INTEGER NOT NULL DEFAULT 0")
+    add_col("artifacts", "is_preserved", "INTEGER NOT NULL DEFAULT 0")
+    add_col("artifacts", "is_favorite", "INTEGER NOT NULL DEFAULT 0")
+
+
 def init_automations_db(db_path: Optional[str] = None):
-    """Inizializza lo schema completo del database automazioni."""
+    """Inizializza lo schema completo del database automazioni (v2 canonico)."""
     try:
         conn = get_db_connection(db_path)
         cursor = conn.cursor()
@@ -57,6 +76,8 @@ def init_automations_db(db_path: Optional[str] = None):
                 version INTEGER NOT NULL DEFAULT 1,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 spec_json TEXT NOT NULL,
+                settings_json TEXT DEFAULT '{}',
+                retention_days INTEGER DEFAULT NULL,
                 created_by TEXT NOT NULL DEFAULT 'user',
                 source_type TEXT NOT NULL DEFAULT 'ui',
                 source_reference TEXT,
@@ -77,6 +98,8 @@ def init_automations_db(db_path: Optional[str] = None):
                 status TEXT NOT NULL,
                 current_step_id TEXT,
                 is_dry_run INTEGER NOT NULL DEFAULT 0,
+                is_preserved INTEGER NOT NULL DEFAULT 0,
+                is_favorite INTEGER NOT NULL DEFAULT 0,
                 started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME,
                 total_tokens INTEGER DEFAULT 0,
@@ -90,6 +113,8 @@ def init_automations_db(db_path: Optional[str] = None):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_auto_id ON automation_runs(automation_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON automation_runs(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_started ON automation_runs(started_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_fav ON automation_runs(is_favorite)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_pres ON automation_runs(is_preserved)")
 
         # 3. Singoli passaggi di esecuzione (Step Runs)
         cursor.execute("""
@@ -145,13 +170,17 @@ def init_automations_db(db_path: Optional[str] = None):
                 mime_type TEXT NOT NULL DEFAULT 'text/plain',
                 storage_uri TEXT NOT NULL,
                 checksum_sha256 TEXT,
+                is_preserved INTEGER NOT NULL DEFAULT 0,
+                is_favorite INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(run_id) REFERENCES automation_runs(run_id) ON DELETE CASCADE
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_created ON artifacts(created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_fav ON artifacts(is_favorite)")
 
-        # 6. Circuit Breaker States per automazione (Milestone M4)
+        # 6. Circuit Breaker States per automazione
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS circuit_breaker_states (
                 automation_id TEXT PRIMARY KEY,
@@ -171,6 +200,7 @@ def init_automations_db(db_path: Optional[str] = None):
                 id TEXT PRIMARY KEY,
                 service_type TEXT NOT NULL,
                 name TEXT NOT NULL,
+                is_default INTEGER NOT NULL DEFAULT 1,
                 config_json TEXT NOT NULL DEFAULT '{}',
                 encrypted_secrets_json TEXT NOT NULL DEFAULT '{}',
                 status TEXT NOT NULL DEFAULT 'untested',
@@ -181,6 +211,9 @@ def init_automations_db(db_path: Optional[str] = None):
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_int_type ON service_integrations(service_type)")
+
+        # Allinea colonne su eventuali database esistenti
+        _ensure_v2_columns(cursor)
 
         conn.commit()
         conn.close()
@@ -197,16 +230,23 @@ def save_definition(definition_dict: Dict[str, Any], db_path: Optional[str] = No
     now = datetime.now(timezone.utc).isoformat()
     auto_id = definition_dict["id"]
     spec_json = json.dumps(definition_dict, ensure_ascii=False)
+    retention_days = definition_dict.get("retention_days")
+    settings_json = json.dumps(definition_dict.get("settings", {}), ensure_ascii=False)
     try:
         conn.execute("""
-            INSERT INTO automation_definitions (id, name, description, version, enabled, spec_json, created_by, source_type, source_reference, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO automation_definitions (
+                id, name, description, version, enabled, spec_json, settings_json, retention_days,
+                created_by, source_type, source_reference, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
                 version = excluded.version,
                 enabled = excluded.enabled,
                 spec_json = excluded.spec_json,
+                settings_json = excluded.settings_json,
+                retention_days = excluded.retention_days,
                 updated_at = excluded.updated_at
         """, (
             auto_id,
@@ -215,6 +255,8 @@ def save_definition(definition_dict: Dict[str, Any], db_path: Optional[str] = No
             int(definition_dict.get("version", 1)),
             1 if definition_dict.get("enabled", True) else 0,
             spec_json,
+            settings_json,
+            retention_days,
             definition_dict.get("created_by", "user"),
             definition_dict.get("source_type", "ui"),
             definition_dict.get("source_reference"),
@@ -231,13 +273,20 @@ def get_definition(auto_id: str, db_path: Optional[str] = None) -> Optional[Dict
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT spec_json, enabled, version FROM automation_definitions WHERE id = ?", (auto_id,))
+        cursor.execute("SELECT spec_json, enabled, version, settings_json, retention_days FROM automation_definitions WHERE id = ?", (auto_id,))
         row = cursor.fetchone()
         if not row:
             return None
         data = json.loads(row["spec_json"])
         data["enabled"] = bool(row["enabled"])
         data["version"] = int(row["version"])
+        if row["retention_days"] is not None:
+            data["retention_days"] = int(row["retention_days"])
+        if row["settings_json"]:
+            try:
+                data["settings"] = json.loads(row["settings_json"])
+            except Exception:
+                data["settings"] = {}
         return data
     finally:
         conn.close()
@@ -247,16 +296,39 @@ def list_definitions(enabled_only: bool = False, db_path: Optional[str] = None) 
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
+        query = """
+            SELECT
+                ad.spec_json, ad.enabled, ad.version, ad.settings_json, ad.retention_days,
+                (SELECT status FROM automation_runs WHERE automation_id = ad.id ORDER BY started_at DESC LIMIT 1) as last_run_status,
+                (SELECT started_at FROM automation_runs WHERE automation_id = ad.id ORDER BY started_at DESC LIMIT 1) as last_run_at,
+                (SELECT a.artifact_id FROM artifacts a JOIN automation_runs r ON a.run_id = r.run_id WHERE r.automation_id = ad.id ORDER BY a.created_at DESC LIMIT 1) as last_artifact_id,
+                (SELECT a.name FROM artifacts a JOIN automation_runs r ON a.run_id = r.run_id WHERE r.automation_id = ad.id ORDER BY a.created_at DESC LIMIT 1) as last_artifact_name,
+                (SELECT a.created_at FROM artifacts a JOIN automation_runs r ON a.run_id = r.run_id WHERE r.automation_id = ad.id ORDER BY a.created_at DESC LIMIT 1) as last_artifact_at
+            FROM automation_definitions ad
+        """
         if enabled_only:
-            cursor.execute("SELECT spec_json, enabled, version FROM automation_definitions WHERE enabled = 1 ORDER BY name ASC")
-        else:
-            cursor.execute("SELECT spec_json, enabled, version FROM automation_definitions ORDER BY name ASC")
+            query += " WHERE ad.enabled = 1"
+        query += " ORDER BY ad.name ASC"
+
+        cursor.execute(query)
         rows = cursor.fetchall()
         result = []
         for r in rows:
             data = json.loads(r["spec_json"])
             data["enabled"] = bool(r["enabled"])
             data["version"] = int(r["version"])
+            if r["retention_days"] is not None:
+                data["retention_days"] = int(r["retention_days"])
+            if r["settings_json"]:
+                try:
+                    data["settings"] = json.loads(r["settings_json"])
+                except Exception:
+                    data["settings"] = {}
+            data["last_run_status"] = r["last_run_status"]
+            data["last_run_at"] = r["last_run_at"]
+            data["last_artifact_id"] = r["last_artifact_id"]
+            data["last_artifact_name"] = r["last_artifact_name"]
+            data["last_artifact_at"] = r["last_artifact_at"]
             result.append(data)
         return result
     finally:
@@ -294,8 +366,9 @@ def create_run(run_data: Dict[str, Any], db_path: Optional[str] = None) -> Dict[
         conn.execute("""
             INSERT INTO automation_runs (
                 run_id, automation_id, version_applied, trigger_type, trigger_payload_json,
-                status, current_step_id, is_dry_run, started_at, idempotency_key, associated_thread_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, current_step_id, is_dry_run, is_preserved, is_favorite,
+                started_at, idempotency_key, associated_thread_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             run_data["run_id"],
             run_data["automation_id"],
@@ -305,6 +378,8 @@ def create_run(run_data: Dict[str, Any], db_path: Optional[str] = None) -> Dict[
             run_data.get("status", "pending"),
             run_data.get("current_step_id"),
             1 if run_data.get("is_dry_run") else 0,
+            1 if run_data.get("is_preserved") else 0,
+            1 if run_data.get("is_favorite") else 0,
             now,
             run_data.get("idempotency_key"),
             run_data.get("associated_thread_id")
@@ -326,6 +401,8 @@ def get_run(run_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, An
         d = dict(row)
         d["trigger_payload"] = json.loads(d.pop("trigger_payload_json", "{}"))
         d["is_dry_run"] = bool(d["is_dry_run"])
+        d["is_preserved"] = bool(d.get("is_preserved", 0))
+        d["is_favorite"] = bool(d.get("is_favorite", 0))
 
         # Fetch step runs
         cursor.execute("SELECT * FROM step_runs WHERE run_id = ? ORDER BY started_at ASC", (run_id,))
@@ -345,6 +422,8 @@ def get_run(run_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, An
             art = dict(a)
             if "name" in art and "title" not in art:
                 art["title"] = art["name"]
+            art["is_preserved"] = bool(art.get("is_preserved", 0))
+            art["is_favorite"] = bool(art.get("is_favorite", 0))
             if "content" not in art or not art["content"]:
                 storage_uri = art.get("storage_uri", "")
                 if storage_uri and os.path.isfile(storage_uri):
@@ -404,26 +483,168 @@ def update_run_status(run_id: str, status: str, current_step_id: Optional[str] =
 
 
 def list_runs(automation_id: Optional[str] = None, status: Optional[str] = None,
+              starred_only: bool = False, preserved_only: bool = False,
               limit: int = 50, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
-        query = "SELECT run_id, automation_id, version_applied, trigger_type, status, current_step_id, is_dry_run, started_at, completed_at, total_tokens, total_duration_ms, error_message FROM automation_runs"
+        query = """
+            SELECT
+                r.run_id, r.automation_id, r.version_applied, r.trigger_type, r.status,
+                r.current_step_id, r.is_dry_run, r.is_preserved, r.is_favorite,
+                r.started_at, r.completed_at, r.total_tokens, r.total_duration_ms, r.error_message,
+                (SELECT COUNT(*) FROM artifacts WHERE run_id = r.run_id) as artifacts_count
+            FROM automation_runs r
+        """
         conditions = []
         params = []
         if automation_id:
-            conditions.append("automation_id = ?")
+            conditions.append("r.automation_id = ?")
             params.append(automation_id)
         if status:
-            conditions.append("status = ?")
+            conditions.append("r.status = ?")
             params.append(status)
+        if starred_only:
+            conditions.append("r.is_favorite = 1")
+        if preserved_only:
+            conditions.append("r.is_preserved = 1")
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY started_at DESC LIMIT ?"
+        query += " ORDER BY r.started_at DESC LIMIT ?"
         params.append(limit)
 
         cursor.execute(query, tuple(params))
-        return [dict(r) for r in cursor.fetchall()]
+        results = []
+        for r in cursor.fetchall():
+            row_dict = dict(r)
+            row_dict["is_dry_run"] = bool(row_dict.get("is_dry_run", 0))
+            row_dict["is_preserved"] = bool(row_dict.get("is_preserved", 0))
+            row_dict["is_favorite"] = bool(row_dict.get("is_favorite", 0))
+            row_dict["artifacts_count"] = int(row_dict.get("artifacts_count", 0))
+            results.append(row_dict)
+        return results
+    finally:
+        conn.close()
+
+
+def toggle_run_favorite(run_id: str, is_favorite: Optional[bool] = None, db_path: Optional[str] = None) -> Optional[bool]:
+    """Imposta, rimuove o inverte lo stato preferito (star) da una run."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if is_favorite is None:
+            cursor.execute("SELECT is_favorite FROM automation_runs WHERE run_id = ?", (run_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            new_val = 0 if row["is_favorite"] else 1
+        else:
+            new_val = 1 if is_favorite else 0
+        cursor.execute("UPDATE automation_runs SET is_favorite = ? WHERE run_id = ?", (new_val, run_id))
+        conn.commit()
+        return bool(new_val)
+    finally:
+        conn.close()
+
+
+def toggle_run_preserve(run_id: str, is_preserved: Optional[bool] = None, db_path: Optional[str] = None) -> Optional[bool]:
+    """Imposta, rimuove o inverte il blocco di conservazione da auto-cleanup su una run."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if is_preserved is None:
+            cursor.execute("SELECT is_preserved FROM automation_runs WHERE run_id = ?", (run_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            new_val = 0 if row["is_preserved"] else 1
+        else:
+            new_val = 1 if is_preserved else 0
+        cursor.execute("UPDATE automation_runs SET is_preserved = ? WHERE run_id = ?", (new_val, run_id))
+        conn.commit()
+        return bool(new_val)
+    finally:
+        conn.close()
+
+
+def delete_run(run_id: str, force: bool = False, db_path: Optional[str] = None) -> bool:
+    """Elimina definitivamente una run e ripulisce gli artefatti e i file fisici su disco."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_preserved, is_favorite FROM automation_runs WHERE run_id = ?", (run_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        if bool(row["is_preserved"]) and not force:
+            raise ValueError("Impossibile eliminare una run contrassegnata come 'Preservata' senza force=True.")
+
+        # Elimina file fisici degli artefatti associati
+        cursor.execute("SELECT storage_uri FROM artifacts WHERE run_id = ?", (run_id,))
+        for art_row in cursor.fetchall():
+            s_uri = art_row["storage_uri"]
+            if s_uri and os.path.isfile(s_uri):
+                try:
+                    os.remove(s_uri)
+                except Exception:
+                    pass
+
+        cursor.execute("DELETE FROM automation_runs WHERE run_id = ?", (run_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def bulk_delete_runs(status: Optional[str] = None, before_date: Optional[str] = None,
+                     automation_id: Optional[str] = None, failed_only: bool = False,
+                     preserve_protected: bool = True, db_path: Optional[str] = None) -> int:
+    """Elimina in blocco esecuzioni storiche (es. pulizia fallite o scadute per retention)."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        where = []
+        params: List[Any] = []
+
+        if failed_only:
+            where.append("status IN ('failed', 'cancelled', 'exhausted')")
+        elif status:
+            where.append("status = ?")
+            params.append(status)
+
+        if before_date:
+            where.append("started_at < ?")
+            params.append(before_date)
+
+        if automation_id:
+            where.append("automation_id = ?")
+            params.append(automation_id)
+
+        if preserve_protected:
+            where.append("is_preserved = 0 AND is_favorite = 0")
+
+        where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+
+        cursor.execute(f"SELECT run_id FROM automation_runs{where_clause}", tuple(params))
+        target_run_ids = [r["run_id"] for r in cursor.fetchall()]
+        if not target_run_ids:
+            return 0
+
+        # Rimuovi file fisici
+        placeholders = ",".join("?" for _ in target_run_ids)
+        cursor.execute(f"SELECT storage_uri FROM artifacts WHERE run_id IN ({placeholders})", tuple(target_run_ids))
+        for art_row in cursor.fetchall():
+            s_uri = art_row["storage_uri"]
+            if s_uri and os.path.isfile(s_uri):
+                try:
+                    os.remove(s_uri)
+                except Exception:
+                    pass
+
+        cursor.execute(f"DELETE FROM automation_runs WHERE run_id IN ({placeholders})", tuple(target_run_ids))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        return deleted_count
     finally:
         conn.close()
 
@@ -637,8 +858,6 @@ def save_artifact(artifact_data: Dict[str, Any], db_path: Optional[str] = None) 
     run_id = artifact_data.get("run_id") or "manual_or_direct"
     try:
         cursor = conn.cursor()
-        # Verifica se run_id esiste in automation_runs. Se assente (es. chiamata standalone o manuale),
-        # garantiamo un placeholder run per rispettare il vincolo FOREIGN KEY(run_id).
         cursor.execute("SELECT 1 FROM automation_runs WHERE run_id = ?", (run_id,))
         if not cursor.fetchone():
             cursor.execute("""
@@ -654,23 +873,28 @@ def save_artifact(artifact_data: Dict[str, Any], db_path: Optional[str] = None) 
 
         cursor.execute("""
             INSERT INTO artifacts (
-                artifact_id, run_id, step_run_id, name, type, mime_type, storage_uri, checksum_sha256, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                artifact_id, run_id, step_run_id, name, type, mime_type, storage_uri, checksum_sha256,
+                is_preserved, is_favorite, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(artifact_id) DO UPDATE SET
                 name = excluded.name,
                 type = excluded.type,
                 mime_type = excluded.mime_type,
                 storage_uri = excluded.storage_uri,
-                checksum_sha256 = excluded.checksum_sha256
+                checksum_sha256 = excluded.checksum_sha256,
+                is_preserved = excluded.is_preserved,
+                is_favorite = excluded.is_favorite
         """, (
             artifact_data["artifact_id"],
             run_id,
             artifact_data.get("step_run_id"),
-            artifact_data.get("name") or artifact_data.get("title", "Report Automazione"),
+            artifact_data.get("title") or artifact_data.get("name", "Report Automazione"),
             artifact_data.get("type", "report"),
             artifact_data.get("mime_type", "text/plain"),
             artifact_data["storage_uri"],
             artifact_data.get("checksum_sha256"),
+            1 if artifact_data.get("is_preserved") else 0,
+            1 if artifact_data.get("is_favorite") else 0,
             artifact_data.get("created_at", datetime.now(timezone.utc).isoformat())
         ))
         conn.commit()
@@ -683,13 +907,25 @@ def get_artifact(artifact_id: str, db_path: Optional[str] = None) -> Optional[Di
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+        cursor.execute("""
+            SELECT
+                a.*,
+                r.automation_id,
+                d.name as automation_name,
+                r.status as run_status
+            FROM artifacts a
+            LEFT JOIN automation_runs r ON a.run_id = r.run_id
+            LEFT JOIN automation_definitions d ON r.automation_id = d.id
+            WHERE a.artifact_id = ?
+        """, (artifact_id,))
         row = cursor.fetchone()
         if not row:
             return None
         art = dict(row)
         if "name" in art and "title" not in art:
             art["title"] = art["name"]
+        art["is_preserved"] = bool(art.get("is_preserved", 0))
+        art["is_favorite"] = bool(art.get("is_favorite", 0))
         if "content" not in art or not art["content"]:
             storage_uri = art.get("storage_uri", "")
             if storage_uri and os.path.isfile(storage_uri):
@@ -712,7 +948,153 @@ def list_artifacts(run_id: str, db_path: Optional[str] = None) -> List[Dict[str,
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC", (run_id,))
         rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+        results = []
+        for r in rows:
+            art = dict(r)
+            art["is_preserved"] = bool(art.get("is_preserved", 0))
+            art["is_favorite"] = bool(art.get("is_favorite", 0))
+            results.append(art)
+        return results
+    finally:
+        conn.close()
+
+
+def list_all_artifacts(automation_id: Optional[str] = None, type: Optional[str] = None,
+                       query: Optional[str] = None, search: Optional[str] = None,
+                       favorite_only: bool = False, starred_only: bool = False,
+                       preserved_only: bool = False, limit: int = 50, offset: int = 0,
+                       db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Elenca tutti gli artefatti del sistema con filtri, unendo informazioni sull'automazione associata."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        sql_query = """
+            SELECT
+                a.artifact_id, a.run_id, a.step_run_id, a.name, a.type, a.mime_type,
+                a.storage_uri, a.checksum_sha256, a.is_preserved, a.is_favorite, a.created_at,
+                r.automation_id,
+                d.name as automation_name,
+                r.status as run_status
+            FROM artifacts a
+            LEFT JOIN automation_runs r ON a.run_id = r.run_id
+            LEFT JOIN automation_definitions d ON r.automation_id = d.id
+        """
+        where = []
+        params: List[Any] = []
+        if automation_id:
+            where.append("r.automation_id = ?")
+            params.append(automation_id)
+        if type:
+            where.append("a.type = ?")
+            params.append(type)
+        search_term = query or search
+        if search_term:
+            where.append("(a.name LIKE ? OR d.name LIKE ?)")
+            params.extend([f"%{search_term}%", f"%{search_term}%"])
+        if favorite_only or starred_only:
+            where.append("a.is_favorite = 1")
+        if preserved_only:
+            where.append("a.is_preserved = 1")
+
+        if where:
+            sql_query += " WHERE " + " AND ".join(where)
+
+        sql_query += " ORDER BY a.created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        cursor.execute(sql_query, tuple(params))
+        results = []
+        for row in cursor.fetchall():
+            art = dict(row)
+            art["title"] = art["name"]
+            art["is_preserved"] = bool(art.get("is_preserved", 0))
+            art["is_favorite"] = bool(art.get("is_favorite", 0))
+            results.append(art)
+        return results
+    finally:
+        conn.close()
+
+
+def get_latest_artifact_for_automation(automation_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Recupera l'ultimo artefatto generato per una specifica automazione."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.artifact_id
+            FROM artifacts a
+            JOIN automation_runs r ON a.run_id = r.run_id
+            WHERE r.automation_id = ?
+            ORDER BY a.created_at DESC LIMIT 1
+        """, (automation_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return get_artifact(row["artifact_id"], db_path=db_path)
+    finally:
+        conn.close()
+
+
+def toggle_artifact_favorite(artifact_id: str, is_favorite: Optional[bool] = None, db_path: Optional[str] = None) -> Optional[bool]:
+    """Imposta, rimuove o inverte lo stato preferito (star) da un artefatto."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if is_favorite is None:
+            cursor.execute("SELECT is_favorite FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            new_val = 0 if row["is_favorite"] else 1
+        else:
+            new_val = 1 if is_favorite else 0
+        cursor.execute("UPDATE artifacts SET is_favorite = ? WHERE artifact_id = ?", (new_val, artifact_id))
+        conn.commit()
+        return bool(new_val)
+    finally:
+        conn.close()
+
+
+def toggle_artifact_preserve(artifact_id: str, is_preserved: Optional[bool] = None, db_path: Optional[str] = None) -> Optional[bool]:
+    """Imposta, rimuove o inverte la protezione da eliminazione su un artefatto."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if is_preserved is None:
+            cursor.execute("SELECT is_preserved FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            new_val = 0 if row["is_preserved"] else 1
+        else:
+            new_val = 1 if is_preserved else 0
+        cursor.execute("UPDATE artifacts SET is_preserved = ? WHERE artifact_id = ?", (new_val, artifact_id))
+        conn.commit()
+        return bool(new_val)
+    finally:
+        conn.close()
+
+
+def delete_artifact(artifact_id: str, force: bool = False, db_path: Optional[str] = None) -> bool:
+    """Elimina definitivamente un artefatto e il suo file corrispondente su disco se non preservato."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT storage_uri, is_preserved FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        if bool(row["is_preserved"]) and not force:
+            return False
+        storage_uri = row["storage_uri"]
+        if storage_uri and os.path.isfile(storage_uri):
+            try:
+                os.remove(storage_uri)
+            except Exception:
+                pass
+        cursor.execute("DELETE FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()
 

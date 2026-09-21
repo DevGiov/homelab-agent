@@ -174,6 +174,17 @@ def run_agent_loop(
             "  1. Use `list_automation_templates` to view available templates or `list_automations` to view active ones.\n"
             "  2. Use `create_automation_from_template` or `create_custom_automation` to activate an automation directly.\n"
             "  3. You can also output an interactive proposal in chat using an ````automation_proposal fenced code block containing the full JSON definition (id, name, description, triggers, workflow, permission_policy, budget). The frontend renders an interactive card with Dry-Run and 1-click Activate buttons!\n"
+            "- Canonical Workflow Specification for Custom Automations:\n"
+            "  * `id`: unique id (e.g. 'auto_github_trending')\n"
+            "  * `name`: descriptive name\n"
+            "  * `workflow.initial_step_id`: MUST strictly match the `step_id` of the first step (e.g. 'step_1_search')\n"
+            "  * `workflow.steps`: list of steps, each with:\n"
+            "    - `step_id`: unique string ID (e.g. 'step_1_search', 'step_2_synthesis')\n"
+            "    - `name`: step title\n"
+            "    - `type`: 'deterministic_action' (for tools) or 'agentic_task' (for LLM reasoning) or 'approval_gate'\n"
+            "    - `action_or_tool`: exact tool name (e.g. 'web_search', 'save_artifact', 'http_get')\n"
+            "    - `parameters`: dictionary containing tool arguments (e.g. `{\"query\": \"trending repositories\"}`). NEVER omit query for web_search!\n"
+            "    - `prompt_template`: string template for agentic tasks, e.g. 'Analyze the following search results: {{steps.step_1_search.output.text}}'\n"
             f"{UNTRUSTED_CONTEXT_POLICY}\n"
         )
 

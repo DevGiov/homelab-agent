@@ -153,6 +153,9 @@ async def list_runs(
                 status=r["status"],
                 current_step_id=r.get("current_step_id"),
                 is_dry_run=bool(r.get("is_dry_run")),
+                is_preserved=bool(r.get("is_preserved", False)),
+                is_favorite=bool(r.get("is_favorite", False)),
+                artifacts_count=int(r.get("artifacts_count", 0)),
                 started_at=r["started_at"],
                 completed_at=r.get("completed_at"),
                 total_tokens=r.get("total_tokens", 0),
@@ -163,6 +166,22 @@ async def list_runs(
     return summaries
 
 
+@router.delete("/runs")
+async def bulk_delete_runs(
+    automation_id: Optional[str] = Query(default=None),
+    failed_only: bool = Query(default=False),
+    older_than_days: Optional[int] = Query(default=None),
+):
+    """Elimina massivamente le run storiche non preservate."""
+    deleted_count = auto_db.bulk_delete_runs(
+        automation_id=automation_id,
+        failed_only=failed_only,
+        older_than_days=older_than_days,
+        db_path=config.AUTOMATIONS_DB_PATH,
+    )
+    return {"deleted_count": deleted_count}
+
+
 @router.get("/runs/{run_id}", response_model=AutomationRun)
 async def get_run_details(run_id: str):
     """Dettaglio di una singola run, step completati e artefatti."""
@@ -170,6 +189,73 @@ async def get_run_details(run_id: str):
     if not r:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
     return AutomationRun(**r)
+
+
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str):
+    """Elimina definitivamente una singola run e i relativi file di log/artefatto se non preservata."""
+    deleted = auto_db.delete_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not deleted:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossibile eliminare la run '{run_id}': run non trovata o protetta da lucchetto (Preserved).",
+        )
+    return {"deleted": True, "run_id": run_id}
+
+
+@router.patch("/runs/{run_id}/favorite")
+async def toggle_run_favorite(run_id: str):
+    """Imposta o rimuove il contrassegno preferito (Star) per la run."""
+    new_val = auto_db.toggle_run_favorite(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if new_val is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
+    return {"run_id": run_id, "is_favorite": new_val}
+
+
+@router.patch("/runs/{run_id}/preserve")
+async def toggle_run_preserve(run_id: str):
+    """Imposta o rimuove la protezione da pulizia automatica (Lock/Preserve) per la run."""
+    new_val = auto_db.toggle_run_preserve(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if new_val is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
+    return {"run_id": run_id, "is_preserved": new_val}
+
+
+@router.post("/runs/{run_id}/pause")
+async def pause_run(run_id: str):
+    """Mette in pausa cooperativa una run attualmente in esecuzione."""
+    runner = get_runner()
+    try:
+        return runner.pause_run(run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/runs/{run_id}/resume")
+async def resume_run(
+    run_id: str,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    sync: bool = Query(default=False),
+):
+    """Riprende l'esecuzione di una run precedentemente messa in pausa."""
+    runner = get_runner()
+    try:
+        if sync:
+            return runner.resume_paused_run(run_id)
+        else:
+            run_dict = auto_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+            if not run_dict:
+                raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
+            if run_dict["status"] != RunStatus.PAUSED.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La run '{run_id}' non è in pausa (stato attuale: {run_dict['status']}).",
+                )
+            auto_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=config.AUTOMATIONS_DB_PATH)
+            background_tasks.add_task(runner.execute_run, run_id)
+            return {"resumed": True, "run_id": run_id, "status": RunStatus.RUNNING.value}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/runs/{run_id}/cancel")
@@ -271,6 +357,25 @@ async def clear_expired_approvals():
 
 # --- 4. Artefatti ---
 
+@router.get("/artifacts")
+async def list_artifacts(
+    automation_id: Optional[str] = Query(default=None),
+    query: Optional[str] = Query(default=None),
+    favorite_only: bool = Query(default=False),
+    preserved_only: bool = Query(default=False),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    """Elenca tutti gli artefatti prodotti dalle automazioni con supporto a ricerca e filtri."""
+    return auto_db.list_all_artifacts(
+        automation_id=automation_id,
+        query=query,
+        favorite_only=favorite_only,
+        preserved_only=preserved_only,
+        limit=limit,
+        db_path=config.AUTOMATIONS_DB_PATH,
+    )
+
+
 @router.get("/artifacts/{artifact_id}")
 async def get_artifact(artifact_id: str):
     """Metadati dell'artefatto."""
@@ -292,6 +397,36 @@ async def download_artifact(artifact_id: str):
     return FileResponse(uri, media_type=art.get("mime_type", "application/octet-stream"), filename=art["name"])
 
 
+@router.patch("/artifacts/{artifact_id}/favorite")
+async def toggle_artifact_favorite(artifact_id: str):
+    """Imposta o rimuove il contrassegno preferito (Star) per l'artefatto."""
+    new_val = auto_db.toggle_artifact_favorite(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if new_val is None:
+        raise HTTPException(status_code=404, detail=f"Artefatto '{artifact_id}' non trovato.")
+    return {"artifact_id": artifact_id, "is_favorite": new_val}
+
+
+@router.patch("/artifacts/{artifact_id}/preserve")
+async def toggle_artifact_preserve(artifact_id: str):
+    """Imposta o rimuove la protezione da cancellazione (Lock/Preserve) per l'artefatto."""
+    new_val = auto_db.toggle_artifact_preserve(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if new_val is None:
+        raise HTTPException(status_code=404, detail=f"Artefatto '{artifact_id}' non trovato.")
+    return {"artifact_id": artifact_id, "is_preserved": new_val}
+
+
+@router.delete("/artifacts/{artifact_id}")
+async def delete_artifact(artifact_id: str):
+    """Elimina definitivamente un artefatto e il relativo file su disco."""
+    deleted = auto_db.delete_artifact(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not deleted:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossibile eliminare l'artefatto '{artifact_id}': non trovato o protetto da lucchetto (Preserved).",
+        )
+    return {"deleted": True, "artifact_id": artifact_id}
+
+
 # --- 5. CRUD Definizioni Automazioni & Trigger Run ---
 
 @router.get("", response_model=List[AutomationSummary])
@@ -311,6 +446,12 @@ async def list_automations(enabled_only: bool = Query(default=False)):
                 steps_count=len(d.get("workflow", {}).get("steps", [])),
                 created_by=d.get("created_by", "user"),
                 source_type=d.get("source_type", "ui"),
+                retention_days=d.get("retention_days"),
+                last_run_status=d.get("last_run_status"),
+                last_run_at=d.get("last_run_at"),
+                last_artifact_id=d.get("last_artifact_id"),
+                last_artifact_name=d.get("last_artifact_name"),
+                last_artifact_at=d.get("last_artifact_at"),
             )
         )
     return summaries
@@ -370,6 +511,25 @@ async def delete_automation(auto_id: str):
     except Exception as e:
         logger.debug(f"Scheduler trigger sync skipped: {e}")
     return {"deleted": True, "id": auto_id}
+
+
+@router.get("/{auto_id}/latest-artifact")
+async def get_latest_artifact_for_automation(auto_id: str):
+    """Restituisce il metadato dell'ultimo artefatto generato per l'automazione indicata."""
+    art = auto_db.get_latest_artifact_for_automation(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not art:
+        raise HTTPException(status_code=404, detail=f"Nessun artefatto trovato per l'automazione '{auto_id}'.")
+    return art
+
+
+@router.get("/{auto_id}/introspect-parameters")
+async def introspect_parameters(auto_id: str):
+    """Introspezione automatica dei parametri e segreti richiesti dal workflow dell'automazione."""
+    d = auto_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not d:
+        raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
+    from automations.introspection import introspect_automation_parameters
+    return introspect_automation_parameters(d)
 
 
 @router.get("/{auto_id}/circuit-breaker")

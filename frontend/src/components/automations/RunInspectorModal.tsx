@@ -311,7 +311,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                         </span>
                       </div>
                       <button
-                        onClick={() => copyToClipboard(art.content, art.artifact_id)}
+                        onClick={() => copyToClipboard(art.content || '', art.artifact_id)}
                         className="px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-panel rounded flex items-center gap-1 transition"
                         title="Copia Markdown"
                       >

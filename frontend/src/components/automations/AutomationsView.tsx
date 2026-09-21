@@ -19,6 +19,14 @@ import {
   Mail,
   Key,
   Sliders,
+  FileText,
+  Pause,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Unlock,
+  Star,
 } from 'lucide-react';
 import {
   fetchAutomations,
@@ -33,6 +41,13 @@ import {
   deleteAutomationApproval,
   clearExpiredAutomationApprovals,
   getAutomationRunDetails,
+  getAutomation,
+  deleteAutomationRun,
+  bulkDeleteAutomationRuns,
+  toggleAutomationRunFavorite,
+  toggleAutomationRunPreserve,
+  pauseAutomationRun,
+  resumeAutomationRun,
   type AutomationSummary,
   type AutomationRunSummary,
   type AutomationApprovalItem,
@@ -42,9 +57,10 @@ import {
 import { RunInspectorModal } from './RunInspectorModal';
 import { IntegrationsTab } from './IntegrationsTab';
 import { ParametersModal } from './ParametersModal';
+import { ArtifactsView } from './ArtifactsView';
 
 export const AutomationsView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'automations' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
+  const [activeTab, setActiveTab] = useState<'automations' | 'artifacts' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
   const [automations, setAutomations] = useState<AutomationSummary[]>([]);
   const [runs, setRuns] = useState<AutomationRunSummary[]>([]);
   const [approvals, setApprovals] = useState<AutomationApprovalItem[]>([]);
@@ -57,6 +73,13 @@ export const AutomationsView: React.FC = () => {
   // Inspector Modal State
   const [selectedRun, setSelectedRun] = useState<AutomationRunDetails | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
+
+  // Artifacts Navigation State
+  const [selectedArtifactIdForView, setSelectedArtifactIdForView] = useState<string | null>(null);
+
+  // Expandable Automation Cards State & Cache
+  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
+  const [autoDetailsCache, setAutoDetailsCache] = useState<Record<string, any>>({});
 
   // Parameters Modal State
   const [isParamModalOpen, setIsParamModalOpen] = useState<boolean>(false);
@@ -75,6 +98,25 @@ export const AutomationsView: React.FC = () => {
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setActionMessage({ type, text });
     setTimeout(() => setActionMessage(null), 4000);
+  };
+
+  const toggleExpandCard = async (autoId: string) => {
+    setExpandedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(autoId)) {
+        next.delete(autoId);
+      } else {
+        next.add(autoId);
+        if (!autoDetailsCache[autoId]) {
+          getAutomation(autoId)
+            .then((full) => {
+              setAutoDetailsCache((c) => ({ ...c, [autoId]: full }));
+            })
+            .catch(console.error);
+        }
+      }
+      return next;
+    });
   };
 
   const loadData = useCallback(async () => {
@@ -102,7 +144,7 @@ export const AutomationsView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 15000); // Polling ogni 15s
+    const interval = setInterval(loadData, 10000); // Polling ogni 10s
     return () => clearInterval(interval);
   }, [loadData]);
 
@@ -183,6 +225,82 @@ export const AutomationsView: React.FC = () => {
       setIsInspectorOpen(true);
     } catch (err: any) {
       showFeedback('error', `Impossibile caricare dettaglio run: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleToggleRunFavorite = async (runId: string, currentVal: boolean) => {
+    try {
+      await toggleAutomationRunFavorite(runId, !currentVal);
+      setRuns((prev) =>
+        prev.map((r) => (r.run_id === runId ? { ...r, is_favorite: !currentVal } : r))
+      );
+      showFeedback('success', !currentVal ? 'Aggiunto ai preferiti.' : 'Rimosso dai preferiti.');
+    } catch (err: any) {
+      showFeedback('error', `Errore toggle preferito: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleToggleRunPreserve = async (runId: string, currentVal: boolean) => {
+    try {
+      await toggleAutomationRunPreserve(runId, !currentVal);
+      setRuns((prev) =>
+        prev.map((r) => (r.run_id === runId ? { ...r, is_preserved: !currentVal } : r))
+      );
+      showFeedback(
+        'success',
+        !currentVal ? 'Esecuzione preservata da auto-cleanup!' : 'Protezione rimossa.'
+      );
+    } catch (err: any) {
+      showFeedback('error', `Errore toggle preserva: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleDeleteRun = async (runId: string, isPreserved?: boolean) => {
+    if (isPreserved) {
+      alert('Questa esecuzione è preservata (bloccata con lucchetto). Sbloccala prima di eliminarla.');
+      return;
+    }
+    if (!confirm(`Sei sicuro di voler eliminare la run ${runId}?`)) return;
+    try {
+      await deleteAutomationRun(runId);
+      setRuns((prev) => prev.filter((r) => r.run_id !== runId));
+      showFeedback('success', `Run ${runId} eliminata.`);
+    } catch (err: any) {
+      showFeedback('error', `Errore eliminazione run: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleBulkDeleteRuns = async (failedOnly: boolean) => {
+    const msg = failedOnly
+      ? 'Sei sicuro di voler eliminare tutte le esecuzioni fallite (non preservate)?'
+      : 'Sei sicuro di voler eliminare le esecuzioni non preservate?';
+    if (!confirm(msg)) return;
+    try {
+      const res = await bulkDeleteAutomationRuns({ failed_only: failedOnly });
+      showFeedback('success', `Eliminate ${res.deleted_count} esecuzioni.`);
+      loadData();
+    } catch (err: any) {
+      showFeedback('error', `Errore eliminazione bulk: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handlePauseRun = async (runId: string) => {
+    try {
+      await pauseAutomationRun(runId);
+      showFeedback('success', `Richiesta di pausa inviata per la run ${runId}.`);
+      loadData();
+    } catch (err: any) {
+      showFeedback('error', `Errore pausa run: ${err?.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleResumeRun = async (runId: string) => {
+    try {
+      await resumeAutomationRun(runId);
+      showFeedback('success', `Run ${runId} ripresa con successo.`);
+      loadData();
+    } catch (err: any) {
+      showFeedback('error', `Errore ripresa run: ${err?.response?.data?.detail || err.message}`);
     }
   };
 
@@ -268,18 +386,29 @@ export const AutomationsView: React.FC = () => {
       </div>
 
       {/* View Tabs */}
-      <div className="flex border-b border-border px-4 bg-panel-header/20 shrink-0">
+      <div className="flex border-b border-border px-4 bg-panel-header/20 shrink-0 overflow-x-auto">
         <button
           onClick={() => setActiveTab('automations')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTab === 'automations' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
           <Layers size={15} /> Automazioni ({automations.length})
         </button>
         <button
+          onClick={() => {
+            setSelectedArtifactIdForView(null);
+            setActiveTab('artifacts');
+          }}
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'artifacts' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
+          }`}
+        >
+          <FileText size={15} /> Artefatti & Report
+        </button>
+        <button
           onClick={() => setActiveTab('runs')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTab === 'runs' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -287,7 +416,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTab === 'approvals' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -300,7 +429,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('templates')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTab === 'templates' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -308,7 +437,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('integrations')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer ${
+          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTab === 'integrations' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -327,7 +456,7 @@ export const AutomationsView: React.FC = () => {
               </h2>
               <button
                 onClick={() => setActiveTab('templates')}
-                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
+                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
               >
                 <Plus size={14} /> Da Template
               </button>
@@ -349,127 +478,325 @@ export const AutomationsView: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {automations.map((auto) => (
-                  <div
-                    key={auto.id}
-                    className="p-5 rounded-2xl bg-panel border border-border/80 shadow-sm hover:border-accent/40 transition flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-sm font-bold text-fg flex items-center gap-2">
-                            {auto.name}
-                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
-                              v{auto.version}
-                            </span>
-                          </h3>
-                          <span className="text-[11px] font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${auto.enabled ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-zinc-500/20 text-zinc-400'}`}>
-                          {auto.enabled ? 'Abilitata' : 'Inattiva'}
-                        </span>
-                      </div>
+                {automations.map((auto) => {
+                  const activeRun = runs.find(
+                    (r) =>
+                      r.automation_id === auto.id &&
+                      ['running', 'waiting_approval', 'paused'].includes(r.status.toLowerCase())
+                  );
+                  const isRunning = activeRun?.status.toLowerCase() === 'running';
+                  const isPaused = activeRun?.status.toLowerCase() === 'paused';
+                  const isWaitingApproval = activeRun?.status.toLowerCase() === 'waiting_approval';
+                  const isExpanded = expandedCardIds.has(auto.id);
+                  const details = autoDetailsCache[auto.id];
 
-                      <p className="text-xs text-fg-muted mt-3 line-clamp-2">
-                        {auto.description || 'Nessuna descrizione specificata.'}
-                      </p>
-
-                      <div className="flex items-center gap-4 mt-4 text-xs text-fg-muted">
-                        <span className="flex items-center gap-1.5">
-                          <Layers size={13} className="text-accent" /> {auto.steps_count} step
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Calendar size={13} className="text-emerald-400" /> {auto.triggers_count} trigger
-                        </span>
-                      </div>
-
-                      {/* Parameters preview */}
-                      {auto.parameters && Object.keys(auto.parameters).length > 0 && (
-                        <div className="mt-3 pt-2.5 border-t border-border/40">
-                          <div className="text-[10px] text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
-                            <Sliders size={11} className="text-accent" /> Parametri di default
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(auto.parameters).slice(0, 3).map(([k, v]) => (
-                              <span
-                                key={k}
-                                className="text-[10px] px-2 py-0.5 rounded-md bg-panel-header/70 border border-border text-fg-muted font-mono"
-                                title={`${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`}
-                              >
-                                {k}: <span className="text-fg font-medium">{typeof v === 'object' ? '{...}' : String(v)}</span>
+                  return (
+                    <div
+                      key={auto.id}
+                      className={`p-5 rounded-2xl bg-panel border transition flex flex-col justify-between space-y-4 ${
+                        isRunning
+                          ? 'border-accent shadow-lg shadow-accent/20 ring-1 ring-accent animate-in fade-in'
+                          : isPaused
+                          ? 'border-amber-500/50 shadow-md shadow-amber-500/10'
+                          : 'border-border/80 hover:border-accent/40 shadow-sm'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm font-bold text-fg flex items-center gap-2">
+                              {auto.name}
+                              <span className="text-[10px] px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
+                                v{auto.version}
                               </span>
-                            ))}
-                            {Object.keys(auto.parameters).length > 3 && (
-                              <span className="text-[10px] text-fg-muted self-center">
-                                +{Object.keys(auto.parameters).length - 3} altri
+                            </h3>
+                            <span className="text-[11px] font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {isRunning ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
+                              </span>
+                            ) : isPaused ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                In Pausa
+                              </span>
+                            ) : isWaitingApproval ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
+                                Attesa Approvazione
+                              </span>
+                            ) : (
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
+                                  auto.enabled
+                                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-zinc-500/20 text-zinc-400'
+                                }`}
+                              >
+                                {auto.enabled ? 'Abilitata' : 'Inattiva'}
                               </span>
                             )}
                           </div>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Action buttons */}
-                    <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button
-                          onClick={() => handleTriggerRun(auto.id, false)}
-                          className="px-3 py-1.5 bg-accent/90 hover:bg-accent text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
-                          title="Lancia esecuzione completa con parametri di default"
-                        >
-                          <Play size={12} /> Esegui
-                        </button>
-                        <button
-                          onClick={() => handleTriggerRun(auto.id, true)}
-                          className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
-                          title="Anteprima sicura senza modifiche (Dry-Run)"
-                        >
-                          <Shield size={12} /> Dry-Run
-                        </button>
-                        <button
-                          onClick={() => handleOpenParams(auto, 'run')}
-                          className="px-2.5 py-1.5 bg-panel-header/60 hover:bg-panel-header text-fg-muted hover:text-fg border border-border rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
-                          title="Esegui con parametri personalizzati per questa istanza"
-                        >
-                          <Play size={11} className="text-emerald-400" /> + Parametri
-                        </button>
+                        <p className="text-xs text-fg-muted mt-3 line-clamp-2">
+                          {auto.description || 'Nessuna descrizione specificata.'}
+                        </p>
+
+                        <div className="flex items-center justify-between mt-4 text-xs text-fg-muted flex-wrap gap-2">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1.5">
+                              <Layers size={13} className="text-accent" /> {auto.steps_count} step
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Calendar size={13} className="text-emerald-400" /> {auto.triggers_count} trigger
+                            </span>
+                          </div>
+
+                          {/* 1-Click Ultimo Report Button */}
+                          {auto.last_artifact_id && (
+                            <button
+                              onClick={() => {
+                                setSelectedArtifactIdForView(auto.last_artifact_id || null);
+                                setActiveTab('artifacts');
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer"
+                              title={`Apri report: ${auto.last_artifact_name || 'Ultimo Report'}`}
+                            >
+                              <FileText size={12} />
+                              <span className="truncate max-w-[140px]">
+                                {auto.last_artifact_name || 'Ultimo Report'}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Parameters preview */}
+                        {auto.parameters && Object.keys(auto.parameters).length > 0 && (
+                          <div className="mt-3 pt-2.5 border-t border-border/40">
+                            <div className="text-[10px] text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                              <Sliders size={11} className="text-accent" /> Parametri di default
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {Object.entries(auto.parameters).slice(0, 3).map(([k, v]) => (
+                                <span
+                                  key={k}
+                                  className="text-[10px] px-2 py-0.5 rounded-md bg-panel-header/70 border border-border text-fg-muted font-mono"
+                                  title={`${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`}
+                                >
+                                  {k}: <span className="text-fg font-medium">{typeof v === 'object' ? '{...}' : String(v)}</span>
+                                </span>
+                              ))}
+                              {Object.keys(auto.parameters).length > 3 && (
+                                <span className="text-[10px] text-fg-muted self-center">
+                                  +{Object.keys(auto.parameters).length - 3} altri
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenParams(auto, 'edit')}
-                          className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
-                          title="Configura o modifica parametri di default"
-                        >
-                          <Sliders size={15} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAutomation(auto.id)}
-                          className="p-1.5 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-lg transition cursor-pointer"
-                          title="Elimina automazione"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                      {/* Expandable Drawer Toggle & Content */}
+                      <div className="space-y-2 pt-1">
+                        <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-fg-muted">
+                          <button
+                            onClick={() => toggleExpandCard(auto.id)}
+                            className="flex items-center gap-1 hover:text-fg transition cursor-pointer font-medium"
+                          >
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            <span>{isExpanded ? 'Nascondi Pipeline & Statistiche' : 'Mostra Pipeline & Statistiche'}</span>
+                          </button>
+                          <span className="font-mono text-[10px]">
+                            TTL: {auto.retention_days || 14} giorni
+                          </span>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="p-3 rounded-xl bg-bg/80 border border-border/60 space-y-3 animate-in fade-in duration-150">
+                            {/* Mini stats */}
+                            <div className="grid grid-cols-3 gap-2 text-[11px]">
+                              <div className="p-2 rounded-lg bg-panel border border-border/60">
+                                <span className="text-fg-muted text-[10px] block">Ultima Run</span>
+                                <span className={`font-semibold text-xs capitalize block truncate ${
+                                  auto.last_run_status === 'completed'
+                                    ? 'text-emerald-400'
+                                    : auto.last_run_status === 'failed'
+                                    ? 'text-rose-400'
+                                    : 'text-fg'
+                                }`}>
+                                  {auto.last_run_status || 'Nessuna'}
+                                </span>
+                              </div>
+                              <div className="p-2 rounded-lg bg-panel border border-border/60">
+                                <span className="text-fg-muted text-[10px] block">Eseguita Il</span>
+                                <span className="font-medium text-fg truncate block">
+                                  {auto.last_run_at ? new Date(auto.last_run_at).toLocaleDateString() : '-'}
+                                </span>
+                              </div>
+                              <div className="p-2 rounded-lg bg-panel border border-border/60">
+                                <span className="text-fg-muted text-[10px] block">Runs Storico</span>
+                                <span className="font-semibold text-fg">
+                                  {runs.filter((r) => r.automation_id === auto.id).length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Step pipeline visualizer */}
+                            <div className="space-y-1.5 pt-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted block">
+                                Pipeline Step ({details?.workflow?.steps?.length || auto.steps_count})
+                              </span>
+                              {details?.workflow?.steps ? (
+                                <div className="space-y-1.5">
+                                  {details.workflow.steps.map((st: any, sIdx: number) => (
+                                    <div
+                                      key={st.step_id || sIdx}
+                                      className="flex items-center gap-2 text-[11px] p-1.5 rounded-lg bg-panel border border-border/50"
+                                    >
+                                      <span className="w-5 h-5 rounded-md bg-accent/15 text-accent font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                                        {sIdx + 1}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="font-medium text-fg truncate block">{st.name}</span>
+                                        <span className="text-[10px] text-fg-muted font-mono truncate block">
+                                          {st.action_or_tool || st.type}
+                                        </span>
+                                      </div>
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-panel-header text-fg-muted border border-border">
+                                        {st.type}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-fg-muted italic">Caricamento step del workflow...</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons (Morphed when active) */}
+                      <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap">
+                        {isRunning && activeRun ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handlePauseRun(activeRun.run_id)}
+                              className="px-3 py-1.5 bg-amber-600/90 hover:bg-amber-600 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                              title="Metti in pausa l'esecuzione al termine del passo corrente"
+                            >
+                              <Pause size={12} /> Pausa
+                            </button>
+                            <button
+                              onClick={() => handleInspectRun(activeRun.run_id)}
+                              className="px-3 py-1.5 bg-panel-header hover:bg-panel border border-border text-fg rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                              title="Ispeziona esecuzione in corso"
+                            >
+                              <Eye size={12} /> Ispeziona
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRun(activeRun.run_id)}
+                              className="p-1.5 text-fg-muted hover:text-rose-400 rounded-lg hover:bg-panel transition cursor-pointer"
+                              title="Arresta ed elimina run"
+                            >
+                              <Square size={13} />
+                            </button>
+                          </div>
+                        ) : isPaused && activeRun ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleResumeRun(activeRun.run_id)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                              title="Riprendi l'esecuzione dal passo corrente"
+                            >
+                              <Play size={12} /> Riprendi
+                            </button>
+                            <button
+                              onClick={() => handleInspectRun(activeRun.run_id)}
+                              className="px-3 py-1.5 bg-panel-header hover:bg-panel border border-border text-fg rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <Eye size={12} /> Ispeziona
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRun(activeRun.run_id)}
+                              className="p-1.5 text-fg-muted hover:text-rose-400 rounded-lg hover:bg-panel transition cursor-pointer"
+                              title="Cancella run"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => handleTriggerRun(auto.id, false)}
+                              className="px-3 py-1.5 bg-accent/90 hover:bg-accent text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                              title="Lancia esecuzione completa con parametri di default"
+                            >
+                              <Play size={12} /> Esegui
+                            </button>
+                            <button
+                              onClick={() => handleTriggerRun(auto.id, true)}
+                              className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                              title="Anteprima sicura senza modifiche (Dry-Run)"
+                            >
+                              <Shield size={12} /> Dry-Run
+                            </button>
+                            <button
+                              onClick={() => handleOpenParams(auto, 'run')}
+                              className="px-2.5 py-1.5 bg-panel-header/60 hover:bg-panel-header text-fg-muted hover:text-fg border border-border rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                              title="Esegui con parametri personalizzati per questa istanza"
+                            >
+                              <Play size={11} className="text-emerald-400" /> + Parametri
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenParams(auto, 'edit')}
+                            className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
+                            title="Configura o modifica parametri di default"
+                          >
+                            <Sliders size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAutomation(auto.id)}
+                            className="p-1.5 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-lg transition cursor-pointer"
+                            title="Elimina automazione"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
+        {/* TAB: ARTIFACTS & REPORT */}
+        {activeTab === 'artifacts' && (
+          <ArtifactsView
+            initialArtifactId={selectedArtifactIdForView}
+            onFeedback={showFeedback}
+          />
+        )}
+
         {/* TAB 2: STORICO RUN */}
         {activeTab === 'runs' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-fg-muted font-medium">Filtro stato:</span>
-                {['all', 'completed', 'waiting_approval', 'failed', 'running', 'dry_run'].map((st) => (
+                {['all', 'completed', 'waiting_approval', 'failed', 'running', 'paused', 'dry_run'].map((st) => (
                   <button
                     key={st}
                     onClick={() => setRunStatusFilter(st)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition capitalize ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition capitalize cursor-pointer ${
                       runStatusFilter === st
                         ? 'bg-accent text-white shadow-sm'
                         : 'bg-panel border border-border text-fg-muted hover:text-fg'
@@ -479,7 +806,18 @@ export const AutomationsView: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <span className="text-xs text-fg-muted">{filteredRuns.length} esecuzioni</span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleBulkDeleteRuns(true)}
+                  className="px-2.5 py-1 text-xs text-rose-300 hover:text-white bg-rose-950/30 hover:bg-rose-900/60 border border-rose-800/40 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                  title="Elimina tutte le esecuzioni fallite (eccetto quelle preservate con lucchetto)"
+                >
+                  <Trash2 size={13} />
+                  <span>Elimina Tutte le Fallite</span>
+                </button>
+                <span className="text-xs text-fg-muted">{filteredRuns.length} esecuzioni</span>
+              </div>
             </div>
 
             {filteredRuns.length === 0 ? (
@@ -491,12 +829,14 @@ export const AutomationsView: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-border bg-panel-header/40 text-fg-muted font-semibold">
+                      <th className="p-3 w-8"></th>
+                      <th className="p-3 w-8"></th>
                       <th className="p-3">Run ID</th>
                       <th className="p-3">Automazione</th>
                       <th className="p-3">Stato</th>
                       <th className="p-3">Trigger</th>
+                      <th className="p-3">Report</th>
                       <th className="p-3">Durata</th>
-                      <th className="p-3">Token</th>
                       <th className="p-3">Avviata</th>
                       <th className="p-3 text-right">Azioni</th>
                     </tr>
@@ -508,6 +848,33 @@ export const AutomationsView: React.FC = () => {
                         onClick={() => handleInspectRun(r.run_id)}
                         className="hover:bg-panel/70 cursor-pointer transition select-none"
                       >
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleToggleRunFavorite(r.run_id, Boolean(r.is_favorite))}
+                            className="p-1 text-fg-muted hover:text-amber-400 transition cursor-pointer"
+                            title={r.is_favorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                          >
+                            <Star
+                              size={14}
+                              className={
+                                r.is_favorite ? 'text-amber-400 fill-amber-400' : 'text-fg-muted/40 hover:text-amber-400'
+                              }
+                            />
+                          </button>
+                        </td>
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleToggleRunPreserve(r.run_id, Boolean(r.is_preserved))}
+                            className="p-1 text-fg-muted hover:text-purple-400 transition cursor-pointer"
+                            title={r.is_preserved ? 'Preservata da auto-cleanup (clicca per sbloccare)' : 'Blocca e preserva da auto-cleanup'}
+                          >
+                            {r.is_preserved ? (
+                              <Lock size={14} className="text-purple-400" />
+                            ) : (
+                              <Unlock size={14} className="text-fg-muted/40 hover:text-purple-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="p-3 font-mono font-medium text-accent">{r.run_id}</td>
                         <td className="p-3 font-semibold text-fg">{r.automation_id}</td>
                         <td className="p-3">
@@ -517,35 +884,82 @@ export const AutomationsView: React.FC = () => {
                             </span>
                           ) : (
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize flex items-center gap-1 w-fit ${
                                 r.status === 'completed'
                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                   : r.status === 'failed'
                                   ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                   : r.status === 'waiting_approval'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
+                                  : r.status === 'running'
+                                  ? 'bg-accent/20 text-accent border border-accent/40 animate-pulse'
+                                  : r.status === 'paused'
                                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                   : 'bg-zinc-500/20 text-zinc-300'
                               }`}
                             >
+                              {r.status === 'running' && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" />}
                               {r.status}
                             </span>
                           )}
                         </td>
                         <td className="p-3 capitalize text-fg-muted">{r.trigger_type}</td>
+                        <td className="p-3">
+                          {r.artifacts_count && r.artifacts_count > 0 ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTab('artifacts');
+                              }}
+                              className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent text-[11px] font-medium flex items-center gap-1 transition"
+                            >
+                              <FileText size={11} /> {r.artifacts_count}
+                            </button>
+                          ) : (
+                            <span className="text-fg-muted text-[11px]">-</span>
+                          )}
+                        </td>
                         <td className="p-3 text-fg-muted">{r.total_duration_ms > 0 ? `${r.total_duration_ms} ms` : '-'}</td>
-                        <td className="p-3 text-fg-muted">{r.total_tokens.toLocaleString()}</td>
                         <td className="p-3 text-fg-muted">{new Date(r.started_at).toLocaleTimeString()}</td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInspectRun(r.run_id);
-                            }}
-                            className="p-1.5 text-fg-muted hover:text-accent rounded-lg hover:bg-panel transition"
-                            title="Ispeziona dettagli run"
-                          >
-                            <Eye size={15} />
-                          </button>
+                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {r.status === 'running' && (
+                              <button
+                                onClick={() => handlePauseRun(r.run_id)}
+                                className="p-1.5 text-fg-muted hover:text-amber-400 rounded-lg hover:bg-panel transition"
+                                title="Metti in pausa"
+                              >
+                                <Pause size={14} />
+                              </button>
+                            )}
+                            {r.status === 'paused' && (
+                              <button
+                                onClick={() => handleResumeRun(r.run_id)}
+                                className="p-1.5 text-fg-muted hover:text-emerald-400 rounded-lg hover:bg-panel transition"
+                                title="Riprendi"
+                              >
+                                <Play size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleInspectRun(r.run_id)}
+                              className="p-1.5 text-fg-muted hover:text-accent rounded-lg hover:bg-panel transition"
+                              title="Ispeziona dettagli run"
+                            >
+                              <Eye size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRun(r.run_id, r.is_preserved)}
+                              className={`p-1.5 rounded-lg transition ${
+                                r.is_preserved
+                                  ? 'text-fg-muted/30 cursor-not-allowed'
+                                  : 'text-fg-muted hover:text-rose-400 hover:bg-panel cursor-pointer'
+                              }`}
+                              title={r.is_preserved ? 'Esecuzione preservata (sblocca prima di eliminare)' : 'Elimina esecuzione'}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -9,12 +9,17 @@ import {
   Shield,
   Info,
   RefreshCw,
+  Key,
+  Code2,
 } from 'lucide-react';
 import {
   type AutomationSummary,
   getAutomation,
   createOrUpdateAutomation,
   triggerAutomationRun,
+  introspectAutomationParameters,
+  type IntrospectionResult,
+  type IntrospectedParameter,
 } from '../../api';
 
 interface ParametersModalProps {
@@ -35,6 +40,8 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   onSuccess,
 }) => {
   const [paramsList, setParamsList] = useState<Array<{ key: string; value: string }>>([]);
+  const [detectedValues, setDetectedValues] = useState<Record<string, any>>({});
+  const [introspection, setIntrospection] = useState<IntrospectionResult | null>(null);
   const [isDryRun, setIsDryRun] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -47,21 +54,48 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     const loadAutomationDetail = async () => {
       setIsLoading(true);
       try {
-        const full = await getAutomation(automation.id);
-        const p = full.parameters || automation.parameters || {};
-        const list = Object.entries(p).map(([k, v]) => ({
-          key: k,
-          value: typeof v === 'object' ? JSON.stringify(v) : String(v),
-        }));
-        setParamsList(list);
-      } catch {
-        // Fallback to summary parameters
-        const p = automation.parameters || {};
-        const list = Object.entries(p).map(([k, v]) => ({
-          key: k,
-          value: typeof v === 'object' ? JSON.stringify(v) : String(v),
-        }));
-        setParamsList(list);
+        const [full, intro] = await Promise.all([
+          getAutomation(automation.id).catch(() => ({ parameters: automation.parameters || {} })),
+          introspectAutomationParameters(automation.id).catch(() => null),
+        ]);
+
+        const existingParams = full.parameters || automation.parameters || {};
+        setIntrospection(intro);
+
+        // Populate detected parameters values
+        const detectedMap: Record<string, any> = {};
+        const detectedKeys = new Set<string>();
+
+        if (intro) {
+          const allDetected = [...(intro.parameters || []), ...(intro.variables || [])];
+          for (const param of allDetected) {
+            detectedKeys.add(param.name);
+            if (param.name in existingParams) {
+              detectedMap[param.name] = existingParams[param.name];
+            } else if (param.default !== undefined && param.default !== null) {
+              detectedMap[param.name] = param.default;
+            } else if (param.type === 'boolean') {
+              detectedMap[param.name] = false;
+            } else {
+              detectedMap[param.name] = '';
+            }
+          }
+        }
+        setDetectedValues(detectedMap);
+
+        // Put any additional parameters not in detected into custom paramsList
+        const customList: Array<{ key: string; value: string }> = [];
+        for (const [k, v] of Object.entries(existingParams)) {
+          if (!detectedKeys.has(k)) {
+            customList.push({
+              key: k,
+              value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+            });
+          }
+        }
+        setParamsList(customList);
+      } catch (err: any) {
+        console.error('Error loading automation parameters:', err);
       } finally {
         setIsLoading(false);
       }
@@ -83,7 +117,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     setParamsList((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateValue = (index: number, val: string) => {
+  const handleUpdateCustomValue = (index: number, val: string) => {
     setParamsList((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], value: val };
@@ -91,11 +125,26 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     });
   };
 
+  const handleUpdateDetectedValue = (name: string, val: any) => {
+    setDetectedValues((prev) => ({
+      ...prev,
+      [name]: val,
+    }));
+  };
+
   const buildParamsObject = (): Record<string, any> => {
     const obj: Record<string, any> = {};
+
+    // 1. Detected values
+    for (const [key, val] of Object.entries(detectedValues)) {
+      if (val === undefined || val === null) continue;
+      if (typeof val === 'string' && val.trim() === '') continue;
+      obj[key] = val;
+    }
+
+    // 2. Custom values
     for (const item of paramsList) {
       if (!item.key.trim()) continue;
-      // Tentativo di parsing JSON (numeri, boolean, array, oggetti)
       const val = item.value.trim();
       if (val === 'true') obj[item.key] = true;
       else if (val === 'false') obj[item.key] = false;
@@ -103,7 +152,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
       else {
         try {
           if ((val.startsWith('{') && val.endsWith('}')) || (val.startsWith('[') && val.endsWith(']'))) {
-            obj[item.key] = jsonParse(val);
+            obj[item.key] = JSON.parse(val);
           } else {
             obj[item.key] = val;
           }
@@ -114,10 +163,6 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     }
     return obj;
   };
-
-  function jsonParse(str: string) {
-    return JSON.parse(str);
-  }
 
   const handleSaveDefaults = async () => {
     setIsSaving(true);
@@ -153,6 +198,24 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     }
   };
 
+  const detectedParamsList: IntrospectedParameter[] = [
+    ...(introspection?.parameters || []),
+    ...(introspection?.variables || []),
+  ];
+
+  const getTypeBadgeClass = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'number':
+        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      case 'boolean':
+        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      case 'secret':
+        return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+      default:
+        return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -182,7 +245,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+        <div className="p-5 overflow-y-auto space-y-5 text-xs">
           <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-[11px] text-fg-muted">
             <Info size={14} className="text-accent shrink-0 mt-0.5" />
             <span>
@@ -192,15 +255,125 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             </span>
           </div>
 
-          {/* Parameters Table */}
+          {/* Section 1: Detected Parameters from Introspection */}
+          {detectedParamsList.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-fg flex items-center gap-1.5">
+                  <Code2 size={13} className="text-accent" />
+                  Parametri Rilevati dal Workflow ({detectedParamsList.length})
+                </label>
+                <span className="text-[10px] text-fg-muted">Rilevamento AST automatico</span>
+              </div>
+
+              <div className="space-y-2">
+                {detectedParamsList.map((param) => {
+                  const val = detectedValues[param.name] ?? '';
+                  const isBool = param.type === 'boolean';
+                  const isNum = param.type === 'number';
+
+                  return (
+                    <div
+                      key={param.name}
+                      className="p-3 rounded-xl bg-bg border border-border/80 space-y-1.5 hover:border-accent/30 transition"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-accent font-semibold">
+                            {param.name}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[10px] font-mono border ${getTypeBadgeClass(
+                              param.type
+                            )}`}
+                          >
+                            {param.type}
+                          </span>
+                        </div>
+                        {param.default !== undefined && param.default !== null && (
+                          <span className="text-[10px] text-fg-muted font-mono">
+                            default: {String(param.default)}
+                          </span>
+                        )}
+                      </div>
+
+                      {param.description && (
+                        <p className="text-[11px] text-fg-muted">{param.description}</p>
+                      )}
+
+                      <div>
+                        {isBool ? (
+                          <label className="flex items-center gap-2 cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(val)}
+                              onChange={(e) =>
+                                handleUpdateDetectedValue(param.name, e.target.checked)
+                              }
+                              className="rounded border-border text-accent focus:ring-0 w-4 h-4 cursor-pointer"
+                            />
+                            <span className="text-xs text-fg">
+                              {Boolean(val) ? 'Attivato (true)' : 'Disattivato (false)'}
+                            </span>
+                          </label>
+                        ) : (
+                          <input
+                            type={isNum ? 'number' : 'text'}
+                            value={val}
+                            onChange={(e) =>
+                              handleUpdateDetectedValue(
+                                param.name,
+                                isNum ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value
+                              )
+                            }
+                            placeholder={param.default !== undefined ? String(param.default) : 'Inserisci valore...'}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Section 2: Detected Secrets */}
+          {introspection && introspection.secrets && introspection.secrets.length > 0 && (
+            <div className="p-3 rounded-xl bg-panel border border-purple-500/30 space-y-2">
+              <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-[11px]">
+                <Key size={13} className="text-purple-400" />
+                <span>Credenziali & Segreti Rilevati ({introspection.secrets.length})</span>
+              </div>
+              <p className="text-[11px] text-fg-muted">
+                Questo workflow referenzia le seguenti chiavi segrete risolte tramite il Tier 1/2 delle Integrazioni:
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {introspection.secrets.map((sec) => (
+                  <span
+                    key={sec.name}
+                    className="px-2 py-0.5 rounded-md bg-purple-950/40 border border-purple-800/50 text-[11px] font-mono text-purple-300 flex items-center gap-1"
+                    title={sec.description || sec.service}
+                  >
+                    <span>{sec.name}</span>
+                    {sec.service && (
+                      <span className="text-[9px] text-purple-400/70">({sec.service})</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 3: Custom / Additional Parameters */}
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-fg block">
-              Variabili & Parametri Workflow ({paramsList.length})
+              {detectedParamsList.length > 0 ? 'Parametri Aggiuntivi (Custom)' : 'Parametri Workflow'} ({paramsList.length})
             </label>
 
-            {paramsList.length === 0 ? (
+            {paramsList.length === 0 && detectedParamsList.length === 0 ? (
               <div className="p-4 border border-dashed border-border rounded-xl text-center text-fg-muted text-[11px]">
-                Nessun parametro configurato. Aggiungi variabili sotto (es. <code>email_recipient</code>, <code>max_items</code>, <code>category</code>).
+                Nessun parametro configurato. Aggiungi variabili sotto (es. <code>email_recipient</code>, <code>max_items</code>).
               </div>
             ) : (
               <div className="space-y-2">
@@ -215,7 +388,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                       <input
                         type="text"
                         value={item.value}
-                        onChange={(e) => handleUpdateValue(idx, e.target.value)}
+                        onChange={(e) => handleUpdateCustomValue(idx, e.target.value)}
                         className="w-full px-2 py-1 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
                         placeholder="Valore..."
                       />
@@ -238,7 +411,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="text"
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
-                placeholder="Nuova chiave (es. max_items)"
+                placeholder="Nuova chiave (es. query)"
                 className="w-1/3 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
               />
               <input

@@ -420,6 +420,30 @@ class AutomationRegistry(BaseToolRegistry):
 
         try:
             auto_obj = AutomationDefinition(**automation_def)
+
+            # Pre-flight Validation
+            step_ids = [s.step_id for s in auto_obj.workflow.steps]
+            if not step_ids:
+                return {"error": "Il workflow deve contenere almeno uno step."}
+            if auto_obj.workflow.initial_step_id not in step_ids:
+                return {
+                    "error": (
+                        f"initial_step_id '{auto_obj.workflow.initial_step_id}' non corrisponde a nessuno "
+                        f"degli step definiti ({step_ids}). Correggi initial_step_id in modo che coincida "
+                        f"con il primo step."
+                    )
+                }
+
+            # Validazione parametri minimi per tool comuni
+            for s in auto_obj.workflow.steps:
+                if s.action_or_tool == "web_search" and "query" not in s.parameters:
+                    return {
+                        "error": (
+                            f"Nello step '{s.step_id}', il tool 'web_search' richiede il parametro 'query' "
+                            f"all'interno di 'parameters': {{'query': '...'}}. Parametri attuali: {s.parameters}"
+                        )
+                    }
+
             saved = auto_db.save_automation(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
 
             try:

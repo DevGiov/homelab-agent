@@ -891,6 +891,13 @@ export interface AutomationSummary {
   triggers_count: number;
   steps_count: number;
   parameters?: Record<string, any>;
+  settings?: Record<string, any>;
+  retention_days?: number;
+  last_run_status?: string | null;
+  last_run_at?: string | null;
+  last_artifact_id?: string | null;
+  last_artifact_name?: string | null;
+  last_artifact_at?: string | null;
   created_by: string;
   source_type: string;
 }
@@ -924,6 +931,9 @@ export interface AutomationRunSummary {
   status: string;
   current_step_id?: string | null;
   is_dry_run: boolean;
+  is_preserved?: boolean;
+  is_favorite?: boolean;
+  artifacts_count?: number;
   started_at: string;
   completed_at?: string | null;
   total_tokens: number;
@@ -950,10 +960,19 @@ export interface StepRun {
 export interface AutomationArtifact {
   artifact_id: string;
   run_id: string;
+  step_run_id?: string | null;
+  name: string;
+  title?: string;
   type: string;
-  title: string;
-  content: string;
+  mime_type?: string;
+  storage_uri: string;
+  is_preserved?: boolean;
+  is_favorite?: boolean;
+  content?: string;
   created_at: string;
+  automation_id?: string;
+  automation_name?: string;
+  run_status?: string;
 }
 
 export interface AutomationRunDetails extends AutomationRunSummary {
@@ -1098,5 +1117,127 @@ export async function fetchAutomationTemplates(): Promise<any[]> {
 
 export async function fetchScheduledJobs(): Promise<{ running: boolean; jobs: ScheduledJobInfo[] }> {
   const res = await api.get<{ running: boolean; jobs: ScheduledJobInfo[] }>('/automations/scheduler/jobs');
+  return res.data;
+}
+
+// --- V2 Artifacts API ---
+
+export async function fetchAllArtifacts(params?: {
+  automation_id?: string;
+  query?: string;
+  favorite_only?: boolean;
+  preserved_only?: boolean;
+  limit?: number;
+}): Promise<AutomationArtifact[]> {
+  const res = await api.get<AutomationArtifact[]>('/automations/artifacts', {
+    params: {
+      automation_id: params?.automation_id || undefined,
+      query: params?.query || undefined,
+      favorite_only: params?.favorite_only ? true : undefined,
+      preserved_only: params?.preserved_only ? true : undefined,
+      limit: params?.limit || 100,
+    },
+  });
+  return res.data;
+}
+
+export async function getArtifactDetails(artifactId: string): Promise<AutomationArtifact> {
+  const res = await api.get<AutomationArtifact>(`/automations/artifacts/${artifactId}`);
+  return res.data;
+}
+
+export async function toggleArtifactFavorite(artifactId: string): Promise<{ artifact_id: string; is_favorite: boolean }> {
+  const res = await api.patch<{ artifact_id: string; is_favorite: boolean }>(`/automations/artifacts/${artifactId}/favorite`);
+  return res.data;
+}
+
+export async function toggleArtifactPreserve(artifactId: string): Promise<{ artifact_id: string; is_preserved: boolean }> {
+  const res = await api.patch<{ artifact_id: string; is_preserved: boolean }>(`/automations/artifacts/${artifactId}/preserve`);
+  return res.data;
+}
+
+export async function deleteArtifact(artifactId: string): Promise<{ deleted: boolean; artifact_id: string }> {
+  const res = await api.delete<{ deleted: boolean; artifact_id: string }>(`/automations/artifacts/${artifactId}`);
+  return res.data;
+}
+
+export async function getLatestArtifactForAutomation(autoId: string): Promise<AutomationArtifact | null> {
+  try {
+    const res = await api.get<AutomationArtifact>(`/automations/${autoId}/latest-artifact`);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+}
+
+// --- V2 Runs Management API ---
+
+export async function deleteAutomationRun(runId: string): Promise<{ deleted: boolean; run_id: string }> {
+  const res = await api.delete<{ deleted: boolean; run_id: string }>(`/automations/runs/${runId}`);
+  return res.data;
+}
+
+export async function bulkDeleteAutomationRuns(params?: {
+  automation_id?: string;
+  failed_only?: boolean;
+  older_than_days?: number;
+}): Promise<{ deleted_count: number }> {
+  const res = await api.delete<{ deleted_count: number }>('/automations/runs', {
+    params: {
+      automation_id: params?.automation_id || undefined,
+      failed_only: params?.failed_only ? true : undefined,
+      older_than_days: params?.older_than_days || undefined,
+    },
+  });
+  return res.data;
+}
+
+export async function toggleAutomationRunFavorite(runId: string, is_favorite?: boolean): Promise<{ run_id: string; is_favorite: boolean }> {
+  const res = await api.patch<{ run_id: string; is_favorite: boolean }>(`/automations/runs/${runId}/favorite`, null, {
+    params: is_favorite !== undefined ? { is_favorite } : undefined,
+  });
+  return res.data;
+}
+
+export async function toggleAutomationRunPreserve(runId: string, is_preserved?: boolean): Promise<{ run_id: string; is_preserved: boolean }> {
+  const res = await api.patch<{ run_id: string; is_preserved: boolean }>(`/automations/runs/${runId}/preserve`, null, {
+    params: is_preserved !== undefined ? { is_preserved } : undefined,
+  });
+  return res.data;
+}
+
+export async function pauseAutomationRun(runId: string): Promise<{ paused: boolean; run_id: string; status: string }> {
+  const res = await api.post<{ paused: boolean; run_id: string; status: string }>(`/automations/runs/${runId}/pause`);
+  return res.data;
+}
+
+export async function resumeAutomationRun(runId: string): Promise<{ resumed: boolean; run_id: string; status: string }> {
+  const res = await api.post<{ resumed: boolean; run_id: string; status: string }>(`/automations/runs/${runId}/resume`);
+  return res.data;
+}
+
+// --- V2 Parameter Introspection API ---
+
+export interface IntrospectedParameter {
+  key?: string;
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'secret' | string;
+  inferred_type?: string;
+  source?: string;
+  service?: string;
+  default?: any;
+  required?: boolean;
+  description?: string;
+}
+
+export interface IntrospectionResult {
+  variables: IntrospectedParameter[];
+  parameters: IntrospectedParameter[];
+  secrets: IntrospectedParameter[];
+}
+
+export async function introspectAutomationParameters(autoId: string): Promise<IntrospectionResult> {
+  const res = await api.get<IntrospectionResult>(`/automations/${autoId}/introspect-parameters`);
   return res.data;
 }

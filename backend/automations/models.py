@@ -120,6 +120,8 @@ class AutomationDefinition(BaseModel):
     triggers: List[Trigger] = Field(default_factory=list)
     workflow: WorkflowSpec
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Parametri e variabili configurabili per l'automazione")
+    settings: Dict[str, Any] = Field(default_factory=dict, description="Impostazioni dedicate, override integrazioni e credenziali per l'automazione")
+    retention_days: Optional[int] = Field(default=None, ge=1, description="Giorni di retention per le run (default globale se non specificato)")
     input_schema: Optional[Dict[str, Any]] = None
     permission_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     budget: Budget = Field(default_factory=Budget)
@@ -145,29 +147,37 @@ class AutomationDefinition(BaseModel):
         if not d.get("name"):
             d["name"] = d.get("id", "Nuova Automazione")
 
-        # 1.1 Normalizzazione Parametri
+        # 1.1 Normalizzazione Parametri e Settings
         raw_params = d.get("parameters") or d.get("params") or d.get("inputs") or d.get("config") or {}
         if isinstance(raw_params, dict):
             d["parameters"] = dict(raw_params)
         else:
             d["parameters"] = {}
 
+        raw_settings = d.get("settings") or d.get("custom_settings") or {}
+        if isinstance(raw_settings, dict):
+            d["settings"] = dict(raw_settings)
+        else:
+            d["settings"] = {}
+
         # 2. Normalizzazione Workflow (array -> oggetto WorkflowSpec)
         wf = d.get("workflow")
         if isinstance(wf, list):
             steps = list(wf)
-            initial_id = steps[0].get("step_id", "step_1") if (steps and isinstance(steps[0], dict)) else "step_1"
+            first_step = steps[0] if (steps and isinstance(steps[0], dict)) else {}
+            initial_id = first_step.get("step_id") or first_step.get("id") or "step_1"
             d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
         elif isinstance(wf, dict):
             wf = dict(wf)
             if not wf.get("initial_step_id") and wf.get("steps"):
                 first_step = wf["steps"][0]
                 if isinstance(first_step, dict):
-                    wf["initial_step_id"] = first_step.get("step_id", "step_1")
+                    wf["initial_step_id"] = first_step.get("step_id") or first_step.get("id") or "step_1"
             d["workflow"] = wf
         elif not wf and "steps" in d:
             steps = list(d.pop("steps", []))
-            initial_id = steps[0].get("step_id", "step_1") if (steps and isinstance(steps[0], dict)) else "step_1"
+            first_step = steps[0] if (steps and isinstance(steps[0], dict)) else {}
+            initial_id = first_step.get("step_id") or first_step.get("id") or "step_1"
             d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
 
         # 2.1 Template Expansion Auto-Fix: se il workflow ha un singolo step con action che coincide con un template noto
@@ -207,8 +217,20 @@ class AutomationDefinition(BaseModel):
                     s["name"] = s.get("title") or s.get("step_id") or f"Step {idx+1}"
                 if not s.get("action_or_tool"):
                     s["action_or_tool"] = s.get("action") or s.get("tool")
-                if not s.get("parameters"):
-                    s["parameters"] = s.get("params") or {}
+
+                # Riconoscimento parametri asimmetrico e tollerante
+                step_params = (
+                    s.get("parameters")
+                    or s.get("arguments")
+                    or s.get("args")
+                    or s.get("params")
+                    or {}
+                )
+                if isinstance(step_params, dict):
+                    s["parameters"] = dict(step_params)
+                else:
+                    s["parameters"] = {}
+
                 # Normalizza input_source e content_source sia da top-level che da parameters
                 if "input_source" in s and "input_source" not in s["parameters"]:
                     s["parameters"]["input_source"] = s["input_source"]
@@ -217,27 +239,37 @@ class AutomationDefinition(BaseModel):
                 if "filename" in s["parameters"] and "path" not in s["parameters"]:
                     s["parameters"]["path"] = s["parameters"]["filename"]
 
-                if not s.get("prompt_template") and s.get("parameters", {}).get("prompt"):
-                    s["prompt_template"] = s["parameters"]["prompt"]
+                if not s.get("prompt_template"):
+                    s["prompt_template"] = (
+                        s.get("prompt")
+                        or s.get("instruction")
+                        or s.get("task")
+                        or s["parameters"].get("prompt")
+                    )
 
                 # Normalizzazione alias per tool noti
                 tool = s.get("action_or_tool")
                 if tool:
-                    tool_lower = str(tool).lower()
+                    tool_lower = str(tool).lower().replace("-", "_")
                     if tool_lower in ("http_get", "curl", "fetch_url", "web_fetch", "fetch_web"):
                         s["action_or_tool"] = "http_get"
-                    elif tool_lower in ("file_write", "write_file", "save_file", "save_report", "save_artifact"):
+                    elif tool_lower in ("file_write", "write_file", "save_file", "save_report", "save_artifact", "save_briefing_artifact"):
                         s["action_or_tool"] = "save_artifact"
+                    elif tool_lower in ("web_search", "search", "google", "brave_search"):
+                        s["action_or_tool"] = "web_search"
 
                 raw_type = str(s.get("type", "")).lower()
                 valid_step_types = {t.value for t in StepType}
                 if raw_type in valid_step_types:
                     s["type"] = raw_type
-                elif raw_type in ("llm_call", "agent", "llm") or s.get("prompt_template"):
+                elif (
+                    raw_type in ("llm_call", "agent", "llm", "agent_task", "agentic_task", "ai_task", "ai")
+                    or bool(s.get("prompt_template"))
+                ):
                     s["type"] = StepType.AGENTIC_TASK.value
-                elif raw_type in ("code", "python"):
+                elif raw_type in ("code", "python", "script"):
                     s["type"] = StepType.CUSTOM_CODE.value
-                elif raw_type in ("approval", "gate"):
+                elif raw_type in ("approval", "gate", "approval_gate"):
                     s["type"] = StepType.APPROVAL_GATE.value
                 else:
                     s["type"] = StepType.DETERMINISTIC_ACTION.value
@@ -283,12 +315,26 @@ class AutomationDefinition(BaseModel):
         # 6. Normalizzazione Permission Policy
         p = d.get("permission_policy") or {}
         p_copy = dict(p) if isinstance(p, dict) else {}
-        tools = set(p_copy.get("allowed_tools") or [])
-        if isinstance(d.get("workflow"), dict):
-            for st in d["workflow"].get("steps", []):
-                if isinstance(st, dict) and st.get("action_or_tool"):
-                    tools.add(st["action_or_tool"])
-        p_copy["allowed_tools"] = list(tools)
+        if not p_copy.get("allowed_tools"):
+            tools = set()
+            if isinstance(d.get("workflow"), dict):
+                for st in d["workflow"].get("steps", []):
+                    if isinstance(st, dict) and st.get("action_or_tool"):
+                        tools.add(st["action_or_tool"])
+            p_copy["allowed_tools"] = list(tools)
+        else:
+            # Normalizzazione alias per tool noti in allowed_tools
+            norm_tools = set()
+            for t in p_copy.get("allowed_tools", []):
+                norm_tools.add(t)
+                t_lower = str(t).lower().replace("-", "_")
+                if t_lower in ("file_write", "write_file", "save_file", "save_report", "save_briefing_artifact", "save_artifact"):
+                    norm_tools.add("save_artifact")
+                elif t_lower in ("http_get", "curl", "fetch_url", "web_fetch", "fetch_web"):
+                    norm_tools.add("http_get")
+                elif t_lower in ("web_search", "search", "google", "brave_search"):
+                    norm_tools.add("web_search")
+            p_copy["allowed_tools"] = list(norm_tools)
         if "allowed_registries" not in p_copy:
             p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
         d["permission_policy"] = p_copy
@@ -325,6 +371,10 @@ class Artifact(BaseModel):
     mime_type: str = "text/plain"
     storage_uri: str
     checksum_sha256: Optional[str] = None
+    is_preserved: bool = False
+    is_favorite: bool = False
+    automation_id: Optional[str] = None
+    automation_name: Optional[str] = None
     created_at: Optional[str] = None
 
     @model_validator(mode="before")
@@ -345,6 +395,8 @@ class AutomationRun(BaseModel):
     status: RunStatus = RunStatus.PENDING
     current_step_id: Optional[str] = None
     is_dry_run: bool = False
+    is_preserved: bool = False
+    is_favorite: bool = False
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     step_runs: List[StepRun] = Field(default_factory=list)
@@ -369,6 +421,12 @@ class AutomationSummary(BaseModel):
     steps_count: int
     created_by: str
     source_type: SourceType
+    retention_days: Optional[int] = None
+    last_run_status: Optional[str] = None
+    last_run_at: Optional[str] = None
+    last_artifact_id: Optional[str] = None
+    last_artifact_name: Optional[str] = None
+    last_artifact_at: Optional[str] = None
 
 
 class AutomationRunSummary(BaseModel):
@@ -379,6 +437,9 @@ class AutomationRunSummary(BaseModel):
     status: str
     current_step_id: Optional[str] = None
     is_dry_run: bool
+    is_preserved: bool = False
+    is_favorite: bool = False
+    artifacts_count: int = 0
     started_at: str
     completed_at: Optional[str] = None
     total_tokens: int
@@ -395,3 +456,4 @@ class TriggerRunRequest(BaseModel):
 class ResolveApprovalRequest(BaseModel):
     action: str = Field(description="approve | deny")
     resolved_by: str = "user"
+

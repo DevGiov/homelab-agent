@@ -52,6 +52,7 @@ class AutomationScheduler:
             self._is_running = True
             logger.info("APScheduler avviato con successo.")
             self.sync_triggers()
+            self._schedule_retention_cleanup()
         except Exception as e:
             logger.error(f"Errore durante l'avvio dello scheduler: {e}", exc_info=True)
             self._is_running = False
@@ -146,10 +147,60 @@ class AutomationScheduler:
         except Exception as e:
             logger.error(f"Errore durante l'esecuzione asincrona della run '{run_id}': {e}", exc_info=True)
 
-    def get_scheduled_jobs(self) -> List[Dict[str, Any]]:
+    def _schedule_retention_cleanup(self):
+        """Pianifica la pulizia periodica notturna delle run storiche obsolete."""
+        job_id = "auto_retention_cleanup"
+        try:
+            cron_trigger = CronTrigger.from_crontab("30 3 * * *", timezone="Europe/Rome")
+            self.scheduler.add_job(
+                func=self._execute_retention_cleanup,
+                trigger=cron_trigger,
+                id=job_id,
+                name="Automations Run Retention Cleanup",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info("Pianificato job di auto-retention cleanup alle 03:30 Europe/Rome.")
+        except Exception as e:
+            logger.error(f"Errore pianificazione retention cleanup: {e}")
+
+    async def _execute_retention_cleanup(self):
+        """Esegue il prune delle run scadute in background in base alla retention configurata."""
+        logger.info("Avvio procedura periodica di auto-retention cleanup per le run...")
+        loop = asyncio.get_running_loop()
+        try:
+            deleted_count = await loop.run_in_executor(None, self._prune_expired_runs)
+            logger.info(f"Auto-retention cleanup completato: {deleted_count} run rimosse.")
+        except Exception as e:
+            logger.error(f"Errore durante l'esecuzione di auto-retention cleanup: {e}", exc_info=True)
+
+    def _prune_expired_runs(self) -> int:
+        """Pulisce le run scadute rispettando retention_days di ciascuna automazione (default 14 giorni)."""
+        defs = auto_db.list_definitions(enabled_only=False, db_path=self.db_path)
+        total_deleted = 0
+        global_retention_days = 14
+
+        for d in defs:
+            retention = d.get("retention_days") or global_retention_days
+            deleted = auto_db.bulk_delete_runs(
+                automation_id=d["id"],
+                older_than_days=retention,
+                db_path=self.db_path,
+            )
+            total_deleted += deleted
+
+        total_deleted += auto_db.bulk_delete_runs(
+            older_than_days=global_retention_days,
+            db_path=self.db_path,
+        )
+        return total_deleted
+
+    def get_scheduled_jobs(self, include_internal: bool = False) -> List[Dict[str, Any]]:
         """Restituisce l'elenco dei job attualmente pianificati nello scheduler."""
         jobs = []
         for job in self.scheduler.get_jobs():
+            if not include_internal and job.id == "auto_retention_cleanup":
+                continue
             next_run = job.next_run_time.isoformat() if job.next_run_time else None
             jobs.append({
                 "job_id": job.id,
