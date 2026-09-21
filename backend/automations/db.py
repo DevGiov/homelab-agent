@@ -275,13 +275,24 @@ def get_definition(auto_id: str, db_path: Optional[str] = None) -> Optional[Dict
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT spec_json, enabled, version, settings_json, retention_days FROM automation_definitions WHERE id = ?", (auto_id,))
+        cursor.execute("""
+            SELECT id, name, description, created_by, source_type, spec_json, enabled, version, settings_json, retention_days 
+            FROM automation_definitions WHERE id = ?
+        """, (auto_id,))
         row = cursor.fetchone()
         if not row:
             return None
-        data = json.loads(row["spec_json"])
+        try:
+            data = json.loads(row["spec_json"])
+        except Exception:
+            data = {}
+        data["id"] = data.get("id") or row["id"]
+        data["name"] = data.get("name") or row["name"] or "Untitled"
+        data["description"] = data.get("description") or row["description"] or ""
+        data["created_by"] = data.get("created_by") or row["created_by"] or "user"
+        data["source_type"] = data.get("source_type") or row["source_type"] or "ui"
         data["enabled"] = bool(row["enabled"])
-        data["version"] = int(row["version"])
+        data["version"] = int(row["version"] or 1)
         if row["retention_days"] is not None:
             data["retention_days"] = int(row["retention_days"])
         if row["settings_json"]:
@@ -300,6 +311,7 @@ def list_definitions(enabled_only: bool = False, db_path: Optional[str] = None) 
         cursor = conn.cursor()
         query = """
             SELECT
+                ad.id, ad.name, ad.description, ad.created_by, ad.source_type, ad.source_reference,
                 ad.spec_json, ad.enabled, ad.version, ad.settings_json, ad.retention_days,
                 (SELECT status FROM automation_runs WHERE automation_id = ad.id ORDER BY started_at DESC LIMIT 1) as last_run_status,
                 (SELECT started_at FROM automation_runs WHERE automation_id = ad.id ORDER BY started_at DESC LIMIT 1) as last_run_at,
@@ -307,18 +319,27 @@ def list_definitions(enabled_only: bool = False, db_path: Optional[str] = None) 
                 (SELECT a.name FROM artifacts a JOIN automation_runs r ON a.run_id = r.run_id WHERE r.automation_id = ad.id ORDER BY a.created_at DESC LIMIT 1) as last_artifact_name,
                 (SELECT a.created_at FROM artifacts a JOIN automation_runs r ON a.run_id = r.run_id WHERE r.automation_id = ad.id ORDER BY a.created_at DESC LIMIT 1) as last_artifact_at
             FROM automation_definitions ad
+            WHERE ad.id != 'system_manual'
         """
         if enabled_only:
-            query += " WHERE ad.enabled = 1"
+            query += " AND ad.enabled = 1"
         query += " ORDER BY ad.name ASC"
 
         cursor.execute(query)
         rows = cursor.fetchall()
         result = []
         for r in rows:
-            data = json.loads(r["spec_json"])
+            try:
+                data = json.loads(r["spec_json"])
+            except Exception:
+                data = {}
+            data["id"] = data.get("id") or r["id"]
+            data["name"] = data.get("name") or r["name"] or "Untitled"
+            data["description"] = data.get("description") or r["description"] or ""
+            data["created_by"] = data.get("created_by") or r["created_by"] or "user"
+            data["source_type"] = data.get("source_type") or r["source_type"] or "ui"
             data["enabled"] = bool(r["enabled"])
-            data["version"] = int(r["version"])
+            data["version"] = int(r["version"] or 1)
             if r["retention_days"] is not None:
                 data["retention_days"] = int(r["retention_days"])
             if r["settings_json"]:

@@ -437,13 +437,13 @@ async def list_automations(enabled_only: bool = Query(default=False)):
     for d in defs:
         summaries.append(
             AutomationSummary(
-                id=d["id"],
+                id=d.get("id", "unknown"),
                 name=d.get("name", "Untitled"),
                 description=d.get("description", ""),
                 version=int(d.get("version", 1)),
                 enabled=bool(d.get("enabled", True)),
-                triggers_count=len(d.get("triggers", [])),
-                steps_count=len(d.get("workflow", {}).get("steps", [])),
+                triggers_count=len(d.get("triggers", [])) if isinstance(d.get("triggers"), list) else 0,
+                steps_count=len(d.get("workflow", {}).get("steps", [])) if isinstance(d.get("workflow"), dict) and isinstance(d.get("workflow", {}).get("steps"), list) else 0,
                 created_by=d.get("created_by", "user"),
                 source_type=d.get("source_type", "ui"),
                 retention_days=d.get("retention_days"),
