@@ -85,7 +85,6 @@ def init_automations_db(db_path: Optional[str] = None):
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_enabled ON automation_definitions(enabled)")
 
         # 2. Storico delle esecuzioni (Runs)
         cursor.execute("""
@@ -110,11 +109,6 @@ def init_automations_db(db_path: Optional[str] = None):
                 FOREIGN KEY(automation_id) REFERENCES automation_definitions(id) ON DELETE CASCADE
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_auto_id ON automation_runs(automation_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON automation_runs(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_started ON automation_runs(started_at DESC)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_fav ON automation_runs(is_favorite)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_pres ON automation_runs(is_preserved)")
 
         # 3. Singoli passaggi di esecuzione (Step Runs)
         cursor.execute("""
@@ -135,7 +129,6 @@ def init_automations_db(db_path: Optional[str] = None):
                 FOREIGN KEY(run_id) REFERENCES automation_runs(run_id) ON DELETE CASCADE
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_run_parent ON step_runs(run_id)")
 
         # 4. Richieste di approvazione persistenti
         cursor.execute("""
@@ -156,8 +149,6 @@ def init_automations_db(db_path: Optional[str] = None):
                 resolution_action TEXT
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_appr_status ON automation_approvals(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_appr_run ON automation_approvals(run_id)")
 
         # 5. Registro degli artefatti prodotti
         cursor.execute("""
@@ -176,9 +167,6 @@ def init_automations_db(db_path: Optional[str] = None):
                 FOREIGN KEY(run_id) REFERENCES automation_runs(run_id) ON DELETE CASCADE
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_created ON artifacts(created_at DESC)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_fav ON artifacts(is_favorite)")
 
         # 6. Circuit Breaker States per automazione
         cursor.execute("""
@@ -210,10 +198,24 @@ def init_automations_db(db_path: Optional[str] = None):
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_int_type ON service_integrations(service_type)")
 
-        # Allinea colonne su eventuali database esistenti
+        # Allinea colonne su eventuali database esistenti PRIMA di creare gli indici
         _ensure_v2_columns(cursor)
+
+        # Creazione indici (sicuri ora che le colonne esistono)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_enabled ON automation_definitions(enabled)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_auto_id ON automation_runs(automation_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON automation_runs(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_started ON automation_runs(started_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_fav ON automation_runs(is_favorite)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_pres ON automation_runs(is_preserved)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_run_parent ON step_runs(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_appr_status ON automation_approvals(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_auto_appr_run ON automation_approvals(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_created ON artifacts(created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_fav ON artifacts(is_favorite)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_int_type ON service_integrations(service_type)")
 
         conn.commit()
         conn.close()
@@ -420,7 +422,7 @@ def get_run(run_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, An
         artifacts = []
         for a in cursor.fetchall():
             art = dict(a)
-            if "name" in art and "title" not in art:
+            if not art.get("title") and art.get("name"):
                 art["title"] = art["name"]
             art["is_preserved"] = bool(art.get("is_preserved", 0))
             art["is_favorite"] = bool(art.get("is_favorite", 0))
@@ -922,7 +924,7 @@ def get_artifact(artifact_id: str, db_path: Optional[str] = None) -> Optional[Di
         if not row:
             return None
         art = dict(row)
-        if "name" in art and "title" not in art:
+        if not art.get("title") and art.get("name"):
             art["title"] = art["name"]
         art["is_preserved"] = bool(art.get("is_preserved", 0))
         art["is_favorite"] = bool(art.get("is_favorite", 0))
