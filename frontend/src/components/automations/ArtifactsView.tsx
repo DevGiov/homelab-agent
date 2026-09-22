@@ -16,6 +16,7 @@ import {
   Code,
   Sparkles,
   AlertCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   fetchAllArtifacts,
@@ -73,11 +74,13 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
       });
       setArtifacts(data);
 
-      // Se c'è un initialArtifactId o selectedId, mantienilo, altrimenti seleziona il primo
+      // Se c'è un initialArtifactId o selectedId, mantienilo, altrimenti su desktop seleziona il primo (su mobile mostra prima la lista)
       if (initialArtifactId && data.some((a) => a.artifact_id === initialArtifactId)) {
         setSelectedId(initialArtifactId);
       } else if (!selectedId && data.length > 0) {
-        setSelectedId(data[0].artifact_id);
+        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+          setSelectedId(data[0].artifact_id);
+        }
       }
     } catch (err: any) {
       console.error('Errore caricamento lista artefatti:', err);
@@ -160,22 +163,20 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
 
   const handleDelete = async (artId: string, isPreserved?: boolean) => {
     if (isPreserved) {
-      alert('Questo artefatto è protetto con lucchetto (Preserved). Rimuovi prima la protezione per poterlo eliminare.');
+      alert('Questo report è protetto da cancellazione (bloccato con lucchetto). Sbloccalo prima di eliminarlo.');
       return;
     }
-    if (!confirm('Sei sicuro di voler eliminare definitivamente questo artefatto e il file su disco?')) {
-      return;
-    }
+    if (!confirm('Sei sicuro di voler eliminare definitivamente questo artefatto/report?')) return;
     try {
       await deleteArtifact(artId);
-      showFeedback('success', 'Artefatto eliminato con successo.');
       setArtifacts((prev) => prev.filter((a) => a.artifact_id !== artId));
       if (selectedId === artId) {
         setSelectedId(null);
         setSelectedArtifact(null);
       }
+      showFeedback('success', 'Artefatto eliminato.');
     } catch (err: any) {
-      showFeedback('error', `Errore eliminazione: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', 'Errore eliminazione artefatto.');
     }
   };
 
@@ -183,51 +184,45 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
     if (!selectedArtifact?.content) return;
     navigator.clipboard.writeText(selectedArtifact.content);
     setCopied(true);
+    showFeedback('success', 'Contenuto Markdown copiato negli appunti!');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
     if (!selectedArtifact) return;
-    const url = `/api/v1/automations/artifacts/${selectedArtifact.artifact_id}/download`;
+    const filename = `${(selectedArtifact.name || 'report').replace(/\s+/g, '_')}.md`;
+    const blob = new Blob([selectedArtifact.content || ''], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = selectedArtifact.name || 'report.md';
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showFeedback('success', `Scaricato ${filename}`);
   };
 
-  // Elenco unico automazioni per dropdown filtro
+  // Extract distinct automation names for dropdown filter
   const automationOptions = useMemo(() => {
     const map = new Map<string, string>();
     artifacts.forEach((a) => {
-      if (a.automation_id) {
+      if (a.automation_id && !map.has(a.automation_id)) {
         map.set(a.automation_id, a.automation_name || a.automation_id);
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [artifacts]);
 
-  // Raggruppamento temporale degli artefatti
+  // Group artifacts chronologically: "Oggi", "Ieri", "Ultimi 7 Giorni", "Questo Mese", "Precedenti"
   const groupedArtifacts = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86400000;
+    const startOf7DaysAgo = startOfToday - 7 * 86400000;
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-    const groups: {
-      today: AutomationArtifact[];
-      yesterday: AutomationArtifact[];
-      last7Days: AutomationArtifact[];
-      thisMonth: AutomationArtifact[];
-      older: AutomationArtifact[];
-    } = {
+    const groups: Record<'today' | 'yesterday' | 'last7Days' | 'thisMonth' | 'older', AutomationArtifact[]> = {
       today: [],
       yesterday: [],
       last7Days: [],
@@ -236,16 +231,12 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
     };
 
     artifacts.forEach((art) => {
-      if (!art.created_at) {
-        groups.older.push(art);
-        return;
-      }
-      const d = new Date(art.created_at);
-      if (d >= today) {
+      const d = art.created_at ? new Date(art.created_at).getTime() : 0;
+      if (d >= startOfToday) {
         groups.today.push(art);
-      } else if (d >= yesterday) {
+      } else if (d >= startOfYesterday) {
         groups.yesterday.push(art);
-      } else if (d >= sevenDaysAgo) {
+      } else if (d >= startOf7DaysAgo) {
         groups.last7Days.push(art);
       } else if (d >= firstOfMonth) {
         groups.thisMonth.push(art);
@@ -265,27 +256,29 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg text-fg overflow-hidden relative font-sans">
-      {/* Top Filter & Search Bar */}
-      <div className="p-3 border-b border-border bg-panel-header/30 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-md">
+      {/* Top Filter & Search Bar: Visible on desktop always, on mobile only when browsing the master list */}
+      <div className={`p-2.5 sm:p-3 border-b border-border bg-panel-header/35 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
+        selectedId ? 'hidden md:flex' : 'flex'
+      }`}>
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
           <div className="relative w-full">
-            <Search className="absolute left-3 top-2.5 text-fg-muted" size={15} />
+            <Search className="absolute left-3 top-2.5 text-fg-muted" size={14} />
             <input
               type="text"
               placeholder="Cerca artefatto, report o automazione..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-panel border border-border/80 pl-9 pr-3 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent"
+              className="w-full bg-panel border border-border/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap text-xs">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
           {/* Automation Filter */}
           <select
             value={automationFilter}
             onChange={(e) => setAutomationFilter(e.target.value)}
-            className="bg-panel border border-border/80 px-2.5 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent"
+            className="bg-panel border border-border/80 px-2 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent max-w-[170px] sm:max-w-xs truncate"
           >
             <option value="all">Tutte le automazioni ({artifacts.length})</option>
             {automationOptions.map((opt) => (
@@ -298,7 +291,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
           {/* Favorite Toggle */}
           <button
             onClick={() => setFavoriteOnly(!favoriteOnly)}
-            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2 py-1.5 rounded-xl border flex items-center gap-1 transition cursor-pointer ${
               favoriteOnly
                 ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 font-semibold'
                 : 'bg-panel border-border/80 text-fg-muted hover:text-fg'
@@ -306,13 +299,13 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
             title="Mostra solo preferiti con stella"
           >
             <Star size={13} className={favoriteOnly ? 'fill-amber-400 text-amber-400' : ''} />
-            <span>Preferiti</span>
+            <span className="hidden sm:inline">Preferiti</span>
           </button>
 
           {/* Preserved Toggle */}
           <button
             onClick={() => setPreservedOnly(!preservedOnly)}
-            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer ${
+            className={`px-2 py-1.5 rounded-xl border flex items-center gap-1 transition cursor-pointer ${
               preservedOnly
                 ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 font-semibold'
                 : 'bg-panel border-border/80 text-fg-muted hover:text-fg'
@@ -320,7 +313,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
             title="Mostra solo artefatti protetti da cancellazione"
           >
             <Lock size={13} className={preservedOnly ? 'text-indigo-400' : ''} />
-            <span>Protetti</span>
+            <span className="hidden sm:inline">Protetti</span>
           </button>
 
           <button
@@ -329,7 +322,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
             className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-xl border border-border transition cursor-pointer"
             title="Aggiorna lista"
           >
-            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -348,10 +341,12 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
         </div>
       )}
 
-      {/* Main Split Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Pane: Grouped Artifacts Master List */}
-        <div className="w-80 md:w-96 border-r border-border bg-panel-header/10 flex flex-col overflow-hidden shrink-0">
+      {/* Main Split Layout: Responsive master-detail */}
+      <div className="flex-1 flex overflow-hidden w-full">
+        {/* Left Pane: Grouped Artifacts Master List (Full width on mobile when no selection or in list mode) */}
+        <div className={`w-full md:w-80 lg:w-96 border-r border-border bg-panel-header/10 flex flex-col overflow-hidden shrink-0 ${
+          selectedId ? 'hidden md:flex' : 'flex'
+        }`}>
           <div className="p-3 border-b border-border/60 bg-panel/30 flex items-center justify-between text-xs text-fg-muted">
             <span>{artifacts.length} artefatti archiviati</span>
             {searchQuery && (
@@ -451,126 +446,138 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
           </div>
         </div>
 
-        {/* Right Pane: Artifact Detail View */}
-        <div className="flex-1 flex flex-col bg-bg overflow-hidden">
+        {/* Right Pane: Artifact Detail View (Full width on mobile when artifact is selected) */}
+        <div className={`flex-1 flex-col bg-bg overflow-hidden ${
+          selectedId ? 'flex' : 'hidden md:flex'
+        }`}>
           {isLoadingDetail ? (
-            <div className="flex-1 flex items-center justify-center text-fg-muted gap-2 text-xs">
+            <div className="flex-1 flex items-center justify-center text-fg-muted gap-2 text-xs p-6">
               <RefreshCw size={18} className="animate-spin text-accent" />
               <span>Caricamento anteprima artefatto...</span>
             </div>
           ) : selectedArtifact ? (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Detail Header */}
-              <div className="p-4 border-b border-border bg-panel/30 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                <div className="flex-1 min-w-[240px]">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
+              {/* Detail Header with Back Button on Mobile */}
+              <div className="p-3 sm:p-4 border-b border-border bg-panel/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    {/* Mobile Back Button to return to list */}
+                    <button
+                      onClick={() => setSelectedId(null)}
+                      className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent font-medium transition cursor-pointer shadow-sm shrink-0"
+                      title="Torna all'elenco dei report"
+                    >
+                      <ArrowLeft size={13} />
+                      <span>Elenco</span>
+                    </button>
+
                     {onOpenAutomation && selectedArtifact.automation_id ? (
                       <button
                         onClick={() => onOpenAutomation(selectedArtifact.automation_id!)}
-                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer truncate max-w-[180px]"
                         title="Apri automazione"
                       >
-                        <Sparkles size={11} />
-                        {selectedArtifact.automation_name || selectedArtifact.automation_id}
+                        <Sparkles size={11} className="shrink-0" />
+                        <span className="truncate">{selectedArtifact.automation_name || selectedArtifact.automation_id}</span>
                       </button>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1">
-                        <Sparkles size={11} />
-                        {selectedArtifact.automation_name || selectedArtifact.automation_id || 'Report'}
+                      <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 truncate max-w-[180px]">
+                        <Sparkles size={11} className="shrink-0" />
+                        <span className="truncate">{selectedArtifact.automation_name || selectedArtifact.automation_id || 'Report'}</span>
                       </span>
                     )}
-                    <span className="text-[11px] text-fg-muted flex items-center gap-1">
+                    <span className="text-[11px] text-fg-muted flex items-center gap-1 shrink-0">
                       <Calendar size={11} />
                       {selectedArtifact.created_at
-                        ? new Date(selectedArtifact.created_at).toLocaleString()
+                        ? new Date(selectedArtifact.created_at).toLocaleDateString()
                         : 'N/A'}
                     </span>
                     {selectedArtifact.is_preserved && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] flex items-center gap-1 shrink-0">
                         <Lock size={10} /> Protetto
                       </span>
                     )}
                   </div>
-                  <h2 className="text-base sm:text-lg font-bold text-fg leading-tight">
+                  <h2 className="text-sm sm:text-lg font-bold text-fg leading-tight truncate">
                     {selectedArtifact.title || selectedArtifact.name}
                   </h2>
                 </div>
 
                 {/* Actions Toolbar */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   {/* Mode Toggle (Rendered vs Raw) */}
-                  <div className="bg-panel border border-border rounded-xl p-0.5 flex text-xs">
+                  <div className="bg-panel border border-border rounded-xl p-0.5 flex text-xs shrink-0">
                     <button
                       onClick={() => setViewMode('rendered')}
-                      className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
+                      className={`px-2 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
                         viewMode === 'rendered' ? 'bg-accent text-white font-medium shadow-sm' : 'text-fg-muted hover:text-fg'
                       }`}
                     >
-                      <Eye size={13} />
-                      <span>Anteprima</span>
+                      <Eye size={12} />
+                      <span className="text-[11px]">Anteprima</span>
                     </button>
                     <button
                       onClick={() => setViewMode('raw')}
-                      className={`px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
+                      className={`px-2 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
                         viewMode === 'raw' ? 'bg-accent text-white font-medium shadow-sm' : 'text-fg-muted hover:text-fg'
                       }`}
                     >
-                      <Code size={13} />
-                      <span>Raw Markdown</span>
+                      <Code size={12} />
+                      <span className="text-[11px]">Raw</span>
                     </button>
                   </div>
 
                   {/* Copy Button */}
                   <button
                     onClick={handleCopyMarkdown}
-                    className="px-3 py-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-xs text-fg font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-xs text-fg font-medium flex items-center gap-1 transition cursor-pointer"
                     title="Copia Markdown negli appunti"
                   >
-                    {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    <span>{copied ? 'Copiato!' : 'Copia'}</span>
+                    {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                    <span className="hidden sm:inline">{copied ? 'Copiato!' : 'Copia'}</span>
                   </button>
 
                   {/* Download Button */}
                   <button
                     onClick={handleDownload}
-                    className="px-3 py-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-xs text-fg font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-xs text-fg font-medium flex items-center gap-1 transition cursor-pointer"
                     title="Scarica file su disco locale"
                   >
-                    <Download size={14} />
-                    <span>Download</span>
+                    <Download size={13} />
+                    <span className="hidden sm:inline">Download</span>
                   </button>
 
                   {/* Delete Button */}
                   <button
                     onClick={() => handleDelete(selectedArtifact.artifact_id, selectedArtifact.is_preserved)}
                     disabled={selectedArtifact.is_preserved}
-                    className={`p-2 rounded-xl border transition ${
+                    className={`p-1.5 rounded-xl border transition ${
                       selectedArtifact.is_preserved
                         ? 'border-border/40 text-fg-muted/40 cursor-not-allowed'
                         : 'border-rose-900/60 text-rose-400 hover:bg-rose-950/40 hover:border-rose-700 cursor-pointer'
                     }`}
                     title={selectedArtifact.is_preserved ? 'Sblocca prima il lucchetto per eliminare' : 'Elimina artefatto'}
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* Detail Content Viewer */}
-              <div className="flex-1 overflow-y-auto p-6 max-w-5xl w-full mx-auto">
+              {/* Detail Content Viewer: Optimized padding & scroll for mobile */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-6 max-w-5xl w-full mx-auto">
                 {viewMode === 'rendered' ? (
-                  <div className="bg-panel/40 border border-border/80 rounded-2xl p-6 shadow-sm">
+                  <div className="bg-panel/40 border border-border/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm overflow-x-auto break-words">
                     <MarkdownRenderer content={selectedArtifact.content || '*Nessun contenuto nel report.*'} />
                   </div>
                 ) : (
-                  <pre className="font-mono text-xs p-6 bg-black/60 border border-border/80 rounded-2xl overflow-x-auto text-fg-muted whitespace-pre-wrap select-all leading-relaxed">
+                  <pre className="font-mono text-xs p-4 sm:p-6 bg-black/60 border border-border/80 rounded-xl sm:rounded-2xl overflow-x-auto text-fg-muted whitespace-pre-wrap select-all leading-relaxed">
                     {selectedArtifact.content || '*Vuoto*'}
                   </pre>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-fg-muted">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-8 text-fg-muted">
               <FileText className="text-fg-muted/30 mb-3" size={48} />
               <h3 className="text-sm font-semibold text-fg">Nessun artefatto selezionato</h3>
               <p className="text-xs text-fg-muted mt-1 max-w-sm">
