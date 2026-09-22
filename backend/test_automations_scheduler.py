@@ -197,9 +197,11 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
         # Verifica che la run sia stata creata su DB con trigger_type="cron" e payload corretto
         runs = auto_db.list_runs(automation_id="auto_cron_exec_test", db_path=self.db_path)
         self.assertGreaterEqual(len(runs), 1)
-        latest_run = runs[0]
-        self.assertEqual(latest_run["trigger_type"], "cron")
-        self.assertEqual(latest_run["trigger_payload"].get("trigger_id"), "trg_cron_noon")
+        latest_summary = runs[0]
+        self.assertEqual(latest_summary["trigger_type"], "cron")
+        full_run = auto_db.get_run(latest_summary["run_id"], db_path=self.db_path)
+        self.assertIsNotNone(full_run)
+        self.assertEqual(full_run["trigger_payload"].get("trigger_id"), "trg_cron_noon")
 
 
 if __name__ == "__main__":
