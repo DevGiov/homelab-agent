@@ -64,7 +64,7 @@ config.get_settings().validate_security()
 
 from contextlib import asynccontextmanager
 from automations.db import init_automations_db
-from automations.router import router as automations_router
+from automations.router import router as automations_router, webhook_router as automations_webhook_router
 
 app_graph = build_graph()
 
@@ -129,6 +129,7 @@ except ImportError:
     _RATE_LIMIT_ENABLED = False
 
 # --- Automations & Loops ---
+api.include_router(automations_webhook_router)
 api.include_router(automations_router)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)

@@ -898,6 +898,16 @@ export interface AutomationSummary {
   last_artifact_id?: string | null;
   last_artifact_name?: string | null;
   last_artifact_at?: string | null;
+  triggers?: Array<{
+    id: string;
+    type: string;
+    cron_expression?: string;
+    timezone?: string;
+    webhook_token?: string;
+    webhook_path?: string;
+    enabled?: boolean;
+  }>;
+  webhook_url?: string | null;
   created_by: string;
   source_type: string;
 }
@@ -1244,5 +1254,20 @@ export interface IntrospectionResult {
 
 export async function introspectAutomationParameters(autoId: string): Promise<IntrospectionResult> {
   const res = await api.get<IntrospectionResult>(`/automations/${autoId}/introspect-parameters`);
+  return res.data;
+}
+
+export async function toggleAutomationEnabled(autoId: string, enabled?: boolean): Promise<{ id: string; enabled: boolean; name: string }> {
+  const res = await api.patch<{ id: string; enabled: boolean; name: string }>(`/automations/${autoId}/toggle`, enabled !== undefined ? { enabled } : {});
+  return res.data;
+}
+
+export async function updateAutomationTriggers(autoId: string, triggers: any[]): Promise<{ id: string; triggers: any[] }> {
+  const res = await api.put<{ id: string; triggers: any[] }>(`/automations/${autoId}/triggers`, triggers);
+  return res.data;
+}
+
+export async function regenerateWebhookToken(autoId: string): Promise<{ id: string; webhook_token: string; webhook_path: string; triggers: any[] }> {
+  const res = await api.post<{ id: string; webhook_token: string; webhook_path: string; triggers: any[] }>(`/automations/${autoId}/webhook-regenerate`);
   return res.data;
 }

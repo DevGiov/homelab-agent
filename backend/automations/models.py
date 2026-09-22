@@ -6,6 +6,7 @@ budget, run, step ed esecuzioni.
 
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -104,6 +105,7 @@ class Trigger(BaseModel):
     timezone: str = "Europe/Rome"
     webhook_path: Optional[str] = None
     webhook_secret_ref: Optional[str] = None
+    webhook_token: Optional[str] = None
     event_pattern: Optional[Dict[str, Any]] = None
     enabled: bool = True
 
@@ -385,6 +387,11 @@ class AutomationDefinition(BaseModel):
                 t["type"] = raw_t_type
                 if t["type"] == "cron" and not t.get("cron_expression"):
                     t["cron_expression"] = "0 9 * * *"
+                elif t["type"] == "webhook":
+                    if not t.get("webhook_token"):
+                        t["webhook_token"] = secrets.token_urlsafe(24)
+                    if not t.get("webhook_path") and d.get("id"):
+                        t["webhook_path"] = f"/v1/automations/{d.get('id')}/webhook/{t['webhook_token']}"
                 if not t.get("timezone"):
                     t["timezone"] = "Europe/Rome"
                 if "enabled" not in t:
@@ -560,6 +567,8 @@ class AutomationSummary(BaseModel):
     last_artifact_id: Optional[str] = None
     last_artifact_name: Optional[str] = None
     last_artifact_at: Optional[str] = None
+    triggers: List[Dict[str, Any]] = Field(default_factory=list)
+    webhook_url: Optional[str] = None
 
 
 class AutomationRunSummary(BaseModel):

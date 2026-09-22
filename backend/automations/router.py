@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Security
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request, Security
 from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader
 
@@ -42,10 +42,83 @@ def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
 
 
 router = APIRouter(prefix="/v1/automations", tags=["Automations"], dependencies=[Depends(verify_api_key)])
+webhook_router = APIRouter(prefix="/v1/automations", tags=["Automations Webhooks"])
 
 
 def get_runner() -> AutomationRunner:
     return AutomationRunner(db_path=config.AUTOMATIONS_DB_PATH)
+
+
+# --- 0. Webhook Trigger Esterno (Token Auth - Unauthenticated API Key) ---
+
+@webhook_router.post("/{auto_id}/webhook/{token}")
+async def handle_automation_webhook(
+    auto_id: str,
+    token: str,
+    request: Request,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+):
+    """Trigger token-based per eventi esterni (Home Assistant, GitHub, Grafana, curl).
+    Il token presente nel path funge da credenziale di autenticazione univoca.
+    """
+    d = auto_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not d:
+        raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
+
+    if not d.get("enabled", True):
+        raise HTTPException(status_code=403, detail=f"L'automazione '{auto_id}' è attualmente disabilitata.")
+
+    valid_tokens = set()
+    for trg in d.get("triggers", []):
+        if isinstance(trg, dict) and trg.get("type") == "webhook" and trg.get("webhook_token"):
+            valid_tokens.add(trg["webhook_token"])
+    if config.API_SECRET_KEY:
+        valid_tokens.add(config.API_SECRET_KEY.strip())
+
+    if token not in valid_tokens:
+        raise HTTPException(status_code=401, detail="Token webhook non valido o non autorizzato.")
+
+    payload_data: Dict[str, Any] = {}
+    try:
+        body_bytes = await request.body()
+        if body_bytes:
+            payload_data = json.loads(body_bytes.decode("utf-8"))
+    except Exception as e:
+        logger.debug(f"Parsing body JSON non riuscito: {e}")
+        payload_data = {}
+
+    run_parameters = {}
+    if isinstance(payload_data, dict):
+        if "inputs" in payload_data and isinstance(payload_data["inputs"], dict):
+            run_parameters.update(payload_data["inputs"])
+        elif "parameters" in payload_data and isinstance(payload_data["parameters"], dict):
+            run_parameters.update(payload_data["parameters"])
+
+    runner = get_runner()
+    trigger_payload = {
+        "source": "webhook",
+        "token": token,
+        "webhook_payload": payload_data,
+        "inputs": run_parameters,
+        **run_parameters,
+        "client_host": request.client.host if request.client else None,
+    }
+
+    run = runner.start_run(
+        automation_id=auto_id,
+        trigger_type=TriggerType.WEBHOOK,
+        trigger_payload=trigger_payload,
+        dry_run=False,
+    )
+
+    background_tasks.add_task(runner.execute_run, run.run_id)
+    logger.info(f"Automazione '{auto_id}' avviata via Webhook HTTP (run_id='{run.run_id}').")
+    return {
+        "ok": True,
+        "run_id": run.run_id,
+        "status": run.status.value if hasattr(run.status, "value") else str(run.status),
+        "message": f"Automazione '{auto_id}' avviata con successo via webhook.",
+    }
 
 
 # --- 1. Templates predefiniti (Rotta statica prioritaria) ---
@@ -435,6 +508,12 @@ async def list_automations(enabled_only: bool = Query(default=False)):
     defs = auto_db.list_definitions(enabled_only=enabled_only, db_path=config.AUTOMATIONS_DB_PATH)
     summaries = []
     for d in defs:
+        wh_url = None
+        for trg in d.get("triggers", []):
+            if isinstance(trg, dict) and trg.get("type") == "webhook" and trg.get("webhook_path"):
+                wh_url = trg["webhook_path"]
+                break
+
         summaries.append(
             AutomationSummary(
                 id=d.get("id", "unknown"),
@@ -452,6 +531,8 @@ async def list_automations(enabled_only: bool = Query(default=False)):
                 last_artifact_id=d.get("last_artifact_id"),
                 last_artifact_name=d.get("last_artifact_name"),
                 last_artifact_at=d.get("last_artifact_at"),
+                triggers=d.get("triggers", []) if isinstance(d.get("triggers"), list) else [],
+                webhook_url=wh_url,
             )
         )
     return summaries
@@ -547,6 +628,129 @@ async def reset_circuit_breaker(auto_id: str):
     cb = get_circuit_breaker(db_path=config.AUTOMATIONS_DB_PATH)
     cb.reset(auto_id)
     return {"status": "reset", "automation_id": auto_id, "state": "CLOSED"}
+
+
+@router.patch("/{auto_id}/toggle")
+async def toggle_automation_enabled(
+    auto_id: str,
+    payload: Optional[Dict[str, Any]] = Body(default=None),
+):
+    """Attiva o disattiva un'automazione (switch toggle sulla card). Sincronizza immediatamente APScheduler."""
+    d = auto_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not d:
+        raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
+
+    current_enabled = bool(d.get("enabled", True))
+    if payload and "enabled" in payload and payload["enabled"] is not None:
+        new_enabled = bool(payload["enabled"])
+    else:
+        new_enabled = not current_enabled
+
+    d["enabled"] = new_enabled
+    saved = auto_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+
+    try:
+        from automations.scheduler import get_scheduler
+        sched = get_scheduler()
+        if sched.is_running:
+            sched.sync_triggers()
+    except Exception as e:
+        logger.debug(f"Scheduler trigger sync skipped: {e}")
+
+    return {"id": auto_id, "enabled": new_enabled, "name": d.get("name")}
+
+
+@router.put("/{auto_id}/triggers")
+async def update_automation_triggers(
+    auto_id: str,
+    triggers: List[Dict[str, Any]] = Body(...),
+):
+    """Aggiorna i trigger (schedulazione temporale o webhook) di un'automazione direttamente dalla UI."""
+    d = auto_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not d:
+        raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
+
+    import secrets
+    clean_triggers = []
+    for idx, t in enumerate(triggers):
+        if not isinstance(t, dict):
+            continue
+        t = dict(t)
+        t_type = str(t.get("type", "cron")).lower()
+        if t_type not in {"cron", "webhook", "manual", "event"}:
+            t_type = "cron"
+        t["type"] = t_type
+        if not t.get("id"):
+            t["id"] = f"trg_{t_type}_{idx+1}"
+
+        if t_type == "cron":
+            cron_expr = t.get("cron_expression") or t.get("cron") or t.get("schedule") or "0 12 * * *"
+            from apscheduler.triggers.cron import CronTrigger
+            try:
+                CronTrigger.from_crontab(str(cron_expr).strip())
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Espressione cron '{cron_expr}' non valida: {e}")
+            t["cron_expression"] = str(cron_expr).strip()
+            if not t.get("timezone"):
+                t["timezone"] = "Europe/Rome"
+        elif t_type == "webhook":
+            if not t.get("webhook_token"):
+                t["webhook_token"] = secrets.token_urlsafe(24)
+            t["webhook_path"] = f"/v1/automations/{auto_id}/webhook/{t['webhook_token']}"
+
+        if "enabled" not in t:
+            t["enabled"] = True
+        clean_triggers.append(t)
+
+    d["triggers"] = clean_triggers
+    saved = auto_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+
+    try:
+        from automations.scheduler import get_scheduler
+        sched = get_scheduler()
+        if sched.is_running:
+            sched.sync_triggers()
+    except Exception as e:
+        logger.debug(f"Scheduler trigger sync skipped: {e}")
+
+    return {"id": auto_id, "triggers": saved.get("triggers", [])}
+
+
+@router.post("/{auto_id}/webhook-regenerate")
+async def regenerate_webhook_token(auto_id: str):
+    """Genera un nuovo token segreto per il trigger webhook dell'automazione."""
+    d = auto_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    if not d:
+        raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
+
+    import secrets
+    new_token = secrets.token_urlsafe(24)
+    triggers = list(d.get("triggers", []))
+    found = False
+    for t in triggers:
+        if isinstance(t, dict) and t.get("type") == "webhook":
+            t["webhook_token"] = new_token
+            t["webhook_path"] = f"/v1/automations/{auto_id}/webhook/{new_token}"
+            found = True
+            break
+
+    if not found:
+        triggers.append({
+            "id": f"trg_webhook_{secrets.token_hex(3)}",
+            "type": "webhook",
+            "webhook_token": new_token,
+            "webhook_path": f"/v1/automations/{auto_id}/webhook/{new_token}",
+            "enabled": True,
+        })
+
+    d["triggers"] = triggers
+    saved = auto_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+    return {
+        "id": auto_id,
+        "webhook_token": new_token,
+        "webhook_path": f"/v1/automations/{auto_id}/webhook/{new_token}",
+        "triggers": saved.get("triggers", []),
+    }
 
 
 @router.post("/{auto_id}/run", response_model=AutomationRun, status_code=202)

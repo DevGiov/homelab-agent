@@ -28,6 +28,8 @@ import {
   Unlock,
   Star,
   Edit2,
+  Globe,
+  Clock,
 } from 'lucide-react';
 import {
   fetchAutomations,
@@ -49,6 +51,7 @@ import {
   toggleAutomationRunPreserve,
   pauseAutomationRun,
   resumeAutomationRun,
+  toggleAutomationEnabled,
   type AutomationSummary,
   type AutomationRunSummary,
   type AutomationApprovalItem,
@@ -60,6 +63,7 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { ParametersModal } from './ParametersModal';
 import { ArtifactsView } from './ArtifactsView';
 import { EditAutomationModal } from './EditAutomationModal';
+import { TriggerEditorModal } from './TriggerEditorModal';
 
 export const AutomationsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'automations' | 'artifacts' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
@@ -91,6 +95,40 @@ export const AutomationsView: React.FC = () => {
   // Edit Automation Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [selectedAutoForEdit, setSelectedAutoForEdit] = useState<any | null>(null);
+
+  // Trigger Editor Modal State
+  const [editingTriggersAuto, setEditingTriggersAuto] = useState<AutomationSummary | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [copiedWebhookId, setCopiedWebhookId] = useState<string | null>(null);
+
+  const handleToggleEnabled = async (auto: AutomationSummary) => {
+    setTogglingId(auto.id);
+    try {
+      const res = await toggleAutomationEnabled(auto.id, !auto.enabled);
+      setAutomations((prev) =>
+        prev.map((a) => (a.id === auto.id ? { ...a, enabled: res.enabled } : a))
+      );
+      showFeedback('success', `Automazione '${auto.name}' ${res.enabled ? 'attivata' : 'disattivata'}.`);
+    } catch (err: any) {
+      showFeedback('error', err?.response?.data?.detail || "Errore durante l'aggiornamento dello stato.");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleCopyWebhookUrl = (auto: AutomationSummary, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const token = auto.triggers?.find((t) => t.type === 'webhook')?.webhook_token;
+    if (!token) {
+      setEditingTriggersAuto(auto);
+      return;
+    }
+    const url = `${window.location.origin}/v1/automations/${auto.id}/webhook/${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedWebhookId(auto.id);
+    showFeedback('success', 'URL Webhook copiato negli appunti!');
+    setTimeout(() => setCopiedWebhookId(null), 2000);
+  };
 
   const handleOpenEdit = async (auto: AutomationSummary) => {
     try {
@@ -529,7 +567,7 @@ export const AutomationsView: React.FC = () => {
                             <span className="text-[11px] font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
                           </div>
 
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             {isRunning ? (
                               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-pulse">
                                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
@@ -542,17 +580,26 @@ export const AutomationsView: React.FC = () => {
                               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
                                 Attesa Approvazione
                               </span>
-                            ) : (
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
-                                  auto.enabled
-                                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-zinc-500/20 text-zinc-400'
-                                }`}
-                              >
-                                {auto.enabled ? 'Abilitata' : 'Inattiva'}
+                            ) : null}
+
+                            {/* Slider Toggle Attivazione/Disattivazione */}
+                            <div className="flex items-center gap-2 bg-panel-header/60 px-2.5 py-1 rounded-xl border border-border/60">
+                              <span className={`text-[11px] font-semibold transition ${auto.enabled ? 'text-emerald-400' : 'text-fg-muted'}`}>
+                                {auto.enabled ? 'Attiva' : 'Inattiva'}
                               </span>
-                            )}
+                              <label
+                                className={`relative inline-flex items-center cursor-pointer ${togglingId === auto.id ? 'opacity-50 pointer-events-none' : ''}`}
+                                title={auto.enabled ? "Disattiva automazione e schedulazioni" : "Attiva automazione e schedulazioni"}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={auto.enabled}
+                                  onChange={() => handleToggleEnabled(auto)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                              </label>
+                            </div>
                           </div>
                         </div>
 
@@ -561,13 +608,36 @@ export const AutomationsView: React.FC = () => {
                         </p>
 
                         <div className="flex items-center justify-between mt-4 text-xs text-fg-muted flex-wrap gap-2">
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
                             <span className="flex items-center gap-1.5">
                               <Layers size={13} className="text-accent" /> {auto.steps_count} step
                             </span>
-                            <span className="flex items-center gap-1.5">
-                              <Calendar size={13} className="text-emerald-400" /> {auto.triggers_count} trigger
-                            </span>
+
+                            {/* Trigger Pill / Quick Trigger Config */}
+                            <button
+                              onClick={() => setEditingTriggersAuto(auto)}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition text-[11px] font-medium cursor-pointer"
+                              title="Configura Schedulazione Cron e Webhook HTTP"
+                            >
+                              <Clock size={12} className="text-emerald-400" />
+                              <span>
+                                {auto.triggers?.find((t) => t.type === 'cron')
+                                  ? auto.triggers.find((t) => t.type === 'cron')?.cron_expression
+                                  : `${auto.triggers_count} trigger`}
+                              </span>
+                            </button>
+
+                            {/* Webhook Pill / Quick Copy */}
+                            {auto.triggers?.some((t) => t.type === 'webhook') && (
+                              <button
+                                onClick={(e) => handleCopyWebhookUrl(auto, e)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition text-[11px] font-medium cursor-pointer"
+                                title="Fai clic per copiare l'URL Webhook negli appunti"
+                              >
+                                <Globe size={12} className="text-sky-400" />
+                                <span>{copiedWebhookId === auto.id ? 'URL Copiato!' : 'Webhook'}</span>
+                              </button>
+                            )}
                           </div>
 
                           {/* 1-Click Ultimo Report Button */}
@@ -770,6 +840,13 @@ export const AutomationsView: React.FC = () => {
                         )}
 
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingTriggersAuto(auto)}
+                            className="p-1.5 text-fg-muted hover:text-emerald-400 hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
+                            title="Configura Schedulazione (Cron) e Trigger Webhook HTTP"
+                          >
+                            <Clock size={15} />
+                          </button>
                           <button
                             onClick={() => handleOpenEdit(auto)}
                             className="p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg border border-transparent hover:border-border transition cursor-pointer"
@@ -1207,6 +1284,18 @@ export const AutomationsView: React.FC = () => {
           }}
           onFeedback={(type, msg) => {
             showFeedback(type === 'error' ? 'error' : 'success', msg);
+          }}
+        />
+      )}
+
+      {/* Trigger & Webhook Editor Modal */}
+      {editingTriggersAuto && (
+        <TriggerEditorModal
+          automation={editingTriggersAuto}
+          onClose={() => setEditingTriggersAuto(null)}
+          onSaved={() => {
+            loadData();
+            showFeedback('success', `Trigger aggiornati per '${editingTriggersAuto.name}'.`);
           }}
         />
       )}

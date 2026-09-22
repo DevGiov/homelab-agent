@@ -377,7 +377,13 @@ class AutomationRunner:
 
         # Parametri effettivi: i parametri del trigger_payload sovrascrivono i default
         default_params = dict(auto_def.parameters or {})
-        effective_inputs = {**default_params, **(run.trigger_payload or {})}
+        raw_trg_payload = dict(run.trigger_payload or {})
+        payload_inputs: Dict[str, Any] = {}
+        if "inputs" in raw_trg_payload and isinstance(raw_trg_payload["inputs"], dict):
+            payload_inputs.update(raw_trg_payload["inputs"])
+        if "parameters" in raw_trg_payload and isinstance(raw_trg_payload["parameters"], dict):
+            payload_inputs.update(raw_trg_payload["parameters"])
+        effective_inputs = {**default_params, **raw_trg_payload, **payload_inputs}
 
         # Recupero secrets autorizzati con architettura a 3 livelli:
         # Tier 1: Base globale (Integrazioni)
