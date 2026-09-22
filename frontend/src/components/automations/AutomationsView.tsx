@@ -367,70 +367,69 @@ export const AutomationsView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-bg text-fg overflow-hidden relative font-sans">
       {/* Top Header Bar */}
-      <div className="p-4 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm">
-            <Workflow size={20} />
+      <div className="p-3 sm:p-4 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm shrink-0">
+            <Workflow size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="font-semibold text-sm text-fg leading-tight">Automations & Loops</h1>
-            <p className="text-[11px] text-fg-muted mt-0.5">
+            <p className="text-[11px] text-fg-muted mt-0.5 hidden sm:block">
               Workflow schedulati, task ricorrenti e loop agentici supervisionati
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {actionMessage && (
-            <div
-              className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 animate-in fade-in duration-200 ${
-                actionMessage.type === 'success'
-                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                  : 'bg-rose-950/80 text-rose-300 border border-rose-800'
-              }`}
-            >
-              {actionMessage.type === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
-              <span>{actionMessage.text}</span>
-            </div>
-          )}
-
-          <button
-            onClick={loadData}
-            disabled={isLoading}
-            className="p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-xl border border-border transition cursor-pointer"
-            title="Aggiorna dati"
-          >
-            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-        </div>
+        <button
+          onClick={loadData}
+          disabled={isLoading}
+          className="p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-xl border border-border transition cursor-pointer shrink-0"
+          title="Aggiorna dati"
+        >
+          <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
+      {/* Floating action message toast */}
+      {actionMessage && (
+        <div
+          className={`absolute top-14 right-4 z-50 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-lg animate-in fade-in duration-200 max-w-[90vw] sm:max-w-sm ${
+            actionMessage.type === 'success'
+              ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-800'
+              : 'bg-rose-950/90 text-rose-300 border border-rose-800'
+          }`}
+        >
+          {actionMessage.type === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
+          <span className="truncate">{actionMessage.text}</span>
+        </div>
+      )}
+
       {/* Metric Quick Cards */}
-      <div className="grid grid-cols-4 gap-3 p-4 border-b border-border bg-bg/30 text-xs shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border bg-bg/30 text-xs shrink-0">
         <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
           <div>
-            <span className="text-fg-muted block">Automazioni Attive</span>
+            <span className="text-fg-muted block truncate">Automazioni Attive</span>
             <span className="text-lg font-bold text-fg mt-0.5 block">{automations.length}</span>
           </div>
           <Layers className="text-accent/60" size={22} />
         </div>
         <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
           <div>
-            <span className="text-fg-muted block">Job Schedulati (Cron)</span>
+            <span className="text-fg-muted block truncate">Job Schedulati</span>
             <span className="text-lg font-bold text-emerald-400 mt-0.5 block">{scheduledJobs.length}</span>
           </div>
           <Calendar className="text-emerald-400/60" size={22} />
         </div>
         <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
           <div>
-            <span className="text-fg-muted block">Esecuzioni Totali</span>
+            <span className="text-fg-muted block truncate">Esecuzioni Totali</span>
             <span className="text-lg font-bold text-fg mt-0.5 block">{runs.length}</span>
           </div>
           <Zap className="text-amber-400/60" size={22} />
         </div>
         <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
           <div>
-            <span className="text-fg-muted block">Approvazioni Pendenti</span>
+            <span className="text-fg-muted block truncate">Approvazioni</span>
             <span className={`text-lg font-bold mt-0.5 block ${approvals.length > 0 ? 'text-rose-400 animate-pulse' : 'text-fg-muted'}`}>
               {approvals.length}
             </span>
@@ -440,10 +439,10 @@ export const AutomationsView: React.FC = () => {
       </div>
 
       {/* View Tabs */}
-      <div className="flex border-b border-border px-4 bg-panel-header/20 shrink-0 overflow-x-auto">
+      <div className="flex border-b border-border px-2 sm:px-4 bg-panel-header/20 shrink-0 overflow-x-auto">
         <button
           onClick={() => setActiveTab('automations')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'automations' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -454,7 +453,7 @@ export const AutomationsView: React.FC = () => {
             setSelectedArtifactIdForView(null);
             setActiveTab('artifacts');
           }}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'artifacts' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -462,7 +461,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('runs')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'runs' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -470,7 +469,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'approvals' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -483,7 +482,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('templates')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'templates' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -491,7 +490,7 @@ export const AutomationsView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('integrations')}
-          className={`py-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === 'integrations' ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
           }`}
         >
@@ -499,8 +498,8 @@ export const AutomationsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Tab Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      {/* Main Tab Content — Not used for artifacts tab (needs full-height split pane) */}
+      {activeTab !== 'artifacts' && <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {/* TAB 1: AUTOMAZIONI */}
         {activeTab === 'automations' && (
           <div className="space-y-4">
@@ -765,9 +764,9 @@ export const AutomationsView: React.FC = () => {
                       </div>
 
                       {/* Action buttons (Morphed when active) */}
-                      <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 flex-wrap">
                         {isRunning && activeRun ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
                               onClick={() => handlePauseRun(activeRun.run_id)}
                               className="px-3 py-1.5 bg-amber-600/90 hover:bg-amber-600 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
@@ -878,13 +877,7 @@ export const AutomationsView: React.FC = () => {
           </div>
         )}
 
-        {/* TAB: ARTIFACTS & REPORT */}
-        {activeTab === 'artifacts' && (
-          <ArtifactsView
-            initialArtifactId={selectedArtifactIdForView}
-            onFeedback={showFeedback}
-          />
-        )}
+        {/* TAB: ARTIFACTS & REPORT — Rendered outside this wrapper, see below */}
 
         {/* TAB 2: STORICO RUN */}
         {activeTab === 'runs' && (
@@ -925,8 +918,8 @@ export const AutomationsView: React.FC = () => {
                 Nessuna esecuzione trovata con i filtri correnti.
               </div>
             ) : (
-              <div className="border border-border rounded-xl overflow-hidden bg-panel/30">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="border border-border rounded-xl overflow-hidden bg-panel/30 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                   <thead>
                     <tr className="border-b border-border bg-panel-header/40 text-fg-muted font-semibold">
                       <th className="p-3 w-8"></th>
@@ -1244,7 +1237,15 @@ export const AutomationsView: React.FC = () => {
         {activeTab === 'integrations' && (
           <IntegrationsTab onFeedback={showFeedback} />
         )}
-      </div>
+      </div>}
+
+      {/* TAB: ARTIFACTS & REPORT — Rendered outside the scrollable wrapper for full-height split pane */}
+      {activeTab === 'artifacts' && (
+        <ArtifactsView
+          initialArtifactId={selectedArtifactIdForView}
+          onFeedback={showFeedback}
+        />
+      )}
 
       {/* Run Inspector Modal */}
       <RunInspectorModal

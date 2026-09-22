@@ -460,7 +460,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
               {/* Detail Header with Back Button on Mobile */}
               <div className="p-3 sm:p-4 border-b border-border bg-panel/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1.5">
                     {/* Mobile Back Button to return to list */}
                     <button
                       onClick={() => setSelectedId(null)}
@@ -474,14 +474,14 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
                     {onOpenAutomation && selectedArtifact.automation_id ? (
                       <button
                         onClick={() => onOpenAutomation(selectedArtifact.automation_id!)}
-                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer truncate max-w-[180px]"
+                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer truncate max-w-[140px] sm:max-w-[180px]"
                         title="Apri automazione"
                       >
                         <Sparkles size={11} className="shrink-0" />
                         <span className="truncate">{selectedArtifact.automation_name || selectedArtifact.automation_id}</span>
                       </button>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 truncate max-w-[180px]">
+                      <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 truncate max-w-[140px] sm:max-w-[180px]">
                         <Sparkles size={11} className="shrink-0" />
                         <span className="truncate">{selectedArtifact.automation_name || selectedArtifact.automation_id || 'Report'}</span>
                       </span>
