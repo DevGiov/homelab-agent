@@ -126,13 +126,15 @@ class AutomationScheduler:
         """Callback asincrono invocato da APScheduler al trigger del cron."""
         logger.info(f"Trigger cron attivato per automazione '{auto_id}' (trigger='{trigger_id}')")
         try:
-            # Creazione run persistente
-            run = self.runner.create_run(
+            # Creazione run persistente con parametri allineati ad AutomationRunner.start_run
+            run = self.runner.start_run(
                 automation_id=auto_id,
                 trigger_type=TriggerType.CRON,
+                trigger_payload={"trigger_id": trigger_id},
+                dry_run=False,
                 trigger_id=trigger_id,
-                is_dry_run=False,
             )
+            logger.info(f"Run pianificata '{run.run_id}' creata per automazione '{auto_id}'. Avvio asincrono...")
             # Esecuzione asincrona/in background per non bloccare il loop dello scheduler
             asyncio.create_task(self._run_async(run.run_id))
         except Exception as e:

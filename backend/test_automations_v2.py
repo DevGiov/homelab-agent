@@ -264,6 +264,55 @@ class TestAutomationsV2(unittest.TestCase):
         self.assertEqual(res.get("status"), "created")
         self.assertEqual(res.get("automation_id"), "auto_github_trending_null_budget")
 
+    def test_trigger_normalization_and_inference(self):
+        """Verifica la normalizzazione resiliente dei trigger (dict, schedule synonym, e time inference)."""
+        from automations.models import AutomationDefinition, TriggerType
+        from automations.runner import AutomationRunner
+        import automations.db as auto_db
+
+        # 1. Triggers passato come dict singolo con sinonimo 'schedule'
+        p1 = {
+            "id": "auto_dict_trigger",
+            "name": "Dict Trigger Test",
+            "triggers": {"type": "cron", "schedule": "0 12 * * *"},
+            "workflow": {
+                "initial_step_id": "step_1",
+                "steps": [{"step_id": "step_1", "name": "Step 1", "type": "deterministic_action", "action_or_tool": "test"}]
+            }
+        }
+        a1 = AutomationDefinition(**p1)
+        self.assertEqual(len(a1.triggers), 1)
+        self.assertEqual(a1.triggers[0].type, TriggerType.CRON)
+        self.assertEqual(a1.triggers[0].cron_expression, "0 12 * * *")
+
+        # 2. Triggers omesso, ma descrizione contiene 'mezzogiorno'
+        p2 = {
+            "id": "auto_inferred_trigger",
+            "name": "GitHub Trending Daily",
+            "description": "Ogni giorno a mezzogiorno trova le repo in trending su GitHub e genera un report.",
+            "workflow": {
+                "initial_step_id": "step_1",
+                "steps": [{"step_id": "step_1", "name": "Step 1", "type": "deterministic_action", "action_or_tool": "test"}]
+            }
+        }
+        a2 = AutomationDefinition(**p2)
+        cron_trgs = [t for t in a2.triggers if t.type == TriggerType.CRON]
+        self.assertEqual(len(cron_trgs), 1)
+        self.assertEqual(cron_trgs[0].cron_expression, "0 12 * * *")
+
+        # 3. Test Runner.start_run con trigger_id e is_dry_run
+        auto_db.save_definition(a1.model_dump(mode="json"), db_path=self.db_path)
+        runner = AutomationRunner(db_path=self.db_path)
+        run = runner.start_run(
+            automation_id="auto_dict_trigger",
+            trigger_type=TriggerType.CRON,
+            trigger_id="trg_1",
+            is_dry_run=True,
+        )
+        self.assertEqual(run.trigger_type, "cron")
+        self.assertTrue(run.is_dry_run)
+        self.assertEqual(run.trigger_payload.get("trigger_id"), "trg_1")
+
 
 if __name__ == "__main__":
     unittest.main()

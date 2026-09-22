@@ -130,14 +130,16 @@ class AutomationRegistry(BaseToolRegistry):
                                 "description": {"type": "string", "description": "Descrizione chiara del task"},
                                 "triggers": {
                                     "type": "array",
-                                    "description": "Trigger di avvio (cron o manuale)",
+                                    "description": "Lista dei trigger di avvio. Per esecuzioni pianificate includere un oggetto con type='cron' ed espressione cron a 5 campi (es. '0 12 * * *' per mezzogiorno, '0 10 * * *' per le 10:00, '0 8 * * 1-5' per i giorni feriali alle 08:00).",
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "type": {"type": "string", "enum": ["cron", "manual"]},
-                                            "cron_expression": {"type": "string", "description": "Espressione cron standard (es. '0 12 * * *')"},
-                                            "timezone": {"type": "string", "default": "Europe/Rome"}
-                                        }
+                                            "id": {"type": "string", "description": "ID univoco trigger (es. 'trg_cron_1')"},
+                                            "type": {"type": "string", "enum": ["cron", "manual"], "description": "'cron' per esecuzione schedulata, 'manual' per avvio ad-hoc"},
+                                            "cron_expression": {"type": "string", "description": "Espressione cron standard a 5 campi (es. '0 12 * * *')"},
+                                            "timezone": {"type": "string", "default": "Europe/Rome", "description": "Fuso orario (default 'Europe/Rome')"}
+                                        },
+                                        "required": ["type"]
                                     }
                                 },
                                 "workflow": {

@@ -295,6 +295,58 @@ class AutomationDefinition(BaseModel):
 
         # 4. Normalizzazione Triggers
         trgs = d.get("triggers")
+        if isinstance(trgs, dict):
+            trgs = [trgs]
+        elif isinstance(trgs, str):
+            clean_str = trgs.strip()
+            if any(c in clean_str for c in "*0123456789"):
+                trgs = [{"type": "cron", "cron_expression": clean_str}]
+            else:
+                trgs = [{"type": "manual"}]
+        elif not trgs and (d.get("cron") or d.get("schedule") or d.get("cron_expression")):
+            expr = d.get("cron_expression") or d.get("schedule") or d.get("cron")
+            trgs = [{"type": "cron", "cron_expression": str(expr)}]
+
+        # Se non è presente un trigger cron esplicito, tenta inferenza intelligente da name/description
+        has_explicit_cron = False
+        if isinstance(trgs, list):
+            for t in trgs:
+                if isinstance(t, dict) and (
+                    t.get("type") == "cron"
+                    or t.get("cron_expression")
+                    or t.get("schedule")
+                    or t.get("cron")
+                ):
+                    has_explicit_cron = True
+                    break
+
+        if not has_explicit_cron:
+            text_to_scan = f"{d.get('name', '')} {d.get('description', '')}".lower()
+            inferred_cron = None
+            if "mezzogiorno" in text_to_scan or "alle 12" in text_to_scan or "ore 12" in text_to_scan:
+                inferred_cron = "0 12 * * *"
+            elif "alle 10" in text_to_scan or "ore 10" in text_to_scan:
+                inferred_cron = "0 10 * * *"
+            elif "alle 9" in text_to_scan or "ore 9" in text_to_scan or "alle 09" in text_to_scan:
+                inferred_cron = "0 9 * * *"
+            elif "alle 8" in text_to_scan or "ore 8" in text_to_scan or "alle 08" in text_to_scan:
+                inferred_cron = "0 8 * * *"
+            elif "ogni ora" in text_to_scan or "hourly" in text_to_scan:
+                inferred_cron = "0 * * * *"
+            else:
+                import re
+                m = re.search(r'(?:alle|ore|at)\s+([0-2]?\d)[:.]([0-5]\d)', text_to_scan)
+                if m:
+                    h, mn = int(m.group(1)), int(m.group(2))
+                    inferred_cron = f"{mn} {h} * * *"
+
+            if inferred_cron:
+                logger.info(f"Inferito trigger cron '{inferred_cron}' per automazione '{d.get('id')}' da testo descrittivo.")
+                if not trgs or not isinstance(trgs, list):
+                    trgs = [{"type": "cron", "cron_expression": inferred_cron, "timezone": "Europe/Rome"}]
+                else:
+                    trgs.append({"type": "cron", "cron_expression": inferred_cron, "timezone": "Europe/Rome"})
+
         if not trgs or not isinstance(trgs, list):
             d["triggers"] = [{"id": "trg_manual", "type": "manual", "enabled": True}]
         else:
@@ -305,16 +357,38 @@ class AutomationDefinition(BaseModel):
                 t = dict(t)
                 if not t.get("id"):
                     t["id"] = f"trg_{idx+1}"
+
+                # Normalizzazione espressione cron da sinonimi
+                cron_expr = (
+                    t.get("cron_expression")
+                    or t.get("schedule")
+                    or t.get("cron")
+                    or t.get("cron_expr")
+                    or t.get("expression")
+                )
+                if cron_expr:
+                    t["cron_expression"] = str(cron_expr).strip()
+
                 raw_t_type = str(t.get("type", "")).lower()
                 if not raw_t_type:
-                    raw_t_type = "cron" if ("cron_expression" in t or "schedule" in t) else "manual"
-                t["type"] = raw_t_type if raw_t_type in {tt.value for tt in TriggerType} else "cron"
+                    raw_t_type = "cron" if t.get("cron_expression") else "manual"
+                elif raw_t_type not in {tt.value for tt in TriggerType}:
+                    raw_t_type = "cron" if t.get("cron_expression") else "manual"
+
+                # Se ha una cron_expression ma era rimasto type manual o non valido, eleva a cron
+                if t.get("cron_expression") and raw_t_type == "manual":
+                    raw_t_type = "cron"
+
+                t["type"] = raw_t_type
                 if t["type"] == "cron" and not t.get("cron_expression"):
-                    t["cron_expression"] = t.get("schedule") or t.get("cron") or "0 9 * * *"
+                    t["cron_expression"] = "0 9 * * *"
                 if not t.get("timezone"):
                     t["timezone"] = "Europe/Rome"
+                if "enabled" not in t:
+                    t["enabled"] = True
                 norm_trgs.append(t)
-            d["triggers"] = norm_trgs
+
+            d["triggers"] = norm_trgs or [{"id": "trg_manual", "type": "manual", "enabled": True}]
 
         # 5. Normalizzazione Budget (robusto contro None, dict vuoto, istanze o tipi non dict)
         b = d.get("budget")

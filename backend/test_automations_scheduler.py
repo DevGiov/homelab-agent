@@ -1,5 +1,6 @@
 """Test unitari e di integrazione per AutomationScheduler ed EmailRegistry (Milestone M2)."""
 
+import asyncio
 import json
 import os
 import tempfile
@@ -159,6 +160,46 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
 
         for sr in step_runs:
             self.assertEqual(sr["status"], RunStatus.COMPLETED.value)
+
+    def test_execute_scheduled_run_callback(self):
+        """Verifica che _execute_scheduled_run crei la run e avvii l'esecuzione senza TypeError su trigger_id."""
+        auto_payload = {
+            "id": "auto_cron_exec_test",
+            "name": "Scheduled Exec Test",
+            "enabled": True,
+            "triggers": [
+                {
+                    "id": "trg_cron_noon",
+                    "type": "cron",
+                    "cron_expression": "0 12 * * *",
+                    "timezone": "Europe/Rome",
+                    "enabled": True,
+                }
+            ],
+            "workflow": {
+                "initial_step_id": "step_1",
+                "steps": [
+                    {
+                        "step_id": "step_1",
+                        "name": "Fetch",
+                        "type": "deterministic_action",
+                        "action_or_tool": "email_fetch_unread",
+                        "parameters": {"max_emails": 1},
+                    }
+                ],
+            },
+        }
+        auto_db.save_definition(auto_payload, db_path=self.db_path)
+
+        # Invocazione asincrona del callback dello scheduler
+        asyncio.run(self.scheduler._execute_scheduled_run("auto_cron_exec_test", "trg_cron_noon"))
+
+        # Verifica che la run sia stata creata su DB con trigger_type="cron" e payload corretto
+        runs = auto_db.list_runs(automation_id="auto_cron_exec_test", db_path=self.db_path)
+        self.assertGreaterEqual(len(runs), 1)
+        latest_run = runs[0]
+        self.assertEqual(latest_run["trigger_type"], "cron")
+        self.assertEqual(latest_run["trigger_payload"].get("trigger_id"), "trg_cron_noon")
 
 
 if __name__ == "__main__":

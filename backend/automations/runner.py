@@ -289,8 +289,16 @@ class AutomationRunner:
         dry_run: bool = False,
         associated_thread_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
+        trigger_id: Optional[str] = None,
+        is_dry_run: Optional[bool] = None,
     ) -> AutomationRun:
         """Crea ed inizializza una nuova run su database in stato PENDING."""
+        if is_dry_run is not None:
+            dry_run = is_dry_run
+        payload = dict(trigger_payload or {})
+        if trigger_id and "trigger_id" not in payload:
+            payload["trigger_id"] = trigger_id
+
         definition_dict = auto_db.get_definition(automation_id, db_path=self.db_path)
         if not definition_dict:
             raise ValueError(f"Automazione '{automation_id}' non trovata.")
@@ -318,7 +326,7 @@ class AutomationRunner:
                 "automation_id": automation_id,
                 "version_applied": auto_def.version,
                 "trigger_type": trigger_type.value if hasattr(trigger_type, "value") else str(trigger_type),
-                "trigger_payload": trigger_payload or {},
+                "trigger_payload": payload,
                 "status": RunStatus.BLOCKED.value,
                 "current_step_id": auto_def.workflow.initial_step_id,
                 "is_dry_run": dry_run,
@@ -334,7 +342,7 @@ class AutomationRunner:
             "automation_id": automation_id,
             "version_applied": auto_def.version,
             "trigger_type": trigger_type.value if hasattr(trigger_type, "value") else str(trigger_type),
-            "trigger_payload": trigger_payload or {},
+            "trigger_payload": payload,
             "status": RunStatus.PENDING.value,
             "current_step_id": auto_def.workflow.initial_step_id,
             "is_dry_run": dry_run,
