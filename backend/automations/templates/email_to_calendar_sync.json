@@ -1,0 +1,103 @@
+{
+  "id": "tpl-email-to-calendar-sync",
+  "name": "Email to Calendar Event Sync",
+  "description": "Scansiona le email in arrivo (es. conferme prenotazioni, riunioni o mittenti specifici), estrae date, orari e dettagli e registra automaticamente gli eventi nel Calendario.",
+  "version": 1,
+  "enabled": true,
+  "parameters": {
+    "sender_filter": "",
+    "target_calendar": "default",
+    "max_emails": 15
+  },
+  "triggers": [
+    {
+      "id": "trg-hourly-cron",
+      "type": "cron",
+      "cron_expression": "0 * * * *",
+      "timezone": "Europe/Rome",
+      "enabled": true
+    },
+    {
+      "id": "trg-manual",
+      "type": "manual",
+      "enabled": true
+    }
+  ],
+  "workflow": {
+    "initial_step_id": "fetch_emails",
+    "steps": [
+      {
+        "step_id": "fetch_emails",
+        "name": "Recupero Email Recenti",
+        "type": "deterministic_action",
+        "action_or_tool": "email_fetch_unread",
+        "parameters": {
+          "max_emails": 15,
+          "unread_only": false
+        },
+        "timeout_seconds": 30
+      },
+      {
+        "step_id": "extract_and_create_events",
+        "name": "Estrazione e Creazione Eventi Calendario",
+        "type": "agentic_task",
+        "prompt_template": "Esamina attentamente queste email:\n{{steps.fetch_emails.output.emails}}\n\nFiltro mittente opzionale: {{parameters.sender_filter}}\n\nPer ciascuna email che contiene date, scadenze, appuntamenti, orari o inviti:\n1. Estrai il titolo dell'evento, data/ora inizio e fine o durata (es. 1h, 30m).\n2. Identifica il luogo fisico o link a meeting (Meet, Zoom, Teams).\n3. Usa il tool 'calendar_create_event' (o passa un array 'events') per registrare l'evento nel calendario.\n4. Genera un resoconto chiaro indicando gli eventi creati con i loro link Markdown [#event-UID].",
+        "timeout_seconds": 120
+      },
+      {
+        "step_id": "save_sync_report",
+        "name": "Salvataggio Report Sincronizzazione",
+        "type": "deterministic_action",
+        "action_or_tool": "save_artifact",
+        "parameters": {
+          "title": "Email to Calendar Sync Report",
+          "content_source": "steps.extract_and_create_events.output"
+        },
+        "timeout_seconds": 15
+      }
+    ]
+  },
+  "permission_policy": {
+    "execution_identity": "calendar-sync-sa",
+    "allowed_tools": [
+      "email_fetch_unread",
+      "calendar_create_event",
+      "calendar_list_events",
+      "calendar_check_availability",
+      "save_artifact"
+    ],
+    "allowed_registries": [
+      "email",
+      "calendar",
+      "automations"
+    ],
+    "security_mode": "normal",
+    "require_approval_for": [],
+    "target_scopes": {
+      "allowed_containers": [],
+      "allowed_repos": [],
+      "allowed_recipients": []
+    },
+    "secrets_whitelist": [
+      "IMAP_HOST",
+      "IMAP_USER",
+      "IMAP_PASSWORD"
+    ],
+    "dry_run_supported": true
+  },
+  "budget": {
+    "max_duration_seconds": 240,
+    "max_llm_calls": 6,
+    "max_tool_calls": 20,
+    "max_tokens": 30000,
+    "max_retries_per_step": 2
+  },
+  "notification_policy": {
+    "on_success": true,
+    "on_failure": true,
+    "on_approval_needed": true,
+    "channels": [
+      "ui_inbox"
+    ]
+  }
+}

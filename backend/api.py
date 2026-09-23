@@ -65,6 +65,8 @@ config.get_settings().validate_security()
 from contextlib import asynccontextmanager
 from automations.db import init_automations_db
 from automations.router import router as automations_router, webhook_router as automations_webhook_router
+from calendar_db import init_calendar_db
+from calendar_router import router as calendar_router
 
 app_graph = build_graph()
 
@@ -76,6 +78,11 @@ async def lifespan(app: FastAPI):
         init_automations_db()
     except Exception as _e:
         logging.getLogger("api").warning(f"Inizializzazione automations_db differita/fallita: {_e}")
+
+    try:
+        init_calendar_db()
+    except Exception as _e:
+        logging.getLogger("api").warning(f"Inizializzazione calendar_db differita/fallita: {_e}")
 
     if config.ENABLE_AUTOMATION_SCHEDULER:
         try:
@@ -131,6 +138,9 @@ except ImportError:
 # --- Automations & Loops ---
 api.include_router(automations_webhook_router)
 api.include_router(automations_router)
+
+# --- Calendario ---
+api.include_router(calendar_router)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

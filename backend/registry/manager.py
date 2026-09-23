@@ -18,6 +18,7 @@ from registry.vision import VisionRegistry
 from registry.web_search import WebSearchRegistry
 from registry.email_tool import EmailRegistry
 from registry.automations_tool import AutomationRegistry
+from registry.calendar_tool import CalendarRegistry
 
 logger = logging.getLogger("registry_manager")
 
@@ -32,6 +33,7 @@ class ToolRegistryManager:
         self.register_registry(VisionRegistry())
         self.register_registry(EmailRegistry())
         self.register_registry(AutomationRegistry())
+        self.register_registry(CalendarRegistry())
 
     def register_registry(self, registry: BaseToolRegistry):
         self._registries[registry.name] = registry

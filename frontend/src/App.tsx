@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThreadList } from './ThreadList';
 import { Chat } from './Chat';
 import { ToolLog } from './ToolLog';
@@ -7,6 +7,7 @@ import { useChat } from './hooks/useChat';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
 import { AutomationsView } from './components/automations/AutomationsView';
+import { CalendarView } from './components/calendar/CalendarView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 function MainLayout() {
@@ -43,8 +44,24 @@ function MainLayout() {
     diagnostics,
   } = useChat(currentThreadId, (newId) => selectThread(newId));
 
-  // Top level view state: chat agent or automations & loops hub
-  const [currentView, setCurrentView] = useState<'chat' | 'automations'>('chat');
+  // Top level view state: chat agent, automations & loops hub, or calendar
+  const [currentView, setCurrentView] = useState<'chat' | 'automations' | 'calendar'>('chat');
+  const [targetEventUid, setTargetEventUid] = useState<string | null>(null);
+
+  // Ascolta eventi globali da link markdown #event-<uid>
+  useEffect(() => {
+    const handleOpenEvent = (e: any) => {
+      const eventUid = e.detail?.eventUid;
+      if (eventUid) {
+        setTargetEventUid(eventUid);
+        setCurrentView('calendar');
+        setIsMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('open-calendar-event', handleOpenEvent);
+    return () => window.removeEventListener('open-calendar-event', handleOpenEvent);
+  }, []);
 
   // Mobile Drawers Navigation state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -154,8 +171,13 @@ function MainLayout() {
             />
           </div>
         </>
-      ) : (
+      ) : currentView === 'automations' ? (
         <AutomationsView />
+      ) : (
+        <CalendarView
+          initialEventUid={targetEventUid}
+          onClearInitialEvent={() => setTargetEventUid(null)}
+        />
       )}
     </div>
   );

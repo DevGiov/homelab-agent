@@ -41,6 +41,10 @@ class Settings(BaseSettings):
         default=str(Path("/data/automations.db") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "automations.db"),
         alias="AUTOMATIONS_DB_PATH",
     )
+    calendar_db_path: str = Field(
+        default=str(Path("/data/calendar.db") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "calendar.db"),
+        alias="CALENDAR_DB_PATH",
+    )
     artifacts_dir: str = Field(
         default=str(Path("/data/artifacts") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "data" / "artifacts"),
         alias="ARTIFACTS_DIR",
@@ -89,6 +93,7 @@ LETTA_URL = _settings.letta_url
 LETTA_API_KEY = _settings.letta_api_key
 CHECKPOINT_DB_PATH = _settings.checkpoint_db_path
 AUTOMATIONS_DB_PATH = _settings.automations_db_path
+CALENDAR_DB_PATH = _settings.calendar_db_path
 ARTIFACTS_DIR = _settings.artifacts_dir
 ENABLE_AUTOMATION_SCHEDULER = _settings.enable_automation_scheduler
 TRUNCATION_LIMIT = _settings.truncation_limit

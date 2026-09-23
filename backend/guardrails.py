@@ -75,6 +75,10 @@ VIEW_TOOLS = {
 
     # Automations & Loops (Inspection / Read-only)
     "list_automation_templates", "list_automations", "get_automation_details",
+
+    # Calendario ed Eventi
+    "calendar_list_calendars", "calendar_list_events", "calendar_get_event",
+    "calendar_create_event", "calendar_update_event", "calendar_check_availability",
 }
 
 SAFE_TOOLS = VIEW_TOOLS  # Retrocompatibilità
@@ -115,6 +119,7 @@ HIGH_RISK_TOOLS = {
     "run_agy_bootstrap", "create_service", "create_lxc_from_template",
     "exec_lxc_command", "start_container", "resize_lxc_disk", "update_lxc_resources",
     "allocate_ip", "add_pihole_dns_record", "create_npm_proxy_host",
+    "calendar_delete_event",
 }
 
 TOOL_CATEGORIES = {
@@ -133,6 +138,10 @@ TOOL_CATEGORIES = {
     "list_automation_templates": "automations.read", "list_automations": "automations.read",
     "get_automation_details": "automations.read", "create_automation_from_template": "automations.write",
     "create_custom_automation": "automations.write", "trigger_automation_run": "automations.exec",
+    "calendar_list_calendars": "calendar.read", "calendar_list_events": "calendar.read",
+    "calendar_get_event": "calendar.read", "calendar_check_availability": "calendar.read",
+    "calendar_create_event": "calendar.write", "calendar_update_event": "calendar.write",
+    "calendar_delete_event": "calendar.destructive",
 }
 
 

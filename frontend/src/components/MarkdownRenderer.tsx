@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
-import { Copy, Check, ExternalLink } from 'lucide-react';
+import { Copy, Check, ExternalLink, Calendar } from 'lucide-react';
 import { AutomationProposalCard } from './automations/AutomationProposalCard';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -65,18 +65,37 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </blockquote>
           ),
 
-          // Styled Hyperlinks
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-accent hover:underline underline-offset-2 transition font-medium"
-            >
-              <span>{children}</span>
-              <ExternalLink size={11} className="inline shrink-0" />
-            </a>
-          ),
+          // Styled Hyperlinks & Event Anchors
+          a: ({ href, children }) => {
+            if (href?.startsWith('#event-')) {
+              const eventUid = href.replace('#event-', '');
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.dispatchEvent(new CustomEvent('open-calendar-event', { detail: { eventUid } }));
+                  }}
+                  className="inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 transition font-medium cursor-pointer"
+                  title="Apri nel Calendario"
+                >
+                  <Calendar size={12} className="inline shrink-0" />
+                  <span>{children}</span>
+                </button>
+              );
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-accent hover:underline underline-offset-2 transition font-medium"
+              >
+                <span>{children}</span>
+                <ExternalLink size={11} className="inline shrink-0" />
+              </a>
+            );
+          },
 
           // Styled GFM Tables
           table: ({ children }) => (

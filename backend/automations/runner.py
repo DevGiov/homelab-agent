@@ -739,6 +739,85 @@ class AutomationRunner:
                 "tool_calls": [{"tool_name": "custom_code", "script": script_path, "result": code_res}],
             }
 
+        # Step Calendario (Creazione / Lettura / Modifica eventi da automazione)
+        is_cal_action = (
+            step_type in (getattr(StepType, "CALENDAR", "calendar"), "calendar")
+            or (
+                step_type == StepType.DETERMINISTIC_ACTION
+                and step_def.action_or_tool
+                and (step_def.action_or_tool.startswith("calendar_") or step_def.action_or_tool.startswith("calendar."))
+            )
+        )
+        if is_cal_action:
+            import calendar_db
+            params = _resolve_parameters(step_def.parameters, context)
+            action = step_def.action_or_tool or params.get("action", "create_event")
+            if action.startswith("calendar_"):
+                action = action[len("calendar_"):]
+            elif action.startswith("calendar."):
+                action = action[len("calendar."):]
+
+            if run.is_dry_run:
+                return {
+                    "status": RunStatus.COMPLETED,
+                    "output": {"dry_run": True, "action": action, "parameters": params},
+                    "tokens": 0,
+                    "tool_calls": [{"tool_name": f"calendar_{action}", "args": params, "dry_run": True}]
+                }
+
+            try:
+                if action in ("create", "create_event", "add_event"):
+                    start = params.get("dtstart") or params.get("start_time") or params.get("start") or ""
+                    end = params.get("dtend") or params.get("end_time") or params.get("end")
+                    ev = calendar_db.create_event(
+                        summary=params.get("summary", "Nuovo Evento"),
+                        start_time=start,
+                        end_time=end,
+                        duration=params.get("duration"),
+                        description=params.get("description", ""),
+                        location=params.get("location", ""),
+                        calendar_id=params.get("calendar_id"),
+                        all_day=params.get("all_day", False),
+                        color=params.get("color"),
+                        source_type="automation",
+                        source_id=run.run_id,
+                    )
+                    res = {"status": "created", "event": ev}
+                elif action in ("list", "list_events", "get_events", "search"):
+                    events = calendar_db.list_events(
+                        calendar_id=params.get("calendar_id"),
+                        start_after=params.get("start_after") or params.get("start_dt"),
+                        start_before=params.get("start_before") or params.get("end_dt"),
+                        query=params.get("query"),
+                        limit=params.get("limit", 50)
+                    )
+                    res = {"status": "success", "count": len(events), "events": events}
+                elif action in ("delete", "delete_event"):
+                    event_id = params.get("event_id") or params.get("uid") or params.get("id")
+                    deleted = calendar_db.delete_event(event_id)
+                    res = {"status": "success" if deleted else "not_found", "event_id": event_id}
+                elif action in ("update", "update_event"):
+                    event_id = params.get("event_id") or params.get("uid") or params.get("id")
+                    ev = calendar_db.update_event(event_id, **{k: v for k, v in params.items() if k not in ("event_id", "uid", "id")})
+                    res = {"status": "success" if ev else "not_found", "event": ev}
+                else:
+                    res = {"status": "error", "error": f"Azione calendario sconosciuta: {action}"}
+
+                return {
+                    "status": RunStatus.COMPLETED,
+                    "output": res,
+                    "tokens": 0,
+                    "tool_calls": [{"tool_name": f"calendar_{action}", "args": params, "result": res}]
+                }
+            except Exception as e:
+                logger.error(f"[Runner] Errore esecuzione step calendario '{step_def.step_id}': {e}", exc_info=True)
+                return {
+                    "status": RunStatus.FAILED,
+                    "error_message": f"Errore esecuzione calendario: {str(e)}",
+                    "output": {"error": str(e)},
+                    "tokens": 0,
+                }
+
         # Step Deterministico
         if step_type == StepType.DETERMINISTIC_ACTION:
             tool_name = step_def.action_or_tool
@@ -766,6 +845,9 @@ class AutomationRunner:
             params["step_run_id"] = f"sr_{run.run_id}_{step_def.step_id}"
             params["_run_id"] = run.run_id
             params["_step_run_id"] = f"sr_{run.run_id}_{step_def.step_id}"
+            if tool_name.startswith("calendar_"):
+                params.setdefault("source_type", "automation")
+                params.setdefault("source_id", run.run_id)
 
             if run.is_dry_run:
                 return {

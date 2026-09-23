@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ThreadItem } from './api';
-import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings, Workflow } from 'lucide-react';
+import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings, Workflow, Calendar } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
 
 interface ThreadListProps {
@@ -14,8 +14,8 @@ interface ThreadListProps {
   isLoading: boolean;
   isBackendHealthy: boolean | null;
   onCloseMobile?: () => void;
-  currentView?: 'chat' | 'automations';
-  onViewChange?: (view: 'chat' | 'automations') => void;
+  currentView?: 'chat' | 'automations' | 'calendar';
+  onViewChange?: (view: 'chat' | 'automations' | 'calendar') => void;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -118,30 +118,44 @@ export const ThreadList: React.FC<ThreadListProps> = ({
         </div>
       </div>
 
-      {/* View Switcher: Chat vs Automations */}
+      {/* View Switcher: Chat vs Automations vs Calendar */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 flex items-center gap-1.5 text-xs">
+        <div className="p-2 border-b border-border bg-panel-header/30 flex items-center gap-1 text-xs">
           <button
             onClick={() => onViewChange('chat')}
-            className={`flex-1 py-1.5 px-2.5 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
               currentView === 'chat'
                 ? 'bg-accent text-white shadow-sm'
                 : 'text-fg-muted hover:text-fg hover:bg-panel'
             }`}
+            title="Chat con l'Agente"
           >
-            <MessageSquare size={14} />
-            <span>Chat Agent</span>
+            <MessageSquare size={13} />
+            <span className="truncate">Chat</span>
           </button>
           <button
             onClick={() => onViewChange('automations')}
-            className={`flex-1 py-1.5 px-2.5 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
               currentView === 'automations'
                 ? 'bg-accent text-white shadow-sm'
                 : 'text-fg-muted hover:text-fg hover:bg-panel'
             }`}
+            title="Automazioni e Task Periodici"
           >
-            <Workflow size={14} />
-            <span>Automations</span>
+            <Workflow size={13} />
+            <span className="truncate">Automations</span>
+          </button>
+          <button
+            onClick={() => onViewChange('calendar')}
+            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
+              currentView === 'calendar'
+                ? 'bg-accent text-white shadow-sm'
+                : 'text-fg-muted hover:text-fg hover:bg-panel'
+            }`}
+            title="Calendario ed Eventi"
+          >
+            <Calendar size={13} />
+            <span className="truncate">Calendario</span>
           </button>
         </div>
       )}

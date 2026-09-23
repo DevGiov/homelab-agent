@@ -184,6 +184,8 @@ class IntegrationManager:
                 outcome = self._test_github_connection(cfg, sec)
             elif stype == "home_assistant":
                 outcome = self._test_home_assistant_connection(cfg, sec)
+            elif stype in ("google_calendar", "caldav", "webcal"):
+                outcome = self._test_calendar_connection(cfg, sec)
             elif stype == "generic_secret":
                 outcome = {"success": True, "message": f"{len(sec)} secret configurati correttamente."}
             else:
@@ -286,6 +288,43 @@ class IntegrationManager:
                 }
         except Exception as e:
             return {"success": False, "error": f"Errore connessione Home Assistant su {base_url}: {str(e)}"}
+
+    def _test_calendar_connection(self, cfg: Dict[str, Any], sec: Dict[str, Any]) -> Dict[str, Any]:
+        """Testa la connettività con feed iCal / Google Calendar o server CalDAV."""
+        url = cfg.get("ical_feed_url") or cfg.get("url") or cfg.get("feed_url")
+        if not url:
+            return {"success": False, "error": "Parametro 'ical_feed_url' (o 'url') mancante nella configurazione."}
+
+        clean_url = url
+        if clean_url.startswith("webcal://"):
+            clean_url = "https://" + clean_url[9:]
+
+        headers = {"User-Agent": "Homelab-Agent-Calendar/1.0"}
+        token = sec.get("api_key") or sec.get("token") or sec.get("oauth_token")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        req = urllib.request.Request(clean_url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                sample = resp.read(2048).decode("utf-8", errors="replace")
+                if "BEGIN:VCALENDAR" in sample or "VCALENDAR" in sample:
+                    return {
+                        "success": True,
+                        "message": "Feed del calendario verificato con successo (formato iCalendar RFC 5545 valido).",
+                    }
+                elif resp.status in (200, 204):
+                    return {
+                        "success": True,
+                        "message": f"Endpoint del calendario raggiungibile (HTTP {resp.status}).",
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Risposta inaspettata dal server (HTTP {resp.status}).",
+                    }
+        except Exception as e:
+            return {"success": False, "error": f"Errore connessione al calendario: {str(e)}"}
 
     def get_active_credentials(self, service_type: str, account_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restituisce la configurazione e i secret decifrati dell'integrazione attiva per il service_type (e opzionale account_id)."""
