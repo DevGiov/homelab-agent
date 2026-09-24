@@ -30,6 +30,7 @@ import {
   Edit2,
   Globe,
   Clock,
+  Menu,
 } from 'lucide-react';
 import {
   fetchAutomations,
@@ -65,7 +66,11 @@ import { ArtifactsView } from './ArtifactsView';
 import { EditAutomationModal } from './EditAutomationModal';
 import { TriggerEditorModal } from './TriggerEditorModal';
 
-export const AutomationsView: React.FC = () => {
+interface AutomationsViewProps {
+  onOpenMobileSidebar?: () => void;
+}
+
+export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSidebar }) => {
   const [activeTab, setActiveTab] = useState<'automations' | 'artifacts' | 'runs' | 'approvals' | 'templates' | 'integrations'>('automations');
   const [automations, setAutomations] = useState<AutomationSummary[]>([]);
   const [runs, setRuns] = useState<AutomationRunSummary[]>([]);
@@ -369,6 +374,15 @@ export const AutomationsView: React.FC = () => {
       {/* Top Header Bar */}
       <div className="p-3 sm:p-4 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {onOpenMobileSidebar && (
+            <button
+              onClick={onOpenMobileSidebar}
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0"
+              title="Apri menu principale"
+            >
+              <Menu size={20} />
+            </button>
+          )}
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm shrink-0">
             <Workflow size={18} />
           </div>

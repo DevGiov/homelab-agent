@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Security
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Security, UploadFile
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
@@ -252,3 +252,151 @@ async def sync_calendars():
     """Attiva la sincronizzazione per tutti i calendari esterni collegati."""
     res = calendar_sync.sync_all_external_calendars()
     return {"status": "completed", "result": res}
+
+
+class ImportUrlRequest(BaseModel):
+    url: str = Field(..., description="URL feed iCal o Google Calendar (secret iCal address o Webcal)")
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+
+@router.post("/import/url")
+async def import_calendar_feed(payload: ImportUrlRequest):
+    """Importa o sottoscrive un feed iCal (Google Calendar, Webcal o iCalendar remoto)."""
+    feed_url = payload.url.strip()
+    if not feed_url:
+        raise HTTPException(status_code=400, detail="URL non specificato.")
+
+    provider = "google" if "google.com" in feed_url.lower() else "webcal"
+    cal_name = payload.name.strip() if payload.name and payload.name.strip() else ("Google Calendar" if provider == "google" else "Feed Sottoscritto")
+    cal_color = payload.color or ("#4285f4" if provider == "google" else "#06b6d4")
+
+    # Crea il calendario
+    cal = calendar_db.create_calendar({
+        "name": cal_name,
+        "color": cal_color,
+        "source": provider,
+        "sync_url": feed_url,
+        "is_visible": True,
+        "is_read_only": False,
+    })
+    cal_id = cal["id"]
+
+    # Esegui subito la sincronizzazione degli eventi
+    sync_res = calendar_sync.fetch_and_sync_ical_feed(feed_url, calendar_id=cal_id)
+    return {
+        "status": "success",
+        "calendar": calendar_db.get_calendar(cal_id),
+        "synced_count": sync_res.get("synced_count", 0),
+        "total_parsed": sync_res.get("total_parsed", 0),
+        "sync_details": sync_res,
+    }
+
+
+class ImportIcsRequest(BaseModel):
+    ics_content: str = Field(..., description="Contenuto raw del file iCalendar (.ics)")
+    calendar_id: Optional[str] = None
+    calendar_name: Optional[str] = None
+    color: Optional[str] = None
+
+
+@router.post("/import/ics")
+async def import_ics_events(payload: ImportIcsRequest):
+    """Importa eventi da una stringa raw iCalendar (.ics)."""
+    ics_text = payload.ics_content
+    if not ics_text or not ics_text.strip():
+        raise HTTPException(status_code=400, detail="Nessun contenuto .ics fornito.")
+
+    target_cal_id = payload.calendar_id
+    if not target_cal_id:
+        new_cal = calendar_db.create_calendar({
+            "name": payload.calendar_name or "Calendario Importato",
+            "color": payload.color or "#10b981",
+            "source": "local",
+            "is_visible": True,
+            "is_read_only": False,
+        })
+        target_cal_id = new_cal["id"]
+
+    parsed_events = calendar_sync.parse_ical_text(ics_text)
+    imported = 0
+    for ev in parsed_events:
+        dtstart = ev.get("dtstart")
+        if not dtstart:
+            continue
+        ev_data = {
+            "calendar_id": target_cal_id,
+            "summary": ev.get("summary", "Evento Importato"),
+            "description": ev.get("description", ""),
+            "location": ev.get("location", ""),
+            "dtstart": dtstart,
+            "dtend": ev.get("dtend"),
+            "all_day": ev.get("all_day", False),
+            "category": ev.get("category", "imported"),
+            "source_type": "imported",
+        }
+        calendar_db.create_event(ev_data)
+        imported += 1
+
+    return {
+        "status": "success",
+        "calendar": calendar_db.get_calendar(target_cal_id),
+        "calendar_id": target_cal_id,
+        "imported_count": imported,
+        "total_parsed": len(parsed_events),
+    }
+
+
+@router.post("/import/file")
+async def import_ics_file(
+    file: UploadFile = File(...),
+    calendar_id: Optional[str] = Form(default=None),
+    calendar_name: Optional[str] = Form(default=None),
+    color: Optional[str] = Form(default=None),
+):
+    """Importa eventi caricando direttamente un file .ics."""
+    content_bytes = await file.read()
+    ics_text = content_bytes.decode("utf-8", errors="replace")
+    if not ics_text.strip():
+        raise HTTPException(status_code=400, detail="Il file caricato è vuoto.")
+
+    target_cal_id = calendar_id
+    target_cal_name = calendar_name or (file.filename.replace(".ics", "") if file.filename else "File ICS")
+
+    if not target_cal_id:
+        new_cal = calendar_db.create_calendar({
+            "name": target_cal_name,
+            "color": color or "#10b981",
+            "source": "local",
+            "is_visible": True,
+            "is_read_only": False,
+        })
+        target_cal_id = new_cal["id"]
+
+    parsed_events = calendar_sync.parse_ical_text(ics_text)
+    imported = 0
+    for ev in parsed_events:
+        dtstart = ev.get("dtstart")
+        if not dtstart:
+            continue
+        ev_data = {
+            "calendar_id": target_cal_id,
+            "summary": ev.get("summary", "Evento Importato"),
+            "description": ev.get("description", ""),
+            "location": ev.get("location", ""),
+            "dtstart": dtstart,
+            "dtend": ev.get("dtend"),
+            "all_day": ev.get("all_day", False),
+            "category": ev.get("category", "imported"),
+            "source_type": "imported",
+        }
+        calendar_db.create_event(ev_data)
+        imported += 1
+
+    return {
+        "status": "success",
+        "calendar": calendar_db.get_calendar(target_cal_id),
+        "calendar_id": target_cal_id,
+        "imported_count": imported,
+        "total_parsed": len(parsed_events),
+    }

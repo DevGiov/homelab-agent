@@ -241,7 +241,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Titolo */}
           <div>
-            <label className="block text-xs font-medium text-fg-muted mb-1.5">
+            <label className="block text-xs font-medium text-fg/90 mb-1.5">
               Titolo Evento <span className="text-rose-400">*</span>
             </label>
             <input
@@ -250,23 +250,23 @@ export const EventModal: React.FC<EventModalProps> = ({
               onChange={e => setSummary(e.target.value)}
               placeholder="es. Riunione Team Progetto, Manutenzione Homelab..."
               required
-              className="w-full px-3.5 py-2.5 bg-input border border-border/70 rounded-xl text-sm text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-inner"
+              className="w-full px-3.5 py-2.5 bg-input-bg text-fg border border-input-border rounded-xl text-sm placeholder:text-fg-muted/70 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-inner"
             />
           </div>
 
           {/* Calendario & Categoria */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-fg-muted mb-1.5">
+              <label className="block text-xs font-medium text-fg/90 mb-1.5">
                 Calendario
               </label>
               <select
                 value={calendarId}
                 onChange={e => setCalendarId(e.target.value)}
-                className="w-full px-3 py-2 bg-input border border-border/70 rounded-xl text-xs text-fg focus:outline-none focus:border-accent transition"
+                className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:outline-none focus:border-accent transition cursor-pointer"
               >
                 {calendars.map(c => (
-                  <option key={c.id} value={c.id}>
+                  <option key={c.id} value={c.id} className="bg-panel text-fg">
                     {c.name} {c.is_read_only ? '(Sola lettura)' : ''}
                   </option>
                 ))}
@@ -274,20 +274,20 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-fg-muted mb-1.5 flex items-center gap-1">
+              <label className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
                 <Tag size={12} /> Categoria
               </label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-input border border-border/70 rounded-xl text-xs text-fg focus:outline-none focus:border-accent transition"
+                className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:outline-none focus:border-accent transition cursor-pointer"
               >
-                <option value="meeting">Riunione / Meeting</option>
-                <option value="personal">Personale</option>
-                <option value="homelab">Homelab / Server</option>
-                <option value="flight">Viaggio / Volo</option>
-                <option value="reminder">Promemoria</option>
-                <option value="general">Generale</option>
+                <option value="meeting" className="bg-panel text-fg">Riunione / Meeting</option>
+                <option value="personal" className="bg-panel text-fg">Personale</option>
+                <option value="homelab" className="bg-panel text-fg">Homelab / Server</option>
+                <option value="flight" className="bg-panel text-fg">Viaggio / Volo</option>
+                <option value="reminder" className="bg-panel text-fg">Promemoria</option>
+                <option value="general" className="bg-panel text-fg">Generale</option>
               </select>
             </div>
           </div>
@@ -299,18 +299,18 @@ export const EventModal: React.FC<EventModalProps> = ({
               id="allDay"
               checked={allDay}
               onChange={e => setAllDay(e.target.checked)}
-              className="rounded border-border text-accent focus:ring-accent"
+              className="rounded border-input-border text-accent focus:ring-accent bg-input-bg"
             />
-            <label htmlFor="allDay" className="text-xs text-fg cursor-pointer select-none">
+            <label htmlFor="allDay" className="text-xs font-medium text-fg cursor-pointer select-none">
               Evento per l'intera giornata
             </label>
           </div>
 
           {/* Date & Orari */}
-          <div className="p-3.5 bg-panel-header/30 border border-border/40 rounded-xl space-y-3">
+          <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-fg-muted mb-1 flex items-center gap-1">
+                <label className="block text-[11px] font-medium text-fg/90 mb-1 flex items-center gap-1">
                   <Clock size={12} /> {allDay ? 'Data' : 'Inizio'}
                 </label>
                 <input
@@ -318,20 +318,21 @@ export const EventModal: React.FC<EventModalProps> = ({
                   value={dtstart}
                   onChange={e => setDtstart(e.target.value)}
                   required
-                  className="w-full px-3 py-2 bg-input border border-border/70 rounded-lg text-xs text-fg focus:outline-none focus:border-accent transition"
+                  style={{ colorScheme: 'dark' }}
+                  className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:outline-none focus:border-accent transition"
                 />
               </div>
 
               {!allDay && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-medium text-fg-muted">
+                    <label className="text-[11px] font-medium text-fg/90">
                       {useDuration ? 'Durata' : 'Fine'}
                     </label>
                     <button
                       type="button"
                       onClick={() => setUseDuration(!useDuration)}
-                      className="text-[10px] text-accent hover:underline cursor-pointer"
+                      className="text-[10px] text-accent hover:underline cursor-pointer font-medium"
                     >
                       {useDuration ? 'Specifica orario fine' : 'Usa durata'}
                     </button>
@@ -341,23 +342,24 @@ export const EventModal: React.FC<EventModalProps> = ({
                     <select
                       value={duration}
                       onChange={e => setDuration(e.target.value)}
-                      className="w-full px-3 py-2 bg-input border border-border/70 rounded-lg text-xs text-fg focus:outline-none focus:border-accent transition"
+                      className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:outline-none focus:border-accent transition cursor-pointer"
                     >
-                      <option value="15m">15 minuti</option>
-                      <option value="30m">30 minuti</option>
-                      <option value="45m">45 minuti</option>
-                      <option value="1h">1 ora</option>
-                      <option value="1h30m">1 ora e 30m</option>
-                      <option value="2h">2 ore</option>
-                      <option value="3h">3 ore</option>
-                      <option value="4h">4 ore</option>
+                      <option value="15m" className="bg-panel text-fg">15 minuti</option>
+                      <option value="30m" className="bg-panel text-fg">30 minuti</option>
+                      <option value="45m" className="bg-panel text-fg">45 minuti</option>
+                      <option value="1h" className="bg-panel text-fg">1 ora</option>
+                      <option value="1h30m" className="bg-panel text-fg">1 ora e 30m</option>
+                      <option value="2h" className="bg-panel text-fg">2 ore</option>
+                      <option value="3h" className="bg-panel text-fg">3 ore</option>
+                      <option value="4h" className="bg-panel text-fg">4 ore</option>
                     </select>
                   ) : (
                     <input
                       type="datetime-local"
                       value={dtend}
                       onChange={e => setDtend(e.target.value)}
-                      className="w-full px-3 py-2 bg-input border border-border/70 rounded-lg text-xs text-fg focus:outline-none focus:border-accent transition"
+                      style={{ colorScheme: 'dark' }}
+                      className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:outline-none focus:border-accent transition"
                     />
                   )}
                 </div>
@@ -367,7 +369,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Luogo / Link Meeting */}
           <div>
-            <label className="block text-xs font-medium text-fg-muted mb-1.5 flex items-center gap-1">
+            <label className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
               <MapPin size={12} /> Luogo o Link Virtuale
             </label>
             <input
@@ -375,13 +377,13 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={location}
               onChange={e => setLocation(e.target.value)}
               placeholder="es. Stanza 3A, oppure https://meet.google.com/xyz..."
-              className="w-full px-3.5 py-2 bg-input border border-border/70 rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition"
+              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs placeholder:text-fg-muted/70 focus:outline-none focus:border-accent transition"
             />
           </div>
 
           {/* Descrizione / Note */}
           <div>
-            <label className="block text-xs font-medium text-fg-muted mb-1.5">
+            <label className="block text-xs font-medium text-fg/90 mb-1.5">
               Descrizione / Note
             </label>
             <textarea
@@ -389,7 +391,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Aggiungi ordine del giorno, codici prenotazione, note o dettagli..."
-              className="w-full px-3.5 py-2 bg-input border border-border/70 rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition resize-none"
+              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs placeholder:text-fg-muted/70 focus:outline-none focus:border-accent transition resize-none"
             />
           </div>
 

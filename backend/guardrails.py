@@ -119,7 +119,7 @@ HIGH_RISK_TOOLS = {
     "run_agy_bootstrap", "create_service", "create_lxc_from_template",
     "exec_lxc_command", "start_container", "resize_lxc_disk", "update_lxc_resources",
     "allocate_ip", "add_pihole_dns_record", "create_npm_proxy_host",
-    "calendar_delete_event",
+    "calendar_delete_event", "calendar_delete_calendar",
 }
 
 TOOL_CATEGORIES = {
@@ -142,6 +142,8 @@ TOOL_CATEGORIES = {
     "calendar_get_event": "calendar.read", "calendar_check_availability": "calendar.read",
     "calendar_create_event": "calendar.write", "calendar_update_event": "calendar.write",
     "calendar_delete_event": "calendar.destructive",
+    "calendar_create_calendar": "calendar.write", "calendar_update_calendar": "calendar.write",
+    "calendar_delete_calendar": "calendar.destructive", "calendar_import_feed": "calendar.write",
 }
 
 

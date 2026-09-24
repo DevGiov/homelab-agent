@@ -265,12 +265,104 @@ class CalendarRegistry(BaseToolRegistry):
                     },
                 },
             },
+            {
+                "name": "calendar_create_calendar",
+                "description": "Crea un nuovo calendario (es. 'Lavoro', 'Palestra', 'Progetto Homelab') specificando nome, colore esadecimale e descrizione.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Nome del nuovo calendario.",
+                        },
+                        "color": {
+                            "type": "string",
+                            "description": "Colore esadecimale (es. '#10b981', '#f59e0b', '#3b82f6'). Default '#3b82f6'.",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Descrizione facoltativa dello scopo del calendario.",
+                        },
+                    },
+                    "required": ["name"],
+                },
+            },
+            {
+                "name": "calendar_update_calendar",
+                "description": "Modifica o rinomina un calendario esistente (nome, colore o visibilità).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "ID o nome del calendario da modificare.",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Nuovo nome del calendario (opzionale).",
+                        },
+                        "color": {
+                            "type": "string",
+                            "description": "Nuovo colore esadecimale (opzionale).",
+                        },
+                        "is_visible": {
+                            "type": "boolean",
+                            "description": "Visibilità del calendario (opzionale).",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+            },
+            {
+                "name": "calendar_delete_calendar",
+                "description": "Elimina un calendario e tutti i suoi eventi associati.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "ID o nome del calendario da eliminare.",
+                        },
+                    },
+                    "required": ["calendar_id"],
+                },
+            },
+            {
+                "name": "calendar_import_feed",
+                "description": "Sottoscrive o importa un feed esterno iCal o Google Calendar tramite URL.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "URL del feed (es. indirizzo segreto iCal di Google Calendar https://calendar.google.com/calendar/ical/.../basic.ics o webcal://).",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Nome da assegnare al calendario (opzionale).",
+                        },
+                        "color": {
+                            "type": "string",
+                            "description": "Colore esadecimale (opzionale).",
+                        },
+                    },
+                    "required": ["url"],
+                },
+            },
         ]
 
     def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
         try:
             if tool_name == "calendar_list_calendars":
                 return self._list_calendars()
+            elif tool_name == "calendar_create_calendar":
+                return self._create_calendar(args)
+            elif tool_name == "calendar_update_calendar":
+                return self._update_calendar(args)
+            elif tool_name == "calendar_delete_calendar":
+                return self._delete_calendar(args)
+            elif tool_name == "calendar_import_feed":
+                return self._import_feed(args)
             elif tool_name == "calendar_list_events":
                 return self._list_events(args)
             elif tool_name == "calendar_get_event":
@@ -295,6 +387,93 @@ class CalendarRegistry(BaseToolRegistry):
             "status": "success",
             "count": len(cals),
             "calendars": cals,
+        }
+
+    def _find_calendar_id(self, cal_id_or_name: str) -> Optional[str]:
+        if not cal_id_or_name:
+            return None
+        cals = calendar_db.list_calendars()
+        for c in cals:
+            if c["id"] == cal_id_or_name or c["name"].lower() == cal_id_or_name.lower():
+                return c["id"]
+        return None
+
+    def _create_calendar(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        name = args.get("name", "").strip()
+        if not name:
+            return {"error": "Nome calendario obbligatorio"}
+        color = args.get("color") or "#3b82f6"
+        desc = args.get("description", "")
+        cal = calendar_db.create_calendar({
+            "name": name,
+            "color": color,
+            "description": desc,
+            "source": "local",
+            "is_visible": True,
+            "is_read_only": False,
+        })
+        return {
+            "status": "created",
+            "calendar": cal,
+            "message": f"Calendario '{name}' creato con successo (ID: {cal['id']})."
+        }
+
+    def _update_calendar(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        cal_id_or_name = args.get("calendar_id", "").strip()
+        target_id = self._find_calendar_id(cal_id_or_name)
+        if not target_id:
+            return {"error": f"Calendario '{cal_id_or_name}' non trovato"}
+        updates: Dict[str, Any] = {}
+        if "name" in args and args["name"]:
+            updates["name"] = args["name"].strip()
+        if "color" in args and args["color"]:
+            updates["color"] = args["color"].strip()
+        if "is_visible" in args:
+            updates["is_visible"] = bool(args["is_visible"])
+        cal = calendar_db.update_calendar(target_id, updates)
+        return {
+            "status": "updated",
+            "calendar": cal,
+            "message": f"Calendario '{target_id}' aggiornato con successo."
+        }
+
+    def _delete_calendar(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        cal_id_or_name = args.get("calendar_id", "").strip()
+        target_id = self._find_calendar_id(cal_id_or_name)
+        if not target_id:
+            return {"error": f"Calendario '{cal_id_or_name}' non trovato"}
+        cals = calendar_db.list_calendars()
+        if len(cals) <= 1:
+            return {"error": "Impossibile eliminare l'unico calendario rimasto nel sistema."}
+        deleted = calendar_db.delete_calendar(target_id)
+        return {
+            "status": "deleted" if deleted else "not_found",
+            "calendar_id": target_id,
+            "message": f"Calendario '{cal_id_or_name}' eliminato con successo." if deleted else "Errore eliminazione."
+        }
+
+    def _import_feed(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        url = args.get("url", "").strip()
+        if not url:
+            return {"error": "URL feed obbligatorio"}
+        import calendar_sync
+        provider = "google" if "google.com" in url.lower() else "webcal"
+        name = args.get("name") or ("Google Calendar" if provider == "google" else "Feed Sottoscritto")
+        color = args.get("color") or ("#4285f4" if provider == "google" else "#06b6d4")
+        cal = calendar_db.create_calendar({
+            "name": name,
+            "color": color,
+            "source": provider,
+            "sync_url": url,
+            "is_visible": True,
+            "is_read_only": False,
+        })
+        sync_res = calendar_sync.fetch_and_sync_ical_feed(url, calendar_id=cal["id"])
+        return {
+            "status": "success",
+            "calendar": calendar_db.get_calendar(cal["id"]),
+            "synced_events": sync_res.get("synced_count", 0),
+            "message": f"Feed importato con successo nel calendario '{name}': {sync_res.get('synced_count', 0)} eventi sincronizzati."
         }
 
     def _list_events(self, args: Dict[str, Any]) -> Dict[str, Any]:

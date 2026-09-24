@@ -92,6 +92,35 @@ class TestCalendarAPI(unittest.TestCase):
         self.assertEqual(avail_res.status_code, 200)
         self.assertFalse(avail_res.json()["available"])
 
+    def test_import_ics_events(self):
+        sample_ics = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//EN
+BEGIN:VEVENT
+UID:sample_ics_event_1
+SUMMARY:Incontro Standup Importato
+DTSTART:20261115T090000Z
+DTEND:20261115T093000Z
+DESCRIPTION:Descrizione evento da file ics
+LOCATION:Sala Conferenze
+END:VEVENT
+END:VCALENDAR"""
+
+        res = self.client.post("/v1/calendar/import/ics", json={
+            "ics_content": sample_ics,
+            "calendar_name": "Test ICS Import",
+            "color": "#10b981",
+        }, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["imported_count"], 1)
+
+        # Verifica presenza evento
+        events = calendar_db.list_events(query="Incontro Standup Importato")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["summary"], "Incontro Standup Importato")
+
 
 class TestCalendarAutomation(unittest.TestCase):
     def setUp(self):

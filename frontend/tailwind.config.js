@@ -37,6 +37,7 @@ export default {
           DEFAULT: 'var(--agent-bubble-bg)',
         },
         input: {
+          DEFAULT: 'var(--input-bg)',
           bg: 'var(--input-bg)',
           border: 'var(--input-border)',
         },

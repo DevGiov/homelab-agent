@@ -172,11 +172,12 @@ function MainLayout() {
           </div>
         </>
       ) : currentView === 'automations' ? (
-        <AutomationsView />
+        <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
       ) : (
         <CalendarView
           initialEventUid={targetEventUid}
           onClearInitialEvent={() => setTargetEventUid(null)}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
         />
       )}
     </div>

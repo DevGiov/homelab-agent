@@ -161,4 +161,52 @@ export const calendarApi = {
     const res = await api.post<{ status: string; result: any }>('/calendar/sync');
     return res.data;
   },
+
+  async importIcsUrl(data: {
+    url: string;
+    name?: string;
+    color?: string;
+  }): Promise<{ status: string; calendar: CalendarItem; synced_count: number }> {
+    const res = await api.post<{ status: string; calendar: CalendarItem; synced_count: number }>(
+      '/calendar/import/url',
+      data
+    );
+    return res.data;
+  },
+
+  async importIcsFile(
+    file: File,
+    calendarId?: string,
+    calendarName?: string,
+    color?: string
+  ): Promise<{ status: string; calendar: CalendarItem; imported_count: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (calendarId) formData.append('calendar_id', calendarId);
+    if (calendarName) formData.append('calendar_name', calendarName);
+    if (color) formData.append('color', color);
+
+    const res = await api.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
+      '/calendar/import/file',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return res.data;
+  },
+
+  async importIcsRaw(data: {
+    ics_content: string;
+    calendar_id?: string;
+    calendar_name?: string;
+    color?: string;
+  }): Promise<{ status: string; calendar: CalendarItem; imported_count: number }> {
+    const res = await api.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
+      '/calendar/import/ics',
+      data
+    );
+    return res.data;
+  },
 };
+

@@ -12,19 +12,25 @@ import {
   Check,
   CalendarDays,
   ExternalLink,
+  Menu,
+  Settings,
+  X,
 } from 'lucide-react';
 import type { CalendarItem, CalendarEventItem } from '../../api/calendarApi';
 import { calendarApi } from '../../api/calendarApi';
 import { EventModal } from './EventModal';
+import { CalendarManageModal } from './CalendarManageModal';
 
 interface CalendarViewProps {
   initialEventUid?: string | null;
   onClearInitialEvent?: () => void;
+  onOpenMobileSidebar?: () => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   initialEventUid,
   onClearInitialEvent,
+  onOpenMobileSidebar,
 }) => {
   const [calendars, setCalendars] = useState<CalendarItem[]>([]);
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
@@ -36,11 +42,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'agenda'>('month');
 
-  // Filtri
+  // Filtri & Sidebar
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [mobileSelectedDate, setMobileSelectedDate] = useState<string | null>(null);
+
+  // Modale Gestione Calendari
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
 
   // Modale Evento
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -260,10 +270,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative">
       {/* Top Navbar / Control Header */}
-      <header className="px-5 py-3 border-b border-border/70 glass-panel bg-panel/70 flex flex-wrap items-center justify-between gap-3 shrink-0">
-        {/* Sinistra: Navigazione Data */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1 bg-input/60 border border-border/60 rounded-xl p-1 shadow-inner">
+      <header className="px-3 sm:px-5 py-3 border-b border-border/70 glass-panel bg-panel/70 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0">
+        {/* Sinistra: Navigazione Data & Mobile Hamburger */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {onOpenMobileSidebar && (
+            <button
+              onClick={onOpenMobileSidebar}
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0 cursor-pointer"
+              title="Apri menu principale"
+            >
+              <Menu size={20} />
+            </button>
+          )}
+
+          <div className="flex items-center gap-1 bg-input-bg border border-input-border rounded-xl p-1 shadow-inner shrink-0">
             <button
               onClick={handlePrev}
               className="p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
@@ -273,7 +293,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
             <button
               onClick={handleToday}
-              className="px-2.5 py-1 text-xs font-medium text-fg hover:bg-panel-hover rounded-lg transition cursor-pointer"
+              className="px-2 py-1 text-xs font-medium text-fg hover:bg-panel-hover rounded-lg transition cursor-pointer"
             >
               Oggi
             </button>
@@ -286,18 +306,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
-          <h2 className="text-base sm:text-lg font-semibold text-fg tracking-tight min-w-[160px]">
+          <h2 className="text-sm sm:text-lg font-semibold text-fg tracking-tight truncate">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
         </div>
 
-        {/* Centro/Destra: View Mode Toggle & Azioni */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Destra: View Mode Toggle & Azioni */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Selettore Viste (Mese / Settimana / Agenda) */}
-          <div className="flex items-center bg-input/60 border border-border/60 rounded-xl p-1 text-xs shadow-inner">
+          <div className="flex items-center bg-input-bg border border-input-border rounded-xl p-1 text-xs shadow-inner">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
                 viewMode === 'month'
                   ? 'bg-accent text-white shadow-sm'
                   : 'text-fg-muted hover:text-fg'
@@ -307,7 +327,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
                 viewMode === 'week'
                   ? 'bg-accent text-white shadow-sm'
                   : 'text-fg-muted hover:text-fg'
@@ -317,7 +337,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
             <button
               onClick={() => setViewMode('agenda')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
                 viewMode === 'agenda'
                   ? 'bg-accent text-white shadow-sm'
                   : 'text-fg-muted hover:text-fg'
@@ -327,11 +347,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
+          {/* Gestisci Calendari & Import */}
+          <button
+            onClick={() => setIsManageModalOpen(true)}
+            className="p-2 bg-input-bg hover:bg-panel-hover text-fg-muted hover:text-fg border border-input-border rounded-xl transition cursor-pointer"
+            title="Gestione Calendari & Import"
+          >
+            <Settings size={15} />
+          </button>
+
           {/* Sync Button */}
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="p-2 bg-input/60 hover:bg-panel-hover text-fg-muted hover:text-fg border border-border/60 rounded-xl transition cursor-pointer disabled:opacity-50"
+            className="p-2 bg-input-bg hover:bg-panel-hover text-fg-muted hover:text-fg border border-input-border rounded-xl transition cursor-pointer disabled:opacity-50"
             title="Sincronizza calendari esterni"
           >
             <RefreshCw size={15} className={isSyncing ? 'animate-spin text-accent' : ''} />
@@ -344,7 +373,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               setEventToEdit(null);
               setIsModalOpen(true);
             }}
-            className="px-3.5 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer"
+            className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer"
           >
             <Plus size={15} />
             <span className="hidden sm:inline">Nuovo Evento</span>
@@ -353,8 +382,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {/* Toggle Sidebar Filtri su Mobile */}
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 md:hidden bg-input/60 text-fg-muted hover:text-fg border border-border/60 rounded-xl transition"
-            title="Filtri"
+            className={`p-2 md:hidden rounded-xl border transition cursor-pointer ${
+              isSidebarOpen
+                ? 'bg-accent text-white border-accent'
+                : 'bg-input-bg text-fg-muted hover:text-fg border-input-border'
+            }`}
+            title="Filtri e calendari"
           >
             <Filter size={15} />
           </button>
@@ -372,124 +405,172 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Main Content Area: Sidebar + Grid */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Filtri & Calendari */}
-        <aside
-          className={`${
-            isSidebarOpen ? 'w-64 border-r' : 'w-0 border-r-0'
-          } border-border/60 glass-panel bg-panel/40 flex flex-col shrink-0 transition-all duration-300 overflow-hidden`}
-        >
-          <div className="p-4 space-y-5 overflow-y-auto flex-1">
-            {/* Ricerca Rapida */}
-            <div>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-2.5 text-fg-muted" />
-                <input
-                  type="text"
-                  placeholder="Cerca eventi..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-input border border-border/60 rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition"
-                />
-              </div>
-            </div>
-
-            {/* Lista Calendari */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase">
-                  I Miei Calendari
-                </span>
-                <span className="text-[10px] text-fg-muted bg-panel px-1.5 py-0.5 rounded-full border border-border/50">
-                  {calendars.length}
-                </span>
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Contenuto Sidebar condivisibile */}
+        {(() => {
+          const sidebarContent = (
+            <div className="p-4 space-y-5 overflow-y-auto flex-1">
+              {/* Ricerca Rapida */}
+              <div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-2.5 text-fg-muted" />
+                  <input
+                    type="text"
+                    placeholder="Cerca eventi..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-input-bg border border-input-border rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                {calendars.map(c => {
-                  const isChecked = visibleCalendarIds.has(c.id);
-                  return (
-                    <div
-                      key={c.id}
-                      onClick={() => toggleCalendarVisibility(c.id)}
-                      className={`px-2.5 py-1.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition select-none ${
-                        isChecked
-                          ? 'bg-panel-hover/50 border-border/70 text-fg'
-                          : 'bg-transparent border-transparent text-fg-muted/60 hover:bg-panel-hover/30'
-                      }`}
+              {/* Lista Calendari */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase">
+                    I Miei Calendari
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setIsManageModalOpen(true)}
+                      className="p-1 text-fg-muted hover:text-accent hover:bg-panel-hover rounded-md transition"
+                      title="Gestisci calendari e import"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                          style={{ backgroundColor: c.color || '#3b82f6' }}
-                        />
-                        <span className="truncate font-medium">{c.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {c.event_count !== undefined && (
-                          <span className="text-[10px] text-fg-muted">{c.event_count}</span>
-                        )}
-                        <div
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
-                            isChecked
-                              ? 'bg-accent border-accent text-white'
-                              : 'border-border/80 bg-input'
-                          }`}
-                        >
-                          {isChecked && <Check size={10} strokeWidth={3} />}
+                      <Settings size={13} />
+                    </button>
+                    <span className="text-[10px] text-fg-muted bg-panel px-1.5 py-0.5 rounded-full border border-border/50">
+                      {calendars.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {calendars.map(c => {
+                    const isChecked = visibleCalendarIds.has(c.id);
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => toggleCalendarVisibility(c.id)}
+                        className={`px-2.5 py-1.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition select-none ${
+                          isChecked
+                            ? 'bg-panel-hover/50 border-border/70 text-fg'
+                            : 'bg-transparent border-transparent text-fg-muted/60 hover:bg-panel-hover/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                            style={{ backgroundColor: c.color || '#3b82f6' }}
+                          />
+                          <span className="truncate font-medium">{c.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {c.event_count !== undefined && (
+                            <span className="text-[10px] text-fg-muted">{c.event_count}</span>
+                          )}
+                          <div
+                            className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
+                              isChecked
+                                ? 'bg-accent border-accent text-white'
+                                : 'border-border/80 bg-input-bg'
+                            }`}
+                          >
+                            {isChecked && <Check size={10} strokeWidth={3} />}
+                          </div>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setIsManageModalOpen(true)}
+                  className="w-full mt-2.5 py-1.5 px-2.5 text-xs text-accent hover:bg-accent/10 border border-accent/25 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>Aggiungi / Importa</span>
+                </button>
+              </div>
+
+              {/* Filtro Categorie */}
+              <div>
+                <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase block mb-2">
+                  Categorie
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'all', label: 'Tutte' },
+                    { id: 'meeting', label: 'Meeting' },
+                    { id: 'personal', label: 'Personale' },
+                    { id: 'homelab', label: 'Homelab' },
+                    { id: 'flight', label: 'Viaggi' },
+                    { id: 'reminder', label: 'Promemoria' },
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${
+                        selectedCategory === cat.id
+                          ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
+                          : 'bg-input-bg/40 border-border/40 text-fg-muted hover:text-fg hover:bg-panel-hover'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Summary Card */}
+              <div className="p-3 bg-panel-header/40 border border-border/50 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between text-fg-muted">
+                  <span>Eventi totali</span>
+                  <span className="font-semibold text-fg">{events.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-fg-muted">
+                  <span>Eventi filtrati</span>
+                  <span className="font-semibold text-accent">{filteredEvents.length}</span>
+                </div>
+              </div>
+            </div>
+          );
+
+          return (
+            <>
+              {/* Desktop Sidebar: sempre visibile affiancata */}
+              <aside className="hidden md:flex w-64 border-r border-border/60 glass-panel bg-panel/40 flex-col shrink-0 overflow-hidden">
+                {sidebarContent}
+              </aside>
+
+              {/* Mobile Sidebar: Drawer overlay non distruttivo per la griglia */}
+              {isSidebarOpen && (
+                <div className="fixed inset-0 z-40 md:hidden flex">
+                  <div
+                    className="fixed inset-0 bg-bg/80 backdrop-blur-sm transition-opacity"
+                    onClick={() => setIsSidebarOpen(false)}
+                  />
+                  <div className="relative w-72 max-w-[85vw] h-full bg-panel border-r border-border flex flex-col shadow-2xl z-50">
+                    <div className="p-3 border-b border-border flex items-center justify-between">
+                      <span className="text-xs font-semibold text-fg uppercase tracking-wider">
+                        Filtri & Calendari
+                      </span>
+                      <button
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="p-1 text-fg-muted hover:text-fg rounded-lg"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Filtro Categorie */}
-            <div>
-              <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase block mb-2">
-                Categorie
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { id: 'all', label: 'Tutte' },
-                  { id: 'meeting', label: 'Meeting' },
-                  { id: 'personal', label: 'Personale' },
-                  { id: 'homelab', label: 'Homelab' },
-                  { id: 'flight', label: 'Viaggi' },
-                  { id: 'reminder', label: 'Promemoria' },
-                ].map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${
-                      selectedCategory === cat.id
-                        ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
-                        : 'bg-input/40 border-border/40 text-fg-muted hover:text-fg hover:bg-panel-hover'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Summary Card */}
-            <div className="p-3 bg-panel-header/40 border border-border/50 rounded-xl space-y-1.5 text-xs">
-              <div className="flex items-center justify-between text-fg-muted">
-                <span>Eventi totali</span>
-                <span className="font-semibold text-fg">{events.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-fg-muted">
-                <span>Eventi filtrati</span>
-                <span className="font-semibold text-accent">{filteredEvents.length}</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+                    {sidebarContent}
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Vista Principale Calendario */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col">
+        <main className="flex-1 overflow-y-auto p-2 sm:p-6 flex flex-col min-w-0">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex items-center gap-2 text-fg-muted text-sm">
@@ -501,7 +582,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             /* --- GRIGLIA MESE --- */
             <div className="flex-1 flex flex-col glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30">
               {/* Header Giorni della Settimana */}
-              <div className="grid grid-cols-7 border-b border-border/60 bg-panel-header/60 text-center py-2.5 text-xs font-semibold text-fg-muted">
+              <div className="grid grid-cols-7 border-b border-border/60 bg-panel-header/60 text-center py-2 text-xs font-semibold text-fg-muted">
                 {dayNamesShort.map((d, i) => (
                   <div key={d} className={i >= 5 ? 'text-fg-muted/60' : ''}>
                     {d}
@@ -513,18 +594,28 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-7 flex-1 auto-rows-fr divide-x divide-y divide-border/40 bg-panel/10">
                 {monthDays.map(day => {
                   const dayEvents = eventsByDate.get(day.dateStr) || [];
+                  const isSelectedMobile = mobileSelectedDate === day.dateStr;
+
                   return (
                     <div
                       key={day.dateStr}
-                      onClick={() => handleDayClick(day.dateStr)}
-                      className={`min-h-[100px] p-1.5 sm:p-2 flex flex-col transition cursor-pointer hover:bg-panel-hover/40 relative group ${
+                      onClick={() => {
+                        if (window.innerWidth < 640) {
+                          setMobileSelectedDate(day.dateStr === mobileSelectedDate ? null : day.dateStr);
+                        } else {
+                          handleDayClick(day.dateStr);
+                        }
+                      }}
+                      className={`min-h-[64px] sm:min-h-[100px] p-1 sm:p-2 flex flex-col transition cursor-pointer hover:bg-panel-hover/40 relative group ${
                         !day.isCurrentMonth ? 'opacity-35 bg-background/20' : ''
-                      } ${day.isToday ? 'bg-accent/5' : ''}`}
+                      } ${day.isToday ? 'bg-accent/5' : ''} ${
+                        isSelectedMobile ? 'ring-2 ring-accent ring-inset' : ''
+                      }`}
                     >
                       {/* Intestazione Cella Giorno */}
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                         <span
-                          className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full transition ${
+                          className={`text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full transition ${
                             day.isToday
                               ? 'bg-accent text-white font-bold shadow-sm shadow-accent/40'
                               : 'text-fg-muted group-hover:text-fg'
@@ -538,15 +629,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             e.stopPropagation();
                             handleDayClick(day.dateStr);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-accent rounded transition"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-accent rounded transition hidden sm:block"
                           title="Aggiungi evento qui"
                         >
                           <Plus size={13} />
                         </button>
                       </div>
 
-                      {/* Lista Pillole Eventi */}
-                      <div className="space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
+                      {/* Mobile view: puntini colorati ed eventuale contatore */}
+                      <div className="flex sm:hidden flex-wrap gap-1 justify-center mt-1">
+                        {dayEvents.slice(0, 3).map((ev, i) => (
+                          <span
+                            key={ev.uid || ev.id || i}
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
+                          />
+                        ))}
+                        {dayEvents.length > 3 && (
+                          <span className="text-[9px] text-fg-muted font-bold leading-none">
+                            +{dayEvents.length - 3}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Desktop view: pillole complete */}
+                      <div className="hidden sm:block space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
                         {dayEvents.map(ev => {
                           const calColor = ev.calendar_color || '#3b82f6';
                           const timeStr = ev.all_day
@@ -581,6 +688,53 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   );
                 })}
               </div>
+
+              {/* Dettaglio giorno selezionato su Mobile */}
+              {mobileSelectedDate && (
+                <div className="sm:hidden border-t border-border/70 p-3 bg-panel/95 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-fg">
+                      Eventi del {mobileSelectedDate}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDayClick(mobileSelectedDate)}
+                        className="text-xs text-accent font-medium hover:underline flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Aggiungi
+                      </button>
+                      <button
+                        onClick={() => setMobileSelectedDate(null)}
+                        className="text-fg-muted hover:text-fg p-1"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {(!eventsByDate.get(mobileSelectedDate) || eventsByDate.get(mobileSelectedDate)!.length === 0) ? (
+                      <p className="text-xs text-fg-muted italic py-1">Nessun evento in questa data.</p>
+                    ) : (
+                      eventsByDate.get(mobileSelectedDate)!.map(ev => (
+                        <div
+                          key={ev.uid || ev.id}
+                          onClick={e => handleEventClick(e, ev)}
+                          className="p-2 rounded-lg bg-panel-hover/50 border border-border/50 flex items-center justify-between text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.calendar_color || '#3b82f6' }} />
+                            <span className="font-medium text-fg truncate">{ev.summary}</span>
+                          </div>
+                          <span className="text-[10px] text-fg-muted font-mono shrink-0">
+                            {ev.all_day ? 'Tutto il giorno' : ev.dtstart.substring(11, 16)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : viewMode === 'week' ? (
             /* --- VISTA SETTIMANA --- */
@@ -611,7 +765,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-white' : 'bg-input text-fg'}`}>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-white' : 'bg-input-bg text-fg'}`}>
                             {dayNamesShort[idx]} {dayDate.getDate()} {monthNames[dayDate.getMonth()].substring(0, 3)}
                           </span>
                           {isToday && <span className="text-[10px] text-accent font-semibold uppercase tracking-wider">Oggi</span>}
@@ -702,7 +856,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {ev.summary}
                               </h4>
                               {ev.category && (
-                                <span className="px-2 py-0.5 rounded-md bg-input text-[10px] text-fg-muted font-medium border border-border/50 uppercase">
+                                <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
                                   {ev.category}
                                 </span>
                               )}
@@ -777,6 +931,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         calendars={calendars}
         eventToEdit={eventToEdit}
         defaultDate={selectedDateForNew}
+      />
+
+      {/* Modale Gestione Calendari & Import */}
+      <CalendarManageModal
+        isOpen={isManageModalOpen}
+        onClose={() => setIsManageModalOpen(false)}
+        calendars={calendars}
+        onCalendarsUpdated={() => {
+          loadCalendars();
+          loadEvents();
+        }}
       />
     </div>
   );

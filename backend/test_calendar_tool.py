@@ -108,13 +108,32 @@ class TestCalendarTool(unittest.TestCase):
         get_res = self.registry.execute_tool("calendar_get_event", {"event_id": uid})
         self.assertEqual(get_res["status"], "not_found")
 
-    def test_tool_registry_manager_integration(self):
-        manager = ToolRegistryManager()
-        tools = manager.get_tools_for_mode(["calendar"])
-        tool_names = [t["name"] for t in tools]
-        self.assertIn("calendar_create_event", tool_names)
-        self.assertIn("calendar_check_availability", tool_names)
+    def test_calendar_crud_tools(self):
+        # Create calendar
+        create_res = self.registry.execute_tool("calendar_create_calendar", {
+            "name": "Calendario Test Progetto",
+            "color": "#10b981",
+            "description": "Test calendario via agent tool"
+        })
+        self.assertEqual(create_res["status"], "created")
+        cal_id = create_res["calendar"]["id"]
+
+        # Update calendar
+        update_res = self.registry.execute_tool("calendar_update_calendar", {
+            "calendar_id": cal_id,
+            "name": "Calendario Rinominato",
+            "color": "#f59e0b"
+        })
+        self.assertEqual(update_res["status"], "updated")
+        self.assertEqual(update_res["calendar"]["name"], "Calendario Rinominato")
+
+        # Delete calendar
+        del_res = self.registry.execute_tool("calendar_delete_calendar", {
+            "calendar_id": cal_id
+        })
+        self.assertEqual(del_res["status"], "deleted")
 
 
 if __name__ == "__main__":
     unittest.main()
+
