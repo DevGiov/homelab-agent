@@ -96,19 +96,37 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 
 ---
 
-## 🌐 Deploy & Infrastruttura di Produzione
+## 🌐 Deploy, Stato Dev & Ciclo di Validazione E2E
 
-Lo stack di sviluppo e produzione attivo è deployato all'interno del container Proxmox **CT 125** (`192.168.1.185` / `agent-dev.deggio.local`):
+### Stato Operativo & Filosofia di Sviluppo
+- **Ambiente 'Dev' Attivo**: Ci troviamo in fase di sviluppo attivo sul branch `dev`. L'unica istanza reale in esecuzione è il container Proxmox **CT 125** (`192.168.1.185` / `agent-dev.deggio.local`), che funge da ambiente di test reale.
+- **Codice Pulito & Nessun Obbligo di Retrocompatibilità Legacy**: L'obiettivo è codice pulito e di alta qualità. Non implementare codice legacy o shim complessi per mantenere la compatibilità all'indietro se non strettamente necessari.
+- **Breaking Changes Ammesse**: Sono consentite modifiche architetturali profonde, re-deploy completi dei container (`docker compose up -d --build`) e l'azzeramento o eliminazione di database SQLite legacy per adeguarsi ai nuovi schemi.
 
+### Componenti Stack su CT 125
 - **Backend**: FastAPI su porta interna `8090` (`agent-backend`).
 - **Frontend**: Single Page Application React servita da Nginx su porta `80` (`agent-frontend`), con proxying `/v1/` e disattivazione del buffering SSE (`proxy_buffering off;`).
 - **Nginx Upload Limit**: `client_max_body_size 50M;` per gestire l'upload di immagini ad alta risoluzione senza errori HTTP 413.
 - **Orchestrazione**: `docker-compose.prod.yml` con volumi persistenti per database SQLite, upload e modelli locali.
 
-Comando di aggiornamento rapido via MCP da workstation:
-```python
-exec_lxc_command(
-    vmid=125,
-    command="cd /opt/homelab-agent && git pull origin dev && docker compose -f docker-compose.prod.yml restart backend"
-)
-```
+### Workflow di Deploy e Testing E2E
+1. **Validazione Locale**: Test unitari (`pytest`), linting (`ruff`) e build frontend (`npm run build`).
+2. **Push Git**: `git push origin dev`
+3. **Pull & Rebuild via MCP**:
+   ```python
+   exec_lxc_command(
+       vmid=125,
+       command="cd /opt/homelab-agent && git pull origin dev"
+   )
+   ```
+   Riavvio o rebuild mirato:
+   - Backend: `docker compose -f docker-compose.prod.yml restart backend` (o `up -d --build backend` per modifiche a Dockerfile/dipendenze).
+   - Frontend: `docker compose -f docker-compose.prod.yml up -d --build frontend`.
+4. **Test in-container & API**:
+   ```python
+   exec_lxc_command(vmid=125, command="docker exec agent-backend pytest")
+   exec_lxc_command(vmid=125, command="curl -s http://localhost:8090/v1/health")
+   ```
+5. **Test UI Live via Browser Subagent**: Navigazione su `http://agent-dev.deggio.local` con `browser_subagent` per validare UI, streaming SSE, modali e responsività.
+6. **Iterazione**: Se si riscontrano bug, risolverli localmente, pushare, aggiornare CT 125 e ripetere il test fino a validazione completa. Per anomalie gravi o dubbi architetturali, redigere un report dettagliato.
+
