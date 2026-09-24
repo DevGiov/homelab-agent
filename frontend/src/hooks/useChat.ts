@@ -490,18 +490,31 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     if (!currentThreadId) return;
     setThreadMessagesMap((prev) => {
       const msgs = prev[currentThreadId] || [];
+      const updated = msgs.map((m) => {
+        if (m.id !== messageId || !m.versions || !m.versions[targetIndex]) return m;
+        const targetVer = m.versions[targetIndex];
+        return {
+          ...m,
+          ...targetVer,
+          versionIndex: targetIndex,
+          versions: m.versions,
+        };
+      });
+
+      const lastAssistant = [...updated].reverse().find((m) => m.sender === 'assistant');
+      if (lastAssistant && lastAssistant.id === messageId) {
+        setActiveMode(lastAssistant.mode);
+        setActiveTool(lastAssistant.tool_used);
+        setActivePlan(lastAssistant.plan_steps);
+        setActivePlanStructure(lastAssistant.plan_structure);
+        setActiveExecutionTrace(lastAssistant.execution_trace);
+        setActiveRollbackTrace(lastAssistant.rollback_trace);
+        setActiveWebPrefetch(lastAssistant.web_prefetch);
+      }
+
       return {
         ...prev,
-        [currentThreadId]: msgs.map((m) => {
-          if (m.id !== messageId || !m.versions || !m.versions[targetIndex]) return m;
-          const targetVer = m.versions[targetIndex];
-          return {
-            ...m,
-            ...targetVer,
-            versionIndex: targetIndex,
-            versions: m.versions,
-          };
-        }),
+        [currentThreadId]: updated,
       };
     });
     switchMessageVersion(currentThreadId, messageId, targetIndex);

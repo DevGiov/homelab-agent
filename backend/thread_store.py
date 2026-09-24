@@ -45,6 +45,7 @@ def init_db():
                 version_index INTEGER DEFAULT 0,
                 images_json TEXT,
                 metrics_json TEXT,
+                web_prefetch_json TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (thread_id, message_id)
             )
@@ -58,6 +59,7 @@ def init_db():
             "version_index INTEGER DEFAULT 0",
             "images_json TEXT",
             "metrics_json TEXT",
+            "web_prefetch_json TEXT",
         ]:
             try:
                 cursor.execute(f"ALTER TABLE thread_messages ADD COLUMN {col_def}")
@@ -229,12 +231,15 @@ def save_assistant_message(
         metrics = response_data.get("metrics")
         metrics_json = json.dumps(metrics, ensure_ascii=False) if metrics else None
 
+        web_prefetch = response_data.get("web_prefetch")
+        web_prefetch_json = json.dumps(web_prefetch, ensure_ascii=False) if web_prefetch else None
+
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-             is_error, reasoning_content, versions_json, version_index, metrics_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -252,7 +257,8 @@ def save_assistant_message(
             reasoning_content,
             versions_json,
             v_idx,
-            metrics_json
+            metrics_json,
+            web_prefetch_json
         ))
         conn.commit()
         return msg_id
@@ -327,7 +333,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         cursor.execute("""
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
                    plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-                   is_error, reasoning_content, versions_json, version_index, images_json, metrics_json
+                   is_error, reasoning_content, versions_json, version_index, images_json, metrics_json,
+                   web_prefetch_json
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -339,7 +346,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         for row in rows:
             (m_id, sender, content, ts, mode, tool_used, reasoning,
              ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
-             vers_json, v_idx, img_json, met_json) = row
+             vers_json, v_idx, img_json, met_json, wp_json) = row
 
             versions_parsed = None
             if vers_json:
@@ -362,6 +369,13 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 except Exception:
                     metrics_parsed = None
 
+            web_prefetch_parsed = None
+            if wp_json:
+                try:
+                    web_prefetch_parsed = json.loads(wp_json)
+                except Exception:
+                    web_prefetch_parsed = None
+
             msg_obj = {
                 "id": m_id,
                 "sender": sender,
@@ -379,7 +393,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "versions": versions_parsed,
                 "versionIndex": v_idx if v_idx is not None else 0,
                 "images": images_parsed,
-                "metrics": metrics_parsed
+                "metrics": metrics_parsed,
+                "web_prefetch": web_prefetch_parsed
             }
             messages.append(msg_obj)
 
@@ -490,6 +505,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
 
         images = values.get("images")
+        web_prefetch = values.get("web_prefetch_metadata") or values.get("web_prefetch_data")
 
         completed_turns.append({
             "task": task,
@@ -502,6 +518,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             "rollback_trace": rollback_trace,
             "reasoning_content": reasoning_content,
             "images": images,
+            "web_prefetch": web_prefetch,
         })
 
     # 2. Se non ci sono turni completati (o l'ultimo turno è rimasto interrotto/incompleto)
@@ -523,6 +540,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             final_response = values.get("final_response") or "[Esecuzione interrotta o non completata]"
 
             images = values.get("images")
+            web_prefetch = values.get("web_prefetch_metadata") or values.get("web_prefetch_data")
 
             completed_turns.append({
                 "task": latest_task,
@@ -535,6 +553,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "rollback_trace": rollback_trace,
                 "reasoning_content": reasoning_content,
                 "images": images,
+                "web_prefetch": web_prefetch,
             })
 
     if not completed_turns:
@@ -596,6 +615,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             rt = turn.get("rollback_trace")
             rt_json = json.dumps(rt, ensure_ascii=False) if rt else None
             rc = turn.get("reasoning_content")
+            wp = turn.get("web_prefetch")
+            wp_json = json.dumps(wp, ensure_ascii=False) if wp else None
 
             reasoning = None
             if et and isinstance(et, list):
@@ -607,12 +628,12 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
             cursor.execute("""
                 INSERT OR IGNORE INTO thread_messages
                 (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
-                 plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error, reasoning_content)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json, is_error, reasoning_content, web_prefetch_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 thread_id, ast_msg_id, "assistant", resp_text, time_str,
                 turn.get("mode"), turn.get("tool_used"), reasoning,
-                ps_json, pst_json, et_json, rt_json, 0, rc
+                ps_json, pst_json, et_json, rt_json, 0, rc, wp_json
             ))
 
             all_messages.append({
@@ -628,7 +649,8 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
                 "execution_trace": et,
                 "rollback_trace": rt,
                 "isError": False,
-                "reasoning_content": rc
+                "reasoning_content": rc,
+                "web_prefetch": wp
             })
 
         conn.commit()
@@ -640,4 +662,67 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         conn.close()
 
     return all_messages
+
+
+def repair_missing_web_prefetch(thread_id: str, app_graph: Any) -> List[Dict[str, Any]]:
+    """
+    Ripristina i metadati web_prefetch per messaggi assistente esistenti in SQLite
+    che non li possiedono, recuperandoli dai checkpoint di LangGraph dello stesso thread.
+    """
+    if not thread_id or not app_graph:
+        return get_thread_messages(thread_id)
+
+    try:
+        cfg = {"configurable": {"thread_id": thread_id}}
+        history = list(app_graph.get_state_history(cfg))
+        if not history:
+            return get_thread_messages(thread_id)
+
+        # Mappa i turni completati: task -> web_prefetch
+        turn_prefetch: Dict[str, Dict[str, Any]] = {}
+        for snap in history:
+            vals = snap.values
+            task = vals.get("task")
+            wp = vals.get("web_prefetch_metadata") or vals.get("web_prefetch_data")
+            if task and wp and task not in turn_prefetch:
+                turn_prefetch[task] = wp
+
+        if not turn_prefetch:
+            return get_thread_messages(thread_id)
+
+        conn = _get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT message_id, content, sender
+            FROM thread_messages
+            WHERE thread_id = ?
+            ORDER BY rowid ASC
+        """, (thread_id,))
+        rows = cursor.fetchall()
+
+        current_task = None
+        updated = False
+        for m_id, content, sender in rows:
+            if sender == "user":
+                current_task = content
+            elif sender == "assistant" and current_task:
+                wp = turn_prefetch.get(current_task)
+                if wp:
+                    wp_json = json.dumps(wp, ensure_ascii=False)
+                    cursor.execute("""
+                        UPDATE thread_messages
+                        SET web_prefetch_json = ?
+                        WHERE thread_id = ? AND message_id = ? AND (web_prefetch_json IS NULL OR web_prefetch_json = '')
+                    """, (wp_json, thread_id, m_id))
+                    if cursor.rowcount > 0:
+                        updated = True
+
+        if updated:
+            conn.commit()
+            logger.info(f"Ripristino web_prefetch completato con successo per thread '{thread_id}'.")
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Errore durante repair_missing_web_prefetch per thread '{thread_id}': {e}")
+
+    return get_thread_messages(thread_id)
 

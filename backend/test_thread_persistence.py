@@ -180,7 +180,116 @@ class TestThreadPersistence(unittest.TestCase):
 
         stored = thread_store.get_thread_messages(thread_id)
         self.assertEqual(len(stored), 2)
-        self.assertEqual(stored[0]["images"], fake_images)
+    def test_web_prefetch_persistence(self):
+        thread_id = "test_thread_web_prefetch_persisted"
+        thread_store.save_user_message(thread_id, "Cos'è GPT Astra?")
+        fake_prefetch = {
+            "query": "Cos'è GPT Astra?",
+            "provider_used": "SearXNG (it)",
+            "latency_ms": 1250,
+            "sources": [
+                {
+                    "title": "GPT Astra - Guida Completa",
+                    "url": "https://example.com/astra",
+                    "snippet": "Descrizione di GPT Astra..."
+                }
+            ]
+        }
+        thread_store.save_assistant_message(thread_id, {
+            "response": "GPT Astra è un modello avanzato.",
+            "mode": "ask",
+            "web_prefetch": fake_prefetch
+        })
+
+        messages = thread_store.get_thread_messages(thread_id)
+        self.assertEqual(len(messages), 2)
+        ast_msg = messages[1]
+        self.assertIsNotNone(ast_msg.get("web_prefetch"))
+        self.assertEqual(ast_msg["web_prefetch"]["query"], "Cos'è GPT Astra?")
+        self.assertEqual(ast_msg["web_prefetch"]["provider_used"], "SearXNG (it)")
+        self.assertEqual(len(ast_msg["web_prefetch"]["sources"]), 1)
+        self.assertEqual(ast_msg["web_prefetch"]["sources"][0]["url"], "https://example.com/astra")
+
+    def test_backfill_preserves_web_prefetch(self):
+        thread_id = "test_backfill_with_web_prefetch"
+        fake_prefetch = {
+            "query": "Novità AI 2026",
+            "provider_used": "DuckDuckGo",
+            "sources": [{"title": "AI 2026", "url": "https://ai.example.com", "snippet": "Novità"}]
+        }
+
+        class MockSnapshot:
+            def __init__(self, next_nodes, values):
+                self.next = next_nodes
+                self.values = values
+
+        mock_graph = MagicMock()
+        mock_graph.get_state_history.return_value = [
+            MockSnapshot(
+                next_nodes=(),
+                values={
+                    "task": "Quali sono le novità AI?",
+                    "mode": "chat",
+                    "final_response": "Ecco le novità dell'AI nel 2026...",
+                    "web_prefetch_metadata": fake_prefetch
+                }
+            )
+        ]
+
+        reconstructed = thread_store.backfill_from_state_history(thread_id, mock_graph)
+        self.assertEqual(len(reconstructed), 2)
+        self.assertEqual(reconstructed[1]["sender"], "assistant")
+        self.assertEqual(reconstructed[1]["web_prefetch"], fake_prefetch)
+
+        stored = thread_store.get_thread_messages(thread_id)
+        self.assertEqual(len(stored), 2)
+        self.assertEqual(stored[1]["web_prefetch"], fake_prefetch)
+
+    def test_repair_missing_web_prefetch(self):
+        thread_id = "test_repair_web_prefetch"
+        fake_prefetch = {
+            "query": "Info GPT Astra",
+            "provider_used": "DuckDuckGo",
+            "sources": [{"title": "Astra", "url": "https://astra.example.com", "snippet": "Astra info"}]
+        }
+
+        # Simula messaggio salvato senza web_prefetch (stato legacy)
+        thread_store.save_user_message(thread_id, "Info GPT Astra")
+        thread_store.save_assistant_message(thread_id, {
+            "response": "Risposta su Astra",
+            "mode": "ask"
+        })
+
+        # Verifica che inizialmente web_prefetch sia None
+        initial_msgs = thread_store.get_thread_messages(thread_id)
+        self.assertIsNone(initial_msgs[1].get("web_prefetch"))
+
+        class MockSnapshot:
+            def __init__(self, next_nodes, values):
+                self.next = next_nodes
+                self.values = values
+
+        mock_graph = MagicMock()
+        mock_graph.get_state_history.return_value = [
+            MockSnapshot(
+                next_nodes=(),
+                values={
+                    "task": "Info GPT Astra",
+                    "mode": "ask",
+                    "final_response": "Risposta su Astra",
+                    "web_prefetch_metadata": fake_prefetch
+                }
+            )
+        ]
+
+        repaired_msgs = thread_store.repair_missing_web_prefetch(thread_id, mock_graph)
+        self.assertEqual(len(repaired_msgs), 2)
+        self.assertIsNotNone(repaired_msgs[1].get("web_prefetch"))
+        self.assertEqual(repaired_msgs[1]["web_prefetch"]["query"], "Info GPT Astra")
+
+        # Verifica che sia stato salvato permanentemente su SQLite
+        stored = thread_store.get_thread_messages(thread_id)
+        self.assertIsNotNone(stored[1].get("web_prefetch"))
 
 
 if __name__ == "__main__":

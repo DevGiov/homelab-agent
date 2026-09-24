@@ -771,6 +771,8 @@ async def get_thread(thread_id: str):
         # 2. Se vuoto ma il thread ha checkpoint, ricostruisci da LangGraph state history
         if not stored_messages and count > 0:
             stored_messages = thread_store.backfill_from_state_history(thread_id, app_graph)
+        elif stored_messages and count > 0 and any(m.get("sender") == "assistant" and not m.get("web_prefetch") for m in stored_messages):
+            stored_messages = thread_store.repair_missing_web_prefetch(thread_id, app_graph)
 
         # 3. Controlla se c'è una sessione attiva per questo thread
         sess = get_session(thread_id)
