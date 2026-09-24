@@ -1,6 +1,9 @@
+import json
 import logging
 import re
-from typing import Optional
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -12,201 +15,321 @@ logger = logging.getLogger("router")
 LLAMA_CPP_URL = config.LLAMA_CPP_URL.rstrip('/')
 DEFAULT_MODEL = config.DEFAULT_MODEL
 
+_capabilities_cache: Dict[str, Any] = {"summary": "", "timestamp": 0}
+CAPABILITIES_CACHE_TTL = 180  # 3 minuti di cache TTL per MetaMCP tools
+
+
+@dataclass
+class RouteDecision:
+    mode: str  # "chat" | "ask" | "act" | "plan"
+    web_search_needed: bool = False
+    web_search_query: Optional[str] = None
+    reasoning: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "web_search_needed": self.web_search_needed,
+            "web_search_query": self.web_search_query,
+            "reasoning": self.reasoning,
+        }
+
+
+def get_dynamic_capabilities_summary(force_refresh: bool = False) -> str:
+    """
+    Restituisce un riassunto compatto delle capabilities del sistema:
+    1. Capabilities Native/Interne (sempre presenti: Calendar, Automations, Email, Sandbox)
+    2. Capabilities Esterne MCP (scoperte dinamicamente da MetaMCP e cachate con TTL di 3 minuti).
+    """
+    now = time.time()
+    if not force_refresh and _capabilities_cache["summary"] and (now - _capabilities_cache["timestamp"] < CAPABILITIES_CACHE_TTL):
+        return _capabilities_cache["summary"]
+
+    internal_capabilities = (
+        "1. Internal Native Capabilities (always available):\n"
+        "   - Calendar & Events: create, update, delete, search, inspect calendar events, check availability\n"
+        "   - Automations & Loops: schedule, inspect, and trigger autonomous homelab workflows\n"
+        "   - Email & Briefing: fetch unread emails, generate morning briefings, create email drafts\n"
+        "   - Python Sandbox: run arbitrary python code, calculations, and data transformations\n"
+    )
+
+    mcp_lines = []
+    try:
+        from registry.manager import get_registry_manager
+        manager = get_registry_manager()
+        mcp_tools = manager.get_tools_for_mode(["metamcp"])
+        if mcp_tools:
+            mcp_lines.append("2. External MCP Tools (dynamically connected to MetaMCP):")
+            for t in mcp_tools:
+                t_name = str(t.get("name", "")).replace("proxmox-mcp__", "")
+                t_desc = str(t.get("description", "")).strip().split("\n")[0][:80]
+                if t_name:
+                    mcp_lines.append(f"   - {t_name}: {t_desc}")
+    except Exception as e:
+        logger.warning(f"Errore recupero dinamico tool MetaMCP per il router: {e}")
+
+    if not mcp_lines:
+        mcp_lines = [
+            "2. External MCP Tools (Proxmox VE & Homelab Infrastructure):\n"
+            "   - LXC & VM management: list, inspect status, start, stop, snapshot, rollback, execute shell commands\n"
+            "   - Network & Infrastructure: IPAM allocate/release IP, Pi-hole DNS records, Nginx Proxy Manager hosts\n"
+        ]
+
+    summary = internal_capabilities + "\n" + "\n".join(mcp_lines)
+    _capabilities_cache["summary"] = summary
+    _capabilities_cache["timestamp"] = now
+    return summary
+
+
+def is_purely_visual_request(task: str) -> bool:
+    """Verifica se una richiesta con immagini è puramente percettiva/descrittiva."""
+    if not task or not task.strip():
+        return True
+    task_lower = task.lower().strip()
+    external_keywords = [
+        "cerca", "search", "trova", "prezzo", "prezzi", "costo", "costi", "quanto costa",
+        "dove comprare", "comprare", "acquistare", "vendita", "negozi", "store",
+        "notizie", "news", "recensioni", "review", "scheda tecnica", "specifiche",
+        "manuale", "firmware", "driver", "pinout", "compatibile", "compatibilità",
+        "disponibilità", "mercato", "aggiornamenti", "online", "internet", "web", "google"
+    ]
+    if any(kw in task_lower for kw in external_keywords):
+        return False
+
+    visual_keywords = [
+        "cosa vedi", "descrivi", "cosa c'è", "spiega l'immagine", "guarda questa",
+        "analizza l'immagine", "analizza e descrivi", "cosa rappresenta", "leggi il testo",
+        "trascrivi", "chi c'è", "che colore", "dov'è", "what do you see", "describe", "describe this image"
+    ]
+    return any(kw in task_lower for kw in visual_keywords)
+
+
+def route_turn(
+    user_input: str,
+    previous_mode: Optional[str] = None,
+    last_tool_used: Optional[str] = None,
+    conversation_context: Optional[str] = None,
+    force_mode: Optional[str] = None,
+    model: Optional[str] = None,
+    has_images: bool = False,
+    web_search_override: Optional[Any] = None,
+) -> RouteDecision:
+    """
+    Router unificato, intelligente e dinamico:
+    Classifica la modalità operativa (chat, ask, act, plan) e determina la necessità di web prefetch
+    sfruttando il modello attivo, il contesto multi-turn e le capabilities scoperte dinamicamente.
+    """
+    if not user_input or not user_input.strip():
+        return RouteDecision(mode="chat", web_search_needed=False, reasoning="Empty user input")
+
+    input_lower = user_input.strip().lower()
+    clean_input = input_lower.rstrip("?!.,:; \t").strip()
+
+    # 1. Fast shortcut per saluti e convenevoli banali (0ms latenza)
+    chat_greetings = [
+        "ciao", "salve", "buongiorno", "buonasera", "grazie", "grazie mille", "chi sei",
+        "come ti chiami", "come stai", "cosa sai fare", "hello", "hi", "hey",
+        "good morning", "good evening", "thanks", "thank you", "who are you", "what is your name", "how are you"
+    ]
+    if any(clean_input == g or clean_input.startswith(f"{g} ") or clean_input.endswith(f" {g}") for g in chat_greetings):
+        mode = "chat"
+        if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+            mode = force_mode.lower()
+        logger.info(f"Fast shortcut: greeting classified as mode={mode}, web_search=False for '{user_input}'")
+        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Conversational greeting/pleasantry")
+
+    # 2. Fast shortcut per analisi visiva pura senza ricerca esterna
+    if has_images and is_purely_visual_request(user_input):
+        mode = "chat"
+        if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+            mode = force_mode.lower()
+        logger.info(f"Fast shortcut: visual direct request classified as mode={mode}, web_search=False for '{user_input}'")
+        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Direct visual perception")
+
+    # 3. Fast shortcut per pianificazioni esplicite
+    plan_keywords = [
+        "pianifica", "piano per", "crea piano", "prepara sequenza", "workflow", "progetta architettura", "strategia",
+        "plan a", "plan for", "create a plan", "architecture plan", "migration plan", "multi-step plan"
+    ]
+    explicit_plan = any(kw in input_lower for kw in plan_keywords)
+
+    # 4. Fast shortcuts deterministici per comandi container/infrastruttura standard (0ms latenza)
+    if any(cmd in input_lower for cmd in [
+        "spegni ct", "riavvia ct", "stop ct", "start ct", "reboot lxc", "reboot ct",
+        "mostrami i container", "list containers", "lista container", "stato container",
+        "exec_lxc_command", "exec hostname", "fai un backup del ct"
+    ]) or (re.search(r'\b(ct|container|vmid)\s*\d+\b', input_lower) and any(w in input_lower for w in ["stato", "status", "riavvia", "restart", "reboot", "stop", "spegni", "start", "avvia", "backup"])):
+        mode = "act" if not force_mode else force_mode.lower()
+        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Deterministic container operation")
+
+    if any(q in input_lower for q in ["dimmi i file in /opt", "what files are in /opt", "nella cartella /opt"]):
+        mode = "act" if not force_mode else force_mode.lower()
+        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Deterministic filesystem inspection")
+
+    if any(input_lower.startswith(p) for p in [
+        "cosa è un container", "what is a container", "differenza tra container e vm", "spiegami come funziona zfs",
+        "what is proxmox", "come funziona il protocollo http", "chi ha inventato linux"
+    ]):
+        mode = "ask" if not force_mode else force_mode.lower()
+        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Deterministic conceptual query")
+
+    # 5. Modello attivo & Capabilities dinamiche
+    capabilities_str = get_dynamic_capabilities_summary()
+    effective_model = model or DEFAULT_MODEL
+
+    system_prompt = f"""You are the intelligent Router for the Homelab AI Management Assistant.
+Your task is to classify the user request into an operational mode and determine if an external web search prefetch is needed.
+
+System Capabilities Available:
+{capabilities_str}
+
+Operational Modes:
+- 'act': The user wants to perform actions, execute commands, or manage resources using local tools (Proxmox LXC/VMs, local shell commands, DNS, proxy, calendar events, automations, email drafts).
+  CRITICAL CONTINUITY POLICY: In an ongoing chat thread where the previous turn was 'act' (or tools were used), follow-up user requests that modify, continue, refine, delete, or refer to that action (e.g. "la descrizione deve contenere...", "ora eliminalo", "cambia la data a domani", "esegui anche su ct 100", "e per la cartella /root?") MUST remain in 'act'.
+- 'ask': External research, conceptual/theoretical explanations, technology news, modern AI models, software comparisons, documentation lookup, or questions about the agent itself.
+- 'chat': Casual conversation, chit-chat, greetings, or direct image descriptions without tools.
+- 'plan': Complex multi-step migrations, high-level architectural redesigns, or designing multi-phase workflows.
+
+Web Search Policy:
+- web_search_needed = true PROACTIVELY for questions about technologies, software libraries, AI models, hardware, tools, tutorials, news, benchmarks, comparisons, releases, or external world facts. When in doubt for informational questions, prefer true to ensure the assistant has fresh and accurate web context.
+- web_search_needed = false ONLY when:
+  1. The request strictly targets local homelab infrastructure and tools (Proxmox LXC/VMs, local containers, local files, local calendar, local automations, local bash) where external web information is irrelevant.
+  2. Casual greetings, chit-chat, pleasantries, or questions about the assistant itself.
+- web_search_query: If web_search_needed is true, formulate a concise, targeted search query (3-6 words, no filler words). If false, set to null.
+
+Reply EXCLUSIVELY with a JSON object matching this schema:
+{{
+  "mode": "chat" | "ask" | "act" | "plan",
+  "web_search_needed": true | false,
+  "web_search_query": "concise query" | null,
+  "reasoning": "brief explanation"
+}}"""
+
+    context_parts = []
+    if conversation_context:
+        context_parts.append(f"Recent Conversation Context:\n{conversation_context[-1200:]}")
+    if previous_mode:
+        context_parts.append(f"Active Thread Mode: {previous_mode.upper()}")
+    if last_tool_used:
+        context_parts.append(f"Last Tool Used: {last_tool_used}")
+    context_parts.append(f"User Request: '{user_input}'")
+    user_prompt = "\n\n".join(context_parts)
+
+    url = f"{LLAMA_CPP_URL}/chat/completions"
+    payload = {
+        "model": effective_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.0,
+        "max_tokens": 120,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {"type": "json_object"}
+    }
+
+    try:
+        res = requests.post(url, json=payload, timeout=10)
+        if res.status_code == 200:
+            msg_obj = res.json()["choices"][0]["message"]
+            raw_content = (msg_obj.get("content") or "").strip()
+            # Pulisci eventuali tag think o markdown
+            clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+            clean_json = re.sub(r'```(?:json)?', '', clean_content).strip()
+
+            parsed = {}
+            try:
+                json_match = re.search(r'\{.*\}', clean_json, flags=re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                else:
+                    parsed = json.loads(clean_json)
+            except Exception:
+                mode_match = re.search(r'\b(chat|ask|act|plan)\b', clean_content.lower())
+                if mode_match:
+                    parsed = {"mode": mode_match.group(1), "web_search_needed": (mode_match.group(1) == "ask")}
+
+            mode = str(parsed.get("mode", "")).lower().strip()
+            if mode not in ["chat", "ask", "act", "plan"]:
+                mode = "act" if previous_mode == "act" else "chat"
+
+            web_search_needed = bool(parsed.get("web_search_needed", False))
+            web_search_query = parsed.get("web_search_query")
+            if web_search_query and isinstance(web_search_query, str):
+                web_search_query = web_search_query.strip()
+                if web_search_query.lower() in ["null", "none", ""]:
+                    web_search_query = None
+
+            # Overrides
+            if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+                mode = force_mode.lower()
+            if explicit_plan and not force_mode:
+                mode = "plan"
+
+            if web_search_override is False or web_search_override == "off":
+                web_search_needed = False
+            elif web_search_override is True or web_search_override == "on":
+                web_search_needed = True
+                if not web_search_query:
+                    web_search_query = user_input
+
+            decision = RouteDecision(
+                mode=mode,
+                web_search_needed=web_search_needed,
+                web_search_query=web_search_query,
+                reasoning=parsed.get("reasoning")
+            )
+            logger.info(f"Model router decision: mode={decision.mode}, web_search={decision.web_search_needed}, query='{decision.web_search_query}' (reason: {decision.reasoning}) for '{user_input[:50]}'")
+            return decision
+
+    except Exception as e:
+        logger.warning(f"Chiamata LLM router fallita o timeout ({e}). Applicazione fallback semantico resiliente.")
+
+    # 5. Fallback semantico resiliente (se llama.cpp offline/timeout)
+    fallback_mode = "chat"
+    if explicit_plan:
+        fallback_mode = "plan"
+    elif previous_mode == "act":
+        fallback_mode = "act"
+    elif any(kw in input_lower for kw in ["container", "ct", "lxc", "vm", "proxmox", "evento", "calendario", "automazione"]):
+        fallback_mode = "act"
+    elif any(kw in input_lower for kw in ["cerca", "search", "cosa è", "chi è", "perché", "confronta", "differenza", "spiegami"]):
+        fallback_mode = "ask"
+
+    if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+        fallback_mode = force_mode.lower()
+
+    web_needed = (fallback_mode == "ask") and not any(kw in input_lower for kw in ["container", "ct", "lxc", "vm", "proxmox", "calendario", "evento"])
+    if web_search_override is False or web_search_override == "off":
+        web_needed = False
+    elif web_search_override is True or web_search_override == "on":
+        web_needed = True
+
+    return RouteDecision(
+        mode=fallback_mode,
+        web_search_needed=web_needed,
+        web_search_query=user_input if web_needed else None,
+        reasoning="Fallback decision due to router timeout/offline"
+    )
+
+
 def classify_mode(
     user_input: str,
     force_mode: Optional[str] = None,
     model: Optional[str] = None,
     has_images: bool = False,
-    conversation_context: Optional[str] = None
+    conversation_context: Optional[str] = None,
+    previous_mode: Optional[str] = None,
+    last_tool_used: Optional[str] = None,
 ) -> str:
-    """
-    Classifies the user input into one of 4 operational modes based on intent and complexity:
-    - chat: natural conversation, greetings, open-ended chit-chat, and direct visual perception (0 tool overhead)
-    - ask: information-seeking, external web research, theoretical/conceptual queries, docs lookup
-    - act: agentic operational tasks on Proxmox/LXC/VM/host, inspecting live status, executing commands, mutating resources
-    - plan: strategic planning of complex multi-step workflows, migrations, or architecture design
-    """
-    if force_mode:
-        forced = force_mode.lower().strip()
-        if forced in ["chat", "ask", "act", "plan"]:
-            logger.info(f"Mode forced via request/CLI: {forced}")
-            return forced
-
-    if not user_input or not user_input.strip():
-        return "chat"
-
-    input_lower = user_input.strip().lower()
-
-    # Direct visual analysis request with images attached
-    if has_images and any(kw in input_lower for kw in [
-        "cosa vedi", "descrivi", "analizza l'immagine", "cosa c'è", "spiega l'immagine", "guarda questa",
-        "what do you see", "describe this image", "describe the image", "analyze this image"
-    ]):
-        logger.info(f"Visual direct request with image classified as mode=chat for input='{user_input}'")
-        return "chat"
-
-    # 1. Multi-step planning & automation intent
-    plan_keywords = [
-        "pianifica", "piano per", "crea piano", "prepara sequenza", "workflow", "migra", "progetta architettura", "strategia",
-        "crea automazione", "crea un'automazione", "automatizza", "nuova automazione", "schedula", "task ricorrente", "crea loop", "programma ogni",
-        "plan a", "plan for", "create a plan", "architecture plan", "migration plan", "multi-step plan",
-        "create automation", "create an automation", "automate", "schedule recurring", "schedule daily"
-    ]
-    if any(kw in input_lower for kw in plan_keywords):
-        logger.info(f"Rule router classified mode=plan for input='{user_input}'")
-        return "plan"
-
-    # 2. Confirmations & operational follow-ups (e.g. 'Procedi con base', 'Go ahead', 'Confermo')
-    confirmation_triggers = [
-        "procedi", "confermo", "vai", "esegui", "fallo", "prosegui", "ok procedi", "si procedi", "sì procedi", "clona quello", "crea quello", "applica",
-        "proceed", "confirm", "go ahead", "yes proceed", "execute it", "do it", "apply that"
-    ]
-    if any(kw in input_lower for kw in confirmation_triggers):
-        if conversation_context and any(term in conversation_context.lower() for term in ["container", "template", "vmid", "proxmox", "tool", "servizio", "service", "lxc", "deploy"]):
-            logger.info(f"Rule router classified mode=act for confirmation/follow-up with context for input='{user_input}'")
-            return "act"
-        if any(kw in input_lower for kw in ["procedi con", "esegui", "fallo", "clona", "applica", "proceed with", "execute", "apply"]):
-            logger.info(f"Rule router classified mode=act for action imperative input='{user_input}'")
-            return "act"
-
-    # 3. Purely conceptual / educational queries (ASK, NOT ACT even if mentioning container/lxc/docker/proxmox)
-    # e.g. "cosa è un container lxc", "what is proxmox", "differenza tra docker e lxc", "how does a container work"
-    is_conceptual_question = (
-        input_lower.startswith(("cosa è", "cos'è", "cosa sono", "qual è la differenza", "quali sono le differenze", "come funziona", "spiegami come", "spiegami cosa", "spiegami", "perché si usa", "perché usare", "parlami di", "parlami del", "parlami della", "parlami delle", "parlami dei", "parlami"))
-        or input_lower.startswith(("what is", "what are", "what's", "difference between", "how does", "how do", "explain how", "explain what", "explain", "why use", "why is", "tell me about"))
+    """Wrapper di retrocompatibilità che restituisce solo la stringa della modalità."""
+    decision = route_turn(
+        user_input=user_input,
+        previous_mode=previous_mode,
+        last_tool_used=last_tool_used,
+        conversation_context=conversation_context,
+        force_mode=force_mode,
+        model=model,
+        has_images=has_images
     )
-    has_specific_target_instance = bool(re.search(r'\b(ct|container|vmid|vm)\s*\d+\b|\b\d{3}\b', input_lower))
-    has_directory_inspection = any(p in input_lower for p in ["/opt", "/etc", "/var", "/tmp", "/home", "/root", "cartella", "directory", "cartelle", "directories", "folder"])
-    has_command_execution = any(c in input_lower for c in ["esegui", "run", "exec", "execute", "comando", "command", "ls", "cat", "ps", "kill", "reboot", "restart"])
-
-    if is_conceptual_question and not has_specific_target_instance and not has_directory_inspection and not has_command_execution:
-        logger.info(f"Rule router classified mode=ask for conceptual query input='{user_input}'")
-        return "ask"
-
-    # 4. Tool discovery queries
-    if any(kw in input_lower for kw in [
-        "quali tool", "elenco tool", "cosa puoi fare", "che strumenti hai",
-        "what tools", "list tools", "what can you do", "which tools"
-    ]):
-        logger.info(f"Rule router classified mode=ask for tool discovery input='{user_input}'")
-        return "ask"
-
-    # 5. Infrastructure & operational actions on Proxmox/Homelab/MCP (ACT)
-    # Action verbs (IT & EN)
-    action_verbs = [
-        "avvia", "ferma", "riavvia", "arresta", "elimina", "cancella", "crea", "clona",
-        "applica", "snapshot", "rollback", "esegui", "lancia", "modifica", "configura",
-        "spegni", "accendi", "stoppa", "killa", "uccidi", "termina", "ripristina", "installa",
-        "aggiorna", "scarica", "fai un backup", "fai backup", "fai", "pinga", "ping", "leggi", "mostra", "dimmi", "dammi", "prendi",
-        "run", "exec", "execute", "start", "stop", "restart", "reboot", "shutdown", "poweroff",
-        "kill", "create", "clone", "delete", "destroy", "remove", "restore", "install",
-        "update", "upgrade", "download", "backup", "check", "inspect", "show", "tell me", "tell",
-        "list", "get", "find", "give", "give me"
-    ]
-    # Infrastructure and local entities
-    infra_entities = [
-        "container", "containers", "lxc", "ct", "vm", "vms", "vmid", "proxmox", "pve",
-        "immich", "pihole", "dns", "npm", "ipam", "template", "templates", "storage", "nodo",
-        "node", "host", "macchina", "macchine", "nginx", "servizio", "servizi", "service", "services",
-        "daemon", "zfs", "disco", "disk", "ram", "memory", "memoria", "cpu", "ip",
-        "automazione", "automazioni", "automation", "automations", "loop", "loops"
-    ]
-    # Filesystem and command inspection keywords
-    filesystem_inspection = [
-        "ls", "cat", "dir", "cartella", "directory", "folder", "file", "files",
-        "/opt", "/etc", "/var", "/tmp", "/home", "/root", "processi", "processes", "ps", "top",
-        "systemctl", "journalctl", "docker ps", "docker", "pveversion", "nvidia-smi", "df", "free", "uptime"
-    ]
-    inspection_phrases = [
-        "cosa c'è", "cosa c'e", "quali file", "elenca", "elencami", "lista", "listami", "mostrami", "fammi vedere",
-        "dammi le specifiche", "dammi informazioni", "dammi info", "informazioni su", "informazioni sul", "info su", "info sul",
-        "stato del", "stato container", "info container", "specifiche", "dettagli su", "dettagli del",
-        "what is in", "what files", "list files", "show me", "give me the specs", "give me info", "information about", "info about", "container status", "status of"
-    ]
-
-    has_action_verb = any(verb in input_lower for verb in action_verbs)
-    has_infra_entity = any(entity in input_lower for entity in infra_entities)
-    has_fs_inspection = any(fs in input_lower for fs in filesystem_inspection)
-    has_insp_phrase = any(phrase in input_lower for phrase in inspection_phrases)
-
-    # If the user asks to run or inspect something on infrastructure, filesystem, or specific container
-    if (
-        (has_action_verb and (has_infra_entity or has_fs_inspection or has_specific_target_instance))
-        or (has_insp_phrase and (has_infra_entity or has_fs_inspection or has_specific_target_instance))
-        or (has_specific_target_instance and (has_action_verb or has_fs_inspection or has_insp_phrase))
-        or (any(cmd in input_lower for cmd in ["reboot host", "restart nginx", "kill process", "docker ps", "docker compose", "pveversion", "nvidia-smi"]))
-        or (has_fs_inspection and has_action_verb)
-    ):
-        logger.info(f"Rule router classified mode=act for homelab operation/query input='{user_input}'")
-        return "act"
-
-    # 6. General Web Research & External Info (ASK)
-    web_research_keywords = [
-        "cerca sul web", "cerca online", "cerca su google", "cerca", "search web", "search online", "google",
-        "prezzo", "prezzi", "price", "prices", "costo", "cost", "quanto costa", "how much",
-        "recensioni", "reviews", "ultime notizie", "latest news", "news", "notizie",
-        "documentazione", "documentation", "manuale d'uso", "manual", "datasheet",
-        "chi ha vinto", "who won", "qual è la capitale", "what is the capital", "meteo", "weather"
-    ]
-    if any(kw in input_lower for kw in web_research_keywords):
-        logger.info(f"Rule router classified mode=ask for web research input='{user_input}'")
-        return "ask"
-
-    # 7. Pure Chit-chat & Greetings (CHAT)
-    chat_greetings = [
-        "ciao", "salve", "buongiorno", "buonasera", "grazie", "chi sei", "come ti chiami", "come stai", "cosa sai fare",
-        "hello", "hi", "hey", "good morning", "good evening", "thanks", "thank you", "who are you", "what is your name", "how are you"
-    ]
-    if any(kw == input_lower or input_lower.startswith(f"{kw} ") or input_lower.endswith(f" {kw}") for kw in chat_greetings):
-        logger.info(f"Rule router classified mode=chat for conversational input='{user_input}'")
-        return "chat"
-
-    # 8. Neural Classification via LLM (English prompt, reasoning-safe parsing)
-    prompt = f"""Analyze the following user request and classify it into EXACTLY ONE of these 4 operational modes:
-- chat: Casual conversation, greetings, pleasantries, philosophical/identity questions, or direct visual description of an image without tools.
-- ask: External web search queries, general research, pricing/news lookup, theoretical/conceptual questions, or documentation reading.
-- act: Interacting with local infrastructure (Proxmox, LXC containers, VMs, Docker, automations & loops, host commands, filesystem inspection, DNS, proxy, network, checking status or executing commands).
-- plan: Strategic planning of complex multi-step migrations, architectural redesigns, or multi-phase workflows.
-
-Request: "{user_input}"
-
-Reply with ONLY the single mode word (chat, ask, act, or plan):"""
-
-    url = f"{LLAMA_CPP_URL.rstrip('/')}/chat/completions"
-    payload = {
-        "model": model or DEFAULT_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 32,
-        "temperature": 0.0,
-        "chat_template_kwargs": {"enable_thinking": False},
-    }
-
-    try:
-        res = requests.post(url, json=payload, timeout=3)
-        if res.status_code == 200:
-            msg_obj = res.json()["choices"][0]["message"]
-            raw_content = (msg_obj.get("content") or "").strip()
-            # Clean think tags if model returned reasoning in content
-            clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip().lower()
-
-            # Inspect clean_content FIRST to avoid reasoning leak
-            match = re.search(r'\b(chat|ask|act|plan)\b', clean_content)
-            if match:
-                mode = match.group(1)
-                logger.info(f"Neural router classified mode={mode} for input='{user_input}'")
-                return mode
-    except Exception as e:
-        logger.warning(f"Neural router call skipped or timed out ({e}). Using rule-based fallback.")
-
-    # 9. Smart Fallback based on semantic features
-    if has_action_verb or has_infra_entity or has_fs_inspection:
-        fallback = "act"
-    elif any(kw in input_lower for kw in ["qual", "cosa", "come", "dove", "quando", "perché", "what", "how", "where", "when", "why", "explain", "spiega"]):
-        fallback = "ask"
-    elif any(kw in input_lower for kw in chat_greetings):
-        fallback = "chat"
-    else:
-        fallback = "chat"
-
-    logger.info(f"Rule router fallback classified mode={fallback} for input='{user_input}'")
-    return fallback
+    return decision.mode

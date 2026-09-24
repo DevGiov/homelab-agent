@@ -108,6 +108,9 @@ class AgentState(TypedDict, total=False):
     web_prefetch_metadata: Optional[Dict[str, Any]]
     agent_id: Optional[str]
     memory_context: Optional[str]
+    previous_mode: Optional[str]
+    last_tool_used: Optional[str]
+    route_decision: Optional[Dict[str, Any]]
     mode: str
     plan: Dict[str, Any]
     plan_structure: Optional[Dict[str, Any]]
@@ -503,27 +506,55 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
             if txt:
                 memory_parts.append(f"{role_label}: {txt}")
 
+    previous_mode = None
+    last_tool_used = None
+    try:
+        import thread_store
+        t_msgs = thread_store.get_thread_messages(thread_id)
+        for m in reversed(t_msgs):
+            if m.get("sender") == "assistant":
+                previous_mode = m.get("mode")
+                last_tool_used = m.get("tool_used")
+                break
+    except Exception as e:
+        logger.warning(f"Impossibile ricavare previous_mode dal thread_store per '{thread_id}': {e}")
+
     memory_context = "\n\n".join(memory_parts) if memory_parts else ""
-    logger.info(f"Retrieval memoria per thread '{thread_id}': total_messages={len(clean_messages)}, has_summary={bool(summary)}, recent_window={len(recent_messages)}")
-    return {"memory_context": memory_context, "agent_id": agent_id}
+    logger.info(f"Retrieval memoria per thread '{thread_id}': total_messages={len(clean_messages)}, has_summary={bool(summary)}, recent_window={len(recent_messages)}, prev_mode={previous_mode}")
+    return {
+        "memory_context": memory_context,
+        "agent_id": agent_id,
+        "previous_mode": previous_mode,
+        "last_tool_used": last_tool_used
+    }
 
 def mode_router_node(state: AgentState) -> AgentState:
-    """Classifies user task into one of 4 modes: chat, ask, act, plan."""
+    """Classifies user task into one of 4 modes (chat, ask, act, plan) and evaluates web prefetch."""
     task = state.get("task", "")
     force_mode = state.get("force_mode")
     model = state.get("model")
     images = state.get("images")
     has_images = bool(images and len(images) > 0)
     memory_context = state.get("memory_context")
-    classified = router.classify_mode(
-        task,
+    previous_mode = state.get("previous_mode")
+    last_tool_used = state.get("last_tool_used")
+    web_search_val = state.get("web_search")
+
+    decision = router.route_turn(
+        user_input=task,
+        previous_mode=previous_mode,
+        last_tool_used=last_tool_used,
+        conversation_context=memory_context,
         force_mode=force_mode,
         model=model,
         has_images=has_images,
-        conversation_context=memory_context
+        web_search_override=web_search_val
     )
-    logger.info(f"Mode Router selected mode: '{classified}' for task: '{task}' (has_images={has_images}, has_context={bool(memory_context)})")
-    return {"mode": classified}
+    logger.info(f"Mode Router decision: mode='{decision.mode}', web_search_needed={decision.web_search_needed}, query='{decision.web_search_query}' (has_images={has_images}, prev_mode={previous_mode})")
+    return {
+        "mode": decision.mode,
+        "route_decision": decision.to_dict()
+    }
 
 def is_purely_visual_request(task: str) -> bool:
     """Rileva se una richiesta con immagini è puramente percettiva/descrittiva senza intento di ricerca esterna."""
@@ -597,87 +628,29 @@ def should_prefetch_web(
 ) -> bool:
     """
     Determines whether deterministic web prefetch should run in 'auto' mode.
-    - Returns True for general informational queries, concept explanations, news, pricing,
-      documentation lookups, and mixed queries (research on web then perform action).
-    - Returns False for pure internal homelab/container operations, local shell commands,
-      pure conversational chit-chat, or purely visual image descriptions.
+    Uses the unified, dynamic model-driven router.
     """
     if not task or not task.strip():
         return False
 
-    task_lower = task.lower().strip()
-
-    # Pure visual request with images attached -> False
-    if images and len(images) > 0 and is_purely_visual_request(task):
-        return False
-
-    # Pure chit-chat & greetings -> False
-    chat_greetings = [
-        "ciao", "salve", "buongiorno", "buonasera", "grazie", "chi sei", "come ti chiami",
-        "come stai", "cosa sai fare", "hello", "hi", "hey", "good morning", "good evening",
-        "thanks", "thank you", "who are you", "what is your name", "how are you", "ok procedi", "procedi"
-    ]
-    if any(task_lower == g or task_lower.startswith(f"{g} ") or task_lower.endswith(f" {g}") for g in chat_greetings):
-        return False
-
-    # Explicit web search, pricing, news, and external documentation keywords -> True
-    external_research_keywords = [
-        "cerca", "search", "google", "trova online", "trova sul web", "prezzo", "prezzi", "price",
-        "prices", "costo", "cost", "quanto costa", "how much", "recensioni", "reviews", "notizie",
-        "news", "online", "internet", "web", "ultime novità", "latest", "version", "versione attuale",
-        "rilascio", "release date", "documentazione", "documentation", "docs", "manuale", "manual",
-        "datasheet", "pinout", "guida", "guide", "tutorial", "come si fa", "come fare",
-        "come installare", "how to install", "come configurare", "how to configure", "how to use"
-    ]
-    if any(kw in task_lower for kw in external_research_keywords):
-        return True
-
-    # General conceptual or theoretical queries -> True
-    # (unless specifically inquiring about a local container instance or local directory)
-    is_conceptual = (
-        task_lower.startswith(("cosa è", "cos'è", "cosa sono", "qual è la differenza", "quali sono le differenze", "come funziona", "spiegami", "perché si usa", "perché", "chi ha", "chi è"))
-        or task_lower.startswith(("what is", "what are", "what's", "difference between", "how does", "how do", "explain", "why use", "why is", "who is", "who won", "who created"))
+    has_images = bool(images and len(images) > 0)
+    decision = router.route_turn(
+        user_input=task,
+        conversation_context=conversation_context,
+        has_images=has_images
     )
-    has_specific_target_instance = bool(re.search(r'\b(ct|container|vmid|vm)\s*\d+\b|\b\d{3}\b', task_lower))
-    has_directory_inspection = any(p in task_lower for p in ["/opt", "/etc", "/var", "/tmp", "/home", "/root", "cartella", "directory", "folder"])
-
-    if is_conceptual and not has_specific_target_instance and not has_directory_inspection:
-        return True
-
-    # Purely internal homelab / container / shell commands -> False
-    local_actions = [
-        "esegui", "run", "exec", "execute", "lancia", "start", "avvia", "stop", "ferma",
-        "stoppa", "arresta", "spegni", "shutdown", "restart", "riavvia", "reboot", "kill",
-        "create", "crea", "clone", "clona", "delete", "cancella", "elimina", "snapshot",
-        "rollback", "ping", "ls", "cat", "df", "free", "ps", "top", "systemctl", "journalctl",
-        "pveversion", "nvidia-smi"
-    ]
-    local_targets = [
-        "container", "ct", "lxc", "vm", "vmid", "storage", "disco", "disk", "ram", "memoria",
-        "cpu", "ip", "nodo", "node", "host", "macchina", "proxmox", "pve", "immich", "pihole", "dns", "npm"
-    ]
-
-    has_local_action = any(a in task_lower for a in local_actions)
-    has_local_target = any(t in task_lower for t in local_targets)
-
-    if (has_local_action and (has_local_target or has_specific_target_instance or has_directory_inspection)) or (has_specific_target_instance and (has_local_action or has_directory_inspection)):
-        return False
-
-    # Default for open-ended queries where user seeks information: True (to reduce hallucinations)
-    if any(q in task_lower for q in ["qual", "cosa", "come", "chi", "dove", "quando", "what", "how", "who", "where", "when", "why"]):
-        return True
-
-    return False
+    return decision.web_search_needed
 
 
 def web_prefetch_node(state: AgentState) -> AgentState:
-    """Performs deterministic read-only web prefetch before subgraphs according to web_search mode."""
+    """Performs deterministic read-only web prefetch before subgraphs according to web_search mode and model router decision."""
     web_search_val = state.get("web_search")
     task = state.get("task", "")
     if not task:
         return state
 
     images = state.get("images")
+    route_decision = state.get("route_decision") or {}
 
     # Mode evaluation: 'off' | False -> skip
     if web_search_val is False or web_search_val == "off":
@@ -689,17 +662,25 @@ def web_prefetch_node(state: AgentState) -> AgentState:
         if images and len(images) > 0 and is_purely_visual_request(task):
             logger.info(f"Purely visual request: skipping web prefetch [ON] for '{task}'")
             return state
+        effective_query = route_decision.get("web_search_query") or task
+        logger.info(f"Web prefetch [ON]: activated for query '{effective_query}'")
 
-    # Mode evaluation: 'auto' (default) -> smart classification
+    # Mode evaluation: 'auto' (default) -> smart classification from model router
     else:
-        if not should_prefetch_web(task, images=images, conversation_context=state.get("memory_context")):
-            logger.info(f"Web prefetch [AUTO]: skipped for query '{task}' (internal tool/command/chat)")
-            return state
-        logger.info(f"Web prefetch [AUTO]: activated for query '{task}'")
+        if "web_search_needed" in route_decision:
+            should_run = route_decision.get("web_search_needed", False)
+        else:
+            should_run = should_prefetch_web(task, images=images, conversation_context=state.get("memory_context"))
 
-    # If images are present, formulate a grounded query
-    effective_query = task
-    if images and len(images) > 0:
+        if not should_run:
+            logger.info(f"Web prefetch [AUTO]: skipped for query '{task}' (decision: {route_decision.get('reasoning')})")
+            return state
+
+        effective_query = route_decision.get("web_search_query") or task
+        logger.info(f"Web prefetch [AUTO]: activated for query '{effective_query}' (task: '{task}')")
+
+    # If images are present and no search query was formulated, ground query with vision
+    if images and len(images) > 0 and (not route_decision.get("web_search_query")):
         effective_query = formulate_visual_search_query(task, images, model=state.get("model"))
 
     q = stream_queue.get()
@@ -728,7 +709,7 @@ def web_prefetch_node(state: AgentState) -> AgentState:
             for s in search_res.get("sources", [])
         ]
 
-        query_effective = search_res.get("query", task)
+        query_effective = search_res.get("query") or effective_query
         provider = search_res.get("provider_used", "Web")
         latency_ms = search_res.get("latency_ms", 0)
 
@@ -859,7 +840,6 @@ def chat_graph_node(state: AgentState) -> AgentState:
 def ask_graph_node(state: AgentState) -> AgentState:
     """Subgraph for memory & knowledge retrieval queries (with Web Search & Code Exec tools enabled)."""
     task = state.get("task", "")
-    task_lower = task.lower()
     memory_context = state.get("memory_context") or ""
 
     if is_tools_discovery_query(task):
@@ -1717,11 +1697,11 @@ def build_graph():
 
     workflow.set_entry_point("intake")
     workflow.add_edge("intake", "retrieve_memory")
-    workflow.add_edge("retrieve_memory", "web_prefetch")
-    workflow.add_edge("web_prefetch", "mode_router_node")
+    workflow.add_edge("retrieve_memory", "mode_router_node")
+    workflow.add_edge("mode_router_node", "web_prefetch")
 
     workflow.add_conditional_edges(
-        "mode_router_node",
+        "web_prefetch",
         route_to_subgraph,
         {
             "chat_graph": "chat_graph",
