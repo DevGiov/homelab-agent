@@ -44,6 +44,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const todayMarkerRef = useRef<HTMLDivElement>(null);
+  const agendaContainerRef = useRef<HTMLDivElement>(null);
 
   // Filtri & Sidebar
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<Set<string>>(new Set());
@@ -222,6 +223,45 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return `${mDay} - ${sDay} ${monthNames[mMonth]} ${sYear}`;
   }, [currentDate]);
 
+  // Raggruppamento mese per vista agenda
+  const agendaMonthGroups = useMemo(() => {
+    const groups: { monthKey: string; dateObj: Date; events: CalendarEventItem[] }[] = [];
+    let currentGroup: { monthKey: string; dateObj: Date; events: CalendarEventItem[] } | null = null;
+
+    sortedAgendaEvents.forEach(ev => {
+      if (!ev.dtstart) return;
+      const d = new Date(ev.dtstart);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!currentGroup || currentGroup.monthKey !== key) {
+        currentGroup = {
+          monthKey: key,
+          dateObj: new Date(d.getFullYear(), d.getMonth(), 1),
+          events: [],
+        };
+        groups.push(currentGroup);
+      }
+      currentGroup.events.push(ev);
+    });
+
+    return groups;
+  }, [sortedAgendaEvents]);
+
+  // Scroll helper matematico per il contenitore agenda
+  const scrollToMonth = (monthKey: string) => {
+    const container = agendaContainerRef.current;
+    const targetEl = document.getElementById(`agenda-month-${monthKey}`);
+    if (!container || !targetEl) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
+    const relativeOffset = targetRect.top - containerRect.top + container.scrollTop;
+
+    container.scrollTo({
+      top: Math.max(0, relativeOffset - 8),
+      behavior: 'smooth',
+    });
+  };
+
   // Navigazione temporale (consapevole del mese/agenda/settimana)
   const handlePrev = () => {
     if (viewMode === 'month') {
@@ -236,8 +276,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const targetKey = preceding[preceding.length - 1];
         const [y, m] = targetKey.split('-').map(Number);
         setCurrentDate(new Date(y, m - 1, 1));
-        const el = document.getElementById(`agenda-month-${targetKey}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollToMonth(targetKey);
+      } else if (presentMonths.length > 0) {
+        const firstKey = presentMonths[0];
+        const [y, m] = firstKey.split('-').map(Number);
+        setCurrentDate(new Date(y, m - 1, 1));
+        scrollToMonth(firstKey);
       }
     }
   };
@@ -255,8 +299,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const targetKey = succeeding[0];
         const [y, m] = targetKey.split('-').map(Number);
         setCurrentDate(new Date(y, m - 1, 1));
-        const el = document.getElementById(`agenda-month-${targetKey}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollToMonth(targetKey);
       }
     }
   };
@@ -265,12 +308,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const today = new Date();
     setCurrentDate(today);
     if (viewMode === 'agenda') {
-      if (todayMarkerRef.current) {
-        todayMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (todayMarkerRef.current && agendaContainerRef.current) {
+        const container = agendaContainerRef.current;
+        const markerRect = todayMarkerRef.current.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const targetTop = markerRect.top - containerRect.top + container.scrollTop - (container.clientHeight / 2) + (markerRect.height / 2);
+        container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
       } else {
         const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        const el = document.getElementById(`agenda-month-${currentMonthKey}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollToMonth(currentMonthKey);
       }
     }
   };
@@ -278,6 +324,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleSelectMonth = (monthIdx: number, year: number) => {
     const targetDate = new Date(year, monthIdx, 1);
     setCurrentDate(targetDate);
+    setIsDatePickerOpen(false);
     if (viewMode === 'agenda') {
       const targetKey = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
       let jumpKey = targetKey;
@@ -290,9 +337,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }
       }
       setTimeout(() => {
-        const el = document.getElementById(`agenda-month-${jumpKey}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 60);
+        scrollToMonth(jumpKey);
+      }, 50);
     }
   };
 
@@ -300,8 +346,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     if (viewMode === 'agenda') {
       const timer = setTimeout(() => {
-        if (todayMarkerRef.current) {
-          todayMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (todayMarkerRef.current && agendaContainerRef.current) {
+          const container = agendaContainerRef.current;
+          const markerRect = todayMarkerRef.current.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const targetTop = markerRect.top - containerRect.top + container.scrollTop - (container.clientHeight / 2) + (markerRect.height / 2);
+          container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
         }
       }, 150);
       return () => clearTimeout(timer);
@@ -1037,7 +1087,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <span className="text-xs text-fg-muted">{sortedAgendaEvents.length} eventi totali</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              <div ref={agendaContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                 {sortedAgendaEvents.length === 0 ? (
                   <div className="py-12 text-center text-fg-muted text-sm space-y-2">
                     <p>Nessun evento trovato nei calendari selezionati.</p>
@@ -1050,127 +1100,130 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 ) : (
                   <>
-                    {sortedAgendaEvents.map((ev, evIdx) => {
-                      const dateObj = new Date(ev.dtstart);
-                      const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-                      const timeRange = ev.all_day
-                        ? 'Tutto il giorno'
-                        : `${ev.dtstart.substring(11, 16)} → ${ev.dtend.substring(11, 16)}`;
-
-                      const evMonthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-                      const prevDateObj = evIdx > 0 ? new Date(sortedAgendaEvents[evIdx - 1].dtstart) : null;
-                      const prevMonthKey = prevDateObj
-                        ? `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, '0')}`
-                        : null;
-                      const isNewMonth = evIdx === 0 || evMonthKey !== prevMonthKey;
-
-                      // Separatore Oggi: inserito esattamente al punto di divisione tra passato e presente/futuro
-                      const isTodayDivider = evIdx === todaySplitIndex;
-
+                    {agendaMonthGroups.map((group) => {
                       return (
-                        <React.Fragment key={ev.uid || ev.id || evIdx}>
+                        <div
+                          key={group.monthKey}
+                          id={`agenda-month-${group.monthKey}`}
+                          className="space-y-3"
+                        >
                           {/* Separatore di Mese */}
-                          {isNewMonth && (
-                            <div
-                              id={`agenda-month-${evMonthKey}`}
-                              className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10"
-                            >
-                              <div className="flex items-center gap-2">
-                                <CalendarDays size={15} className="text-accent" />
-                                <h3 className="font-bold text-xs sm:text-sm text-fg tracking-wide uppercase">
-                                  {monthNames[dateObj.getMonth()]} {dateObj.getFullYear()}
-                                </h3>
-                              </div>
+                          <div className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays size={15} className="text-accent" />
+                              <h3 className="font-bold text-xs sm:text-sm text-fg tracking-wide uppercase">
+                                {monthNames[group.dateObj.getMonth()]} {group.dateObj.getFullYear()}
+                              </h3>
                             </div>
-                          )}
-
-                          {/* Linea Divisoria "Oggi" */}
-                          {isTodayDivider && (
-                            <div
-                              ref={todayMarkerRef}
-                              id="agenda-today-marker"
-                              className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
-                                <span className="font-bold text-xs text-accent uppercase tracking-wider">
-                                  Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-fg-muted font-mono">
-                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Card Evento */}
-                          <div
-                            onClick={e => handleEventClick(e, ev)}
-                            className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
-                          >
-                            <div className="flex items-start gap-3 min-w-0">
-                              <div
-                                className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
-                                style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
-                              />
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">
-                                    {ev.summary}
-                                  </h4>
-                                  {ev.category && (
-                                    <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
-                                      {ev.category}
-                                    </span>
-                                  )}
-                                  {ev.importance === 'high' || ev.importance === 'critical' ? (
-                                    <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
-                                      {ev.importance}
-                                    </span>
-                                  ) : null}
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-                                  <span className="flex items-center gap-1">
-                                    <CalIcon size={12} /> {formattedDate}
-                                  </span>
-                                  <span className="flex items-center gap-1 font-mono text-[11px]">
-                                    <Clock size={12} /> {timeRange}
-                                  </span>
-                                  {ev.location && (
-                                    <span className="flex items-center gap-1 truncate max-w-[200px]">
-                                      <MapPin size={12} /> {ev.location}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {ev.description && (
-                                  <p className="text-xs text-fg-muted/80 line-clamp-1">
-                                    {ev.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                              {ev.location && (ev.location.startsWith('http://') || ev.location.startsWith('https://')) && (
-                                <a
-                                  href={ev.location}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
-                                >
-                                  <span>Partecipa</span>
-                                  <ExternalLink size={12} />
-                                </a>
-                              )}
-                              <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">
-                                Modifica →
-                              </span>
-                            </div>
+                            <span className="text-[11px] text-fg-muted">
+                              {group.events.length} {group.events.length === 1 ? 'evento' : 'eventi'}
+                            </span>
                           </div>
-                        </React.Fragment>
+
+                          {/* Eventi del Mese */}
+                          <div className="space-y-3">
+                            {group.events.map((ev) => {
+                              const globalEvIdx = sortedAgendaEvents.indexOf(ev);
+                              const isTodayDivider = globalEvIdx === todaySplitIndex;
+                              const dateObj = new Date(ev.dtstart);
+                              const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+                              const timeRange = ev.all_day
+                                ? 'Tutto il giorno'
+                                : `${ev.dtstart.substring(11, 16)} → ${ev.dtend.substring(11, 16)}`;
+
+                              return (
+                                <React.Fragment key={ev.uid || ev.id || globalEvIdx}>
+                                  {/* Linea Divisoria "Oggi" */}
+                                  {isTodayDivider && (
+                                    <div
+                                      ref={todayMarkerRef}
+                                      id="agenda-today-marker"
+                                      className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
+                                        <span className="font-bold text-xs text-accent uppercase tracking-wider">
+                                          Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-fg-muted font-mono">
+                                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Card Evento */}
+                                  <div
+                                    onClick={e => handleEventClick(e, ev)}
+                                    className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
+                                  >
+                                    <div className="flex items-start gap-3 min-w-0">
+                                      <div
+                                        className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
+                                        style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
+                                      />
+                                      <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">
+                                            {ev.summary}
+                                          </h4>
+                                          {ev.category && (
+                                            <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
+                                              {ev.category}
+                                            </span>
+                                          )}
+                                          {ev.importance === 'high' || ev.importance === 'critical' ? (
+                                            <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
+                                              {ev.importance}
+                                            </span>
+                                          ) : null}
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+                                          <span className="flex items-center gap-1">
+                                            <CalIcon size={12} /> {formattedDate}
+                                          </span>
+                                          <span className="flex items-center gap-1 font-mono text-[11px]">
+                                            <Clock size={12} /> {timeRange}
+                                          </span>
+                                          {ev.location && (
+                                            <span className="flex items-center gap-1 truncate max-w-[200px]">
+                                              <MapPin size={12} /> {ev.location}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {ev.description && (
+                                          <p className="text-xs text-fg-muted/80 line-clamp-1">
+                                            {ev.description}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                      {ev.location && (ev.location.startsWith('http://') || ev.location.startsWith('https://')) && (
+                                        <a
+                                          href={ev.location}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
+                                        >
+                                          <span>Partecipa</span>
+                                          <ExternalLink size={12} />
+                                        </a>
+                                      )}
+                                      <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">
+                                        Modifica →
+                                      </span>
+                                    </div>
+                                  </div>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
 

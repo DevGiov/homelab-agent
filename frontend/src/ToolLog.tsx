@@ -88,9 +88,12 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
   return (
     <div
-      className={`border-l border-border glass-panel flex flex-col transition-all duration-300 h-full w-[85vw] max-w-sm md:max-w-none ${
+      className={`border-l border-border glass-panel flex flex-col transition-all duration-300 h-full w-[85vw] max-w-sm md:max-w-none shadow-2xl md:shadow-none ${
         isOpen ? 'md:w-80 lg:w-96' : 'md:w-12'
       }`}
+      style={{
+        backgroundColor: 'var(--panel)',
+      }}
     >
       {/* Header / Toggle Button */}
       <div className="p-3 border-b border-border flex items-center justify-between shrink-0">

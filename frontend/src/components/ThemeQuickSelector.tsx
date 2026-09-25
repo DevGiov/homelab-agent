@@ -59,7 +59,7 @@ export const ThemeQuickSelector: React.FC = () => {
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute right-0 mt-2 w-[calc(100vw-32px)] max-w-xs sm:w-80 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border text-fg"
+          className="fixed sm:absolute top-16 right-3 sm:top-full sm:right-0 sm:mt-2 w-[calc(100vw-24px)] max-w-xs sm:w-80 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border text-fg"
           style={{
             backgroundColor: 'var(--panel)',
             backdropFilter: 'blur(24px)',

@@ -368,39 +368,42 @@ export const Chat: React.FC<ChatProps> = ({
       )}
 
       {/* Top Header */}
-      <div className="h-14 border-b border-border glass-header px-3 sm:px-6 flex items-center justify-between z-10 shrink-0">
-        <div className="flex items-center gap-2.5">
+      <div className="h-14 border-b border-border glass-header px-2.5 sm:px-6 flex items-center justify-between z-10 shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
           {onOpenMobileSidebar && (
             <button
               onClick={onOpenMobileSidebar}
-              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
-              title="Open threads sidebar"
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0 cursor-pointer"
+              title="Apri barra laterale conversazioni"
             >
               <Menu size={20} />
             </button>
           )}
 
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover flex items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
+          {/* Logo Bot: visibile solo da sm in su per risparmiare spazio su mobile */}
+          <div className="hidden sm:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
             <Bot size={18} />
           </div>
-          <div className="truncate max-w-[120px] sm:max-w-xs">
-            <h2 className="text-xs sm:text-sm font-semibold text-fg truncate" title={currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'New Session')}>
-              {currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'New Session')}
+
+          {/* Titolo Thread: visibile solo da md in su su desktop */}
+          <div className="hidden md:block truncate max-w-xs">
+            <h2 className="text-xs sm:text-sm font-semibold text-fg truncate" title={currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'Nuova Sessione')}>
+              {currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'Nuova Sessione')}
             </h2>
             <p className="text-[10px] sm:text-[11px] text-fg-muted truncate">Main Agent Engine</p>
           </div>
         </div>
 
         {/* Mode Selector & Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Desktop Mode Pills */}
-          <div className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs">
+          <div className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs shrink-0">
             <span className="text-fg-muted text-[11px] px-2 font-medium">Mode:</span>
             {(['auto', 'chat', 'ask', 'act', 'plan'] as const).map((modeOption) => (
               <button
                 key={modeOption}
                 onClick={() => setSelectedMode(modeOption)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition cursor-pointer ${
                   selectedMode === modeOption
                     ? 'bg-accent text-white shadow-md shadow-accent/25'
                     : 'text-fg-muted hover:text-fg hover:bg-border/40'
@@ -411,14 +414,14 @@ export const Chat: React.FC<ChatProps> = ({
             ))}
           </div>
 
-          {/* Mobile Mode Dropdown */}
-          <div className="sm:hidden">
+          {/* Mobile Mode Dropdown: etichette ultra compatte */}
+          <div className="sm:hidden shrink-0">
             <select
               value={selectedMode}
               onChange={(e) => setSelectedMode(e.target.value as any)}
               className="bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent capitalize"
             >
-              <option value="auto">Auto Mode</option>
+              <option value="auto">Auto</option>
               <option value="chat">Chat</option>
               <option value="ask">Ask</option>
               <option value="act">Act</option>
@@ -426,28 +429,35 @@ export const Chat: React.FC<ChatProps> = ({
             </select>
           </div>
 
-          <label className="flex items-center gap-1 text-xs text-fg-muted cursor-pointer bg-panel/80 border border-border px-2 sm:px-2.5 py-1.5 rounded-lg hover:border-accent/40 transition">
+          {/* Execute Toggle: compatto su mobile */}
+          <label
+            className="flex items-center gap-1 text-xs text-fg-muted cursor-pointer bg-panel/80 border border-border px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg hover:border-accent/40 transition shrink-0"
+            title={execute ? 'Esecuzione automatica attiva' : 'Preview / Dry-run'}
+          >
             <input
               type="checkbox"
               checked={execute}
               onChange={(e) => setExecute(e.target.checked)}
-              className="rounded bg-input-bg border-border text-accent focus:ring-0"
+              className="rounded bg-input-bg border-border text-accent focus:ring-0 sr-only sm:not-sr-only"
             />
             <Play size={12} className={execute ? 'text-emerald-400' : 'text-fg-muted'} />
-            <span className="text-[10px] sm:text-[11px] hidden xs:inline">Execute</span>
+            <span className="text-[10px] sm:text-[11px] hidden sm:inline">Execute</span>
           </label>
 
           {/* Quick Theme Selector */}
-          <ThemeQuickSelector />
+          <div className="shrink-0">
+            <ThemeQuickSelector />
+          </div>
 
-          {/* Mobile Diagnostics Button */}
+          {/* Mobile Diagnostics Button: sempre visibile e ben spaziato */}
           {onOpenMobileToolLog && (
             <button
               onClick={onOpenMobileToolLog}
-              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition relative"
-              title="Open Diagnostics"
+              className="md:hidden p-1.5 text-accent hover:text-white bg-accent/15 hover:bg-accent border border-accent/30 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer shadow-sm"
+              title="Apri Diagnostica"
+              aria-label="Apri Diagnostica"
             >
-              <Activity size={18} className="text-accent" />
+              <Activity size={17} />
             </button>
           )}
         </div>
