@@ -174,12 +174,17 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                     >
                       <option value="latest">⚡ Ultimo / Live ({assistantMessages.length})</option>
                       {assistantMessages.map((m, idx) => {
-                        const timeStr = m.timestamp
-                          ? new Date(m.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '';
+                        let timeStr = '';
+                        if (m.timestamp) {
+                          if (m.timestamp.includes(':') && !m.timestamp.includes('T') && !m.timestamp.includes('-')) {
+                            timeStr = m.timestamp;
+                          } else {
+                            const d = new Date(m.timestamp);
+                            if (!isNaN(d.getTime())) {
+                              timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            }
+                          }
+                        }
                         return (
                           <option key={m.id} value={m.id}>
                             #{idx + 1} [{m.mode || 'agent'}] {timeStr}
