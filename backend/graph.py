@@ -379,7 +379,8 @@ def _call_llm_structured(
         clean = re.sub(r'```$', '', clean).strip()
 
         try:
-            parsed = json.loads(clean)
+            json_match = re.search(r'\{.*\}', clean, flags=re.DOTALL)
+            parsed = json.loads(json_match.group(0)) if json_match else json.loads(clean)
             validated = schema_cls.model_validate(parsed)
             if hasattr(validated, "raw_thinking"):
                 validated.raw_thinking = raw_res.get("reasoning_content", "") if isinstance(raw_res, dict) else ""
