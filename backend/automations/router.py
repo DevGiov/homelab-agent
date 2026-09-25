@@ -239,17 +239,39 @@ async def list_runs(
     return summaries
 
 
+class BulkDeleteRunsRequest(BaseModel):
+    run_ids: Optional[List[str]] = None
+    automation_id: Optional[str] = None
+    failed_only: bool = False
+    older_than_days: Optional[int] = None
+
+
 @router.delete("/runs")
 async def bulk_delete_runs(
+    run_ids: Optional[List[str]] = Query(default=None),
     automation_id: Optional[str] = Query(default=None),
     failed_only: bool = Query(default=False),
     older_than_days: Optional[int] = Query(default=None),
 ):
     """Elimina massivamente le run storiche non preservate."""
     deleted_count = auto_db.bulk_delete_runs(
+        run_ids=run_ids,
         automation_id=automation_id,
         failed_only=failed_only,
         older_than_days=older_than_days,
+        db_path=config.AUTOMATIONS_DB_PATH,
+    )
+    return {"deleted_count": deleted_count}
+
+
+@router.post("/runs/delete-batch")
+async def bulk_delete_runs_batch(req: BulkDeleteRunsRequest):
+    """Elimina massivamente un set di run specificate per ID o per filtro."""
+    deleted_count = auto_db.bulk_delete_runs(
+        run_ids=req.run_ids,
+        automation_id=req.automation_id,
+        failed_only=req.failed_only,
+        older_than_days=req.older_than_days,
         db_path=config.AUTOMATIONS_DB_PATH,
     )
     return {"deleted_count": deleted_count}

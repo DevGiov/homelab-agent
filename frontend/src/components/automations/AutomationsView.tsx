@@ -88,6 +88,10 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
   // Artifacts Navigation State
   const [selectedArtifactIdForView, setSelectedArtifactIdForView] = useState<string | null>(null);
 
+  // Run Multi-Selection State
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
+  const [isDeletingBatch, setIsDeletingBatch] = useState<boolean>(false);
+
   // Expandable Automation Cards State & Cache
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const [autoDetailsCache, setAutoDetailsCache] = useState<Record<string, any>>({});
@@ -329,17 +333,57 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
     }
   };
 
-  const handleBulkDeleteRuns = async (failedOnly: boolean) => {
-    const msg = failedOnly
-      ? 'Sei sicuro di voler eliminare tutte le esecuzioni fallite (non preservate)?'
-      : 'Sei sicuro di voler eliminare le esecuzioni non preservate?';
-    if (!confirm(msg)) return;
+  const toggleSelectRun = (runId: string) => {
+    setSelectedRunIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(runId)) next.delete(runId);
+      else next.add(runId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = (visibleRuns: AutomationRunSummary[]) => {
+    const allSelected = visibleRuns.length > 0 && visibleRuns.every((r) => selectedRunIds.has(r.run_id));
+    if (allSelected) {
+      setSelectedRunIds((prev) => {
+        const next = new Set(prev);
+        visibleRuns.forEach((r) => next.delete(r.run_id));
+        return next;
+      });
+    } else {
+      setSelectedRunIds((prev) => {
+        const next = new Set(prev);
+        visibleRuns.forEach((r) => next.add(r.run_id));
+        return next;
+      });
+    }
+  };
+
+  const handleDeleteSelectedRuns = async () => {
+    if (selectedRunIds.size === 0) return;
+    const count = selectedRunIds.size;
+    if (
+      !confirm(
+        `Sei sicuro di voler eliminare ${count} ${
+          count === 1 ? 'esecuzione selezionata' : 'esecuzioni selezionate'
+        }? Le run protette da lucchetto non verranno eliminate.`
+      )
+    ) {
+      return;
+    }
+    setIsDeletingBatch(true);
     try {
-      const res = await bulkDeleteAutomationRuns({ failed_only: failedOnly });
-      showFeedback('success', `Eliminate ${res.deleted_count} esecuzioni.`);
+      const res = await bulkDeleteAutomationRuns({ run_ids: Array.from(selectedRunIds) });
+      showFeedback('success', `Eliminate ${res.deleted_count} esecuzioni con successo.`);
+      setSelectedRunIds(new Set());
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore eliminazione bulk: ${err?.response?.data?.detail || err.message}`);
+      showFeedback(
+        'error',
+        `Errore durante l'eliminazione: ${err?.response?.data?.detail || err.message}`
+      );
+    } finally {
+      setIsDeletingBatch(false);
     }
   };
 
@@ -370,14 +414,14 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-bg text-fg overflow-hidden relative font-sans">
+    <div className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative font-sans">
       {/* Top Header Bar */}
-      <div className="p-3 sm:p-4 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between shrink-0">
+      <div className="p-2.5 sm:p-3.5 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {onOpenMobileSidebar && (
             <button
               onClick={onOpenMobileSidebar}
-              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0"
+              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0 cursor-pointer"
               title="Apri menu principale"
             >
               <Menu size={20} />
@@ -387,21 +431,56 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
             <Workflow size={18} />
           </div>
           <div className="min-w-0">
-            <h1 className="font-semibold text-sm text-fg leading-tight">Automations & Loops</h1>
-            <p className="text-[11px] text-fg-muted mt-0.5 hidden sm:block">
+            <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Automations & Loops</h1>
+            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">
               Workflow schedulati, task ricorrenti e loop agentici supervisionati
             </p>
           </div>
         </div>
 
-        <button
-          onClick={loadData}
-          disabled={isLoading}
-          className="p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-xl border border-border transition cursor-pointer shrink-0"
-          title="Aggiorna dati"
-        >
-          <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+        {/* Compact Metrics Pills in Header */}
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] font-medium text-fg-muted shadow-sm shrink-0">
+            <Layers size={12} className="text-accent" />
+            <span className="hidden xs:inline">Auto:</span>
+            <span className="font-bold text-fg">{automations.length}</span>
+          </div>
+
+          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] font-medium text-fg-muted shadow-sm shrink-0">
+            <Calendar size={12} className="text-emerald-400" />
+            <span className="hidden xs:inline">Job:</span>
+            <span className="font-bold text-emerald-400">{scheduledJobs.length}</span>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] font-medium text-fg-muted shadow-sm shrink-0">
+            <Zap size={12} className="text-amber-400" />
+            <span>Run:</span>
+            <span className="font-bold text-fg">{runs.length}</span>
+          </div>
+
+          <div
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium shadow-sm shrink-0 ${
+              approvals.length > 0
+                ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 animate-pulse'
+                : 'bg-panel/80 border-border/70 text-fg-muted'
+            }`}
+          >
+            <Shield size={12} className={approvals.length > 0 ? 'text-rose-400' : 'text-fg-muted'} />
+            <span className="hidden xs:inline">Approvazioni:</span>
+            <span className={`font-bold ${approvals.length > 0 ? 'text-rose-400' : 'text-fg'}`}>
+              {approvals.length}
+            </span>
+          </div>
+
+          <button
+            onClick={loadData}
+            disabled={isLoading}
+            className="p-1.5 sm:p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-xl border border-border transition cursor-pointer shrink-0"
+            title="Aggiorna dati"
+          >
+            <RefreshCw size={15} className={isLoading ? 'animate-spin text-accent' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Floating action message toast */}
@@ -417,40 +496,6 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           <span className="truncate">{actionMessage.text}</span>
         </div>
       )}
-
-      {/* Metric Quick Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border bg-bg/30 text-xs shrink-0">
-        <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
-          <div>
-            <span className="text-fg-muted block truncate">Automazioni Attive</span>
-            <span className="text-lg font-bold text-fg mt-0.5 block">{automations.length}</span>
-          </div>
-          <Layers className="text-accent/60" size={22} />
-        </div>
-        <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
-          <div>
-            <span className="text-fg-muted block truncate">Job Schedulati</span>
-            <span className="text-lg font-bold text-emerald-400 mt-0.5 block">{scheduledJobs.length}</span>
-          </div>
-          <Calendar className="text-emerald-400/60" size={22} />
-        </div>
-        <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
-          <div>
-            <span className="text-fg-muted block truncate">Esecuzioni Totali</span>
-            <span className="text-lg font-bold text-fg mt-0.5 block">{runs.length}</span>
-          </div>
-          <Zap className="text-amber-400/60" size={22} />
-        </div>
-        <div className="p-3 rounded-xl bg-panel border border-border/60 flex items-center justify-between">
-          <div>
-            <span className="text-fg-muted block truncate">Approvazioni</span>
-            <span className={`text-lg font-bold mt-0.5 block ${approvals.length > 0 ? 'text-rose-400 animate-pulse' : 'text-fg-muted'}`}>
-              {approvals.length}
-            </span>
-          </div>
-          <Inbox className={approvals.length > 0 ? 'text-rose-400' : 'text-fg-muted'} size={22} />
-        </div>
-      </div>
 
       {/* View Tabs */}
       <div className="flex border-b border-border px-2 sm:px-4 bg-panel-header/20 shrink-0 overflow-x-auto">
@@ -916,12 +961,13 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleBulkDeleteRuns(true)}
-                  className="px-2.5 py-1 text-xs text-rose-300 hover:text-white bg-rose-950/30 hover:bg-rose-900/60 border border-rose-800/40 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
-                  title="Elimina tutte le esecuzioni fallite (eccetto quelle preservate con lucchetto)"
+                  onClick={handleDeleteSelectedRuns}
+                  disabled={selectedRunIds.size === 0 || isDeletingBatch}
+                  className="px-2.5 py-1 text-xs text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  title="Elimina le esecuzioni selezionate tramite checkbox"
                 >
                   <Trash2 size={13} />
-                  <span>Elimina Tutte le Fallite</span>
+                  <span>Elimina Selezionate ({selectedRunIds.size})</span>
                 </button>
                 <span className="text-xs text-fg-muted">{filteredRuns.length} esecuzioni</span>
               </div>
@@ -936,6 +982,15 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
                 <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                   <thead>
                     <tr className="border-b border-border bg-panel-header/40 text-fg-muted font-semibold">
+                      <th className="p-3 w-8 text-center" title="Seleziona tutte le visibili">
+                        <input
+                          type="checkbox"
+                          checked={filteredRuns.length > 0 && filteredRuns.every((r) => selectedRunIds.has(r.run_id))}
+                          onChange={() => toggleSelectAllVisible(filteredRuns)}
+                          className="rounded bg-input-bg border-border text-accent focus:ring-0 cursor-pointer"
+                          title="Seleziona / deseleziona tutte le esecuzioni visibili"
+                        />
+                      </th>
                       <th className="p-3 w-8"></th>
                       <th className="p-3 w-8"></th>
                       <th className="p-3">Run ID</th>
@@ -953,8 +1008,19 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
                       <tr
                         key={r.run_id}
                         onClick={() => handleInspectRun(r.run_id)}
-                        className="hover:bg-panel/70 cursor-pointer transition select-none"
+                        className={`hover:bg-panel/70 cursor-pointer transition select-none ${
+                          selectedRunIds.has(r.run_id) ? 'bg-accent/5' : ''
+                        }`}
                       >
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedRunIds.has(r.run_id)}
+                            onChange={() => toggleSelectRun(r.run_id)}
+                            className="rounded bg-input-bg border-border text-accent focus:ring-0 cursor-pointer"
+                            title="Seleziona run"
+                          />
+                        </td>
                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleToggleRunFavorite(r.run_id, Boolean(r.is_favorite))}

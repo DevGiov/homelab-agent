@@ -17,6 +17,8 @@ import {
   Sparkles,
   AlertCircle,
   ArrowLeft,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   fetchAllArtifacts,
@@ -53,8 +55,19 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
 
   // View state
   const [viewMode, setViewMode] = useState<'rendered' | 'raw'>('rendered');
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
@@ -255,7 +268,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
   }, [artifacts]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-bg text-fg overflow-hidden relative font-sans">
+    <div className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative font-sans">
       {/* Top Filter & Search Bar: Visible on desktop always, on mobile only when browsing the master list */}
       <div className={`p-2.5 sm:p-3 border-b border-border bg-panel-header/35 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
         selectedId ? 'hidden md:flex' : 'flex'
@@ -446,10 +459,25 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
           </div>
         </div>
 
-        {/* Right Pane: Artifact Detail View (Full width on mobile when artifact is selected) */}
-        <div className={`flex-1 flex-col bg-bg overflow-hidden ${
-          selectedId ? 'flex' : 'hidden md:flex'
-        }`}>
+        {/* Right Pane: Artifact Detail View (Full width on mobile when artifact is selected, or full screen when toggled) */}
+        <div
+          className={
+            isFullscreen
+              ? 'fixed inset-0 z-50 flex flex-col p-2 sm:p-5 overflow-hidden animate-in fade-in duration-200'
+              : selectedId
+              ? 'flex-1 flex flex-col bg-transparent overflow-hidden'
+              : 'hidden md:flex flex-1 flex-col bg-transparent overflow-hidden'
+          }
+          style={
+            isFullscreen
+              ? {
+                  backgroundColor: 'var(--panel)',
+                  backdropFilter: 'blur(30px)',
+                  WebkitBackdropFilter: 'blur(30px)',
+                }
+              : undefined
+          }
+        >
           {isLoadingDetail ? (
             <div className="flex-1 flex items-center justify-center text-fg-muted gap-2 text-xs p-6">
               <RefreshCw size={18} className="animate-spin text-accent" />
@@ -463,7 +491,10 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1.5">
                     {/* Mobile Back Button to return to list */}
                     <button
-                      onClick={() => setSelectedId(null)}
+                      onClick={() => {
+                        setIsFullscreen(false);
+                        setSelectedId(null);
+                      }}
                       className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent font-medium transition cursor-pointer shadow-sm shrink-0"
                       title="Torna all'elenco dei report"
                     >
@@ -527,6 +558,15 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
                     </button>
                   </div>
 
+                  {/* Fullscreen Button */}
+                  <button
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="p-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-fg-muted hover:text-fg text-xs transition cursor-pointer"
+                    title={isFullscreen ? 'Riduci visualizzazione' : 'Schermo intero'}
+                  >
+                    {isFullscreen ? <Minimize2 size={13} className="text-accent" /> : <Maximize2 size={13} />}
+                  </button>
+
                   {/* Copy Button */}
                   <button
                     onClick={handleCopyMarkdown}
@@ -564,7 +604,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
               </div>
 
               {/* Detail Content Viewer: Optimized padding & scroll for mobile */}
-              <div className="flex-1 overflow-y-auto p-3 sm:p-6 max-w-5xl w-full mx-auto">
+              <div className={`flex-1 overflow-y-auto p-3 sm:p-6 w-full mx-auto ${isFullscreen ? 'max-w-7xl' : 'max-w-5xl'}`}>
                 {viewMode === 'rendered' ? (
                   <div className="bg-panel/40 border border-border/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm overflow-x-auto break-words">
                     <MarkdownRenderer content={selectedArtifact.content || '*Nessun contenuto nel report.*'} />

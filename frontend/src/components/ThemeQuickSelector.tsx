@@ -59,9 +59,12 @@ export const ThemeQuickSelector: React.FC = () => {
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border bg-panel/95 backdrop-blur-2xl text-fg"
+          className="absolute right-0 mt-2 w-[calc(100vw-32px)] max-w-xs sm:w-80 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border text-fg"
           style={{
-            boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border)',
+            backgroundColor: 'var(--panel)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            boxShadow: '0 20px 45px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--border)',
           }}
         >
           {/* Popover Header */}

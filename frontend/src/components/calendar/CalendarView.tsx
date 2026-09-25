@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar as CalIcon,
   ChevronLeft,
@@ -38,9 +38,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  // Navigazione temporale
+  // Navigazione temporale & Selettore Mese/Anno rapido
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'agenda'>('month');
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+  const todayMarkerRef = useRef<HTMLDivElement>(null);
 
   // Filtri & Sidebar
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<Set<string>>(new Set());
@@ -132,30 +135,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     });
   };
 
-  // Navigazione
-  const handlePrev = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000));
-    } else {
-      setCurrentDate(prev => new Date(prev.getTime() - 30 * 24 * 60 * 60 * 1000));
-    }
-  };
+  // Helper date
+  const monthNames = [
+    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+  ];
+  const dayNamesShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-  const handleNext = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000));
-    } else {
-      setCurrentDate(prev => new Date(prev.getTime() + 30 * 24 * 60 * 60 * 1000));
-    }
-  };
-
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
+  // Chiudi date picker al click fuori
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        isDatePickerOpen &&
+        datePickerRef.current &&
+        !datePickerRef.current.contains(e.target as Node)
+      ) {
+        setIsDatePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDatePickerOpen]);
 
   // Filtraggio eventi visibili
   const filteredEvents = useMemo(() => {
@@ -170,12 +170,143 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     });
   }, [events, visibleCalendarIds, selectedCategory]);
 
-  // Helper date
-  const monthNames = [
-    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-  ];
-  const dayNamesShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+  // Eventi ordinati per agenda cronologica
+  const sortedAgendaEvents = useMemo(() => {
+    return [...filteredEvents].sort((a, b) => new Date(a.dtstart).getTime() - new Date(b.dtstart).getTime());
+  }, [filteredEvents]);
+
+  // Mesi effettivamente presenti nell'agenda (ordinati)
+  const presentMonths = useMemo(() => {
+    const keys = new Set<string>();
+    for (const ev of sortedAgendaEvents) {
+      if (ev.dtstart) {
+        const d = new Date(ev.dtstart);
+        keys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+    }
+    return Array.from(keys).sort();
+  }, [sortedAgendaEvents]);
+
+  // Indice di taglio per linea "Oggi" nell'agenda
+  const todaySplitIndex = useMemo(() => {
+    const nowTime = Date.now();
+    const idx = sortedAgendaEvents.findIndex(ev => {
+      const t = ev.dtend ? new Date(ev.dtend).getTime() : new Date(ev.dtstart).getTime();
+      return t >= nowTime;
+    });
+    return idx === -1 ? sortedAgendaEvents.length : idx;
+  }, [sortedAgendaEvents]);
+
+  // Titolo intervallo vista settimana (es. 14 - 20 Settembre 2026)
+  const weekRangeTitle = useMemo(() => {
+    const curr = new Date(currentDate);
+    const dayOfWeek = curr.getDay() === 0 ? 6 : curr.getDay() - 1; // 0=Lun, 6=Dom
+    const monday = new Date(curr);
+    monday.setDate(curr.getDate() - dayOfWeek);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const mDay = monday.getDate();
+    const sDay = sunday.getDate();
+    const mMonth = monday.getMonth();
+    const sMonth = sunday.getMonth();
+    const mYear = monday.getFullYear();
+    const sYear = sunday.getFullYear();
+
+    if (mYear !== sYear) {
+      return `${mDay} ${monthNames[mMonth]} ${mYear} - ${sDay} ${monthNames[sMonth]} ${sYear}`;
+    }
+    if (mMonth !== sMonth) {
+      return `${mDay} ${monthNames[mMonth]} - ${sDay} ${monthNames[sMonth]} ${sYear}`;
+    }
+    return `${mDay} - ${sDay} ${monthNames[mMonth]} ${sYear}`;
+  }, [currentDate]);
+
+  // Navigazione temporale (consapevole del mese/agenda/settimana)
+  const handlePrev = () => {
+    if (viewMode === 'month') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    } else if (viewMode === 'week') {
+      setCurrentDate(prev => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000));
+    } else {
+      // In modalità Agenda: passa al mese precedente effettivamente presente negli eventi
+      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      const preceding = presentMonths.filter(k => k < currentMonthKey);
+      if (preceding.length > 0) {
+        const targetKey = preceding[preceding.length - 1];
+        const [y, m] = targetKey.split('-').map(Number);
+        setCurrentDate(new Date(y, m - 1, 1));
+        const el = document.getElementById(`agenda-month-${targetKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const handleNext = () => {
+    if (viewMode === 'month') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    } else if (viewMode === 'week') {
+      setCurrentDate(prev => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000));
+    } else {
+      // In modalità Agenda: passa al mese successivo presente
+      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      const succeeding = presentMonths.filter(k => k > currentMonthKey);
+      if (succeeding.length > 0) {
+        const targetKey = succeeding[0];
+        const [y, m] = targetKey.split('-').map(Number);
+        setCurrentDate(new Date(y, m - 1, 1));
+        const el = document.getElementById(`agenda-month-${targetKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+    if (viewMode === 'agenda') {
+      if (todayMarkerRef.current) {
+        todayMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const el = document.getElementById(`agenda-month-${currentMonthKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const handleSelectMonth = (monthIdx: number, year: number) => {
+    const targetDate = new Date(year, monthIdx, 1);
+    setCurrentDate(targetDate);
+    if (viewMode === 'agenda') {
+      const targetKey = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+      let jumpKey = targetKey;
+      if (!presentMonths.includes(targetKey)) {
+        const preceding = presentMonths.filter(k => k <= targetKey);
+        if (preceding.length > 0) {
+          jumpKey = preceding[preceding.length - 1];
+        } else if (presentMonths.length > 0) {
+          jumpKey = presentMonths[0];
+        }
+      }
+      setTimeout(() => {
+        const el = document.getElementById(`agenda-month-${jumpKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    }
+  };
+
+  // Auto-scroll su Oggi quando si entra in vista Agenda
+  useEffect(() => {
+    if (viewMode === 'agenda') {
+      const timer = setTimeout(() => {
+        if (todayMarkerRef.current) {
+          todayMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode]);
 
   // Calcolo griglia mese
   const monthDays = useMemo(() => {
@@ -283,32 +414,118 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           )}
 
-          <div className="flex items-center gap-1 bg-input-bg border border-input-border rounded-xl p-1 shadow-inner shrink-0">
-            <button
-              onClick={handlePrev}
-              className="p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
-              title="Precedente"
-            >
-              <ChevronLeft size={16} />
-            </button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Blocco < [Mese Anno / Settimana] > */}
+            <div className="flex items-center bg-input-bg border border-input-border rounded-xl p-0.5 sm:p-1 shadow-inner shrink-0 relative">
+              <button
+                onClick={handlePrev}
+                className="p-1 sm:p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
+                title="Precedente"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold text-fg hover:bg-panel-hover hover:text-accent rounded-lg transition cursor-pointer flex items-center gap-1 tracking-tight"
+                  title="Clicca per scegliere mese e anno desiderati"
+                >
+                  <span className="truncate max-w-[140px] sm:max-w-none">
+                    {viewMode === 'week'
+                      ? weekRangeTitle
+                      : `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
+                  </span>
+                </button>
+
+                {/* Popover selezione rapida Mese / Anno */}
+                {isDatePickerOpen && (
+                  <div
+                    ref={datePickerRef}
+                    className="absolute top-full left-0 mt-2 z-50 p-3 rounded-2xl border border-border shadow-2xl text-fg w-64 animate-in fade-in zoom-in-95 duration-150"
+                    style={{
+                      backgroundColor: 'var(--panel)',
+                      backdropFilter: 'blur(24px)',
+                      WebkitBackdropFilter: 'blur(24px)',
+                      boxShadow: '0 20px 45px -12px rgba(0,0,0,0.8), 0 0 0 1px var(--border)',
+                    }}
+                  >
+                    {/* Anno */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentDate((prev) => new Date(prev.getFullYear() - 1, prev.getMonth(), 1));
+                        }}
+                        className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
+                        title="Anno precedente"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span className="font-bold text-sm text-fg tracking-wide">
+                        {currentDate.getFullYear()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentDate((prev) => new Date(prev.getFullYear() + 1, prev.getMonth(), 1));
+                        }}
+                        className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
+                        title="Anno successivo"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+
+                    {/* Griglia 12 Mesi */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {monthNames.map((mName, mIdx) => {
+                        const isCur = currentDate.getMonth() === mIdx;
+                        return (
+                          <button
+                            key={mName}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectMonth(mIdx, currentDate.getFullYear());
+                              setIsDatePickerOpen(false);
+                            }}
+                            className={`p-1.5 text-xs rounded-lg font-medium transition cursor-pointer ${
+                              isCur
+                                ? 'bg-accent text-white shadow-sm'
+                                : 'text-fg-muted hover:text-fg hover:bg-panel-header'
+                            }`}
+                          >
+                            {mName.substring(0, 3)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleNext}
+                className="p-1 sm:p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
+                title="Successivo"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {/* Pulsante Oggi a fianco */}
             <button
               onClick={handleToday}
-              className="px-2 py-1 text-xs font-medium text-fg hover:bg-panel-hover rounded-lg transition cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-fg hover:text-accent bg-input-bg hover:bg-panel-hover border border-input-border rounded-xl shadow-inner transition cursor-pointer shrink-0"
+              title="Torna ad oggi"
             >
               Oggi
             </button>
-            <button
-              onClick={handleNext}
-              className="p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
-              title="Successivo"
-            >
-              <ChevronRight size={16} />
-            </button>
           </div>
-
-          <h2 className="text-sm sm:text-lg font-semibold text-fg tracking-tight truncate">
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-          </h2>
         </div>
 
         {/* Destra: View Mode Toggle & Azioni */}
@@ -817,11 +1034,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <CalendarDays size={16} className="text-accent" />
                   <span className="text-xs font-semibold text-fg uppercase">Agenda Cronologica</span>
                 </div>
-                <span className="text-xs text-fg-muted">Tutti gli eventi in ordine temporale</span>
+                <span className="text-xs text-fg-muted">{sortedAgendaEvents.length} eventi totali</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {filteredEvents.length === 0 ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                {sortedAgendaEvents.length === 0 ? (
                   <div className="py-12 text-center text-fg-muted text-sm space-y-2">
                     <p>Nessun evento trovato nei calendari selezionati.</p>
                     <button
@@ -832,83 +1049,150 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </button>
                   </div>
                 ) : (
-                  filteredEvents.map(ev => {
-                    const dateObj = new Date(ev.dtstart);
-                    const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-                    const timeRange = ev.all_day
-                      ? 'Tutto il giorno'
-                      : `${ev.dtstart.substring(11, 16)} → ${ev.dtend.substring(11, 16)}`;
+                  <>
+                    {sortedAgendaEvents.map((ev, evIdx) => {
+                      const dateObj = new Date(ev.dtstart);
+                      const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+                      const timeRange = ev.all_day
+                        ? 'Tutto il giorno'
+                        : `${ev.dtstart.substring(11, 16)} → ${ev.dtend.substring(11, 16)}`;
 
-                    return (
-                      <div
-                        key={ev.uid || ev.id}
-                        onClick={e => handleEventClick(e, ev)}
-                        className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div
-                            className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
-                            style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
-                          />
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">
-                                {ev.summary}
-                              </h4>
-                              {ev.category && (
-                                <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
-                                  {ev.category}
-                                </span>
-                              )}
-                              {ev.importance === 'high' || ev.importance === 'critical' ? (
-                                <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
-                                  {ev.importance}
-                                </span>
-                              ) : null}
-                            </div>
+                      const evMonthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                      const prevDateObj = evIdx > 0 ? new Date(sortedAgendaEvents[evIdx - 1].dtstart) : null;
+                      const prevMonthKey = prevDateObj
+                        ? `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, '0')}`
+                        : null;
+                      const isNewMonth = evIdx === 0 || evMonthKey !== prevMonthKey;
 
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-                              <span className="flex items-center gap-1">
-                                <CalIcon size={12} /> {formattedDate}
-                              </span>
-                              <span className="flex items-center gap-1 font-mono text-[11px]">
-                                <Clock size={12} /> {timeRange}
-                              </span>
-                              {ev.location && (
-                                <span className="flex items-center gap-1 truncate max-w-[200px]">
-                                  <MapPin size={12} /> {ev.location}
-                                </span>
-                              )}
-                            </div>
+                      // Separatore Oggi: inserito esattamente al punto di divisione tra passato e presente/futuro
+                      const isTodayDivider = evIdx === todaySplitIndex;
 
-                            {ev.description && (
-                              <p className="text-xs text-fg-muted/80 line-clamp-1">
-                                {ev.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                          {ev.location && (ev.location.startsWith('http://') || ev.location.startsWith('https://')) && (
-                            <a
-                              href={ev.location}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
+                      return (
+                        <React.Fragment key={ev.uid || ev.id || evIdx}>
+                          {/* Separatore di Mese */}
+                          {isNewMonth && (
+                            <div
+                              id={`agenda-month-${evMonthKey}`}
+                              className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10"
                             >
-                              <span>Partecipa</span>
-                              <ExternalLink size={12} />
-                            </a>
+                              <div className="flex items-center gap-2">
+                                <CalendarDays size={15} className="text-accent" />
+                                <h3 className="font-bold text-xs sm:text-sm text-fg tracking-wide uppercase">
+                                  {monthNames[dateObj.getMonth()]} {dateObj.getFullYear()}
+                                </h3>
+                              </div>
+                            </div>
                           )}
-                          <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">
-                            Modifica →
+
+                          {/* Linea Divisoria "Oggi" */}
+                          {isTodayDivider && (
+                            <div
+                              ref={todayMarkerRef}
+                              id="agenda-today-marker"
+                              className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
+                                <span className="font-bold text-xs text-accent uppercase tracking-wider">
+                                  Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-fg-muted font-mono">
+                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Card Evento */}
+                          <div
+                            onClick={e => handleEventClick(e, ev)}
+                            className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
+                          >
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div
+                                className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
+                                style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
+                              />
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">
+                                    {ev.summary}
+                                  </h4>
+                                  {ev.category && (
+                                    <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
+                                      {ev.category}
+                                    </span>
+                                  )}
+                                  {ev.importance === 'high' || ev.importance === 'critical' ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
+                                      {ev.importance}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+                                  <span className="flex items-center gap-1">
+                                    <CalIcon size={12} /> {formattedDate}
+                                  </span>
+                                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                                    <Clock size={12} /> {timeRange}
+                                  </span>
+                                  {ev.location && (
+                                    <span className="flex items-center gap-1 truncate max-w-[200px]">
+                                      <MapPin size={12} /> {ev.location}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {ev.description && (
+                                  <p className="text-xs text-fg-muted/80 line-clamp-1">
+                                    {ev.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                              {ev.location && (ev.location.startsWith('http://') || ev.location.startsWith('https://')) && (
+                                <a
+                                  href={ev.location}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
+                                >
+                                  <span>Partecipa</span>
+                                  <ExternalLink size={12} />
+                                </a>
+                              )}
+                              <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">
+                                Modifica →
+                              </span>
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* Se tutti gli eventi sono nel passato, posiziona la linea Oggi alla fine */}
+                    {todaySplitIndex >= sortedAgendaEvents.length && (
+                      <div
+                        ref={todayMarkerRef}
+                        id="agenda-today-marker"
+                        className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
+                          <span className="font-bold text-xs text-accent uppercase tracking-wider">
+                            Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                           </span>
                         </div>
+                        <span className="text-[10px] text-fg-muted font-mono">
+                          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                    );
-                  })
+                    )}
+                  </>
                 )}
               </div>
             </div>

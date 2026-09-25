@@ -72,6 +72,7 @@ interface ChatProps {
   onClearError: () => void;
   onOpenMobileSidebar?: () => void;
   onOpenMobileToolLog?: () => void;
+  onInspectMessage?: (assistantMsgId: string) => void;
 }
 
 export const Chat: React.FC<ChatProps> = ({
@@ -92,6 +93,7 @@ export const Chat: React.FC<ChatProps> = ({
   onClearError,
   onOpenMobileSidebar,
   onOpenMobileToolLog,
+  onInspectMessage,
 }) => {
   const [input, setInput] = useState('');
   const [selectedMode, setSelectedMode] = useState<AgentMode | 'auto'>('auto');
@@ -800,6 +802,18 @@ export const Chat: React.FC<ChatProps> = ({
                         >
                           <RefreshCw size={9} />
                           <span>Rigenera</span>
+                        </button>
+                      )}
+
+                      {!isUser && onInspectMessage && (
+                        <button
+                          type="button"
+                          onClick={() => onInspectMessage(msg.id)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/10 hover:bg-accent/20 border border-accent/30 text-[9px] text-accent font-mono transition cursor-pointer shadow-sm"
+                          title="Ispeziona parametri, trace e tool nel pannello diagnostica"
+                        >
+                          <Activity size={9} />
+                          <span>Diagnostica</span>
                         </button>
                       )}
 

@@ -1194,10 +1194,20 @@ export async function deleteAutomationRun(runId: string): Promise<{ deleted: boo
 }
 
 export async function bulkDeleteAutomationRuns(params?: {
+  run_ids?: string[];
   automation_id?: string;
   failed_only?: boolean;
   older_than_days?: number;
 }): Promise<{ deleted_count: number }> {
+  if (params?.run_ids && params.run_ids.length > 0) {
+    const res = await api.post<{ deleted_count: number }>('/automations/runs/delete-batch', {
+      run_ids: params.run_ids,
+      automation_id: params.automation_id,
+      failed_only: params.failed_only,
+      older_than_days: params.older_than_days,
+    });
+    return res.data;
+  }
   const res = await api.delete<{ deleted_count: number }>('/automations/runs', {
     params: {
       automation_id: params?.automation_id || undefined,

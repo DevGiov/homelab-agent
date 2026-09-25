@@ -67,6 +67,12 @@ function MainLayout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isMobileToolLogOpen, setIsMobileToolLogOpen] = useState<boolean>(false);
   const [isToolLogOpen, setIsToolLogOpen] = useState<boolean>(true);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  // Reset selected message when thread changes
+  useEffect(() => {
+    setSelectedMessageId(null);
+  }, [currentThreadId]);
 
   const activeError = threadError || chatError;
   const clearErrors = () => {
@@ -147,7 +153,15 @@ function MainLayout() {
             error={activeError}
             onClearError={clearErrors}
             onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-            onOpenMobileToolLog={() => setIsMobileToolLogOpen(true)}
+            onOpenMobileToolLog={() => {
+              setIsToolLogOpen(true);
+              setIsMobileToolLogOpen(true);
+            }}
+            onInspectMessage={(msgId) => {
+              setSelectedMessageId(msgId);
+              setIsToolLogOpen(true);
+              setIsMobileToolLogOpen(true);
+            }}
           />
 
           {/* Right Sidebar: Tool & Plan Log (Responsive Drawer) */}
@@ -168,6 +182,9 @@ function MainLayout() {
               isOpen={isToolLogOpen}
               onToggle={() => setIsToolLogOpen(!isToolLogOpen)}
               onCloseMobile={() => setIsMobileToolLogOpen(false)}
+              messages={currentMessages}
+              selectedMessageId={selectedMessageId}
+              onSelectMessageId={setSelectedMessageId}
             />
           </div>
         </>

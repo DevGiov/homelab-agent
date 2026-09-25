@@ -621,13 +621,23 @@ def delete_run(run_id: str, force: bool = False, db_path: Optional[str] = None) 
 
 def bulk_delete_runs(status: Optional[str] = None, before_date: Optional[str] = None,
                      automation_id: Optional[str] = None, failed_only: bool = False,
-                     preserve_protected: bool = True, db_path: Optional[str] = None) -> int:
-    """Elimina in blocco esecuzioni storiche (es. pulizia fallite o scadute per retention)."""
+                     preserve_protected: bool = True, run_ids: Optional[List[str]] = None,
+                     db_path: Optional[str] = None) -> int:
+    """Elimina in blocco esecuzioni storiche (es. pulizia fallite o selezione manuale)."""
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
         where = []
         params: List[Any] = []
+
+        if run_ids:
+            clean_ids = [str(rid).strip() for rid in run_ids if rid]
+            if clean_ids:
+                in_placeholders = ",".join("?" for _ in clean_ids)
+                where.append(f"run_id IN ({in_placeholders})")
+                params.extend(clean_ids)
+            else:
+                return 0
 
         if failed_only:
             where.append("status IN ('failed', 'cancelled', 'exhausted')")
