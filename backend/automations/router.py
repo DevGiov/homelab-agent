@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request, Security
 from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader
+from pydantic import BaseModel
 
 import config
 from automations import db as auto_db
