@@ -229,7 +229,7 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     }
 
     try:
-        res = requests.post(url, json=payload, timeout=10)
+        res = requests.post(url, json=payload, timeout=25)
         if res.status_code == 200:
             msg_obj = res.json()["choices"][0]["message"]
             raw_content = (msg_obj.get("content") or "").strip()
@@ -293,7 +293,7 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
         fallback_mode = "act"
     elif any(kw in input_lower for kw in ["container", "ct", "lxc", "vm", "proxmox", "evento", "calendario", "automazione"]):
         fallback_mode = "act"
-    elif any(kw in input_lower for kw in ["cerca", "search", "cosa è", "chi è", "perché", "confronta", "differenza", "spiegami"]):
+    elif any(kw in input_lower for kw in ["cerca", "search", "cosa è", "chi è", "perché", "confronta", "differenza", "spiegami", "parlami", "raccontami"]):
         fallback_mode = "ask"
 
     if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
