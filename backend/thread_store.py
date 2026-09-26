@@ -109,7 +109,7 @@ def set_thread_title(thread_id: str, title: str):
         logger.error(f"Errore aggiornamento titolo per thread '{thread_id}': {e}")
 
 
-def generate_and_save_title(thread_id: str, user_prompt: str) -> str:
+def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[str] = None) -> str:
     """Genera via LLM un titolo conciso in italiano (3-5 parole) e lo salva in SQLite."""
     if not thread_id or not user_prompt:
         return "Nuova Conversazione"
@@ -130,7 +130,7 @@ def generate_and_save_title(thread_id: str, user_prompt: str) -> str:
                 "content": f"Title for this initial request:\n{user_prompt[:300]}"
             }
         ]
-        res = provider.chat(prompt_msgs, max_tokens=25, temperature=0.3)
+        res = provider.chat(prompt_msgs, model=model, max_tokens=25, temperature=0.3)
         raw_title = res.get("content", "").strip()
         clean = re.sub(r'["\'`\n#]', '', raw_title).strip()
         if clean.endswith('.'):

@@ -179,15 +179,14 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
     }
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
+    title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
+    needs_title_generation = False
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
-            title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
-            threading.Thread(
-                target=thread_store.generate_and_save_title,
-                args=(effective_thread_id, title_prompt),
-                daemon=True
-            ).start()
+            provisional_title = task.strip()[:35] if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
+            thread_store.set_thread_title(effective_thread_id, provisional_title)
+            needs_title_generation = True
 
     cfg = {"configurable": {"thread_id": effective_thread_id}}
     sess = create_session(effective_thread_id, task=task, mode=force_mode)
@@ -234,6 +233,12 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
         if not incognito:
             thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
+            if needs_title_generation:
+                threading.Thread(
+                    target=thread_store.generate_and_save_title,
+                    args=(effective_thread_id, title_prompt, model),
+                    daemon=True
+                ).start()
 
         return resp
     except Exception as e:
@@ -438,15 +443,14 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     }
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
+    title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
+    needs_title_generation = False
     if not incognito:
         thread_store.save_user_message(effective_thread_id, task, images=images)
         if not thread_store.get_thread_title(effective_thread_id):
-            title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
-            threading.Thread(
-                target=thread_store.generate_and_save_title,
-                args=(effective_thread_id, title_prompt),
-                daemon=True
-            ).start()
+            provisional_title = task.strip()[:35] if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
+            thread_store.set_thread_title(effective_thread_id, provisional_title)
+            needs_title_generation = True
 
     # Se c'è già una sessione attiva per questo thread, ci colleghiamo ad essa
     existing_sess = get_session(effective_thread_id)
@@ -498,6 +502,12 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 )
                 if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
+                    if needs_title_generation:
+                        threading.Thread(
+                            target=thread_store.generate_and_save_title,
+                            args=(effective_thread_id, title_prompt, model),
+                            daemon=True
+                        ).start()
                 sess.put({"type": "final", "response": resp.model_dump()})
             except Exception as e:
                 if not incognito and not sess.is_stopped():
@@ -515,6 +525,12 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                             "response": "[Esecuzione completata]",
                             "error": False
                         })
+                        if needs_title_generation:
+                            threading.Thread(
+                                target=thread_store.generate_and_save_title,
+                                args=(effective_thread_id, title_prompt, model),
+                                daemon=True
+                            ).start()
                 sess.put(None)
 
         ctx = contextvars.copy_context()
@@ -841,9 +857,11 @@ async def update_thread_title(thread_id: str, req: SetThreadTitleRequest):
 
 
 @api.post("/v1/threads/{thread_id}/title/generate", dependencies=[Depends(verify_api_key)])
-async def force_generate_thread_title(thread_id: str):
+async def force_generate_thread_title(thread_id: str, model: Optional[str] = None):
     last_msg = thread_store.get_last_message(thread_id) or "Nuova chat"
-    title = thread_store.generate_and_save_title(thread_id, last_msg)
+    import providers
+    effective_model = model or providers.get_active_model_name()
+    title = thread_store.generate_and_save_title(thread_id, last_msg, model=effective_model)
     return {"status": "ok", "thread_id": thread_id, "title": title}
 
 

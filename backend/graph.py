@@ -625,7 +625,8 @@ def formulate_visual_search_query(task: str, images: List[str], model: Optional[
 def should_prefetch_web(
     task: str,
     images: Optional[List[str]] = None,
-    conversation_context: Optional[str] = None
+    conversation_context: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> bool:
     """
     Determines whether deterministic web prefetch should run in 'auto' mode.
@@ -638,7 +639,8 @@ def should_prefetch_web(
     decision = router.route_turn(
         user_input=task,
         conversation_context=conversation_context,
-        has_images=has_images
+        has_images=has_images,
+        model=model,
     )
     return decision.web_search_needed
 
@@ -671,7 +673,12 @@ def web_prefetch_node(state: AgentState) -> AgentState:
         if "web_search_needed" in route_decision:
             should_run = route_decision.get("web_search_needed", False)
         else:
-            should_run = should_prefetch_web(task, images=images, conversation_context=state.get("memory_context"))
+            should_run = should_prefetch_web(
+                task,
+                images=images,
+                conversation_context=state.get("memory_context"),
+                model=state.get("model")
+            )
 
         if not should_run:
             logger.info(f"Web prefetch [AUTO]: skipped for query '{task}' (decision: {route_decision.get('reasoning')})")

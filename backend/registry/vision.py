@@ -97,8 +97,11 @@ class VisionRegistry(BaseToolRegistry):
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
 
+            import providers
+            model_to_use = args.get("model") or providers.get_active_model_name() or config.DEFAULT_MODEL
+
             payload = {
-                "model": config.DEFAULT_MODEL,
+                "model": model_to_use,
                 "messages": [
                     {
                         "role": "user",

@@ -217,11 +217,45 @@ class TestRouterAndPrefetch(unittest.TestCase):
         r4 = ChatRequest(input="test", web_search=True)
         self.assertEqual(r4.web_search, "on")
 
-        r5 = ChatRequest(input="test", web_search=False)
-        self.assertEqual(r5.web_search, "off")
+    def test_route_turn_fast_shortcut_when_force_mode_and_web_off(self):
+        """Verifica che force_mode con web_search='off' ritorni istantaneamente senza chiamare l'LLM."""
+        with patch("requests.post") as mock_post:
+            decision = route_turn("Spiegami la fisica quantistica", force_mode="chat", web_search_override="off")
+            self.assertEqual(decision.mode, "chat")
+            self.assertFalse(decision.web_search_needed)
+            self.assertIsNone(decision.web_search_query)
+            mock_post.assert_not_called()
 
-        r6 = ChatRequest(input="test")
-        self.assertEqual(r6.web_search, "auto")
+            decision_act = route_turn("Qualunque cosa", force_mode="act", web_search_override=False)
+            self.assertEqual(decision_act.mode, "act")
+            self.assertFalse(decision_act.web_search_needed)
+            mock_post.assert_not_called()
+
+    def test_route_turn_passes_selected_model(self):
+        """Verifica che route_turn invii il modello specificato alla chiamata LLM."""
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.json.return_value = {
+            "choices": [{"message": {"content": json.dumps({"mode": "ask", "web_search_needed": True, "web_search_query": "test query"})}}]
+        }
+        with patch("requests.post", return_value=mock_res) as mock_post:
+            route_turn("Spiegami il rendering raster", model="Gemma-4-26B-Q3")
+            mock_post.assert_called_once()
+            called_payload = mock_post.call_args[1]["json"]
+            self.assertEqual(called_payload["model"], "Gemma-4-26B-Q3")
+
+    def test_title_generation_uses_specified_model(self):
+        """Verifica che generate_and_save_title passi il modello selezionato a provider.chat."""
+        from thread_store import generate_and_save_title
+        mock_provider = MagicMock()
+        mock_provider.chat.return_value = {"content": "Titolo Di Prova"}
+        with patch("providers.get_provider", return_value=mock_provider):
+            res = generate_and_save_title("thread_test_model", "Come installare Docker su Debian?", model="Gemma-4-26B-Q3")
+            mock_provider.chat.assert_called_once()
+            _, kwargs = mock_provider.chat.call_args
+            self.assertEqual(kwargs.get("model"), "Gemma-4-26B-Q3")
+            self.assertEqual(res, "Titolo Di Prova")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -125,26 +125,39 @@ def route_turn(
     input_lower = user_input.strip().lower()
     clean_input = input_lower.rstrip("?!.,:; \t").strip()
 
-    # 1. Fast shortcut per saluti e convenevoli banali (0ms latenza)
+    # 0. Fast shortcut: se la modalità è forzata manualmente e la ricerca web è disattivata ('off'),
+    # non serve chiamare l'LLM: modalità e stato web sono già determinati al 100% dall'utente (0ms latenza).
+    if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"] and (web_search_override is False or web_search_override == "off"):
+        logger.info(f"Fast shortcut: force_mode='{force_mode}' with web_search='off'. Returning directly without LLM call.")
+        return RouteDecision(
+            mode=force_mode.lower(),
+            web_search_needed=False,
+            web_search_query=None,
+            reasoning=f"User manually forced mode='{force_mode}' with web search disabled"
+        )
+
+    # 1. Fast shortcut per saluti e convenevoli banali (0ms latenza, salvo web search forzata 'on')
     chat_greetings = [
         "ciao", "salve", "buongiorno", "buonasera", "grazie", "grazie mille", "chi sei",
         "come ti chiami", "come stai", "cosa sai fare", "hello", "hi", "hey",
         "good morning", "good evening", "thanks", "thank you", "who are you", "what is your name", "how are you"
     ]
-    if any(clean_input == g or clean_input.startswith(f"{g} ") or clean_input.endswith(f" {g}") for g in chat_greetings):
-        mode = "chat"
-        if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
-            mode = force_mode.lower()
-        logger.info(f"Fast shortcut: greeting classified as mode={mode}, web_search=False for '{user_input}'")
-        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Conversational greeting/pleasantry")
+    if web_search_override is not True and web_search_override != "on":
+        if any(clean_input == g or clean_input.startswith(f"{g} ") or clean_input.endswith(f" {g}") for g in chat_greetings):
+            mode = "chat"
+            if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+                mode = force_mode.lower()
+            logger.info(f"Fast shortcut: greeting classified as mode={mode}, web_search=False for '{user_input}'")
+            return RouteDecision(mode=mode, web_search_needed=False, reasoning="Conversational greeting/pleasantry")
 
     # 2. Fast shortcut per analisi visiva pura senza ricerca esterna
-    if has_images and is_purely_visual_request(user_input):
-        mode = "chat"
-        if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
-            mode = force_mode.lower()
-        logger.info(f"Fast shortcut: visual direct request classified as mode={mode}, web_search=False for '{user_input}'")
-        return RouteDecision(mode=mode, web_search_needed=False, reasoning="Direct visual perception")
+    if web_search_override is not True and web_search_override != "on":
+        if has_images and is_purely_visual_request(user_input):
+            mode = "chat"
+            if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+                mode = force_mode.lower()
+            logger.info(f"Fast shortcut: visual direct request classified as mode={mode}, web_search=False for '{user_input}'")
+            return RouteDecision(mode=mode, web_search_needed=False, reasoning="Direct visual perception")
 
     # 3. Fast shortcut per pianificazioni esplicite
     plan_keywords = [
@@ -174,8 +187,19 @@ def route_turn(
         return RouteDecision(mode=mode, web_search_needed=False, reasoning="Deterministic conceptual query")
 
     # 5. Modello attivo & Capabilities dinamiche
+    import providers
     capabilities_str = get_dynamic_capabilities_summary()
-    effective_model = model or DEFAULT_MODEL
+    effective_model = model or providers.get_active_model_name() or DEFAULT_MODEL
+
+    extra_instructions = []
+    if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+        extra_instructions.append(f"- NOTE: The operational mode is already preset to '{force_mode.lower()}'. Set 'mode': '{force_mode.lower()}'.")
+    if web_search_override is True or web_search_override == "on":
+        extra_instructions.append("- NOTE: The user explicitly enabled Web Search. You MUST set 'web_search_needed': true and generate a high-quality, concise 'web_search_query' (3-6 words, no filler words) for this request.")
+    elif web_search_override is False or web_search_override == "off":
+        extra_instructions.append("- NOTE: Web Search is disabled by user. Set 'web_search_needed': false and 'web_search_query': null.")
+
+    user_directives = ("\nUser Directives:\n" + "\n".join(extra_instructions) + "\n") if extra_instructions else ""
 
     system_prompt = f"""You are the intelligent Router for the Homelab AI Management Assistant.
 Your task is to classify the user request into an operational mode and determine if an external web search prefetch is needed.
@@ -196,7 +220,7 @@ Web Search Policy:
   1. The request strictly targets local homelab infrastructure and tools (Proxmox LXC/VMs, local containers, local files, local calendar, local automations, local bash) where external web information is irrelevant.
   2. Casual greetings, chit-chat, pleasantries, or questions about the assistant itself.
 - web_search_query: If web_search_needed is true, formulate a concise, targeted search query (3-6 words, no filler words). If false, set to null.
-
+{user_directives}
 Reply EXCLUSIVELY with a JSON object matching this schema:
 {{
   "mode": "chat" | "ask" | "act" | "plan",
