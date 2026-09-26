@@ -31,6 +31,7 @@ from providers import (
     list_provider_models_with_details,
     list_providers_info,
     set_active_provider,
+    load_provider_model,
 )
 from schemas import (
     AddMemoryRequest,
@@ -38,6 +39,7 @@ from schemas import (
     ChatResponse,
     ClearMemoryResponse,
     ImageUploadResponse,
+    LoadModelRequest,
     MemoryItem,
     MemoryListResponse,
     ModelDetail,
@@ -208,9 +210,11 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         metrics = sess.get_metrics()
 
         t_title = thread_store.get_thread_title(effective_thread_id)
+        effective_model_used = model or get_active_model_name()
         resp = ChatResponse(
             thread_id=effective_thread_id,
             mode=mode,
+            model=effective_model_used,
             response=response_text,
             tool_used=tool_used,
             plan_steps=plan_steps,
@@ -318,6 +322,36 @@ async def set_default_provider_endpoint(req: SetDefaultProviderRequest):
         return {"status": "ok", **res}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@api.post("/v1/providers/{name}/models/load", dependencies=[Depends(verify_api_key)])
+async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
+    """Carica un modello in VRAM per il provider specificato."""
+    try:
+        res = load_provider_model(name, req.model)
+        return {"status": "ok", "provider": name, "model": req.model, "result": res}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore durante il caricamento del modello '{req.model}': {e}")
+
+@api.get("/v1/models/events")
+async def models_events_endpoint():
+    """Proxy SSE verso llama.cpp /models/sse per monitorare lo stato e la percentuale di caricamento in tempo reale."""
+    import httpx
+    root_url = re.sub(r'/v1/?$', '', config.LLAMA_CPP_URL.rstrip('/'))
+    url = f"{root_url}/models/sse"
+
+    async def sse_stream():
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream("GET", url) as resp:
+                    async for line in resp.aiter_lines():
+                        if line:
+                            yield f"{line}\n\n"
+        except Exception:
+            pass
+
+    return StreamingResponse(sse_stream(), media_type="text/event-stream")
 
 def _limit(rate: str):
     """Decorator di rate limiting condizionale (no-op se slowapi non è installato)."""
@@ -479,9 +513,11 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 metrics = sess.get_metrics()
 
                 t_title = thread_store.get_thread_title(effective_thread_id)
+                effective_model_used = model or get_active_model_name()
                 resp = ChatResponse(
                     thread_id=effective_thread_id,
                     mode=mode,
+                    model=effective_model_used,
                     response=response_text,
                     tool_used=tool_used,
                     plan_steps=plan_steps,

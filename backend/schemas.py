@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     thread_id: Optional[str] = None
     mode: str
+    model: Optional[str] = None
     response: str
     tool_used: Optional[str] = None
     plan_steps: Optional[List[str]] = None
@@ -88,6 +89,13 @@ class ModelDetail(BaseModel):
     id: str
     is_vision: bool = False
     input_modalities: Optional[List[str]] = None
+    status: Optional[str] = None
+    is_loaded: bool = False
+    is_loading: bool = False
+
+
+class LoadModelRequest(BaseModel):
+    model: str
 
 
 class ProviderModelsResponse(BaseModel):

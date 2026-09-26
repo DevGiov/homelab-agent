@@ -55,6 +55,14 @@ class LLMProvider(ABC):
         """Lista dettagliata dei modelli con capability (es. vision)."""
         return [{"id": m, "is_vision": is_vision_model(m)} for m in self.list_models()]
 
+    def load_model(self, model: str) -> Dict[str, Any]:
+        """Carica un modello in memoria (se supportato dal provider)."""
+        return {"status": "unsupported"}
+
+    def ensure_model_loaded(self, model: Optional[str] = None, timeout: float = 180.0) -> bool:
+        """Assicura che il modello sia caricato in VRAM prima di procedere."""
+        return True
+
 
 def _supports_reasoning(model_name: str) -> bool:
     lowered = (model_name or "").lower()
@@ -133,8 +141,65 @@ class OpenAICompatProvider(LLMProvider):
             payload["stream_options"] = {"include_usage": True}
         return payload
 
+    def load_model(self, model: str) -> Dict[str, Any]:
+        """Invia richiesta di caricamento del modello al server llama.cpp."""
+        root_url = re.sub(r'/v1/?$', '', self.base_url)
+        url = f"{root_url}/models/load"
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(url, json={"model": model})
+                if res.status_code == 200:
+                    return {"status": "ok", "detail": res.json()}
+                elif res.status_code == 400 and "already running" in res.text:
+                    return {"status": "ok", "detail": "already_loaded"}
+                else:
+                    return {"status": "error", "code": res.status_code, "detail": res.text}
+        except Exception as e:
+            logger.warning(f"[{self.name}] Failed to load model {model}: {e}")
+            return {"status": "error", "detail": str(e)}
+
+    def ensure_model_loaded(self, model: Optional[str] = None, timeout: float = 180.0) -> bool:
+        """Assicura che il modello sia caricato in VRAM prima di procedere con l'inferenza."""
+        effective_model = model or self.default_model
+        if not effective_model:
+            return True
+
+        try:
+            details = self.list_models_with_details()
+            for d in details:
+                if d.get("id") == effective_model and d.get("is_loaded"):
+                    return True
+        except Exception:
+            pass
+
+        logger.info(f"[{self.name}] Modello '{effective_model}' non caricato in VRAM. Richiesta di load in corso...")
+        load_res = self.load_model(effective_model)
+        if load_res.get("detail") == "already_loaded":
+            return True
+
+        start_wait = time.time()
+        while time.time() - start_wait < timeout:
+            sess = current_session_var.get()
+            if sess and sess.is_stopped():
+                return False
+            time.sleep(1.0)
+            try:
+                details = self.list_models_with_details()
+                for d in details:
+                    if d.get("id") == effective_model and d.get("is_loaded"):
+                        logger.info(f"[{self.name}] Modello '{effective_model}' caricato in {round(time.time() - start_wait, 1)}s")
+                        return True
+            except Exception:
+                pass
+
+        logger.warning(f"[{self.name}] Timeout attesa caricamento modello '{effective_model}'")
+        return False
+
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
              reasoning_budget=-1, stream_callback=None) -> Dict[str, Any]:
+        effective_model = model or self.default_model
+        self.ensure_model_loaded(effective_model)
+
         url = f"{self.base_url}/chat/completions"
         payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, stream=bool(stream_callback))
 
@@ -154,6 +219,8 @@ class OpenAICompatProvider(LLMProvider):
                                 break
                             content_acc, reasoning_acc = "", ""
                             raw_usage = None
+                            timings = None
+                            first_token_time = None
                             for line in res.iter_lines():
                                 if sess:
                                     if sess.is_stopped():
@@ -168,30 +235,44 @@ class OpenAICompatProvider(LLMProvider):
                                     chunk = json.loads(line[6:])
                                     if "usage" in chunk and chunk["usage"]:
                                         raw_usage = chunk["usage"]
+                                    if "timings" in chunk and chunk["timings"]:
+                                        timings = chunk["timings"]
                                     choices = chunk.get("choices")
                                     if choices and len(choices) > 0:
                                         delta = choices[0].get("delta", {})
                                         r_part = delta.get("reasoning_content")
                                         if r_part:
+                                            if first_token_time is None:
+                                                first_token_time = time.time()
                                             reasoning_acc += r_part
                                             stream_callback({"type": "reasoning", "delta": r_part})
                                         c_part = delta.get("content")
                                         if c_part:
+                                            if first_token_time is None:
+                                                first_token_time = time.time()
                                             content_acc += c_part
                                             stream_callback({"type": "content", "delta": c_part})
                                 except Exception as e:
                                     logger.warning(f"[{self.name}] SSE parse error: {e}")
 
                             duration_s = round(time.time() - start_t, 2)
-                            if raw_usage:
-                                p_tok = raw_usage.get("prompt_tokens", 0)
-                                c_tok = raw_usage.get("completion_tokens", 0)
-                                tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                            if timings and timings.get("predicted_per_second"):
+                                tok_per_s = round(float(timings["predicted_per_second"]), 1)
+                                c_tok = timings.get("predicted_n", 0)
+                                p_tok = timings.get("prompt_n", 0) + timings.get("cache_n", 0)
+                                tot_tok = p_tok + c_tok
                             else:
-                                c_tok = max(1, len(content_acc + reasoning_acc) // 4) if (content_acc or reasoning_acc) else 0
-                                p_tok = 0
-                                tot_tok = c_tok
-                            tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
+                                if raw_usage:
+                                    p_tok = raw_usage.get("prompt_tokens", 0)
+                                    c_tok = raw_usage.get("completion_tokens", 0)
+                                    tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                                else:
+                                    c_tok = max(1, len(content_acc + reasoning_acc) // 4) if (content_acc or reasoning_acc) else 0
+                                    p_tok = 0
+                                    tot_tok = c_tok
+                                gen_duration = (time.time() - first_token_time) if first_token_time else duration_s
+                                tok_per_s = round(c_tok / max(gen_duration, 0.001), 1)
+
                             metrics = {
                                 "prompt_tokens": p_tok,
                                 "completion_tokens": c_tok,
@@ -215,16 +296,24 @@ class OpenAICompatProvider(LLMProvider):
                             content, extracted = _extract_think_blocks(content)
                             reasoning = extracted
                         raw_usage = data.get("usage")
+                        timings = data.get("timings")
                         duration_s = round(time.time() - start_t, 2)
-                        if raw_usage:
-                            p_tok = raw_usage.get("prompt_tokens", 0)
-                            c_tok = raw_usage.get("completion_tokens", 0)
-                            tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                        if timings and timings.get("predicted_per_second"):
+                            tok_per_s = round(float(timings["predicted_per_second"]), 1)
+                            c_tok = timings.get("predicted_n", 0)
+                            p_tok = timings.get("prompt_n", 0) + timings.get("cache_n", 0)
+                            tot_tok = p_tok + c_tok
                         else:
-                            c_tok = max(1, len(content + reasoning) // 4) if (content or reasoning) else 0
-                            p_tok = 0
-                            tot_tok = c_tok
-                        tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
+                            if raw_usage:
+                                p_tok = raw_usage.get("prompt_tokens", 0)
+                                c_tok = raw_usage.get("completion_tokens", 0)
+                                tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+                            else:
+                                c_tok = max(1, len(content + reasoning) // 4) if (content or reasoning) else 0
+                                p_tok = 0
+                                tot_tok = c_tok
+                            tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
+
                         metrics = {
                             "prompt_tokens": p_tok,
                             "completion_tokens": c_tok,
@@ -273,21 +362,29 @@ class OpenAICompatProvider(LLMProvider):
                         m_id = str(m.get("id") or m.get("name", ""))
                         if not m_id:
                             continue
+                        status_obj = m.get("status") if isinstance(m.get("status"), dict) else {}
+                        status_val = str(status_obj.get("value", "unloaded"))
+                        status_args = status_obj.get("args", []) if isinstance(status_obj.get("args"), list) else []
                         arch = m.get("architecture") if isinstance(m.get("architecture"), dict) else {}
                         input_mods = arch.get("input_modalities") if isinstance(arch.get("input_modalities"), list) else []
-                        status_args = m.get("status", {}).get("args", []) if isinstance(m.get("status"), dict) else []
                         has_img_mod = ("image" in input_mods) or ("--mmproj" in status_args)
                         is_vis = is_vision_model(m_id) or has_img_mod
                         details.append({
                             "id": m_id,
                             "is_vision": is_vis,
-                            "input_modalities": input_mods or (["text", "image"] if is_vis else ["text"])
+                            "input_modalities": input_mods or (["text", "image"] if is_vis else ["text"]),
+                            "status": status_val,
+                            "is_loaded": (status_val == "loaded"),
+                            "is_loading": (status_val == "loading"),
                         })
                     elif isinstance(m, str) and m:
                         details.append({
                             "id": m,
                             "is_vision": is_vision_model(m),
-                            "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"]
+                            "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"],
+                            "status": "unknown",
+                            "is_loaded": False,
+                            "is_loading": False,
                         })
                 if details:
                     return details
@@ -298,7 +395,10 @@ class OpenAICompatProvider(LLMProvider):
         return [{
             "id": fallback_id,
             "is_vision": is_vision_model(fallback_id),
-            "input_modalities": ["text", "image"] if is_vision_model(fallback_id) else ["text"]
+            "input_modalities": ["text", "image"] if is_vision_model(fallback_id) else ["text"],
+            "status": "loaded",
+            "is_loaded": True,
+            "is_loading": False,
         }]
 
     def list_models(self) -> List[str]:
@@ -486,4 +586,11 @@ def list_provider_models_with_details(provider_name: str) -> List[Dict[str, Any]
 def list_providers() -> Dict[str, bool]:
     """Stato health di tutti i provider registrati (retrocompatibilità)."""
     return {name: p.health() for name, p in _PROVIDERS.items()}
+
+
+def load_provider_model(provider_name: str, model_name: str) -> Dict[str, Any]:
+    """Carica un modello specifico per il dato provider."""
+    if provider_name not in _PROVIDERS:
+        raise ValueError(f"Provider '{provider_name}' non registrato")
+    return _PROVIDERS[provider_name].load_model(model_name)
 

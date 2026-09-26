@@ -46,6 +46,7 @@ def init_db():
                 images_json TEXT,
                 metrics_json TEXT,
                 web_prefetch_json TEXT,
+                model TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (thread_id, message_id)
             )
@@ -60,6 +61,7 @@ def init_db():
             "images_json TEXT",
             "metrics_json TEXT",
             "web_prefetch_json TEXT",
+            "model TEXT",
         ]:
             try:
                 cursor.execute(f"ALTER TABLE thread_messages ADD COLUMN {col_def}")
@@ -233,13 +235,14 @@ def save_assistant_message(
 
         web_prefetch = response_data.get("web_prefetch")
         web_prefetch_json = json.dumps(web_prefetch, ensure_ascii=False) if web_prefetch else None
+        model = response_data.get("model")
 
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -258,7 +261,8 @@ def save_assistant_message(
             versions_json,
             v_idx,
             metrics_json,
-            web_prefetch_json
+            web_prefetch_json,
+            model
         ))
         conn.commit()
         return msg_id
@@ -334,7 +338,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
                    plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
                    is_error, reasoning_content, versions_json, version_index, images_json, metrics_json,
-                   web_prefetch_json
+                   web_prefetch_json, model
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -346,7 +350,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         for row in rows:
             (m_id, sender, content, ts, mode, tool_used, reasoning,
              ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
-             vers_json, v_idx, img_json, met_json, wp_json) = row
+             vers_json, v_idx, img_json, met_json, wp_json, model_val) = row
 
             versions_parsed = None
             if vers_json:
@@ -394,7 +398,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "versionIndex": v_idx if v_idx is not None else 0,
                 "images": images_parsed,
                 "metrics": metrics_parsed,
-                "web_prefetch": web_prefetch_parsed
+                "web_prefetch": web_prefetch_parsed,
+                "model": model_val
             }
             messages.append(msg_obj)
 

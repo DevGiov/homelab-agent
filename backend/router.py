@@ -253,7 +253,13 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     }
 
     try:
-        res = requests.post(url, json=payload, timeout=25)
+        from providers import get_provider
+        get_provider().ensure_model_loaded(effective_model)
+    except Exception as e:
+        logger.warning(f"[Router] ensure_model_loaded check failed: {e}")
+
+    try:
+        res = requests.post(url, json=payload, timeout=60)
         if res.status_code == 200:
             msg_obj = res.json()["choices"][0]["message"]
             raw_content = (msg_obj.get("content") or "").strip()

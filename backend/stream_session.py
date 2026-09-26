@@ -28,6 +28,7 @@ class StreamSession:
         self.completion_tokens = 0
         self.total_tokens = 0
         self.llm_duration_s = 0.0
+        self.tok_per_s = 0.0
 
         self.reasoning_content = ""
         self.partial_content = ""
@@ -83,20 +84,23 @@ class StreamSession:
         self.completion_tokens += m.get("completion_tokens", 0)
         self.total_tokens += m.get("total_tokens", (m.get("prompt_tokens", 0) + m.get("completion_tokens", 0)))
         self.llm_duration_s += m.get("duration_s", 0.0)
+        if m.get("tok_per_s"):
+            self.tok_per_s = float(m["tok_per_s"])
 
     def get_metrics(self) -> Dict[str, Any]:
         end_time = self.completed_time or time.time()
         duration_s = round(end_time - self.start_time, 2)
         llm_duration_s = round(self.llm_duration_s, 2)
         active_time = llm_duration_s if llm_duration_s > 0 else duration_s
-        tok_per_s = round(self.completion_tokens / max(active_time, 0.001), 1)
+        fallback_tok_per_s = round(self.completion_tokens / max(active_time, 0.001), 1)
+        reported_tok_per_s = self.tok_per_s if getattr(self, "tok_per_s", 0) > 0 else fallback_tok_per_s
         return {
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
             "duration_s": duration_s,
             "llm_duration_s": llm_duration_s,
-            "tok_per_s": tok_per_s,
+            "tok_per_s": round(reported_tok_per_s, 1),
         }
 
     def put(self, event: Any) -> None:

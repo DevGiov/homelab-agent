@@ -11,6 +11,7 @@ import {
   Globe,
   ExternalLink,
   MessageSquare,
+  Cpu,
 } from 'lucide-react';
 import type {
   ExecutionTraceItem,
@@ -68,6 +69,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
     : null;
 
   // Derive active values: if a specific message is selected, inspect that message; otherwise use live/props
+  const latestAssistantMsg = (messages || []).slice().reverse().find((m) => m.sender === 'assistant');
   const activeMode = selectedMsg ? selectedMsg.mode : mode;
   const activeTool = selectedMsg ? selectedMsg.tool_used : toolUsed;
   const activePlanSteps = selectedMsg ? selectedMsg.plan_steps : planSteps;
@@ -75,6 +77,8 @@ export const ToolLog: React.FC<ToolLogProps> = ({
   const activeExecutionTrace = selectedMsg ? selectedMsg.execution_trace : executionTrace;
   const activeRollbackTrace = selectedMsg ? selectedMsg.rollback_trace : rollbackTrace;
   const activeWebPrefetch = selectedMsg ? selectedMsg.web_prefetch : webPrefetch;
+  const activeModel = selectedMsg ? selectedMsg.model : latestAssistantMsg?.model;
+  const activeMetrics = selectedMsg ? selectedMsg.metrics : latestAssistantMsg?.metrics;
 
   const hasContent = Boolean(
     activeTool ||
@@ -83,7 +87,9 @@ export const ToolLog: React.FC<ToolLogProps> = ({
     (activeExecutionTrace && activeExecutionTrace.length > 0) ||
     (activeRollbackTrace && activeRollbackTrace.length > 0) ||
     (activeWebPrefetch && activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0) ||
-    activeMode
+    activeMode ||
+    activeModel ||
+    activeMetrics
   );
 
   return (
@@ -225,6 +231,55 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
                   <div className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-accent/15 text-accent border border-accent/30 uppercase tracking-wide">
                     {activeMode}
+                  </div>
+                </div>
+              )}
+
+              {/* LLM Model Card */}
+              {activeModel && (
+                <div className="glass-card border border-border rounded-xl p-3.5 space-y-1.5">
+                  <div className="flex items-center gap-2 text-fg-muted text-xs">
+                    <Cpu size={14} className="text-accent" />
+                    <span className="font-medium text-fg">Modello LLM</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-panel text-fg border border-border">
+                    <span className="truncate">{activeModel}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Performance & Token Metrics Card */}
+              {activeMetrics && (
+                <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-fg-muted text-xs">
+                    <Zap size={14} className="text-amber-400" />
+                    <span className="font-medium text-fg">Metriche & Velocità</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="bg-panel border border-border/70 rounded-lg p-2">
+                      <div className="text-[10px] text-fg-muted">Velocità LLM</div>
+                      <div className="text-amber-400 font-bold text-sm mt-0.5">
+                        {activeMetrics.tok_per_s ?? 0} <span className="text-[10px] font-normal text-fg-muted">tok/s</span>
+                      </div>
+                    </div>
+                    <div className="bg-panel border border-border/70 rounded-lg p-2">
+                      <div className="text-[10px] text-fg-muted">Token Generati</div>
+                      <div className="text-fg font-bold text-sm mt-0.5">
+                        {activeMetrics.completion_tokens ?? 0} <span className="text-[10px] font-normal text-fg-muted">tok</span>
+                      </div>
+                    </div>
+                    <div className="bg-panel border border-border/70 rounded-lg p-2">
+                      <div className="text-[10px] text-fg-muted">Prompt Token</div>
+                      <div className="text-fg font-medium mt-0.5">
+                        {activeMetrics.prompt_tokens ?? 0}
+                      </div>
+                    </div>
+                    <div className="bg-panel border border-border/70 rounded-lg p-2">
+                      <div className="text-[10px] text-fg-muted">Durata Turno</div>
+                      <div className="text-fg font-medium mt-0.5">
+                        {activeMetrics.duration_s ?? 0}s
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

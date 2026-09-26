@@ -135,6 +135,7 @@ export interface StreamMetrics {
 export interface ChatResponse {
   thread_id: string | null;
   mode: AgentMode | string;
+  model?: string;
   response: string;
   tool_used?: string;
   plan_steps?: string[];
@@ -595,12 +596,21 @@ export interface ModelDetail {
   id: string;
   is_vision: boolean;
   input_modalities: string[];
+  status?: string;
+  is_loaded?: boolean;
+  is_loading?: boolean;
+  load_progress?: number;
 }
 
 export interface ProviderModelsResponse {
   provider: string;
   models: string[];
   models_detail?: ModelDetail[];
+}
+
+export async function loadModel(provider: string, model: string): Promise<any> {
+  const res = await api.post(`/providers/${encodeURIComponent(provider)}/models/load`, { model });
+  return res.data;
 }
 
 export interface ImageUploadResponse {

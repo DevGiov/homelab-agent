@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send,
   Bot,
@@ -10,7 +10,7 @@ import {
   Menu,
   Activity,
   Brain,
-  Box,
+  Cpu,
   EyeOff,
   Globe,
   Square,
@@ -37,6 +37,7 @@ import { InlineApprovalCard } from './components/InlineApprovalCard';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import ReasoningBlock from './components/ReasoningBlock';
 import { ThemeQuickSelector } from './components/ThemeQuickSelector';
+import { ModelSelector } from './components/ModelSelector';
 
 interface ChatProps {
   currentThreadId: string | null;
@@ -154,11 +155,14 @@ export const Chat: React.FC<ChatProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  const [activeProvider, setActiveProvider] = useState<string>('llamacpp');
+
+  const refreshModels = useCallback(() => {
     getProviders()
       .then((data) => {
         const activeProv = data.active_provider;
         if (activeProv) {
+          setActiveProvider(activeProv);
           getProviderModelsWithDetails(activeProv)
             .then((details) => {
               setModelDetails(details);
@@ -169,6 +173,10 @@ export const Chat: React.FC<ChatProps> = ({
       })
       .catch((err) => console.warn('Errore caricamento provider chat:', err));
   }, []);
+
+  useEffect(() => {
+    refreshModels();
+  }, [refreshModels]);
 
   const isModelVision = (modelId: string): boolean => {
     const found = modelDetails.find((d) => d.id === modelId);
@@ -553,16 +561,13 @@ export const Chat: React.FC<ChatProps> = ({
                                 <option value="plan">Mode: Plan</option>
                               </select>
                               {availableModels.length > 0 && (
-                                <select
-                                  value={editPromptModel}
-                                  onChange={(e) => setEditPromptModel(e.target.value)}
-                                  className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-[10px] text-fg focus:outline-none focus:border-accent max-w-[120px] truncate"
-                                >
-                                  <option value="default">Default Model</option>
-                                  {availableModels.map((m) => (
-                                    <option key={m} value={m}>{m}</option>
-                                  ))}
-                                </select>
+                                <ModelSelector
+                                  selectedModel={editPromptModel}
+                                  onSelectModel={setEditPromptModel}
+                                  modelDetails={modelDetails}
+                                  activeProvider={activeProvider}
+                                  onRefreshModels={refreshModels}
+                                />
                               )}
                             </div>
                             <div className="flex items-center gap-1">
@@ -832,6 +837,15 @@ export const Chat: React.FC<ChatProps> = ({
                           {modeName}
                         </span>
                       )}
+                      {msg.model && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono text-[9px] sm:text-[10px]"
+                          title={`Modello LLM: ${msg.model}`}
+                        >
+                          <Cpu size={10} className="text-accent shrink-0" />
+                          <span>{msg.model}</span>
+                        </span>
+                      )}
                       {msg.tool_used && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] sm:text-[10px]">
                           <Wrench size={10} />
@@ -992,25 +1006,13 @@ export const Chat: React.FC<ChatProps> = ({
           </button>
 
           {/* Model Selector Dropdown */}
-          <div className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-[11px] gap-1.5 text-fg-muted hover:border-accent/40 w-max shadow-sm">
-            <Box size={12} className="text-emerald-400 shrink-0" />
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-transparent text-[11px] text-fg focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate font-mono"
-              title="Modello LLM Override"
-            >
-              <option value="default" className="bg-panel text-fg font-sans">Modello: Default</option>
-              {availableModels.map((m) => {
-                const isVision = isModelVision(m);
-                return (
-                  <option key={m} value={m} className="bg-panel text-fg font-mono">
-                    {m} {isVision ? '👁️ [Vision]' : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          <ModelSelector
+            selectedModel={selectedModel}
+            onSelectModel={setSelectedModel}
+            modelDetails={modelDetails}
+            activeProvider={activeProvider}
+            onRefreshModels={refreshModels}
+          />
 
           {/* Reasoning Budget Dropdown */}
           <div className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-[11px] gap-1.5 text-fg-muted hover:border-accent/40 w-max shadow-sm">
