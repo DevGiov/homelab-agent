@@ -1633,8 +1633,8 @@ def respond_node(state: AgentState) -> AgentState:
                 if agent_id:
                     for fact in facts:
                         letta_client.save_archival_memory(agent_id, fact)
-                # File system fallback for salient facts
-                facts_file = Path(__file__).parent / "memory" / f"salient_facts_{thread_id}.txt"
+                os.makedirs(MEMORY_DIR, exist_ok=True)
+                facts_file = os.path.join(MEMORY_DIR, f"salient_facts_{thread_id}.txt")
                 with open(facts_file, "a", encoding="utf-8") as f:
                     for fact in facts:
                         f.write(f"- {fact}\n")
