@@ -4,6 +4,7 @@ import contextvars
 import json
 import logging
 import queue
+import re
 import sqlite3
 import threading
 import time
