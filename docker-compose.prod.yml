@@ -17,7 +17,7 @@ services:
     volumes:
       - agent_data:/data
       - ./backend:/app:ro
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/v1/health')"]
       interval: 30s
@@ -40,7 +40,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
 
 volumes:
   agent_data:
