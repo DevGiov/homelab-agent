@@ -132,6 +132,8 @@ class AgentState(TypedDict, total=False):
 client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
 conn = sqlite3.connect(config.CHECKPOINT_DB_PATH, check_same_thread=False)
 memory = SqliteSaver(conn)
+# Crea subito lo schema (checkpoints/writes): le query su thread non devono dipendere dalla prima esecuzione del grafo
+memory.setup()
 
 
 def _append_message_to_file(thread_id: str, role: str, content: str):

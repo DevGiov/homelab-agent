@@ -619,11 +619,11 @@ def delete_run(run_id: str, force: bool = False, db_path: Optional[str] = None) 
         conn.close()
 
 
-def bulk_delete_runs(status: Optional[str] = None, before_date: Optional[str] = None,
+def bulk_delete_runs(status: Optional[str] = None, older_than_days: Optional[int] = None,
                      automation_id: Optional[str] = None, failed_only: bool = False,
                      preserve_protected: bool = True, run_ids: Optional[List[str]] = None,
                      db_path: Optional[str] = None) -> int:
-    """Elimina in blocco esecuzioni storiche (es. pulizia fallite o selezione manuale)."""
+    """Elimina in blocco esecuzioni storiche (es. pulizia fallite, retention o selezione manuale)."""
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
@@ -645,9 +645,10 @@ def bulk_delete_runs(status: Optional[str] = None, before_date: Optional[str] = 
             where.append("status = ?")
             params.append(status)
 
-        if before_date:
-            where.append("started_at < ?")
-            params.append(before_date)
+        if older_than_days is not None:
+            # datetime() normalizza sia ISO 8601 con offset sia CURRENT_TIMESTAMP in UTC
+            where.append("datetime(started_at) < datetime('now', ?)")
+            params.append(f"-{int(older_than_days)} days")
 
         if automation_id:
             where.append("automation_id = ?")

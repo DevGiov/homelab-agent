@@ -62,6 +62,8 @@ from stream_session import (
     remove_session,
 )
 
+logger = logging.getLogger("api")
+
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
 config.get_settings().validate_security()
 
@@ -80,21 +82,21 @@ async def lifespan(app: FastAPI):
     try:
         init_automations_db()
     except Exception as _e:
-        logging.getLogger("api").warning(f"Inizializzazione automations_db differita/fallita: {_e}")
+        logger.warning(f"Inizializzazione automations_db differita/fallita: {_e}")
 
     try:
         init_calendar_db()
     except Exception as _e:
-        logging.getLogger("api").warning(f"Inizializzazione calendar_db differita/fallita: {_e}")
+        logger.warning(f"Inizializzazione calendar_db differita/fallita: {_e}")
 
     if config.ENABLE_AUTOMATION_SCHEDULER:
         try:
             from automations.scheduler import get_scheduler
             scheduler = get_scheduler()
             scheduler.start()
-            logging.getLogger("api").info("Automation scheduler avviato con successo.")
+            logger.info("Automation scheduler avviato con successo.")
         except Exception as _e:
-            logging.getLogger("api").warning(f"Avvio scheduler automazioni fallito: {_e}")
+            logger.warning(f"Avvio scheduler automazioni fallito: {_e}")
 
     yield
 
@@ -103,7 +105,7 @@ async def lifespan(app: FastAPI):
         from automations.scheduler import get_scheduler
         scheduler = get_scheduler()
         scheduler.stop()
-        logging.getLogger("api").info("Automation scheduler arrestato.")
+        logger.info("Automation scheduler arrestato.")
     except Exception:
         pass
 
@@ -583,7 +585,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
 
             while True:
                 if request is not None and await request.is_disconnected():
-                    logging.getLogger("api").info(f"Client SSE disconnesso per thread '{effective_thread_id}'. L'elaborazione continua in background.")
+                    logger.info(f"Client SSE disconnesso per thread '{effective_thread_id}'. L'elaborazione continua in background.")
                     break
                 if not sess.is_active() and sub_q.empty():
                     break
@@ -634,7 +636,7 @@ async def thread_stream_endpoint(thread_id: str, request: Request):
 
             while True:
                 if await request.is_disconnected():
-                    logging.getLogger("api").info(f"Client SSE riconnesso si è disconnesso per thread '{thread_id}'. L'elaborazione continua.")
+                    logger.info(f"Client SSE riconnesso si è disconnesso per thread '{thread_id}'. L'elaborazione continua.")
                     break
                 if not sess.is_active() and sub_q.empty():
                     break
@@ -868,8 +870,7 @@ async def get_thread(thread_id: str):
                 raw_messages = letta_client.get_messages(agent_id)
                 clean_messages = letta_client.filter_clean_messages(raw_messages) if raw_messages else []
         except Exception as letta_err:
-            import logging
-            logging.getLogger("api").warning(f"Letta non raggiungibile per thread '{thread_id}': {letta_err}")
+            logger.warning(f"Letta non raggiungibile per thread '{thread_id}': {letta_err}")
 
         return {
             "thread_id": thread_id,
