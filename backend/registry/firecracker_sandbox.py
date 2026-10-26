@@ -29,11 +29,11 @@ class FirecrackerSandbox:
     def execute_code(self, code: str, timeout: int = 10) -> Dict[str, Any]:
         """
         Esegue codice Python in una microVM Firecracker reale col Guest Runner.
-        Se l'infrastruttura o l'API falliscono, ricorre al fallback locale con sandboxed=False.
+        Non ripiega mai da sola sull'esecuzione locale: se la sandbox non è utilizzabile
+        ritorna `sandbox_unavailable=True` e la decisione (approvazione) spetta al chiamante.
         """
         if not self.is_available():
-            logger.warning(f"API Firecracker non disponibile su {self.api_url}. Uso fallback.")
-            return self._execute_fallback(code, timeout=timeout)
+            return self._unavailable(f"API Firecracker non raggiungibile su {self.api_url}")
 
         try:
             # 1. Base64 del codice Python per i boot_args del kernel
@@ -63,8 +63,7 @@ class FirecrackerSandbox:
                 time.sleep(0.2)
 
             if not res_boot:
-                logger.warning("Impossibile impostare boot-source Firecracker. Uso fallback.")
-                return self._execute_fallback(code, timeout=timeout)
+                return self._unavailable("impossibile configurare il boot-source della microVM")
 
             res_root = requests.put(f"{self.api_url}/drives/rootfs", json={
                 "drive_id": "rootfs",
@@ -100,8 +99,7 @@ class FirecrackerSandbox:
                     pass
 
             if not res_data:
-                logger.warning("Timeout risposta microVM Firecracker. Uso fallback.")
-                return self._execute_fallback(code, timeout=timeout)
+                return self._unavailable(f"nessun risultato dalla microVM entro {timeout}s")
 
             return {
                 "output": res_data.get("output", ""),
@@ -111,11 +109,15 @@ class FirecrackerSandbox:
             }
 
         except Exception as e:
-            logger.warning(f"Errore esecuzione Firecracker ({e}). Uso fallback.")
-            return self._execute_fallback(code, timeout=timeout)
+            return self._unavailable(f"errore della microVM: {e}")
 
-    def _execute_fallback(self, code: str, timeout: int = 5) -> Dict[str, Any]:
-        """Fallback temporaneo via subprocess locale sul CT backend."""
+    @staticmethod
+    def _unavailable(reason: str) -> Dict[str, Any]:
+        logger.warning(f"Sandbox Firecracker non utilizzabile: {reason}")
+        return {"output": "", "success": False, "sandboxed": False, "sandbox_unavailable": True, "error": reason}
+
+    def execute_local(self, code: str, timeout: int = 5) -> Dict[str, Any]:
+        """Esecuzione NON isolata via subprocess nel container backend: solo dopo approvazione esplicita."""
         try:
             res = subprocess.run(
                 ["python3", "-c", code],

@@ -1001,6 +1001,41 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
     # Esecuzione del tool autorizzato
     result = get_registry_manager().execute_approved_tool(request_id)
 
+    # L'esecuzione ha fatto emergere un'ulteriore approvazione (es. sandbox codice non disponibile):
+    # nessuna sintesi, la nuova richiesta viene mostrata come card inline
+    if isinstance(result, dict) and result.get("approval_required"):
+        trace = [{
+            "step_id": 1,
+            "tool_name": req.tool_name,
+            "args": req.arguments,
+            "result": result,
+            "reasoning": f"Tool autorizzato dall'utente ({action}): richiesta un'ulteriore autorizzazione",
+            "approval_required": True,
+            "request_id": result.get("request_id"),
+            "approval_prompt": result.get("message"),
+            "command_preview": result.get("command_preview"),
+            "command_prefix": result.get("command_prefix"),
+            "risk_reason": result.get("risk_reason"),
+        }]
+        if req.thread_id:
+            thread_store.save_assistant_message(req.thread_id, {
+                "response": result.get("message", ""),
+                "tool_used": req.tool_name,
+                "execution_trace": trace,
+                "mode": req.mode or "act",
+                "error": False,
+            })
+        return {
+            "request_id": request_id,
+            "status": "approved",
+            "action": action,
+            "tool_name": req.tool_name,
+            "arguments": req.arguments,
+            "result": result,
+            "response": result.get("message", ""),
+            "execution_trace": trace,
+        }
+
     # Recupera task utente associato alla richiesta
     user_task = getattr(req, "task", None)
     if not user_task and req.thread_id:

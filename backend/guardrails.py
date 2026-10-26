@@ -4,6 +4,7 @@ Classifica i tool in base al rischio, blocca comandi malevoli/distruttivi,
 si integra con il Permission Engine e gestisce le richieste di approvazione interattive.
 """
 
+import contextvars
 import logging
 import re
 import shlex
@@ -355,11 +356,13 @@ def create_approval_request(
     thread_id: Optional[str] = None,
     mode: Optional[str] = None,
     risk_reason: Optional[str] = None,
-    task: Optional[str] = None
+    task: Optional[str] = None,
+    command_preview: Optional[str] = None,
+    command_prefix: Optional[str] = None,
 ) -> ApprovalRequest:
     """Crea e registra una nuova richiesta di approvazione interattiva."""
-    cmd_preview = arguments.get("command") or arguments.get("cmd") or None
-    cmd_prefix = permissions.extract_command_prefix(arguments)
+    cmd_preview = command_preview or arguments.get("command") or arguments.get("cmd") or None
+    cmd_prefix = command_prefix or permissions.extract_command_prefix(arguments)
 
     req = ApprovalRequest(
         _next_request_id(),
@@ -401,6 +404,67 @@ def create_approval_request(
 
     logger.info(f"Approval request creata: {req.request_id} per tool '{tool_name}' ({risk_reason})")
     return req
+
+
+
+# --- Approvazioni emerse a runtime (il bisogno di conferma si scopre durante l'esecuzione) ---
+
+# Esecuzione del codice Python fuori dalla sandbox Firecracker, nel container backend
+LOCAL_CODE_FALLBACK = "local-fallback"
+
+_approved_capability: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("approved_capability", default=None)
+
+
+class ApprovalRequired(Exception):
+    """Sollevata da un registry quando un'esecuzione richiede una capability non ancora approvata.
+
+    La capability viene registrata come `command_prefix` della richiesta: così le scelte
+    "per questa chat" / "sempre" diventano permessi granulari distinti dall'approvazione del tool.
+    """
+
+    def __init__(self, capability: str, reason: str, preview: Optional[str] = None):
+        super().__init__(reason)
+        self.capability = capability
+        self.reason = reason
+        self.preview = preview
+
+
+def is_capability_approved(capability: str) -> bool:
+    """True solo dentro un'esecuzione esplicitamente autorizzata per questa capability (non impostabile dall'LLM)."""
+    return _approved_capability.get() == capability
+
+
+def run_with_approved_capability(capability: Optional[str], fn, *args, **kwargs):
+    token = _approved_capability.set(capability)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        _approved_capability.reset(token)
+
+
+def request_runtime_approval(
+    tool_name: str,
+    args: Dict[str, Any],
+    exc: ApprovalRequired,
+    *,
+    thread_id: Optional[str] = None,
+    mode: Optional[str] = None,
+    task: Optional[str] = None,
+) -> Dict[str, Any]:
+    req = create_approval_request(
+        tool_name, args, thread_id=thread_id, mode=mode, risk_reason=exc.reason, task=task,
+        command_preview=exc.preview, command_prefix=exc.capability,
+    )
+    return {
+        "approval_required": True,
+        "request_id": req.request_id,
+        "tool_name": tool_name,
+        "arguments": args,
+        "command_preview": req.command_preview,
+        "command_prefix": req.command_prefix,
+        "risk_reason": exc.reason,
+        "message": f"{exc.reason}. Serve la tua autorizzazione esplicita. ID richiesta: '{req.request_id}'.",
+    }
 
 
 def resolve_approval(

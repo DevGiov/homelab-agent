@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import audit_log
 import guardrails
+import permissions
 from guardrails import _APPROVALS
 from registry.base import BaseToolRegistry
 from registry.code_exec import CodeExecRegistry
@@ -57,8 +58,12 @@ class ToolRegistryManager:
                      thread_id: Optional[str] = None, mode: Optional[str] = None,
                      security_mode: str = "normal", task: Optional[str] = None,
                      automation_id: Optional[str] = None, run_id: Optional[str] = None,
-                     step_run_id: Optional[str] = None) -> Any:
-        """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit."""
+                     step_run_id: Optional[str] = None, approved_request: Optional[guardrails.ApprovalRequest] = None) -> Any:
+        """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit.
+
+        `approved_request`: richiesta già approvata dall'utente. Salta la conferma preventiva (resta il
+        blocco Tier 1) e autorizza solo la capability runtime per cui era stata emessa.
+        """
         start_ms = time.monotonic() * 1000
 
         for reg_name in allowed_registries:
@@ -70,7 +75,8 @@ class ToolRegistryManager:
             tool_names = [t.get("name") for t in reg_tools if isinstance(t, dict)]
             if tool_name in tool_names:
                 # --- Guardrail + Approval workflow (Fase 3.2) ---
-                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=security_mode, task=task)
+                guard_mode = "dangerous" if approved_request else security_mode
+                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=guard_mode, task=task)
                 if guard is not None:
                     if guard.get("blocked"):
                         audit_log.log_tool_call(
@@ -90,8 +96,24 @@ class ToolRegistryManager:
                         return guard
 
                 logger.info(f"Esecuzione tool '{tool_name}' tramite registry '{reg_name}'")
+                approved_capability = approved_request.command_prefix if approved_request else None
                 try:
-                    result = reg.execute_tool(tool_name, args)
+                    result = guardrails.run_with_approved_capability(approved_capability, reg.execute_tool, tool_name, args)
+                except guardrails.ApprovalRequired as needed:
+                    if self._capability_preapproved(tool_name, needed.capability, thread_id, security_mode, approved_request):
+                        logger.info(f"Capability '{needed.capability}' per '{tool_name}' già autorizzata: esecuzione")
+                        result = guardrails.run_with_approved_capability(needed.capability, reg.execute_tool, tool_name, args)
+                    else:
+                        guard = guardrails.request_runtime_approval(
+                            tool_name, args, needed, thread_id=thread_id, mode=mode, task=task
+                        )
+                        audit_log.log_tool_call(
+                            tool_name, args, thread_id=thread_id, mode=mode,
+                            registry=reg_name, result={"approval_pending": guard["request_id"]},
+                            is_error=False, duration_ms=0,
+                            automation_id=automation_id, run_id=run_id, step_run_id=step_run_id,
+                        )
+                        return guard
                 except Exception as e:
                     result = {"error": str(e)}
 
@@ -108,6 +130,14 @@ class ToolRegistryManager:
 
         return {"error": f"Tool '{tool_name}' non trovato o non consentito nei registry: {allowed_registries}"}
 
+    @staticmethod
+    def _capability_preapproved(tool_name: str, capability: str, thread_id: Optional[str],
+                                security_mode: str, approved_request: Optional[guardrails.ApprovalRequest]) -> bool:
+        # Un'approvazione emessa per l'esecuzione normale del tool non vale per la capability runtime
+        if approved_request is None and (security_mode or "").lower() in ("dangerous", "bypass-dangerous", "bypass"):
+            return True
+        return permissions.is_command_preapproved(tool_name, capability, thread_id=thread_id)
+
     def execute_approved_tool(self, request_id: str) -> Dict[str, Any]:
         """Esegue un tool dopo approvazione utente (Fase 3.2)."""
         req = _APPROVALS.get(request_id) if hasattr(guardrails, "_APPROVALS") else None
@@ -123,7 +153,7 @@ class ToolRegistryManager:
         logger.info(f"Esecuzione tool approvato '{req.tool_name}' (richiesta {request_id})")
         all_registries = list(self._registries.keys())
         return self.execute_tool(req.tool_name, req.arguments, all_registries,
-                                 thread_id=req.thread_id, mode=req.mode, security_mode="dangerous")
+                                 thread_id=req.thread_id, mode=req.mode, approved_request=req)
 
     def execute_tools_parallel(self, calls: List[Dict[str, Any]], allowed_registries: List[str],
                                thread_id: Optional[str] = None, mode: Optional[str] = None,

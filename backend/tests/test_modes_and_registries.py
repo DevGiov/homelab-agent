@@ -45,10 +45,17 @@ class TestModesAndRegistries(unittest.TestCase):
         # Verify that sandboxed is True when real Firecracker microVM runs
         self.assertTrue(res.get("sandboxed"))
 
-    def test_code_exec_fallback(self):
+    def test_sandbox_never_falls_back_to_local_execution(self):
         sb = FirecrackerSandbox()
-        sb.api_url = "http://127.0.0.1:9999" # invalid URL to trigger fallback
+        sb.api_url = "http://127.0.0.1:9"  # nessuna API Firecracker in ascolto
         res = sb.execute_code("print(3 * 3)")
+        self.assertTrue(res.get("sandbox_unavailable"))
+        self.assertFalse(res.get("success"))
+        self.assertFalse(res.get("sandboxed"))
+        self.assertEqual(res.get("output"), "")
+
+    def test_sandbox_execute_local(self):
+        res = FirecrackerSandbox().execute_local("print(3 * 3)")
         self.assertTrue(res.get("success"))
         self.assertEqual(res.get("output").strip(), "9")
         self.assertFalse(res.get("sandboxed"))

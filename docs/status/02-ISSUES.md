@@ -21,7 +21,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | ✅ Risolto (`b20e63b`) |
 | [ISS-16](#iss-16) | Attesa di 180 s sul caricamento del modello anche se il load fallisce | S1 | backend/providers | ✅ Risolto (`b20e63b`) |
 | [ISS-17](#iss-17) | I test non isolavano i dati persistenti | S1 | test | ✅ Risolto (`b20e63b`) |
-| [ISS-18](#iss-18) | Fallback della sandbox: codice LLM eseguito dentro `agent-backend` | S2 | backend/registry | Aperto |
+| [ISS-18](#iss-18) | Fallback della sandbox: codice LLM eseguito dentro `agent-backend` | S2 | backend/registry | ✅ Risolto (fallback con approvazione) |
 | [ISS-19](#iss-19) | PLAN ignorava la modalità di sicurezza scelta dall'utente | S1 | backend/graph | ✅ Risolto (`0021414`) |
 | [ISS-20](#iss-20) | Fallback del router: "ct"/"vm" cercati come sottostringhe | S3 | backend/router | ✅ Risolto (`0021414`) |
 | [ISS-21](#iss-21) | Risoluzione template non deterministica (template sbagliato creato) | S1 | backend/automations | ✅ Risolto (`0021414`) |
@@ -152,11 +152,18 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Fix**: `conftest.py` reindirizza tutti i path in una directory temporanea e disattiva lo scheduler. `MEMORY_DIR` è diventato configurabile (`config.MEMORY_DIR`). I test girano nel servizio `backend-test`, senza il volume di produzione e con `/data` su tmpfs.
 
 ## ISS-18
-**Fallback della sandbox: codice LLM eseguito dentro `agent-backend`** — S2 · Aperto
+**Fallback della sandbox: codice LLM eseguito dentro `agent-backend`** — S2 · ✅ Risolto (opzione b: fallback solo previa approvazione)
 
 - **Evidenza**: [registry/firecracker_sandbox.py](../../backend/registry/firecracker_sandbox.py) `_execute_fallback`. Se l'API Firecracker non risponde, fallisce o va in timeout, il codice Python del tool `python_interpreter` viene eseguito con `subprocess` nel container del backend (`sandboxed: False`).
 - **Impatto**: codice generato dall'LLM con accesso a `/data` (database, memoria), a `.env` (chiavi API) e alla rete del backend. Oggi su CT 125 Firecracker risponde, quindi il fallback scatta solo se la sandbox va giù.
-- **Opzioni**: (a) nessun fallback: errore esplicito se la sandbox non è disponibile; (b) fallback solo previa approvazione utente; (c) fallback in un container usa-e-getta senza volumi né rete. Da decidere: è una scelta di prodotto.
+- **Opzioni valutate**: (a) nessun fallback; (b) fallback solo previa approvazione utente; (c) container usa-e-getta. **Scelta (b)**, il 2026-10-26.
+- **Implementazione**:
+  - `FirecrackerSandbox.execute_code` non ripiega più da sola: ritorna `sandbox_unavailable`. L'esecuzione locale è un metodo separato, `execute_local`.
+  - `CodeExecRegistry` solleva `guardrails.ApprovalRequired(LOCAL_CODE_FALLBACK)`; il registry manager la converte in una richiesta di approvazione standard (card inline) con il codice come anteprima e `command_prefix = "local-fallback"`.
+  - L'esecuzione locale è autorizzata solo da: approvazione di quella richiesta (contextvar non impostabile dall'LLM), permesso "per questa chat" o "sempre" su `python_interpreter` + `local-fallback`, oppure modalità `dangerous`, che per definizione esegue senza conferme.
+  - Un'approvazione data per l'esecuzione nella sandbox non sblocca mai quella locale: se nel frattempo la sandbox è giù, compare una seconda card specifica.
+  - Anche il timeout della microVM (codice lento o in loop) passa ora dall'approvazione, invece di rieseguire il codice in locale.
+  - Coperto da `tests/test_code_sandbox_approval.py` (9 test, incluso il flusso API in due passi).
 
 ## ISS-19
 **PLAN ignorava la modalità di sicurezza scelta dall'utente** — S1 · ✅ Risolto in `0021414`

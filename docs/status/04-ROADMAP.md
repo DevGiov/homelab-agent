@@ -32,7 +32,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | B3 | Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts) | ISS-09 |
 | B4 | Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione | ISS-10 |
 | B8 | Router via provider astratto invece di `requests` diretto | ISS-23 |
-| B9 | Decisione e fix sul fallback non isolato della sandbox codice | ISS-18 |
+| B9 | ~~Decisione e fix sul fallback non isolato della sandbox codice~~ ✅ 2026-10-26 (fallback previa approvazione) | ISS-18 |
 | B5 | `config.py` solo Pydantic Settings, eliminate le costanti di retrocompatibilità | ISS-10 |
 | B6 | Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry | ISS-03 |
 | B7 | Database in una directory dati unica (`DATA_DIR`), niente `.db` nella radice del codice | ISS-09 |

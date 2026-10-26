@@ -1,10 +1,7 @@
 import logging
-import os
-import sys
 from typing import Any, Dict, List
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import guardrails
 from registry.base import BaseToolRegistry
 from registry.firecracker_sandbox import FirecrackerSandbox
 
@@ -46,4 +43,17 @@ class CodeExecRegistry(BaseToolRegistry):
 
         logger.info(f"Esecuzione codice Python in sandbox Firecracker:\n{code}")
         res = self._sandbox.execute_code(code, timeout=5)
-        return res
+        if not res.get("sandbox_unavailable"):
+            return res
+
+        # Sandbox non utilizzabile: l'esecuzione nel container backend (accesso a /data, .env, rete)
+        # avviene solo con un'approvazione esplicita per questa capability
+        if not guardrails.is_capability_approved(guardrails.LOCAL_CODE_FALLBACK):
+            raise guardrails.ApprovalRequired(
+                guardrails.LOCAL_CODE_FALLBACK,
+                f"Sandbox Firecracker non disponibile ({res.get('error')}): il codice verrebbe eseguito "
+                f"senza isolamento nel container del backend",
+                preview=code,
+            )
+        logger.warning("Esecuzione codice Python NON isolata nel container backend (approvata dall'utente)")
+        return self._sandbox.execute_local(code, timeout=5)

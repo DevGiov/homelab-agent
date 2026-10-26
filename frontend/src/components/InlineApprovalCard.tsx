@@ -78,6 +78,8 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
     null;
 
   const displayPrefix = commandPrefix || (previewCmd ? previewCmd.split(/\s+/).slice(0, 2).join(' ') : null);
+  // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
+  const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
 
   return (
     <div className="my-3 overflow-hidden rounded-xl border border-amber-500/40 bg-amber-950/20 backdrop-blur-md shadow-lg transition-all duration-200">
@@ -117,7 +119,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <div className="flex items-center justify-between gap-2 mb-1.5 text-[10px] text-fg-muted select-none">
               <span className="flex items-center gap-1.5">
                 <Terminal size={12} className="text-accent" />
-                Comando shell proposto:
+                {isCodePreview ? 'Codice proposto:' : 'Comando shell proposto:'}
               </span>
               {displayPrefix && (
                 <span className="text-fg-muted">
@@ -126,7 +128,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               )}
             </div>
             <div className="whitespace-pre-wrap break-all select-all font-semibold">
-              $ {previewCmd}
+              {isCodePreview ? previewCmd : `$ ${previewCmd}`}
             </div>
           </div>
         )}
