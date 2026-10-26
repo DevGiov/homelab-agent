@@ -3,8 +3,8 @@
 **Progetto:** `homelab-agent`  
 **Data Creazione:** 24 Settembre 2026  
 **Stato Complessivo:** 🟡 IN CORSO — ~45% Completato (Backend avviato con bug di allineamento, Frontend da avviare)  
-**Documento di Riferimento:** [`docs/CALENDAR_INTEGRATION_RESEARCH.md`](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/docs/CALENDAR_INTEGRATION_RESEARCH.md)  
-**Reference Codebase:** [`odysseus`](file:///home/deggio/Desktop/coding/progetti/homelab/odysseus) (`routes/calendar_routes.py`, `src/tools/calendar.py`)
+**Documento di Riferimento:** [`docs/CALENDAR_INTEGRATION_RESEARCH.md`](file:///home/deggio/Desktop/coding/progetti/homelab/projects/homelab-agent/docs/CALENDAR_INTEGRATION_RESEARCH.md)  
+**Reference Codebase:** [`odysseus`](file:///home/deggio/Desktop/coding/progetti/homelab/references/odysseus) (`routes/calendar_routes.py`, `src/tools/calendar.py`)
 
 ---
 

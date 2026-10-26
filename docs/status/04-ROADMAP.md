@@ -1,0 +1,68 @@
+# 04 — Roadmap
+
+Sostituisce [ROADMAP.md](../../ROADMAP.md) (fasi 0–9, storico). Le fasi sono sequenziali: ognuna parte quando la precedente ha la CI verde ed è verificata su CT 125.
+
+```
+A. Consolidamento ──► B. Refactor architetturale ──► C. Frontend ──► D. Nuove funzionalità
+   (fix + test + CI)     (pacchetti, no legacy)        (split, perf)    (MCP dinamici, memoria, …)
+```
+
+## Fase A — Consolidamento
+
+Obiettivo: base affidabile su cui costruire. Dettagli in [03-FIX_PLAN.md](03-FIX_PLAN.md).
+
+| # | Attività | Issue | Stato |
+| :--- | :--- | :--- | :---: |
+| A1 | Hotfix: retention automazioni, `logger`, lista thread su DB vuoto | ISS-01, 02, 03 | ⬜ |
+| A2 | Ambiente dev ricreato (venv 3.12, `requirements-dev.txt`) | ISS-07 | ⬜ |
+| A3 | Test in `tests/`, marker `live`, timeout, isolamento DB | ISS-04, 05 | ⬜ |
+| A4 | Ruff e oxlint puliti, CI backend + frontend versionata e bloccante | ISS-06, 08, 12 | ⬜ |
+| A5 | Merge `dev` → `main`, tag `v0.9.0`, docs allineate | ISS-13, 14 | ⬜ |
+
+**Uscita**: `pytest` verde in meno di 60 s, CI verde, nessun errore nei log di CT 125 per 24 ore.
+
+## Fase B — Refactor architetturale
+
+Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature senza far crescere i monoliti. Breaking change ammessi (AGENTS.md).
+
+| # | Attività | Issue |
+| :--- | :--- | :--- |
+| B1 | Backend in pacchetto `app/`: `api/` (router per dominio: chat, threads, approvals, kb, models, audit), `agent/` (grafo, nodi, router, policy), `registry/`, `automations/`, `calendar/`, `memory/`, `core/` (config, db, logging) | ISS-09 |
+| B2 | Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato | ISS-09 |
+| B3 | Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts) | ISS-09 |
+| B4 | Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione | ISS-10 |
+| B5 | `config.py` solo Pydantic Settings, eliminate le costanti di retrocompatibilità | ISS-10 |
+| B6 | Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry | ISS-03 |
+| B7 | Database in una directory dati unica (`DATA_DIR`), niente `.db` nella radice del codice | ISS-09 |
+
+**Uscita**: nessun file sopra le ~600 righe nel backend; Dockerfile e compose aggiornati; test verdi dopo ogni spostamento.
+
+## Fase C — Frontend
+
+| # | Attività | Issue |
+| :--- | :--- | :--- |
+| C1 | Code-splitting con `React.lazy` per le viste Automations, Calendar, Knowledge e Settings; highlight.js caricato on demand | ISS-11 |
+| C2 | `api.ts` diviso per dominio (`api/chat.ts`, `api/automations.ts`, …) | ISS-11 |
+| C3 | `Chat.tsx`, `AutomationsView.tsx`, `CalendarView.tsx` divisi in sotto-componenti con hook dedicati | ISS-11 |
+| C4 | Test frontend minimi (Vitest) per `useChat` (parsing SSE) e per i client API | — |
+
+**Uscita**: chunk iniziale sotto i 400 kB, nessun componente sopra le ~500 righe.
+
+## Fase D — Nuove funzionalità (backlog prioritizzato)
+
+| # | Funzionalità | Valore | Dipende da |
+| :--- | :--- | :--- | :--- |
+| D1 | **Server MCP dinamici**: registrazione e hot-reload di nuovi server MCP dalla UI, oltre a ProxmoxMcp (per esempio creative-suite), con permessi per tool | Estende l'agente senza deploy | B4 |
+| D2 | **Osservabilità**: metriche per run (latenza, token, errori tool), dashboard in Diagnostics, health dei provider nel tempo | Debug e tuning dei modelli | B6 |
+| D3 | **Memory explorer**: viewer di fatti, entità e relazioni (sqlite-vec / Letta), con modifica e cancellazione | Controllo della memoria a lungo termine | B1 |
+| D4 | **Eval harness**: i test `live` diventano una suite di valutazione ripetibile (routing, tool selection, rollback) con report per modello | Confronto tra modelli su CT 149 | A3 |
+| D5 | **Auth multi-utente / RBAC**: solo se l'accesso esce dalla LAN | Sicurezza | B1 |
+
+## Storico
+
+| Periodo | Contenuto |
+| :--- | :--- |
+| ago 2026 | Fasi 0–9: hardening, provider, memoria/RAG, tool system, frontend, CI, streaming, web prefetch, vision ([ROADMAP.md](../../ROADMAP.md)) |
+| set 2026 | Automazioni M0–M9 ([tracker](../automations/IMPLEMENTATION_TRACKER.md)), calendario nativo ([docs](../calendar/)) |
+| ott 2026 | Selezione e visualizzazione del modello, diagnostica per messaggio, fix su router e deploy |
+| 2026-10-26 | Assessment: questo documento |

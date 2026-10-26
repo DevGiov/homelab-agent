@@ -1,0 +1,121 @@
+# 02 — Problemi rilevati
+
+Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** blocca qualità o sviluppo · **S3** debito tecnico · **S4** cosmetico.
+
+| ID | Titolo | Sev. | Area | Stato |
+| :--- | :--- | :---: | :--- | :--- |
+| [ISS-01](#iss-01) | Retention automazioni rotta (`older_than_days`) | S1 | backend/automations | Aperto |
+| [ISS-02](#iss-02) | `logger` non definito in `api.py` | S1 | backend/api | Aperto |
+| [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | Aperto |
+| [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | Aperto |
+| [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | Aperto |
+| [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | Aperto |
+| [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | Aperto |
+| [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | Aperto |
+| [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
+| [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | Aperto |
+| [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | Aperto |
+| [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | Aperto |
+| [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | Aperto |
+| [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | Aperto |
+
+---
+
+## ISS-01
+**Retention automazioni rotta (`older_than_days`)** — S1
+
+- **Evidenza**: log di `agent-backend` su CT 125:
+  `ERROR:automations.scheduler:Errore durante l'esecuzione di auto-retention cleanup: bulk_delete_runs() got an unexpected keyword argument 'older_than_days'`
+- **Causa**: [automations/db.py:622](../../backend/automations/db.py#L622) definisce `bulk_delete_runs(status, before_date, automation_id, failed_only, preserve_protected, run_ids, db_path)`, ma tre chiamanti passano `older_than_days`:
+  - [automations/scheduler.py:189](../../backend/automations/scheduler.py#L189) e `:195` (job di retention)
+  - [automations/router.py:262](../../backend/automations/router.py#L262) (`DELETE /v1/automations/runs`)
+  - [automations/router.py:275](../../backend/automations/router.py#L275) (`POST /v1/automations/runs/delete-batch`)
+- **Impatto**: le run storiche non vengono mai eliminate e `automations.db` cresce senza limite. Gli endpoint di cancellazione massiva rispondono con 500 (dedotto dal codice). Il tracker M9 segna la retention come completata, ma non funziona.
+- **Perché i test non l'hanno visto**: nessun test esegue `_run_retention_cleanup` né le due route di cancellazione con i parametri reali.
+
+## ISS-02
+**`logger` non definito in `api.py`** — S1
+
+- **Evidenza**: `ruff F821` su [api.py:1012](../../backend/api.py#L1012) e [api.py:1048](../../backend/api.py#L1048). Il modulo importa `logging` ma non definisce mai `logger`.
+- **Impatto**: quando si entra nei rami di errore, l'endpoint fallisce con `NameError` (500) invece di scrivere un warning nel log e proseguire.
+
+## ISS-03
+**`GET /v1/threads` → 500 su DB checkpoint vuoto** — S1
+
+- **Evidenza**: `test_stream_api.py` (2 test) riceve `500 != 200`. Riprodotto: in un DB di test pulito `sqlite_master` è vuoto e la query in [api.py:743](../../backend/api.py#L743) fa `SELECT ... FROM checkpoints`.
+- **Causa**: la tabella `checkpoints` viene creata da `SqliteSaver` in modo lazy, solo alla prima esecuzione del grafo. `thread_store.init_db()` crea le sue tabelle, non quelle di LangGraph.
+- **Impatto**: dopo un reset del database (operazione prevista in dev da AGENTS.md), la lista dei thread va in errore finché non parte la prima chat. La UI resta senza sidebar.
+
+## ISS-04
+**Suite di test che non termina** — S2
+
+- **Evidenza**: `pytest` completo bloccato oltre 10 minuti. Eseguiti file per file con timeout di 90 s, 7 file non terminano:
+  `test_conversation_length`, `test_dynamic_tool_selection`, `test_phase4`, `test_rollback`, `test_memory_api`, `test_router_and_prefetch`, `test_automations_api::test_resolve_approval_create_automation_from_template`.
+- **Causa**: test di integrazione che chiamano servizi reali (LLM via `build_graph()`, MetaMCP, Letta) senza mock né timeout; alcuni sono script "dimostrativi" che scrivono `memory/test_*.jsonl`. Manca una separazione unit/live e `pytest-timeout` non è installato.
+- **Impatto**: impossibile usare i test come gate, sia in locale sia nel container (`docker exec agent-backend pytest` previsto dal workflow).
+
+## ISS-05
+**Test falliti** — S2
+
+| Test | Errore | Ipotesi |
+| :--- | :--- | :--- |
+| `test_guardrails::TestApprovalWorkflow::test_pending_list_and_filter` | `6 != 2` | Approvazioni persistenti (M0) condivise tra test: stato non isolato |
+| `test_tool_safety::TestMetaMCPPrefixAndRouter::test_router_infrastructure_and_confirmation_queries` | `'chat' != 'act'` | Il router "unificato LLM" (`d72ab1b`) ha cambiato la classificazione; test o regole da riallineare |
+| `test_modes_and_registries::test_code_exec_sandbox` | `False is not true` | Sandbox di esecuzione codice non disponibile in locale (Firecracker o timeout di 60 s) |
+| `test_stream_api` (2 test) | `500 != 200` | Vedi [ISS-03](#iss-03) |
+| `test_agent_verification` | nessun test raccolto | Script, non test pytest |
+
+## ISS-06
+**CI non versionata e troppo permissiva** — S2
+
+- `.github/workflows/backend-ci.yml` esiste in locale ma non è tracciato da git: la CI non è mai girata.
+- Anche committato, il workflow esegue solo 3 file di test, ignora ruff (`|| true`) e non copre il frontend (build e oxlint).
+
+## ISS-07
+**Ambiente locale rotto dopo lo spostamento in `projects/`** — S2
+
+- `backend/.venv` è stato creato nel vecchio percorso `homelab/homelab-agent/`: gli entry-point (`.venv/bin/pytest`, ecc.) hanno uno shebang che punta a un interprete inesistente. Funziona solo `.venv/bin/python -m ...`.
+- Python locale 3.14 contro 3.12 in Docker e CI: possibili divergenze (già visibile un `DeprecationWarning` di slowapi).
+- `__pycache__` obsoleti riportano il percorso vecchio nei traceback.
+
+## ISS-08
+**208 errori ruff** — S3
+
+79 `F401` (import inutilizzati), 24 `I001`, 21 `B904`, 19 `E402`, 19 `E702`, 13 `W293`, 10 `F841`, 9 `B008`, 3 `F811`, 2 `F821` (→ [ISS-02](#iss-02)), più altri minori. 120 si correggono con `--fix`.
+
+## ISS-09
+**Moduli monolitici, backend non strutturato a pacchetti** — S3
+
+- File oltre le 1000 righe: [graph.py](../../backend/graph.py) (1730), [automations/db.py](../../backend/automations/db.py) (1315), [api.py](../../backend/api.py) (1202).
+- Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
+- La ristrutturazione a pacchetti (Fase 1.5 della vecchia roadmap) era stata rinviata per non rompere CT 112, ora dismesso: il vincolo non esiste più.
+
+## ISS-10
+**Fallback MCP legacy e shim di retrocompatibilità** — S3
+
+- [registry/metamcp.py:25](../../backend/registry/metamcp.py#L25): l'SDK MCP ufficiale è primario, ma resta il fallback al client custom [mcp_client.py](../../backend/mcp_client.py) (316 righe).
+- [config.py](../../backend/config.py) mantiene costanti "per retrocompatibilità" oltre a Pydantic Settings.
+- Contrario al principio "No Legacy Code" di [AGENTS.md](../../AGENTS.md).
+
+## ISS-11
+**Bundle frontend unico da 947 kB** — S3
+
+Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti nel chunk iniziale. Componenti da oltre 1000 righe: `AutomationsView`, `api.ts`, `CalendarView`, `Chat`.
+
+## ISS-12
+**Warning oxlint** — S4
+
+- `react-hooks/exhaustive-deps`: `CalendarView.tsx:95` e `:218`, `ArtifactsView.tsx:93` e `:128`. Rischio di stale closure.
+- `no-unused-vars` sul parametro dei `catch`: `AutomationProposalCard.tsx:141`, `ArtifactsView.tsx:153`, `:172`, `:191`. Errori inghiottiti senza feedback.
+
+## ISS-13
+**`dev` non mergiato in `main`** — S3
+
+100 commit avanti. `main` non rappresenta nessuno stato funzionante noto.
+
+## ISS-14
+**Documentazione disallineata** — S4
+
+- [ROADMAP.md](../../ROADMAP.md) è ferma ad agosto.
+- Il tracker automazioni dichiara M9 completata nonostante [ISS-01](#iss-01).
+- 3 file in `docs/` hanno modifiche non committate (percorsi aggiornati).

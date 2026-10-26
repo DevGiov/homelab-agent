@@ -22,7 +22,7 @@ Questo documento sintetizza le **best practice SOTA** (State Of The Art), analiz
 
 ## 2. Analisi Dettagliata della Reference: L'Implementazione in Odysseus
 
-Nel workspace di progetto è presente la codebase di **Odysseus** (`/home/deggio/Desktop/coding/progetti/homelab/odysseus`), un sistema di assistente personale altamente avanzato. Dall'analisi del codice sorgente di Odysseus emergono pattern di eccellenza e lezioni operative fondamentali per l'integrazione del calendario:
+Nel workspace di progetto è presente la codebase di **Odysseus** (`/home/deggio/Desktop/coding/progetti/homelab/references/odysseus`), un sistema di assistente personale altamente avanzato. Dall'analisi del codice sorgente di Odysseus emergono pattern di eccellenza e lezioni operative fondamentali per l'integrazione del calendario:
 
 ### 2.1 Architettura Dati e Modello a Oggetti
 In Odysseus (`core/database.py`, `routes/calendar_routes.py`):

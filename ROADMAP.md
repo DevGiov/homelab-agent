@@ -1,5 +1,7 @@
 # Homelab Agent — Report & Roadmap (2026-08-22)
 
+> **Storico.** La roadmap attiva, lo stato attuale e i problemi aperti sono in [docs/status/](docs/status/README.md) (aggiornato al 2026-10-26).
+
 ## 1. Stato attuale
 
 ### Backend (`homelab-agent/backend`)

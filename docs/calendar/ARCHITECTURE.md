@@ -4,7 +4,7 @@
 **Data:** 24 Settembre 2026  
 **Autore:** Homelab AI Engineering  
 **Stato:** Specifica Tecnica & Architettura Attiva  
-**Riferimenti:** [`docs/CALENDAR_INTEGRATION_RESEARCH.md`](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/docs/CALENDAR_INTEGRATION_RESEARCH.md), [`odysseus`](file:///home/deggio/Desktop/coding/progetti/homelab/odysseus)
+**Riferimenti:** [`docs/CALENDAR_INTEGRATION_RESEARCH.md`](file:///home/deggio/Desktop/coding/progetti/homelab/projects/homelab-agent/docs/CALENDAR_INTEGRATION_RESEARCH.md), [`odysseus`](file:///home/deggio/Desktop/coding/progetti/homelab/references/odysseus)
 
 ---
 
