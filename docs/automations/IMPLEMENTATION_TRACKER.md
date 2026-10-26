@@ -3,6 +3,8 @@
 **Ultimo Aggiornamento:** 21 Settembre 2026  
 **Stato Complessivo:** 🟢 COMPLETATO — Milestone M9 (Automations v2: First-Class Artifacts, Lifecycle Retention & Modular Integrations)
 
+> **Nota 2026-10-26**: il job di retention di M9 (Task 9.2) falliva a ogni ciclo perché chiamava `bulk_delete_runs()` con un parametro inesistente: le run scadute non venivano mai eliminate. Corretto in `7205e75` ([ISS-01](../status/02-ISSUES.md#iss-01)), con test dedicato in `backend/tests/test_automations_retention.py`.
+
 ---
 
 ## 1. Stato Avanzamento Generale

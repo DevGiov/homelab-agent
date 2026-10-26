@@ -16,8 +16,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | Aperto |
 | [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | Aperto |
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
-| [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | Aperto |
-| [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | Aperto |
+| [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | ✅ Risolto (A5, `v0.9.0`) |
+| [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | ✅ Risolto (A5) |
 | [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | ✅ Risolto (`b20e63b`) |
 | [ISS-16](#iss-16) | Attesa di 180 s sul caricamento del modello anche se il load fallisce | S1 | backend/providers | ✅ Risolto (`b20e63b`) |
 | [ISS-17](#iss-17) | I test non isolavano i dati persistenti | S1 | test | ✅ Risolto (`b20e63b`) |
@@ -123,16 +123,19 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Fix**: 0 warning con `--deny-warnings`. `showFeedback` di `AutomationsView` e `ArtifactsView` stabilizzato con `useCallback`, così i loader dei figli possono dipenderne senza loop; `ArtifactsView` sceglie il primo artefatto con un setter funzionale invece di leggere `selectedId`; `useTheme` spostato in `theme/useTheme.ts` con il context in `theme/context.ts`.
 
 ## ISS-13
-**`dev` non mergiato in `main`** — S3
+**`dev` non mergiato in `main`** — S3 · ✅ Risolto in A5
 
 100 commit avanti. `main` non rappresenta nessuno stato funzionante noto.
 
+- **Fix**: `main` portato in fast-forward su `dev` e taggato `v0.9.0`, primo baseline stabile (CI verde, verificato su CT 125). Da qui `main` = ultimo stato verificato; lo sviluppo resta su `dev`.
+
 ## ISS-14
-**Documentazione disallineata** — S4
+**Documentazione disallineata** — S4 · ✅ Risolto in A5
 
 - [ROADMAP.md](../../ROADMAP.md) è ferma ad agosto.
 - Il tracker automazioni dichiara M9 completata nonostante [ISS-01](#iss-01).
 - 3 file in `docs/` hanno modifiche non committate (percorsi aggiornati).
+- **Fix**: [ROADMAP.md](../../ROADMAP.md) marcata come storica (la roadmap attiva è [04-ROADMAP.md](04-ROADMAP.md)); nota sul bug di retention nel tracker automazioni; percorsi in `docs/` già committati. Workflow di test in README e piano corretti: `pytest` solo nel servizio `backend-test`. [backend/README.md](../../backend/README.md) senza la sezione systemd legacy e con installazione via `make venv`.
 
 ## ISS-15
 **`pytest` assente nel container di produzione** — S2

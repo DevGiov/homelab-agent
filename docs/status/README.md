@@ -2,6 +2,8 @@
 
 Assessment del 2026-10-26 sul branch `dev` (commit `4e9f040`, allineato su CT 125).
 
+> **Aggiornamento 2026-10-26**: Fase A (consolidamento) completata, baseline `v0.9.0` su `main`. Resta solo da osservare il criterio delle 24 ore senza errori nei log di CT 125. Prossima fase: B (refactor architetturale). La sintesi qui sotto descrive lo stato dell'assessment iniziale.
+
 | Documento | Contenuto |
 | :--- | :--- |
 | [01-CURRENT_STATE.md](01-CURRENT_STATE.md) | Architettura, funzionalità, deploy e metriche della codebase |

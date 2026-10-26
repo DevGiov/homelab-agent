@@ -98,24 +98,14 @@ sequenceDiagram
 ## Installazione
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+make venv   # dalla radice del repo: backend/.venv con Python 3.12 e requirements-dev.txt (richiede uv)
 ```
 
 ## Configurazione
 
-Copia `.env.example` in `.env` e compila:
-```
-METAMCP_URL=http://192.168.1.175:12008/metamcp/MetaMCP/sse
-METAMCP_API_KEY=<tua_api_key>
-LLAMA_CPP_URL=http://192.168.1.159:8080/v1
-DEFAULT_MODEL=qwen-3.6-35b-hugectx
-LETTA_URL=http://192.168.1.177:8083
-LETTA_API_KEY=<tua_api_key>
-CHECKPOINT_DB_PATH=/opt/main-agent/checkpoints.db
-API_SECRET_KEY=<opzionale, per auth API>
-```
+`make setup` genera `backend/.env` in modo interattivo; in alternativa copia `.env.example` in `.env` e compila
+i valori (riferimento completo in [.env.example](.env.example)). In Docker i dati stanno in `/data`
+(`CHECKPOINT_DB_PATH=/data/checkpoints.db`, gli altri database e la memoria accanto).
 
 ## Avvio
 
@@ -127,12 +117,6 @@ API_SECRET_KEY=<opzionale, per auth API>
 ### API REST
 ```bash
 .venv/bin/python3 run_api.py
-```
-
-### Systemd (produzione)
-```bash
-sudo systemctl start main-agent-api
-sudo systemctl enable main-agent-api
 ```
 
 ## Test

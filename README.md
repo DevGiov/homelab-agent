@@ -110,7 +110,7 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 - **Orchestrazione**: `docker-compose.prod.yml` con volumi persistenti per database SQLite, upload e modelli locali.
 
 ### Workflow di Deploy e Testing E2E
-1. **Validazione Locale**: Test unitari (`pytest`), linting (`ruff`) e build frontend (`npm run build`).
+1. **Validazione Locale**: `make test` (pytest), `make lint` (ruff + oxlint) e build frontend (`npm run build`). Gli stessi controlli girano in CI ([ci.yml](.github/workflows/ci.yml)) e sono bloccanti.
 2. **Push Git**: `git push origin dev`
 3. **Pull & Rebuild via MCP**:
    ```python
@@ -124,7 +124,8 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
    - Frontend: `docker compose -f docker-compose.prod.yml up -d --build frontend`.
 4. **Test in-container & API**:
    ```python
-   exec_lxc_command(vmid=125, command="docker exec agent-backend pytest")
+   # Mai dentro agent-backend: il suo /data è il dato di produzione
+   exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml run --rm --build backend-test")
    exec_lxc_command(vmid=125, command="curl -s http://localhost:8090/v1/health")
    ```
 5. **Test UI Live via Browser Subagent**: Navigazione su `http://agent-dev.deggio.local` con `browser_subagent` per validare UI, streaming SSE, modali e responsività.

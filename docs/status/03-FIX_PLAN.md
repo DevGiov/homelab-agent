@@ -55,7 +55,7 @@ Ogni step segue il workflow di [AGENTS.md](../../AGENTS.md): modifica su `dev`, 
 
 **Fatto quando**: CI verde su `dev` dopo il push.
 
-## Step 4 — Allineamento repository (ISS-13, ISS-14)
+## Step 4 — Allineamento repository (ISS-13, ISS-14) · ✅ Fatto (A5)
 
 - Committare le correzioni ai percorsi in `docs/`.
 - Aggiornare il tracker automazioni (M9: la retention era rotta fino allo Step 1).
@@ -67,6 +67,6 @@ Ogni step segue il workflow di [AGENTS.md](../../AGENTS.md): modifica su `dev`, 
 2. `npm run lint && npm run build` (se tocca il frontend)
 3. `git push origin dev`
 4. Su CT 125: `git pull origin dev`, poi restart o rebuild come da [AGENTS.md](../../AGENTS.md)
-5. `docker exec agent-backend pytest`
+5. `docker compose -f docker-compose.prod.yml run --rm --build backend-test` (mai `pytest` dentro `agent-backend`)
 6. `curl -s http://localhost:8090/v1/health` e controllo dei log (`docker logs --since 10m agent-backend`)
 7. Verifica UI sui flussi toccati
