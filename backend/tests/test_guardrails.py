@@ -1,7 +1,5 @@
 """Test unitari per guardrails, audit log, vector store e knowledge base (Fasi 0-3)."""
-import os
 import unittest
-
 
 import guardrails
 

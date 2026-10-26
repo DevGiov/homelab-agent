@@ -459,7 +459,7 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
     """
     Ricostruisce i turni di conversazione dallo state history di LangGraph
     e li salva nello store per accesso futuro istantaneo.
-    
+
     Supporta sia turni completati che turni interrotti a metà (es. durante pause o refresh).
     """
     if not thread_id or not app_graph:

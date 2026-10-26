@@ -1,18 +1,17 @@
-import time
 import threading
+import time
 import unittest
+
 from fastapi.testclient import TestClient
 
+from api import api as app
 from stream_session import (
-    StreamSession,
+    _active_sessions,
+    _sessions_lock,
     create_session,
     get_session,
     remove_session,
-    current_session_var,
-    _active_sessions,
-    _sessions_lock,
 )
-from api import api as app
 
 
 class TestStreamControls(unittest.TestCase):
@@ -31,10 +30,10 @@ class TestStreamControls(unittest.TestCase):
 
         # Token accumulation
         sess.record_metrics({"prompt_tokens": 60, "completion_tokens": 40, "total_tokens": 100})
-        
+
         # Artificial sleep to ensure duration > 0
         time.sleep(0.05)
-        
+
         metrics = sess.get_metrics()
         self.assertEqual(metrics["prompt_tokens"], 60)
         self.assertEqual(metrics["completion_tokens"], 40)

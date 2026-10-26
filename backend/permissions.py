@@ -12,7 +12,7 @@ import shlex
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import config
 
@@ -216,13 +216,13 @@ def grant_permission(
         with _session_lock:
             if thread_id not in _SESSION_PERMISSIONS:
                 _SESSION_PERMISSIONS[thread_id] = set()
-            
+
             # Se è presente un prefisso comando, salva il permesso granulare per comando
             if normalized_prefix:
                 _SESSION_PERMISSIONS[thread_id].add(f"{tool_name}:{normalized_prefix}")
                 if clean_name and clean_name != tool_name:
                     _SESSION_PERMISSIONS[thread_id].add(f"{clean_name}:{normalized_prefix}")
-            
+
             # Salva anche il permesso a livello tool (per sbloccare comandi safe-read)
             _SESSION_PERMISSIONS[thread_id].add(tool_name)
             if clean_name and clean_name != tool_name:

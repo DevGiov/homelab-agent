@@ -8,7 +8,6 @@ persistente `automations.db`.
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger

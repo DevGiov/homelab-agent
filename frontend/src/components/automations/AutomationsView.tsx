@@ -158,10 +158,10 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
     setIsParamModalOpen(true);
   };
 
-  const showFeedback = (type: 'success' | 'error', text: string) => {
+  const showFeedback = useCallback((type: 'success' | 'error', text: string) => {
     setActionMessage({ type, text });
     setTimeout(() => setActionMessage(null), 4000);
-  };
+  }, []);
 
   const toggleExpandCard = async (autoId: string) => {
     setExpandedCardIds((prev) => {
@@ -203,7 +203,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showFeedback]);
 
   useEffect(() => {
     loadData();

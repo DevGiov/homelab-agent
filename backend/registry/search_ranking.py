@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 _STOPWORDS = {
     "a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "is", "it",
     "di", "il", "la", "le", "lo", "gli", "un", "una", "e", "che", "per", "con",
-    "del", "dei", "delle", "da", "in", "su", "nel", "nella", "sui", "sulle",
+    "del", "dei", "delle", "da", "su", "nel", "nella", "sui", "sulle",
 }
 
 _GENERIC_TECH_TOKENS = {

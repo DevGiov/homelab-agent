@@ -66,9 +66,9 @@ def _extract_pdf(path: Path) -> str:
         reader = PdfReader(str(path))
         return "\n\n".join(page.extract_text() or "" for page in reader.pages)
     except ImportError:
-        raise RuntimeError("pypdf non installato: impossibile leggere PDF")
+        raise RuntimeError("pypdf non installato: impossibile leggere PDF") from None
     except Exception as e:
-        raise RuntimeError(f"Errore lettura PDF: {e}")
+        raise RuntimeError(f"Errore lettura PDF: {e}") from e
 
 
 def ingest_document(

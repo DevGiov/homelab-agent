@@ -1,7 +1,8 @@
 import time
 import unittest
-import queue
-from stream_session import StreamSession, create_session, get_session, remove_session
+
+from stream_session import create_session, remove_session
+
 
 class TestStreamSession(unittest.TestCase):
     def setUp(self):
@@ -38,7 +39,7 @@ class TestStreamSession(unittest.TestCase):
         self.assertEqual(metrics["completion_tokens"], 20)
 
         # Test snapshot for late subscriber
-        sub3 = self.sess.subscribe()
+        self.sess.subscribe()
         snap = self.sess.get_snapshot()
         self.assertEqual(snap["type"], "sync")
         self.assertEqual(snap["reasoning_content"], "Sto pensando...")
@@ -68,7 +69,7 @@ class TestStreamSession(unittest.TestCase):
         self.assertIn("continua a lavorare", self.sess.partial_content)
 
         # New client (or page reload) reconnects
-        new_sub = self.sess.subscribe()
+        self.sess.subscribe()
         snapshot = self.sess.get_snapshot()
         self.assertIn("continua a lavorare", snapshot["content"])
 

@@ -1,7 +1,7 @@
 """Tests for Visual Query Grounding and Image-Aware Web Prefetch."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from graph import (
     formulate_visual_search_query,

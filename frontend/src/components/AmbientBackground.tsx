@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme/useTheme';
 
 export const AmbientBackground: React.FC = () => {
   const { hasGlow, isFrosted } = useTheme();

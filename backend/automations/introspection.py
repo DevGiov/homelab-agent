@@ -9,7 +9,7 @@ Restituisce un catalogo di variabili attese con tipo inferito e metadati.
 
 import ast
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 def introspect_automation_parameters(definition: Dict[str, Any]) -> List[Dict[str, Any]]:

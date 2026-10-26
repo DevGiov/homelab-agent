@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Mail,
   Key,
@@ -48,7 +48,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
   const [hassToken, setHassToken] = useState<string>('');
   const [isSavingHass, setIsSavingHass] = useState<boolean>(false);
 
-  const loadIntegrations = async () => {
+  const loadIntegrations = useCallback(async () => {
     setIsLoading(true);
     try {
       const list = await fetchIntegrations();
@@ -84,11 +84,11 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [onFeedback]);
 
   useEffect(() => {
     loadIntegrations();
-  }, []);
+  }, [loadIntegrations]);
 
   const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -7,7 +7,6 @@ from typing import Any, Dict, List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from registry.base import BaseToolRegistry
 from registry.web_search_service import (
-    deduplicate_by_url,
     execute_search,
     search_with_fallback,
 )
@@ -80,8 +79,8 @@ class WebSearchRegistry(BaseToolRegistry):
             timeout_sec = float(args.get("timeout_seconds", 15))
             custom_headers = args.get("headers") or {}
 
-            import urllib.request
             import urllib.error
+            import urllib.request
             req = urllib.request.Request(url)
             req.add_header("User-Agent", "homelab-agent/1.0 (Automations Runner)")
             for hk, hv in custom_headers.items():

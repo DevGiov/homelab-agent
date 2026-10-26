@@ -1,18 +1,12 @@
 """Test automatici per endpoint di gestione memoria e modalità incognito."""
-import os
-import tempfile
 import unittest
 from unittest.mock import patch
 
-
-# Isola il DB in un file temporaneo PRIMA degli import
-_tmp_db = os.path.join(tempfile.mkdtemp(), "test_checkpoints_mem.db")
-os.environ["CHECKPOINT_DB_PATH"] = _tmp_db
-os.environ["ALLOW_INSECURE"] = "1"
-
 from fastapi.testclient import TestClient
-from api import api
+
 import vector_store
+from api import api
+
 
 class TestMemoryAPI(unittest.TestCase):
     @classmethod

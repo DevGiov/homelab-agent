@@ -15,7 +15,7 @@ Il prodotto è funzionalmente ricco e il deploy su CT 125 è sano (`/v1/health` 
 
 - **Bug in produzione**: la retention delle automazioni va in errore a ogni ciclo (`bulk_delete_runs()` riceve un parametro che non esiste), quindi le run storiche non vengono mai pulite.
 - **Test non affidabili**: la suite completa non termina; 7 file si bloccano (dipendenze da servizi live) e 5 test falliscono.
-- **Nessuna CI attiva**: `.github/` non è versionato e il workflow non è mai stato eseguito.
+- **Nessuna CI attiva**: `.github/` non è versionato e il workflow non è mai stato eseguito. *(Risolto in A4: [ci.yml](../../.github/workflows/ci.yml) bloccante su ruff, pytest, oxlint e build.)*
 - **Debito strutturale**: moduli monolitici (`graph.py` 1730 righe, `api.py` 1202), fallback legacy MCP, test e database nella radice del backend.
 
 **Priorità**: prima il consolidamento (Fase A di [04-ROADMAP.md](04-ROADMAP.md)), poi il refactor a pacchetti, poi le nuove funzionalità.

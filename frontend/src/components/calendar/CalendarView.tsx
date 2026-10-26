@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Calendar as CalIcon,
   ChevronLeft,
@@ -26,6 +26,13 @@ interface CalendarViewProps {
   onClearInitialEvent?: () => void;
   onOpenMobileSidebar?: () => void;
 }
+
+// Helper date
+const monthNames = [
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+];
+const dayNamesShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   initialEventUid,
@@ -73,7 +80,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   // Caricamento eventi
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     setIsLoading(true);
     try {
       const evs = await calendarApi.getEvents({
@@ -85,7 +92,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchQuery]);
 
   useEffect(() => {
     loadCalendars();
@@ -93,7 +100,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   useEffect(() => {
     loadEvents();
-  }, [searchQuery]);
+  }, [loadEvents]);
 
   // Se c'è un initialEventUid passato (da chat markdown anchor), aprilo
   useEffect(() => {
@@ -135,13 +142,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return next;
     });
   };
-
-  // Helper date
-  const monthNames = [
-    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-  ];
-  const dayNamesShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
   // Chiudi date picker al click fuori
   useEffect(() => {

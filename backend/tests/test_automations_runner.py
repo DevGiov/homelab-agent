@@ -9,11 +9,10 @@ from unittest.mock import MagicMock, patch
 from automations import db as auto_db
 from automations.models import (
     AutomationDefinition,
-    ExecutionPolicy,
     Budget,
+    ExecutionPolicy,
     RunStatus,
     StepType,
-    TriggerType,
     WorkflowSpec,
     WorkflowStepDefinition,
 )

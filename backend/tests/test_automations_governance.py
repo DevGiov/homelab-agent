@@ -9,14 +9,12 @@ Verifica:
 
 import os
 import tempfile
-import time
 import unittest
-from unittest.mock import patch
 
 import audit_log
 from automations import db as auto_db
 from automations.circuit_breaker import CircuitBreakerManager, CircuitState
-from automations.models import AutomationDefinition, RunStatus, TriggerType
+from automations.models import RunStatus, TriggerType
 from automations.runner import AutomationRunner
 
 
@@ -99,7 +97,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
         auto_db.save_definition(auto_payload, db_path=self.db_path)
 
         # 3 esecuzioni consecutive fallite
-        for i in range(3):
+        for _ in range(3):
             run = self.runner.start_run(auto_id, trigger_type=TriggerType.MANUAL)
             self.assertEqual(run.status, RunStatus.PENDING)
             res = self.runner.execute_run(run.run_id)

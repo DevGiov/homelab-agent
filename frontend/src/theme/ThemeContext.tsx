@@ -1,12 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { ThemeContext } from './context';
 import type { ThemeContextType, ThemeDefinition, ThemeId } from './types';
 import { THEMES, THEME_LIST, DEFAULT_THEME_ID } from './themes';
 
 const STORAGE_THEME_KEY = 'homelab-agent-theme';
 const STORAGE_FROSTED_KEY = 'homelab-agent-frosted';
 const STORAGE_GLOW_KEY = 'homelab-agent-glow';
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 function getInitialTheme(): ThemeId {
   try {
@@ -129,12 +128,4 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
-};
-
-export const useTheme = (): ThemeContextType => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
 };

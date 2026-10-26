@@ -276,7 +276,7 @@ def get_definition(auto_id: str, db_path: Optional[str] = None) -> Optional[Dict
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, name, description, created_by, source_type, spec_json, enabled, version, settings_json, retention_days 
+            SELECT id, name, description, created_by, source_type, spec_json, enabled, version, settings_json, retention_days
             FROM automation_definitions WHERE id = ?
         """, (auto_id,))
         row = cursor.fetchone()

@@ -43,7 +43,7 @@ import {
   type PermissionsListResponse,
   type SecurityMode,
 } from '../api';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme/useTheme';
 
 interface SettingsModalProps {
   isOpen: boolean;

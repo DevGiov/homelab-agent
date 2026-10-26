@@ -1,5 +1,7 @@
 import logging
+import math
 import re
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -256,8 +258,6 @@ def delete_all_threads() -> int:
     return deleted
 
 
-import math
-from collections import defaultdict
 
 
 class BM25Retriever:

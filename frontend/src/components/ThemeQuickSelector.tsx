@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Palette, Check, Sparkles, SunMedium, X } from 'lucide-react';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme/useTheme';
 
 export const ThemeQuickSelector: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);

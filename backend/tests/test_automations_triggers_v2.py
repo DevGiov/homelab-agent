@@ -9,13 +9,12 @@ import os
 import shutil
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 
 import config
-from automations import db as auto_db
 from api import api
+from automations import db as auto_db
 
 
 class TestAutomationsTriggersV2(unittest.TestCase):

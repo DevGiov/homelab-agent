@@ -11,15 +11,12 @@ import os
 import shutil
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
 
 from automations import db as auto_db
 from automations.introspection import introspect_automation_parameters
 from automations.models import (
     AutomationDefinition,
-    AutomationRun,
     RunStatus,
-    StepType,
 )
 from automations.runner import AutomationRunner
 from registry.automations_tool import AutomationRegistry
@@ -217,7 +214,7 @@ class TestAutomationsV2(unittest.TestCase):
 
     def test_create_custom_with_null_or_string_budget_and_policy(self):
         """Verifica che payload con budget: null o permission_policy: string vengano gestiti e normalizzati con successo."""
-        from automations.models import AutomationDefinition, Budget, ExecutionPolicy
+        from automations.models import Budget, ExecutionPolicy
         from registry.automations_tool import AutomationRegistry
         reg = AutomationRegistry()
 
@@ -266,9 +263,8 @@ class TestAutomationsV2(unittest.TestCase):
 
     def test_trigger_normalization_and_inference(self):
         """Verifica la normalizzazione resiliente dei trigger (dict, schedule synonym, e time inference)."""
-        from automations.models import AutomationDefinition, TriggerType
-        from automations.runner import AutomationRunner
         import automations.db as auto_db
+        from automations.models import TriggerType
 
         # 1. Triggers passato come dict singolo con sinonimo 'schedule'
         p1 = {

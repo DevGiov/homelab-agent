@@ -6,14 +6,12 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from automations import db as auto_db
-from automations.models import AutomationDefinition, RunStatus, TriggerType
+from automations.models import RunStatus, TriggerType
 from automations.runner import AutomationRunner
 from automations.scheduler import AutomationScheduler
 from registry.email_tool import EmailRegistry
-from registry.manager import ToolRegistryManager
 
 
 class TestAutomationsSchedulerAndEmail(unittest.TestCase):

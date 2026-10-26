@@ -11,10 +11,9 @@ Fornisce:
 - calendar_check_availability: ricerca deterministica di slot orari liberi
 """
 
-import json
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import calendar_db

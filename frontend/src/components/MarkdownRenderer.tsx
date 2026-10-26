@@ -132,7 +132,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           ),
 
           // Custom Code Blocks (Inline vs Fenced with Copy Button)
-          code: ({ node, className, children, ...props }) => {
+          code: ({ node: _node, className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
             const rawText = extractText(children).replace(/\n$/, '');
 

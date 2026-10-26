@@ -2,9 +2,9 @@ import logging
 import os
 import time
 
-from graph import MEMORY_DIR, build_graph
-
 import pytest
+
+from graph import MEMORY_DIR, build_graph
 
 # Valutazione end-to-end contro LLM/MetaMCP reali: esclusa dalla suite di default
 pytestmark = [pytest.mark.live, pytest.mark.timeout(1800)]

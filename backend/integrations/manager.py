@@ -8,7 +8,6 @@ Fornisce:
 """
 
 import base64
-import email
 import hashlib
 import imaplib
 import json
@@ -17,7 +16,7 @@ import os
 import time
 import urllib.request
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from cryptography.fernet import Fernet
 

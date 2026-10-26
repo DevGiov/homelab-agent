@@ -1,10 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch
-import json
 
-from stream_session import StreamSession
 import thread_store
 from providers import OpenAICompatProvider
+from stream_session import StreamSession
 
 
 def test_stream_session_metrics_preserves_tok_per_s():
@@ -29,7 +27,7 @@ def test_thread_store_message_model(tmp_path):
         thread_store.init_db()
         t_id = "thread_model_test"
         thread_store.save_user_message(t_id, "ciao")
-        msg_id = thread_store.save_assistant_message(t_id, {
+        thread_store.save_assistant_message(t_id, {
             "response": "Ciao!",
             "mode": "chat",
             "model": "Gemma-4-26B-Q3",
@@ -102,7 +100,7 @@ def test_openai_compat_chat_timings_non_stream():
 
 def test_openai_compat_chat_timings_stream():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="Gemma-4-26B-Q3")
-    
+
     # Simulate SSE chunks
     lines = [
         'data: {"choices":[{"delta":{"content":"Hi"}}]}',

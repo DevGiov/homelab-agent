@@ -11,15 +11,15 @@ import audit_log
 import guardrails
 import permissions
 from guardrails import _APPROVALS
+from registry.automations_tool import AutomationRegistry
 from registry.base import BaseToolRegistry
+from registry.calendar_tool import CalendarRegistry
 from registry.code_exec import CodeExecRegistry
+from registry.email_tool import EmailRegistry
 from registry.memory import MemoryRegistry
 from registry.metamcp import MetaMCPRegistry
 from registry.vision import VisionRegistry
 from registry.web_search import WebSearchRegistry
-from registry.email_tool import EmailRegistry
-from registry.automations_tool import AutomationRegistry
-from registry.calendar_tool import CalendarRegistry
 
 logger = logging.getLogger("registry_manager")
 

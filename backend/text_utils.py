@@ -14,7 +14,7 @@ _THINK_UNCLOSED_RE = re.compile(r'<(?:think|thought|thinking)[^>]*>.*', flags=re
 def strip_thinking(text: str) -> str:
     """
     Rimuove in modo robusto i blocchi di reasoning (es. <think>...</think>)
-    generati dai modelli LLM. 
+    generati dai modelli LLM.
     Questa operazione previene la rottura del parser JSON se il modello
     decide di pensare ad alta voce prima di restituire l'output strutturato.
     """

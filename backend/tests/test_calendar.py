@@ -4,19 +4,23 @@ import os
 import shutil
 import tempfile
 import unittest
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-import config
 import calendar_db
 import calendar_sync
+import config
 from api import api
 from automations.db import init_automations_db, save_definition
-from automations.models import AutomationDefinition, ExecutionPolicy, RunStatus, StepType, WorkflowSpec, WorkflowStepDefinition
+from automations.models import (
+    AutomationDefinition,
+    ExecutionPolicy,
+    RunStatus,
+    StepType,
+    WorkflowSpec,
+    WorkflowStepDefinition,
+)
 from automations.runner import AutomationRunner
-from registry.calendar_tool import CalendarRegistry
 
 
 class TestCalendarSync(unittest.TestCase):
@@ -127,7 +131,7 @@ class TestCalendarAutomation(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.auto_db_path = os.path.join(self.test_dir, "test_automations.db")
         self.cal_db_path = os.path.join(self.test_dir, "test_cal_auto.db")
-        
+
         self.original_auto_db = config.AUTOMATIONS_DB_PATH
         config.AUTOMATIONS_DB_PATH = self.auto_db_path
         init_automations_db(self.auto_db_path)
@@ -170,11 +174,11 @@ class TestCalendarAutomation(unittest.TestCase):
         )
         saved = save_definition(definition.model_dump(), db_path=self.auto_db_path)
         auto_id = saved["id"]
-        
+
         runner = AutomationRunner(db_path=self.auto_db_path)
         run = runner.start_run(auto_id)
         completed_run = runner.execute_run(run.run_id)
-        
+
         self.assertEqual(completed_run.status, RunStatus.COMPLETED)
         self.assertEqual(len(completed_run.step_runs), 1)
         step_output = completed_run.step_runs[0].output_payload

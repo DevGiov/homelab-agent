@@ -6,7 +6,7 @@ import re
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -17,16 +17,15 @@ import config
 import image_utils
 import letta_client
 import router
+from agent_loop import is_tools_discovery_query, run_agent_loop
 from mcp_client import MetaMCPClient
+from mode_policy import get_mode_policy
 from providers import get_provider, is_vision_model
+from text_utils import clean_synthesis_content
+from tool_catalog import get_rollback_info, get_tool_catalog
 
 stream_queue = contextvars.ContextVar("stream_queue", default=None)
 stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_count", default=0)
-
-from agent_loop import is_tools_discovery_query, run_agent_loop
-from mode_policy import get_mode_policy
-from text_utils import clean_synthesis_content
-from tool_catalog import get_rollback_info, get_tool_catalog
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("graph")
@@ -41,7 +40,7 @@ class AgentSpan:
     session_id: str
     thread_id: str
     task: str
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
     end_time: Optional[datetime] = None
     llm_latency_ms: float = 0.0
     tool_calls: List[dict] = field(default_factory=list)
@@ -139,7 +138,7 @@ def _append_message_to_file(thread_id: str, role: str, content: str):
         os.makedirs(MEMORY_DIR, exist_ok=True)
         filepath = os.path.join(MEMORY_DIR, f"{thread_id}.jsonl")
         entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "role": role,
             "content": content
         }
@@ -952,7 +951,7 @@ class ExecutionLog:
         self.args = args
         self.result = None
         self.error = None
-        self.timestamp_start = datetime.utcnow()
+        self.timestamp_start = datetime.now(UTC)
         self.timestamp_end = None
         self.rollback_executed = False
         self.rollback_error = None
@@ -1141,7 +1140,7 @@ def execute_plan_node(state: AgentState) -> AgentState:
         try:
             result = client.call_tool(tool_name, resolved_args)
             log_entry.result = result
-            log_entry.timestamp_end = datetime.utcnow()
+            log_entry.timestamp_end = datetime.now(UTC)
             logger.info(f"Step {step_id} completato: {result}")
 
             if isinstance(result, dict) and "error" in result:
@@ -1161,7 +1160,7 @@ def execute_plan_node(state: AgentState) -> AgentState:
         except Exception as e:
             has_error = True
             log_entry.error = str(e)
-            log_entry.timestamp_end = datetime.utcnow()
+            log_entry.timestamp_end = datetime.now(UTC)
             logger.error(f"Step {step_id} fallito con eccezione: {e}")
             exec_lines.append(f"{step_id}. ❌ `{desc}` — Errore di chiamata tool `{tool_name}`: `{e}`")
             break
@@ -1585,7 +1584,7 @@ Salient facts (list maximum 5 concise bullet points, one per line):"""
         return []
 
     lines = [line.strip("- *").strip() for line in raw.split("\n") if line.strip()]
-    return [l for l in lines if len(l) > 5][:5]
+    return [line for line in lines if len(line) > 5][:5]
 
 
 def respond_node(state: AgentState) -> AgentState:
@@ -1620,7 +1619,7 @@ def respond_node(state: AgentState) -> AgentState:
         session_id=session_id,
         thread_id=thread_id,
         task=task,
-        end_time=datetime.utcnow(),
+        end_time=datetime.now(UTC),
         llm_latency_ms=state.get("llm_latency_ms", 120.0),
         prompt_tokens=state.get("prompt_tokens", len(task.split()) + 50),
         completion_tokens=state.get("completion_tokens", len(formatted.split())),

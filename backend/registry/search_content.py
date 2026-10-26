@@ -3,9 +3,12 @@ import logging
 import os
 import re
 from typing import List
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+
+from registry.search_security import is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +77,7 @@ def _empty_result(url: str, error: str = "") -> dict:
         "error": error,
     }
 
-from urllib.parse import urljoin
-from registry.search_security import is_safe_url
+
 
 _MAX_PAGE_BYTES = 2_000_000
 _MAX_REDIRECTS = 5
@@ -162,7 +164,7 @@ def fetch_webpage_content(url: str, timeout: int = 8, max_bytes: int = _MAX_PAGE
     # HTML handling
     try:
         soup = BeautifulSoup(text_content, "html.parser")
-    except Exception as e:
+    except Exception:
         return _empty_result(current_url, "ParseError: HTML parsing failed")
 
     title_tag = soup.find("title")

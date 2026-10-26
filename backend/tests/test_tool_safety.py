@@ -1,7 +1,6 @@
 """Tests for Tool Safety, Command Guardrails, and Permission Scopes."""
 
 import unittest
-from unittest.mock import MagicMock, patch
 
 import pytest
 

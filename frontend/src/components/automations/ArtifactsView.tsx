@@ -69,11 +69,11 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
 
-  const showFeedback = (type: 'success' | 'error', text: string) => {
+  const showFeedback = useCallback((type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
     if (onFeedback) onFeedback(type, text);
     setTimeout(() => setFeedback(null), 3500);
-  };
+  }, [onFeedback]);
 
   const loadArtifacts = useCallback(async () => {
     setIsLoading(true);
@@ -90,10 +90,8 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
       // Se c'è un initialArtifactId o selectedId, mantienilo, altrimenti su desktop seleziona il primo (su mobile mostra prima la lista)
       if (initialArtifactId && data.some((a) => a.artifact_id === initialArtifactId)) {
         setSelectedId(initialArtifactId);
-      } else if (!selectedId && data.length > 0) {
-        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-          setSelectedId(data[0].artifact_id);
-        }
+      } else if (data.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
+        setSelectedId((current) => current ?? data[0].artifact_id);
       }
     } catch (err: any) {
       console.error('Errore caricamento lista artefatti:', err);
@@ -101,7 +99,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [automationFilter, searchQuery, favoriteOnly, preservedOnly, initialArtifactId]);
+  }, [automationFilter, searchQuery, favoriteOnly, preservedOnly, initialArtifactId, showFeedback]);
 
   useEffect(() => {
     loadArtifacts();
@@ -137,7 +135,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, showFeedback]);
 
   // Toggles
   const handleToggleFavorite = async (artId: string, e?: React.MouseEvent) => {
@@ -150,7 +148,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
       if (selectedArtifact && selectedArtifact.artifact_id === artId) {
         setSelectedArtifact({ ...selectedArtifact, is_favorite: res.is_favorite });
       }
-    } catch (err: any) {
+    } catch {
       showFeedback('error', 'Errore aggiornamento preferito.');
     }
   };
@@ -169,7 +167,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
         'success',
         res.is_preserved ? 'Artefatto protetto da cancellazione' : 'Protezione cancellazione rimossa'
       );
-    } catch (err: any) {
+    } catch {
       showFeedback('error', 'Errore aggiornamento protezione.');
     }
   };
@@ -188,7 +186,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
         setSelectedArtifact(null);
       }
       showFeedback('success', 'Artefatto eliminato.');
-    } catch (err: any) {
+    } catch {
       showFeedback('error', 'Errore eliminazione artefatto.');
     }
   };

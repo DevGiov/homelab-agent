@@ -1,6 +1,6 @@
 # Configurazione ruff per homelab-agent backend
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 
 [lint]
 select = [
@@ -16,3 +16,7 @@ ignore = [
 
 [lint.per-file-ignores]
 "tests/*" = ["B011", "B008"]
+
+[lint.flake8-bugbear]
+# Marcatori di parametro FastAPI: valutati una volta sola per design
+extend-immutable-calls = ["fastapi.Body", "fastapi.Depends", "fastapi.File", "fastapi.Query", "fastapi.Security"]

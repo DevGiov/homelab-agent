@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 
@@ -142,7 +142,7 @@ def _parse_openapi_to_tools(openapi: dict) -> List[Dict[str, Any]]:
     paths = openapi.get("paths", {})
     for path, methods in paths.items():
         if isinstance(methods, dict):
-            for method, spec in methods.items():
+            for spec in methods.values():
                 if isinstance(spec, dict):
                     name = spec.get("operationId") or path.strip("/").replace("/", "_")
                     description = spec.get("summary") or spec.get("description") or ""

@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from registry.search_ranking import is_result_relevant
 from agent_loop import (
     _normalize_call_signature,
     _query_jaccard_similarity,
     run_agent_loop,
 )
+from registry.search_ranking import is_result_relevant
 from tool_schemas import ToolSelection
 
 

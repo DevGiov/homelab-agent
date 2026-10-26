@@ -45,10 +45,10 @@ Ogni step segue il workflow di [AGENTS.md](../../AGENTS.md): modifica su `dev`, 
 
 **Fatto quando**: `pytest` (default, senza live) termina in meno di 60 s, tutto verde, sia in locale sia con `docker exec agent-backend pytest`. `pytest -m live` resta eseguibile a mano contro CT 125.
 
-## Step 3 — CI e lint (ISS-06, ISS-08, ISS-12)
+## Step 3 — CI e lint (ISS-06, ISS-08, ISS-12) · ✅ Fatto (A4)
 
 - `ruff check --fix .`, poi correzione manuale dei rimanenti (`B904`: `raise ... from e`; `E702`; `E402`; `F841`). Aggiungere le regole a `ruff.toml` solo dove c'è una ragione (per esempio `B008` per `Depends()`/`Query()` di FastAPI).
-- Riscrivere [backend-ci.yml](../../.github/workflows/backend-ci.yml) e versionarlo:
+- Riscrivere il vecchio `backend-ci.yml` come [ci.yml](../../.github/workflows/ci.yml) e versionarlo:
   - job **backend**: Python 3.12, `ruff check` bloccante, `pytest` (unit, con timeout).
   - job **frontend**: `npm ci`, `npm run lint` (oxlint con `--deny-warnings`), `npm run build`.
 - Correggere gli 8 warning oxlint: dipendenze degli hook con `useCallback` stabili, `catch` senza binding oppure con feedback all'utente.

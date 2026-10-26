@@ -5,14 +5,13 @@ gestisce il salvataggio persistente su DB ad ogni passaggio, il congelamento
 non-bloccante in WAITING_APPROVAL e la ripresa automatica su conferma.
 """
 
-import asyncio
 import json
 import logging
 import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import config
 from automations import db as auto_db
@@ -951,7 +950,7 @@ class AutomationRunner:
 
             # Invocazione loop agentico controllato
             from agent_loop import run_agent_loop
-            from graph import _call_llm, _call_llm_structured
+            from graph import _call_llm
 
             loop_res = run_agent_loop(
                 task=rendered_prompt,

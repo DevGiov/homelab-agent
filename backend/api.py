@@ -3,15 +3,17 @@ import base64
 import contextvars
 import json
 import logging
+import os
 import queue
 import re
 import sqlite3
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import List, Optional, Union
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,16 +25,20 @@ import config
 import image_utils
 import letta_client
 import thread_store
+from automations.db import init_automations_db
+from automations.router import router as automations_router
+from automations.router import webhook_router as automations_webhook_router
+from calendar_db import init_calendar_db
+from calendar_router import router as calendar_router
 from graph import _call_llm, build_graph, stream_queue, stream_reasoning_phase_count
-from text_utils import clean_synthesis_content
 from providers import (
     get_active_model_name,
     get_active_provider_name,
     list_provider_models,
     list_provider_models_with_details,
     list_providers_info,
-    set_active_provider,
     load_provider_model,
+    set_active_provider,
 )
 from schemas import (
     AddMemoryRequest,
@@ -47,13 +53,13 @@ from schemas import (
     ProviderInfo,
     ProviderModelsResponse,
     ProvidersResponse,
+    ResolveApprovalRequest,
+    SaveVersionsDataRequest,
     SetDefaultProviderRequest,
     SetThreadTitleRequest,
-    SaveVersionsDataRequest,
     SwitchVersionRequest,
     ThreadControlRequest,
     ThreadSummary,
-    ResolveApprovalRequest,
 )
 from stream_session import (
     create_session,
@@ -61,17 +67,14 @@ from stream_session import (
     get_session,
     remove_session,
 )
+from text_utils import clean_synthesis_content
 
 logger = logging.getLogger("api")
 
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
 config.get_settings().validate_security()
 
-from contextlib import asynccontextmanager
-from automations.db import init_automations_db
-from automations.router import router as automations_router, webhook_router as automations_webhook_router
-from calendar_db import init_calendar_db
-from calendar_router import router as calendar_router
+
 
 app_graph = build_graph()
 
@@ -254,7 +257,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
                 "response": f"[Errore durante l'esecuzione: {str(e)}]",
                 "error": True
             })
-        raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}") from e
     finally:
         remove_session(effective_thread_id)
 
@@ -313,9 +316,9 @@ async def get_provider_models(name: str):
         models_detail = [ModelDetail(**d) for d in details]
         return ProviderModelsResponse(provider=name, models=models, models_detail=models_detail)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore recupero modelli provider '{name}': {e}")
+        raise HTTPException(status_code=500, detail=f"Errore recupero modelli provider '{name}': {e}") from e
 
 @api.put("/v1/providers/default", dependencies=[Depends(verify_api_key)])
 async def set_default_provider_endpoint(req: SetDefaultProviderRequest):
@@ -324,7 +327,7 @@ async def set_default_provider_endpoint(req: SetDefaultProviderRequest):
         res = set_active_provider(req.provider, req.model)
         return {"status": "ok", **res}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 @api.post("/v1/providers/{name}/models/load", dependencies=[Depends(verify_api_key)])
 async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
@@ -333,9 +336,9 @@ async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
         res = load_provider_model(name, req.model)
         return {"status": "ok", "provider": name, "model": req.model, "result": res}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore durante il caricamento del modello '{req.model}': {e}")
+        raise HTTPException(status_code=500, detail=f"Errore durante il caricamento del modello '{req.model}': {e}") from e
 
 @api.get("/v1/models/events")
 async def models_events_endpoint():
@@ -390,7 +393,7 @@ def invoke_endpoint(req: ChatRequest, request: Request = None):
     return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
 
 # Gestione upload file multimodali
-import os
+
 if os.path.exists("/data") and os.access("/data", os.W_OK):
     UPLOAD_DIR = Path("/data/uploads")
 else:
@@ -419,7 +422,7 @@ async def upload_file_endpoint(file: UploadFile = File(...)):
             force_jpeg=image_utils.is_heic_or_heif(filename=filename, content_type=content_type, raw_bytes=contents),
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Impossibile elaborare l'immagine caricata: {e}")
+        raise HTTPException(status_code=400, detail=f"Impossibile elaborare l'immagine caricata: {e}") from e
 
     ext = ".jpg" if mime == "image/jpeg" else (Path(filename).suffix or ".jpg")
     safe_name = f"{uuid.uuid4().hex}{ext}"
@@ -722,9 +725,9 @@ async def kb_upload_document(request: Request):
             stats = knowledge_base.ingest_document(filename, text_content=content)
         return {"status": "ingested", **stats}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ingesta fallita: {e}")
+        raise HTTPException(status_code=500, detail=f"Ingesta fallita: {e}") from e
 
 @api.delete("/v1/kb/documents/{filename}", dependencies=[Depends(verify_api_key)])
 async def kb_delete_document(filename: str):
@@ -808,7 +811,7 @@ async def list_threads():
 
         return summaries
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list threads: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list threads: {str(e)}") from e
 
 
 @api.get("/v1/threads/{thread_id}", dependencies=[Depends(verify_api_key)])
@@ -885,7 +888,7 @@ async def get_thread(thread_id: str):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get thread details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get thread details: {str(e)}") from e
 
 
 @api.patch("/v1/threads/{thread_id}/title", dependencies=[Depends(verify_api_key)])
@@ -938,7 +941,7 @@ async def delete_single_thread(thread_id: str):
 
         return {"status": "deleted", "thread_id": thread_id, "deleted_checkpoints": deleted_rows}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete thread '{thread_id}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete thread '{thread_id}': {str(e)}") from e
 
 @api.delete("/v1/threads", dependencies=[Depends(verify_api_key)])
 async def delete_all_threads():
@@ -955,7 +958,7 @@ async def delete_all_threads():
 
         return {"status": "cleared", "deleted_checkpoints": deleted_rows}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear threads: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear threads: {str(e)}") from e
 
 # --- Approval workflow (Fase 3.2) ---
 
@@ -1210,6 +1213,7 @@ async def clear_all_memory(kind: Optional[str] = None):
     """
     import glob
     import os
+
     import vector_store
 
     deleted_vec = vector_store.clear_all_memories(kind=kind)

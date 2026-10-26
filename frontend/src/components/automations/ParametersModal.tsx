@@ -313,7 +313,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                               className="rounded border-border text-accent focus:ring-0 w-4 h-4 cursor-pointer"
                             />
                             <span className="text-xs text-fg">
-                              {Boolean(val) ? 'Attivato (true)' : 'Disattivato (false)'}
+                              {val ? 'Attivato (true)' : 'Disattivato (false)'}
                             </span>
                           </label>
                         ) : (

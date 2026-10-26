@@ -6,15 +6,14 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from automations.db import init_automations_db, get_definition
+from automations.db import init_automations_db
 from automations.models import AutomationDefinition
-from automations.runner import AutomationRunner, _render_template
+from automations.runner import _render_template
 from integrations.manager import (
     IntegrationManager,
-    encrypt_secrets,
     decrypt_secrets,
+    encrypt_secrets,
     mask_secrets,
-    get_integration_manager,
 )
 from registry.manager import get_registry_manager
 

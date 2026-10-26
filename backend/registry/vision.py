@@ -1,8 +1,7 @@
 import base64
 import logging
 import os
-import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 

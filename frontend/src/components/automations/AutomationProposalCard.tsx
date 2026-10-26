@@ -138,7 +138,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
       }
     }
     rawParsed = JSON.parse(textToParse);
-  } catch (err: any) {
+  } catch {
     // Fallback: visualizza box informativo invece di sparire
     return (
       <div className="my-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">

@@ -247,7 +247,7 @@ class TestWebPrefetchGraph(unittest.TestCase):
             "reasoning_content": "Pianifico i passaggi...",
         }
 
-        resp = run_agent_flow(
+        run_agent_flow(
             task="configurazione proxmox lxc cluster",
             thread_id="test_thread_plan_web",
             force_mode="plan",

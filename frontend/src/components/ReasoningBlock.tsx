@@ -72,7 +72,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
 
   // Open automatically when streaming starts
   useEffect(() => {
-    if (isStreaming && content.length > 0 && !isOpen) {
+    if (isStreaming && content.length > 0) {
       setIsOpen(true);
     }
   }, [isStreaming, content.length]);

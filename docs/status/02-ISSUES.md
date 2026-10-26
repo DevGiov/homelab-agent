@@ -9,13 +9,13 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | ✅ Risolto (`7205e75`) |
 | [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | ✅ Risolto (`0021414`) |
 | [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | ✅ Risolto (`0021414`) |
-| [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | Aperto |
+| [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | ✅ Risolto (A4) |
 | [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | ✅ Risolto (`b20e63b`) |
-| [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | Aperto |
+| [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | ✅ Risolto (A4) |
 | [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | Aperto |
 | [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | Aperto |
-| [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | Aperto |
+| [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | Aperto |
 | [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | Aperto |
 | [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | ✅ Risolto (`b20e63b`) |
@@ -75,10 +75,11 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | `test_agent_verification` | nessun test raccolto | Script, non test pytest |
 
 ## ISS-06
-**CI non versionata e troppo permissiva** — S2
+**CI non versionata e troppo permissiva** — S2 · ✅ Risolto in A4
 
 - `.github/workflows/backend-ci.yml` esiste in locale ma non è tracciato da git: la CI non è mai girata.
 - Anche committato, il workflow esegue solo 3 file di test, ignora ruff (`|| true`) e non copre il frontend (build e oxlint).
+- **Fix**: sostituito da [ci.yml](../../.github/workflows/ci.yml), versionato e bloccante. Job **backend**: costruisce lo stage `test` del Dockerfile (lo stesso di `make test-container`, con cache GHA) ed esegue `ruff check` e l'intera suite `pytest`. Job **frontend**: Node 22 come il Dockerfile, `npm ci`, `npm run lint` (ora `oxlint --deny-warnings`), `npm run build`.
 
 ## ISS-07
 **Ambiente locale rotto dopo lo spostamento in `projects/`** — S2
@@ -88,9 +89,11 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 - `__pycache__` obsoleti riportano il percorso vecchio nei traceback.
 
 ## ISS-08
-**208 errori ruff** — S3
+**208 errori ruff** — S3 · ✅ Risolto in A4
 
 79 `F401` (import inutilizzati), 24 `I001`, 21 `B904`, 19 `E402`, 19 `E702`, 13 `W293`, 10 `F841`, 9 `B008`, 3 `F811`, 2 `F821` (→ [ISS-02](#iss-02)), più altri minori. 120 si correggono con `--fix`.
+
+- **Fix**: `ruff check` → 0 errori (`target-version` portato a `py312`). Fix automatici più correzioni manuali: `raise ... from e` nei 21 `except`, import spostati in testa (`api.py`, `graph.py`, `letta_client.py`, `search_content.py`), `BackgroundTasks()` tolto dai default degli endpoint (FastAPI lo inietta), `B008` ammesso solo per i marcatori FastAPI (`Body`, `Depends`, `File`, `Query`, `Security`) via `extend-immutable-calls`. Rimossi anche i `datetime.utcnow()` deprecati in `graph.py`: la suite non emette più warning.
 
 ## ISS-09
 **Moduli monolitici, backend non strutturato a pacchetti** — S3
@@ -112,10 +115,12 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti nel chunk iniziale. Componenti da oltre 1000 righe: `AutomationsView`, `api.ts`, `CalendarView`, `Chat`.
 
 ## ISS-12
-**Warning oxlint** — S4
+**Warning oxlint** — S4 · ✅ Risolto in A4
 
 - `react-hooks/exhaustive-deps`: `CalendarView.tsx:95` e `:218`, `ArtifactsView.tsx:93` e `:128`. Rischio di stale closure.
 - `no-unused-vars` sul parametro dei `catch`: `AutomationProposalCard.tsx:141`, `ArtifactsView.tsx:153`, `:172`, `:191`. Errori inghiottiti senza feedback.
+- Con oxlint 1.76 i warning erano 16 (in più: `only-export-components`, escape inutili, `Boolean()` ridondante).
+- **Fix**: 0 warning con `--deny-warnings`. `showFeedback` di `AutomationsView` e `ArtifactsView` stabilizzato con `useCallback`, così i loader dei figli possono dipenderne senza loop; `ArtifactsView` sceglie il primo artefatto con un setter funzionale invece di leggere `selectedId`; `useTheme` spostato in `theme/useTheme.ts` con il context in `theme/context.ts`.
 
 ## ISS-13
 **`dev` non mergiato in `main`** — S3

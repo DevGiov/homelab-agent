@@ -29,7 +29,7 @@ export function adaptChatResponseToMessage(
     mode: normalizedMode,
     tool_used: response.tool_used,
     reasoning: response.execution_trace?.find((t) => t.reasoning)?.reasoning,
-    plan_steps: response.plan_steps?.map((s) => s.replace(/^\d+[\.\)]\s*/, '').trim()),
+    plan_steps: response.plan_steps?.map((s) => s.replace(/^\d+[.)]\s*/, '').trim()),
     plan_structure: response.plan_structure,
     execution_trace: response.execution_trace,
     rollback_trace: response.rollback_trace,

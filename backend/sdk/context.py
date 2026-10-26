@@ -9,7 +9,6 @@ Consente al codice dello step di interagire in modo sicuro con il workflow:
 """
 
 import hashlib
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Union

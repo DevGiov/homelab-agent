@@ -388,7 +388,7 @@ def run_agent_loop(
                     readonly_calls, policy.allowed_registries, thread_id=thread_id, mode=mode,
                     security_mode=security_mode
                 )
-                for i, (call, res) in enumerate(zip(readonly_calls, results)):
+                for i, (call, res) in enumerate(zip(readonly_calls, results, strict=True)):
                     execution_trace.append({
                         "step_id": step_id,
                         "parallel_index": i,

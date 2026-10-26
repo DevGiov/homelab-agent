@@ -2,11 +2,9 @@ import os
 import shutil
 import tempfile
 import unittest
-from datetime import datetime, timedelta
 
 import calendar_db
 from registry.calendar_tool import CalendarRegistry
-from registry.manager import ToolRegistryManager
 
 
 class TestCalendarTool(unittest.TestCase):

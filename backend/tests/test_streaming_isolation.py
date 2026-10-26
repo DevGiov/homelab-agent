@@ -63,7 +63,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        res = _call_llm("prompt", stream_mode="none")
+        _call_llm("prompt", stream_mode="none")
         self.assertTrue(self.q.empty(), "La coda stream deve rimanere completamente vuota")
 
     @patch("graph.get_provider")

@@ -8,10 +8,9 @@ Fornisce:
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Security, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Security, UploadFile
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 

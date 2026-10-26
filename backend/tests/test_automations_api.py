@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 import config
-from automations import db as auto_db
 from api import api
+from automations import db as auto_db
 
 
 class TestAutomationsAPI(unittest.TestCase):
@@ -86,7 +86,7 @@ class TestAutomationsAPI(unittest.TestCase):
             self.assertEqual(run_data["status"], "completed")
 
         # 5. Query Runs
-        res_runs = self.client.get(f"/v1/automations/runs?automation_id=auto_api_demo", headers=self.headers)
+        res_runs = self.client.get("/v1/automations/runs?automation_id=auto_api_demo", headers=self.headers)
         self.assertEqual(res_runs.status_code, 200)
         self.assertTrue(len(res_runs.json()) >= 1)
 

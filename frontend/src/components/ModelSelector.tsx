@@ -28,7 +28,7 @@ function saveFavoriteModels(favs: string[]) {
   } catch {}
 }
 
-export function calculateLlamaProgress(progressObj: any): number {
+function calculateLlamaProgress(progressObj: any): number {
   if (!progressObj) return 0;
   const { current, stages = [], value = 0 } = progressObj;
   const C_e = 0.1;

@@ -8,7 +8,7 @@ attraverso tre stati:
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
@@ -104,7 +104,7 @@ class CircuitBreakerManager:
         state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path)
         if state_data and (state_data.get("state") != CircuitState.CLOSED.value or state_data.get("consecutive_failures", 0) > 0):
             logger.info(f"Ripristino Circuit Breaker a CLOSED per '{automation_id}' dopo esito positivo.")
-        
+
         auto_db.save_circuit_breaker_state({
             "automation_id": automation_id,
             "state": CircuitState.CLOSED.value,

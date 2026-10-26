@@ -1,11 +1,11 @@
 import logging
 import time
 
+import pytest
+
 from graph import build_graph
 from tool_catalog import get_tool_catalog
 from tool_schemas import validate_tool_args
-
-import pytest
 
 # Valutazione end-to-end contro LLM/MetaMCP reali: esclusa dalla suite di default
 pytestmark = [pytest.mark.live, pytest.mark.timeout(600)]

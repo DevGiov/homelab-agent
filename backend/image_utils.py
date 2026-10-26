@@ -7,7 +7,7 @@ and JPEG transcoding to ensure compatibility with llama.cpp mmproj and web brows
 import base64
 import io
 import logging
-from typing import Optional, Tuple
+from typing import Tuple
 
 logger = logging.getLogger("image_utils")
 
@@ -76,7 +76,7 @@ def optimize_image_bytes(
     """
     Decodifica i byte dell'immagine (incluso HEIC/HEIF), applica la rotazione EXIF nativa,
     ridimensiona proporzionalmente se supera max_dimension e salva come JPEG ottimizzato.
-    
+
     Ritorna: (bytes_ottimizzati, mime_type, width, height)
     """
     if not Image:
@@ -106,7 +106,7 @@ def optimize_image_bytes(
     # convertiamo in JPEG ad alta qualità (quality=85).
     is_source_heif = getattr(img, "format", "") in ("HEIF", "HEIC") or is_heic_or_heif(raw_bytes=raw_bytes)
     is_source_webp = getattr(img, "format", "") == "WEBP"
-    
+
     if force_jpeg or is_source_heif or is_source_webp or img.format in ("JPEG", "MPO", "WEBP") or img.format is None:
         # Gestione trasparenza per JPEG (compositing su sfondo bianco pulito)
         if img.mode in ("RGBA", "LA", "P"):

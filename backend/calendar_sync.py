@@ -7,12 +7,11 @@ Supporta:
 4. Integrazione con service_integrations del backend.
 """
 
-import json
 import logging
-import re
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 import calendar_db
 
 logger = logging.getLogger("calendar.sync")
@@ -22,7 +21,7 @@ def parse_ical_text(ical_content: str) -> List[Dict[str, Any]]:
     """Effettua il parsing di uno stream iCalendar (.ics) e restituisce una lista di eventi normalizzati."""
     events = []
     lines = ical_content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    
+
     # Gestione delle righe 'unfolding' (righe che iniziano con spazio o tab)
     unfolded_lines: List[str] = []
     for line in lines:

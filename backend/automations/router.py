@@ -57,7 +57,7 @@ async def handle_automation_webhook(
     auto_id: str,
     token: str,
     request: Request,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
 ):
     """Trigger token-based per eventi esterni (Home Assistant, GitHub, Grafana, curl).
     Il token presente nel path funge da credenziale di autenticazione univoca.
@@ -183,7 +183,7 @@ async def save_service_integration(data: Dict[str, Any]):
         saved = mgr.save_integration(data)
         return saved
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/integrations/{integration_id}/test")
@@ -324,13 +324,13 @@ async def pause_run(run_id: str):
     try:
         return runner.pause_run(run_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/runs/{run_id}/resume")
 async def resume_run(
     run_id: str,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
     sync: bool = Query(default=False),
 ):
     """Riprende l'esecuzione di una run precedentemente messa in pausa."""
@@ -351,7 +351,7 @@ async def resume_run(
             background_tasks.add_task(runner.execute_run, run_id)
             return {"resumed": True, "run_id": run_id, "status": RunStatus.RUNNING.value}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/runs/{run_id}/cancel")
@@ -377,7 +377,7 @@ async def resolve_approval(
     run_id: str,
     approval_id: str,
     body: ResolveApprovalRequest,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
     sync: bool = Query(default=False),
 ):
     """Risolve un'approvazione pendente e riprende l'esecuzione della run."""
@@ -396,7 +396,7 @@ async def resolve_approval(
             )
 
             # 2. Risolvi in guardrails memory/permissions
-            guard_req = guardrails.resolve_approval(
+            guardrails.resolve_approval(
                 request_id=approval_id, action=body.action, resolved_by=body.resolved_by
             )
 
@@ -432,7 +432,7 @@ async def resolve_approval(
                 background_tasks.add_task(runner.execute_run, run_id)
             return {"status": resolved["status"], "run_id": run_id}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/approvals/{approval_id}")
@@ -670,7 +670,7 @@ async def toggle_automation_enabled(
         new_enabled = not current_enabled
 
     d["enabled"] = new_enabled
-    saved = auto_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+    auto_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
 
     try:
         from automations.scheduler import get_scheduler
@@ -712,7 +712,7 @@ async def update_automation_triggers(
             try:
                 CronTrigger.from_crontab(str(cron_expr).strip())
             except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Espressione cron '{cron_expr}' non valida: {e}")
+                raise HTTPException(status_code=400, detail=f"Espressione cron '{cron_expr}' non valida: {e}") from e
             t["cron_expression"] = str(cron_expr).strip()
             if not t.get("timezone"):
                 t["timezone"] = "Europe/Rome"
@@ -779,8 +779,8 @@ async def regenerate_webhook_token(auto_id: str):
 @router.post("/{auto_id}/run", response_model=AutomationRun, status_code=202)
 async def trigger_run(
     auto_id: str,
+    background_tasks: BackgroundTasks,
     body: Optional[TriggerRunRequest] = None,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     sync: bool = Query(default=False, description="Esegui in modalità sincrona bloccante fino al completamento/approval"),
 ):
     """Avvia manualmente una run per l'automazione indicata."""
@@ -795,7 +795,7 @@ async def trigger_run(
             associated_thread_id=req.associated_thread_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     if sync:
         executed_run = runner.execute_run(run.run_id)

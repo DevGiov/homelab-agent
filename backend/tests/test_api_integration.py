@@ -3,9 +3,8 @@
 Mocka il registry MetaMCP e testa gli endpoint REST end-to-end senza servizi esterni.
 Le env vars di test sono impostate in conftest.py (prima di ogni import applicativo).
 """
-import os
 import unittest
-
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -104,9 +103,10 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 404)
 
     def test_resolve_approval_with_synthesis_and_trace(self):
+        from unittest.mock import patch
+
         import guardrails
         import thread_store
-        from unittest.mock import patch
 
         t_id = "t_synth_unit_test"
         # Inizializza messaggio utente nel thread
@@ -240,9 +240,8 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_cache_dedup(self):
-        FakeSel = type("S", (), {})
-        s1 = FakeSel(); s1.tool_needed=True; s1.tool_name="list_containers"; s1.arguments={}; s1.reasoning="a"; s1.final_answer=None; s1.parallel_calls=None
-        s2 = FakeSel(); s2.tool_needed=True; s2.tool_name="list_containers"; s2.arguments={}; s2.reasoning="b"; s2.final_answer=None; s2.parallel_calls=None
+        s1 = SimpleNamespace(tool_needed=True, tool_name="list_containers", arguments={}, reasoning="a", final_answer=None, parallel_calls=None)
+        s2 = SimpleNamespace(tool_needed=True, tool_name="list_containers", arguments={}, reasoning="b", final_answer=None, parallel_calls=None)
         res, calls = self._run_loop([s1, s2])
         # list_containers è safe/read-only: la seconda chiamata deve usare la cache.
         cached_steps = [t for t in res["execution_trace"] if t.get("cached")]
@@ -271,8 +270,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
             {"name": "stop_container", "description": "fake", "parameters": {"type": "object", "properties": {}}}
         ]
 
-        FakeSel = type("S", (), {})
-        s1 = FakeSel(); s1.tool_needed=True; s1.tool_name="stop_container"; s1.arguments={"vmid": 1}; s1.reasoning=""; s1.final_answer=None; s1.parallel_calls=None
+        s1 = SimpleNamespace(tool_needed=True, tool_name="stop_container", arguments={"vmid": 1}, reasoning="", final_answer=None, parallel_calls=None)
 
         from agent_loop import run_agent_loop
 
@@ -280,7 +278,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
             return {"content": "sintesi", "reasoning_content": ""}
         idx = [0]
         def mock_structured(**kw):
-            i = idx[0]; idx[0] += 1
+            idx[0] += 1
             return s1
 
         try:

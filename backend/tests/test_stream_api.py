@@ -1,9 +1,12 @@
 import time
 import unittest
+
 from fastapi.testclient import TestClient
+
 import config
 from api import api
 from stream_session import create_session, remove_session
+
 
 class TestStreamApi(unittest.TestCase):
     def setUp(self):
@@ -39,7 +42,7 @@ class TestStreamApi(unittest.TestCase):
         self.assertIn("elaborando", last_msg.get("reasoning_content"))
 
     def test_list_threads_includes_active_session(self):
-        sess = create_session(self.thread_id, task="Test active listing", mode="plan")
+        create_session(self.thread_id, task="Test active listing", mode="plan")
         res = self.client.get("/v1/threads", headers=self.headers)
         self.assertEqual(res.status_code, 200)
         items = res.json()
@@ -65,7 +68,7 @@ class TestStreamApi(unittest.TestCase):
             for line in response.iter_lines():
                 if line:
                     lines.append(line)
-            self.assertTrue(any("sync" in l for l in lines))
+            self.assertTrue(any("sync" in line for line in lines))
 
 if __name__ == '__main__':
     unittest.main()
