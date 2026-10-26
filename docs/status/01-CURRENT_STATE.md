@@ -66,6 +66,8 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 ## 5. Quality gate (eseguiti in locale)
 
+> **Aggiornamento 2026-10-26 (dopo A1–A3)**: `pytest` → 234 passati, 0 falliti, ~4 s (test in `backend/tests/`, 4 test `live` esclusi di default). La tabella sotto è lo stato dell'assessment iniziale.
+
 | Gate | Risultato |
 | :--- | :--- |
 | `npm run build` | ✅ passa (warning sulla dimensione del bundle) |

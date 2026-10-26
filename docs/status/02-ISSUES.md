@@ -7,8 +7,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-01](#iss-01) | Retention automazioni rotta (`older_than_days`) | S1 | backend/automations | ✅ Risolto (`7205e75`) |
 | [ISS-02](#iss-02) | `logger` non definito in `api.py` | S1 | backend/api | ✅ Risolto (`7205e75`) |
 | [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | ✅ Risolto (`7205e75`) |
-| [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | 🟡 Parziale (A2: timeout + isolamento) |
-| [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | Aperto |
+| [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | ✅ Risolto (`0021414`) |
+| [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | ✅ Risolto (`0021414`) |
 | [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | Aperto |
 | [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | ✅ Risolto (`b20e63b`) |
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | Aperto |
@@ -21,6 +21,12 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | ✅ Risolto (`b20e63b`) |
 | [ISS-16](#iss-16) | Attesa di 180 s sul caricamento del modello anche se il load fallisce | S1 | backend/providers | ✅ Risolto (`b20e63b`) |
 | [ISS-17](#iss-17) | I test non isolavano i dati persistenti | S1 | test | ✅ Risolto (`b20e63b`) |
+| [ISS-18](#iss-18) | Fallback della sandbox: codice LLM eseguito dentro `agent-backend` | S2 | backend/registry | Aperto |
+| [ISS-19](#iss-19) | PLAN ignorava la modalità di sicurezza scelta dall'utente | S1 | backend/graph | ✅ Risolto (`0021414`) |
+| [ISS-20](#iss-20) | Fallback del router: "ct"/"vm" cercati come sottostringhe | S3 | backend/router | ✅ Risolto (`0021414`) |
+| [ISS-21](#iss-21) | Risoluzione template non deterministica (template sbagliato creato) | S1 | backend/automations | ✅ Risolto (`0021414`) |
+| [ISS-22](#iss-22) | Modello di embedding scaricato a runtime da HuggingFace | S2 | deploy | ✅ Risolto (`16eae3a`) |
+| [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | Aperto |
 
 ---
 
@@ -144,3 +150,38 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Causa**: `conftest.py` isolava solo `CHECKPOINT_DB_PATH`. Automazioni, calendario, artefatti e memoria usavano `/data/...` quando la directory era scrivibile, o i file nella radice di `backend/` in locale.
 - **Impatto**: eseguire `pytest` dentro `agent-backend`, come prescriveva il workflow, avrebbe scritto nei database di produzione. In locale i test sporcavano `backend/*.db` e `backend/memory/`.
 - **Fix**: `conftest.py` reindirizza tutti i path in una directory temporanea e disattiva lo scheduler. `MEMORY_DIR` è diventato configurabile (`config.MEMORY_DIR`). I test girano nel servizio `backend-test`, senza il volume di produzione e con `/data` su tmpfs.
+
+## ISS-18
+**Fallback della sandbox: codice LLM eseguito dentro `agent-backend`** — S2 · Aperto
+
+- **Evidenza**: [registry/firecracker_sandbox.py](../../backend/registry/firecracker_sandbox.py) `_execute_fallback`. Se l'API Firecracker non risponde, fallisce o va in timeout, il codice Python del tool `python_interpreter` viene eseguito con `subprocess` nel container del backend (`sandboxed: False`).
+- **Impatto**: codice generato dall'LLM con accesso a `/data` (database, memoria), a `.env` (chiavi API) e alla rete del backend. Oggi su CT 125 Firecracker risponde, quindi il fallback scatta solo se la sandbox va giù.
+- **Opzioni**: (a) nessun fallback: errore esplicito se la sandbox non è disponibile; (b) fallback solo previa approvazione utente; (c) fallback in un container usa-e-getta senza volumi né rete. Da decidere: è una scelta di prodotto.
+
+## ISS-19
+**PLAN ignorava la modalità di sicurezza scelta dall'utente** — S1 · ✅ Risolto in `0021414`
+
+- `execute_plan_node` ([graph.py](../../backend/graph.py)) chiamava `enforce_guardrails` senza `security_mode`, quindi i piani giravano sempre in `normal`: `safest` applicava meno controlli di quelli richiesti e `dangerous` veniva ignorato.
+- Coperto da `tests/test_rollback.py` (piano in `dangerous` fino al rollback; piano in `normal` fermo all'approvazione).
+
+## ISS-20
+**Fallback del router: "ct"/"vm" cercati come sottostringhe** — S3 · ✅ Risolto in `0021414`
+
+- Con l'LLM non disponibile, il fallback di [router.py](../../backend/router.py) classificava come ACT qualsiasi testo contenente "ct" o "vm" ("project", "select", "direct"...). Ora usa parole intere. Aggiunta anche "plan the" alle parole chiave di pianificazione esplicita.
+
+## ISS-21
+**Risoluzione template non deterministica** — S1 · ✅ Risolto in `0021414`
+
+- [registry/automations_tool.py](../../backend/registry/automations_tool.py) risolveva id e alias con un confronto approssimativo ("contiene `email`") in ordine di filesystem. Con due template "email", `get_automation_details` e `create_automation_from_template` potevano restituire o **creare il template sbagliato**, anche se l'id richiesto era esatto. Su CT 125 (ordine ext4) succedeva.
+- Ora c'è un unico resolver a priorità (id esatto, poi id normalizzato o nome file, poi alias solo se univoco), coperto da `tests/test_automation_templates.py`.
+
+## ISS-22
+**Modello di embedding scaricato a runtime da HuggingFace** — S2 · ✅ Risolto in `16eae3a`
+
+- fastembed scaricava ~240 MB al primo uso dopo ogni ricreazione del container: la memoria semantica dipendeva dalla raggiungibilità di HuggingFace. Ora il modello è incluso nell'immagine (`FASTEMBED_CACHE_PATH=/opt/fastembed`); un test verifica che Dockerfile e `vector_store.EMBEDDING_MODEL` coincidano.
+
+## ISS-23
+**Il router chiama l'LLM con `requests` diretto, scavalcando i provider** — S3 · Aperto
+
+- `route_turn` ([router.py](../../backend/router.py)) costruisce il payload e chiama `config.LLAMA_CPP_URL` con `requests.post`, ignorando il provider attivo (Ollama, provider di default scelto in UI) e le sue opzioni. Usa il provider solo per `ensure_model_loaded`.
+- Da allineare in Fase B: il router deve passare da `providers.get_provider().chat(...)`.

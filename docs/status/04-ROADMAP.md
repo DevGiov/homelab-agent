@@ -15,7 +15,7 @@ Obiettivo: base affidabile su cui costruire. Dettagli in [03-FIX_PLAN.md](03-FIX
 | :--- | :--- | :--- | :---: |
 | A1 | Hotfix: retention automazioni, `logger`, lista thread su DB vuoto | ISS-01, 02, 03 | ✅ 2026-10-26 |
 | A2 | Ambiente dev ricreato (venv 3.12, `requirements-dev.txt`), test eseguibili nel container | ISS-07, 15, 16, 17 | ✅ 2026-10-26 |
-| A3 | Test in `tests/`, marker `live`, timeout, isolamento DB | ISS-04, 05 | ⬜ |
+| A3 | Test in `tests/`, marker `live`, timeout, isolamento DB | ISS-04, 05, 19–22 | ✅ 2026-10-26 |
 | A4 | Ruff e oxlint puliti, CI backend + frontend versionata e bloccante | ISS-06, 08, 12 | ⬜ |
 | A5 | Merge `dev` → `main`, tag `v0.9.0`, docs allineate | ISS-13, 14 | ⬜ |
 
@@ -31,6 +31,8 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | B2 | Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato | ISS-09 |
 | B3 | Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts) | ISS-09 |
 | B4 | Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione | ISS-10 |
+| B8 | Router via provider astratto invece di `requests` diretto | ISS-23 |
+| B9 | Decisione e fix sul fallback non isolato della sandbox codice | ISS-18 |
 | B5 | `config.py` solo Pydantic Settings, eliminate le costanti di retrocompatibilità | ISS-10 |
 | B6 | Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry | ISS-03 |
 | B7 | Database in una directory dati unica (`DATA_DIR`), niente `.db` nella radice del codice | ISS-09 |
