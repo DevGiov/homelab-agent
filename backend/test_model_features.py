@@ -151,3 +151,22 @@ def test_openai_compat_ensure_model_loaded():
             with patch("time.sleep", return_value=None):
                 assert provider.ensure_model_loaded("Qwen3.8-27B", timeout=5.0) is True
                 mock_load.assert_called_once_with("Qwen3.8-27B")
+
+
+def test_ensure_model_loaded_fails_fast_when_load_request_fails():
+    provider = OpenAICompatProvider(base_url="http://llm.invalid/v1", default_model="m1")
+    with patch.object(provider, "list_models_with_details", return_value=[]) as list_mock, \
+         patch.object(provider, "load_model", return_value={"status": "error", "detail": "connection refused"}), \
+         patch("providers.time.sleep") as sleep_mock:
+        assert provider.ensure_model_loaded("m1", timeout=180.0) is False
+    sleep_mock.assert_not_called()
+    assert list_mock.call_count == 1
+
+
+def test_ensure_model_loaded_waits_until_model_is_loaded():
+    provider = OpenAICompatProvider(base_url="http://llm.invalid/v1", default_model="m1")
+    states = [[], [{"id": "m1", "is_loaded": False}], [{"id": "m1", "is_loaded": True}]]
+    with patch.object(provider, "list_models_with_details", side_effect=states), \
+         patch.object(provider, "load_model", return_value={"status": "ok", "detail": {}}), \
+         patch("providers.time.sleep"):
+        assert provider.ensure_model_loaded("m1", timeout=180.0) is True

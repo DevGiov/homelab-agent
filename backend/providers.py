@@ -176,6 +176,10 @@ class OpenAICompatProvider(LLMProvider):
         load_res = self.load_model(effective_model)
         if load_res.get("detail") == "already_loaded":
             return True
+        if load_res.get("status") != "ok":
+            # Server irraggiungibile, load non supportato o modello sconosciuto: attendere non serve
+            logger.warning(f"[{self.name}] Load del modello '{effective_model}' non avviato: {load_res.get('detail')}")
+            return False
 
         start_wait = time.time()
         while time.time() - start_wait < timeout:

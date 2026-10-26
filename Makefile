@@ -10,7 +10,9 @@ SETUP_SCRIPT   := scripts/setup-env.sh
 BACKEND_ENV    := backend/.env
 ROOT_ENV       := .env
 
-.PHONY: help setup deploy deploy-backend deploy-frontend dev down logs rotate-key clean
+BACKEND_VENV   := backend/.venv
+
+.PHONY: help setup venv test lint test-container deploy deploy-backend deploy-frontend dev down logs rotate-key clean
 
 # ── Default ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,23 @@ setup: ## Setup interattivo: genera backend/.env e root .env con API key
 $(BACKEND_ENV):
 	@echo "⚠  backend/.env mancante — avvio setup interattivo..."
 	@bash $(SETUP_SCRIPT)
+
+# ── Sviluppo locale & test ───────────────────────────────────────────────────
+
+venv: ## Ricrea backend/.venv (Python 3.12, come Docker e CI) con le dipendenze dev
+	rm -rf $(BACKEND_VENV)
+	uv venv -p 3.12 $(BACKEND_VENV)
+	uv pip install -p $(BACKEND_VENV) -r backend/requirements-dev.txt
+
+test: ## Esegue pytest in locale (args extra: make test ARGS="test_x.py -q")
+	cd backend && .venv/bin/python -m pytest $(ARGS)
+
+lint: ## Ruff (backend) + oxlint (frontend)
+	cd backend && .venv/bin/python -m ruff check .
+	cd frontend && npm run lint
+
+test-container: ## Esegue pytest nel container di test isolato (CT 125)
+	$(COMPOSE_PROD) run --rm --build backend-test $(ARGS)
 
 # ── Deploy produzione ────────────────────────────────────────────────────────
 

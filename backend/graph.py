@@ -31,12 +31,7 @@ from tool_catalog import get_rollback_info, get_tool_catalog
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("graph")
 
-if os.path.exists("/data") and os.access("/data", os.W_OK):
-    MEMORY_DIR = "/data/memory"
-elif os.path.exists("/opt/homelab-agent"):
-    MEMORY_DIR = "/opt/homelab-agent/memory"
-else:
-    MEMORY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
+MEMORY_DIR = config.MEMORY_DIR
 
 MONITORING_LOG_FILE = os.getenv("MONITORING_LOG_FILE", str(Path(MEMORY_DIR) / "monitoring_logs.jsonl"))
 

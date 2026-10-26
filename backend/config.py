@@ -49,6 +49,8 @@ class Settings(BaseSettings):
         default=str(Path("/data/artifacts") if Path("/data").exists() and os.access("/data", os.W_OK) else Path(__file__).parent / "data" / "artifacts"),
         alias="ARTIFACTS_DIR",
     )
+    # Vuoto = directory "memory" accanto al DB dei checkpoint
+    memory_dir: str = Field(default="", alias="MEMORY_DIR")
     enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
 
@@ -95,6 +97,7 @@ CHECKPOINT_DB_PATH = _settings.checkpoint_db_path
 AUTOMATIONS_DB_PATH = _settings.automations_db_path
 CALENDAR_DB_PATH = _settings.calendar_db_path
 ARTIFACTS_DIR = _settings.artifacts_dir
+MEMORY_DIR = _settings.memory_dir or str(Path(_settings.checkpoint_db_path).parent / "memory")
 ENABLE_AUTOMATION_SCHEDULER = _settings.enable_automation_scheduler
 TRUNCATION_LIMIT = _settings.truncation_limit
 FIRECRACKER_API_URL = _settings.firecracker_api_url

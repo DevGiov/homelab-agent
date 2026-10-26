@@ -14,7 +14,7 @@
 
 ## End-to-End Development & Verification Workflow
 1. **Local Modification**: Implement changes cleanly in this repository on the `dev` branch.
-2. **Local Validation**: Run local unit tests (`pytest`), linting (`ruff`), and frontend build (`npm run build`).
+2. **Local Validation**: `make test` (pytest), `make lint` (ruff + oxlint), and frontend build (`npm run build`). Recreate the backend venv with `make venv` (Python 3.12, same as Docker/CI).
 3. **Push to Remote**: `git push origin dev`
 4. **Deploy & Rebuild in CT 125 via MCP**:
    - Pull updated branch:
@@ -25,8 +25,10 @@
      - Frontend code change: `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml up -d --build frontend")`
      - Database reset / breaking change: wipe legacy SQLite db if required and restart containers.
 5. **In-Container Test Execution**:
-   - Run tests inside container:
-     `exec_lxc_command(vmid=125, command="docker exec agent-backend pytest")`
+   - Run tests in the isolated `backend-test` container (test image target, `/data` on tmpfs, never the production volume):
+     `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml run --rm --build backend-test")`
+   - Pass pytest args after the service name (e.g. `... run --rm backend-test test_x.py -q`).
+   - Never run `pytest` inside `agent-backend`: it has no test dependencies and its `/data` is the production data.
 6. **Live API Testing**:
    - Verify health and target endpoints:
      `exec_lxc_command(vmid=125, command="curl -s http://localhost:8090/v1/health")`

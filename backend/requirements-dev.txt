@@ -1,0 +1,5 @@
+# Dipendenze di sviluppo e test (non installate nell'immagine di produzione)
+-r requirements.txt
+pytest==9.1.1
+pytest-timeout==2.4.0
+ruff==0.16.4

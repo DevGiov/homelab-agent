@@ -7,6 +7,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: prod
     container_name: agent-backend
     ports:
       - "8090:8090"
@@ -24,6 +25,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # Suite di test sul codice corrente, isolata dai dati di produzione (nessun volume agent_data).
+  # Uso: docker compose -f docker-compose.prod.yml run --rm backend-test [args pytest]
+  backend-test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./backend:/app:ro
+    tmpfs:
+      - /data
 
   frontend:
     build:
