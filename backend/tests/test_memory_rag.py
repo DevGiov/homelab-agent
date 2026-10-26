@@ -96,3 +96,11 @@ class TestKnowledgeBase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_dockerfile_bundles_the_configured_embedding_model():
+    """Il modello pre-scaricato nell'immagine deve essere quello usato da vector_store."""
+    from pathlib import Path
+
+    dockerfile = (Path(__file__).resolve().parent.parent / "Dockerfile").read_text(encoding="utf-8")
+    assert f"TextEmbedding('{vector_store.EMBEDDING_MODEL}')" in dockerfile

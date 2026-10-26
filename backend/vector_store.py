@@ -13,7 +13,9 @@ import config
 
 logger = logging.getLogger("vector_store")
 
-EMBED_DIM = 384  # paraphrase-multilingual-MiniLM-L12-v2
+# Il Dockerfile pre-scarica questo modello nell'immagine (FASTEMBED_CACHE_PATH): tenerli allineati
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBED_DIM = 384
 
 _embedder = None
 _embedder_lock = threading.Lock()
@@ -27,10 +29,8 @@ def _get_embedder():
             if _embedder is None:
                 try:
                     from fastembed import TextEmbedding
-                    _embedder = TextEmbedding(
-                        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-                    )
-                    logger.info("Modello embedding caricato: paraphrase-multilingual-MiniLM-L12-v2")
+                    _embedder = TextEmbedding(EMBEDDING_MODEL)
+                    logger.info(f"Modello embedding caricato: {EMBEDDING_MODEL}")
                 except Exception as e:
                     logger.error(f"Impossibile caricare fastembed: {e}")
                     raise
