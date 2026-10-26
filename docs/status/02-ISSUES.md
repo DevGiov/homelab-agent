@@ -4,9 +4,9 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 
 | ID | Titolo | Sev. | Area | Stato |
 | :--- | :--- | :---: | :--- | :--- |
-| [ISS-01](#iss-01) | Retention automazioni rotta (`older_than_days`) | S1 | backend/automations | Aperto |
-| [ISS-02](#iss-02) | `logger` non definito in `api.py` | S1 | backend/api | Aperto |
-| [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | Aperto |
+| [ISS-01](#iss-01) | Retention automazioni rotta (`older_than_days`) | S1 | backend/automations | ✅ Risolto (`7205e75`) |
+| [ISS-02](#iss-02) | `logger` non definito in `api.py` | S1 | backend/api | ✅ Risolto (`7205e75`) |
+| [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | ✅ Risolto (`7205e75`) |
 | [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | Aperto |
 | [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | Aperto |
 | [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | Aperto |
@@ -18,6 +18,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | Aperto |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | Aperto |
 | [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | Aperto |
+| [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | Aperto |
 
 ---
 
@@ -119,3 +120,11 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - [ROADMAP.md](../../ROADMAP.md) è ferma ad agosto.
 - Il tracker automazioni dichiara M9 completata nonostante [ISS-01](#iss-01).
 - 3 file in `docs/` hanno modifiche non committate (percorsi aggiornati).
+
+## ISS-15
+**`pytest` assente nel container di produzione** — S2
+
+- **Evidenza** (2026-10-26, CT 125): `docker exec agent-backend python -m pytest` → `No module named pytest`.
+- **Causa**: [requirements.txt](../../backend/requirements.txt) non include le dipendenze di test e il Dockerfile non ha uno stage di test.
+- **Impatto**: il passo 5 del workflow in [AGENTS.md](../../AGENTS.md) ("In-Container Test Execution") non è eseguibile.
+- **Fix previsto**: in A2/A3, `requirements-dev.txt` installato in uno stage o target Docker `test` (per esempio `docker compose run --rm backend-test`), senza appesantire l'immagine di produzione.
