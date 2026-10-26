@@ -20,6 +20,12 @@ Ogni step segue il workflow di [AGENTS.md](../../AGENTS.md): modifica su `dev`, 
 
 ## Step 2 — Test affidabili (ISS-04, ISS-05, ISS-07)
 
+> **Stato al 2026-10-26** — 2.1 completato in A2 (`b20e63b`), insieme a timeout per test, isolamento dei path e container `backend-test`. Su CT 125 la suite termina in 88 s: **210 passati, 8 falliti**. Restano per A3:
+> - `test_conversation_length`, `test_dynamic_tool_selection`, `test_phase4` (FileNotFoundError), `test_rollback` (2 rollback attesi): test live o comportamentali → marcatura `live` oppure mock
+> - `test_router_and_prefetch::test_route_turn_passes_selected_model` (timeout 60 s) e `::test_router_deterministic_shortcuts_plan`, `test_tool_safety::test_router_infrastructure_and_confirmation_queries`: router da rendere testabile senza LLM (2.4)
+> - `test_automations_api::test_automations_registry_tools`
+> - In locale, senza accesso alla LAN, altri test vanno in timeout per chiamate di rete non mockate (web prefetch, router): stesso intervento.
+
 ### 2.1 Ambiente
 - Ricreare `backend/.venv` con Python 3.12 (`uv venv -p 3.12` o `python3.12 -m venv`), installare `requirements.txt` più un nuovo `requirements-dev.txt` (`pytest`, `pytest-timeout`, `ruff`).
 - Pulire `__pycache__` e `backend/memory/test_*.jsonl`.

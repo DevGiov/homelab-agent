@@ -14,7 +14,7 @@ Obiettivo: base affidabile su cui costruire. Dettagli in [03-FIX_PLAN.md](03-FIX
 | # | Attività | Issue | Stato |
 | :--- | :--- | :--- | :---: |
 | A1 | Hotfix: retention automazioni, `logger`, lista thread su DB vuoto | ISS-01, 02, 03 | ✅ 2026-10-26 |
-| A2 | Ambiente dev ricreato (venv 3.12, `requirements-dev.txt`), test eseguibili nel container | ISS-07, 15 | ⬜ |
+| A2 | Ambiente dev ricreato (venv 3.12, `requirements-dev.txt`), test eseguibili nel container | ISS-07, 15, 16, 17 | ✅ 2026-10-26 |
 | A3 | Test in `tests/`, marker `live`, timeout, isolamento DB | ISS-04, 05 | ⬜ |
 | A4 | Ruff e oxlint puliti, CI backend + frontend versionata e bloccante | ISS-06, 08, 12 | ⬜ |
 | A5 | Merge `dev` → `main`, tag `v0.9.0`, docs allineate | ISS-13, 14 | ⬜ |

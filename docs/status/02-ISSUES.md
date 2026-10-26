@@ -7,10 +7,10 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-01](#iss-01) | Retention automazioni rotta (`older_than_days`) | S1 | backend/automations | ✅ Risolto (`7205e75`) |
 | [ISS-02](#iss-02) | `logger` non definito in `api.py` | S1 | backend/api | ✅ Risolto (`7205e75`) |
 | [ISS-03](#iss-03) | `GET /v1/threads` → 500 su DB checkpoint vuoto | S1 | backend/api | ✅ Risolto (`7205e75`) |
-| [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | Aperto |
+| [ISS-04](#iss-04) | Suite di test che non termina (dipendenze live) | S2 | test | 🟡 Parziale (A2: timeout + isolamento) |
 | [ISS-05](#iss-05) | Test falliti (guardrails, tool_safety, modes, automations_api) | S2 | test | Aperto |
 | [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | Aperto |
-| [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | Aperto |
+| [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | ✅ Risolto (`b20e63b`) |
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | Aperto |
 | [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | Aperto |
@@ -18,7 +18,9 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | Aperto |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | Aperto |
 | [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | Aperto |
-| [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | Aperto |
+| [ISS-15](#iss-15) | `pytest` assente nel container di produzione | S2 | deploy/test | ✅ Risolto (`b20e63b`) |
+| [ISS-16](#iss-16) | Attesa di 180 s sul caricamento del modello anche se il load fallisce | S1 | backend/providers | ✅ Risolto (`b20e63b`) |
+| [ISS-17](#iss-17) | I test non isolavano i dati persistenti | S1 | test | ✅ Risolto (`b20e63b`) |
 
 ---
 
@@ -128,3 +130,17 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Causa**: [requirements.txt](../../backend/requirements.txt) non include le dipendenze di test e il Dockerfile non ha uno stage di test.
 - **Impatto**: il passo 5 del workflow in [AGENTS.md](../../AGENTS.md) ("In-Container Test Execution") non è eseguibile.
 - **Fix previsto**: in A2/A3, `requirements-dev.txt` installato in uno stage o target Docker `test` (per esempio `docker compose run --rm backend-test`), senza appesantire l'immagine di produzione.
+
+## ISS-16
+**Attesa di 180 s sul caricamento del modello anche se il load fallisce** — S1 · ✅ Risolto in `b20e63b`
+
+- **Causa**: `OpenAICompatProvider.ensure_model_loaded` ([providers.py](../../backend/providers.py)), introdotto in `675d12a`, dopo una richiesta `/models/load` fallita (server irraggiungibile, endpoint non supportato, modello sconosciuto) continuava a interrogare `/models` ogni secondo fino a 180 s.
+- **Impatto**: con l'LLM non raggiungibile, ogni chiamata (router, chat, titoli) restava appesa fino a 3 minuti invece di fallire. È anche la causa principale dei test bloccati di [ISS-04](#iss-04).
+- **Fix**: se il load non parte (`status != "ok"`), il metodo ritorna subito `False`. Coperto da due test in `test_model_features.py`.
+
+## ISS-17
+**I test non isolavano i dati persistenti** — S1 · ✅ Risolto in `b20e63b`
+
+- **Causa**: `conftest.py` isolava solo `CHECKPOINT_DB_PATH`. Automazioni, calendario, artefatti e memoria usavano `/data/...` quando la directory era scrivibile, o i file nella radice di `backend/` in locale.
+- **Impatto**: eseguire `pytest` dentro `agent-backend`, come prescriveva il workflow, avrebbe scritto nei database di produzione. In locale i test sporcavano `backend/*.db` e `backend/memory/`.
+- **Fix**: `conftest.py` reindirizza tutti i path in una directory temporanea e disattiva lo scheduler. `MEMORY_DIR` è diventato configurabile (`config.MEMORY_DIR`). I test girano nel servizio `backend-test`, senza il volume di produzione e con `/data` su tmpfs.
