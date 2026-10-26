@@ -40,7 +40,7 @@ venv: ## Ricrea backend/.venv (Python 3.12, come Docker e CI) con le dipendenze 
 	uv venv -p 3.12 $(BACKEND_VENV)
 	uv pip install -p $(BACKEND_VENV) -r backend/requirements-dev.txt
 
-test: ## Esegue pytest in locale (args extra: make test ARGS="test_x.py -q")
+test: ## Esegue pytest in locale (args extra: make test ARGS="tests/test_x.py -q")
 	cd backend && .venv/bin/python -m pytest $(ARGS)
 
 lint: ## Ruff (backend) + oxlint (frontend)

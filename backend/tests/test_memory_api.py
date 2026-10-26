@@ -1,11 +1,9 @@
 """Test automatici per endpoint di gestione memoria e modalità incognito."""
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Isola il DB in un file temporaneo PRIMA degli import
 _tmp_db = os.path.join(tempfile.mkdtemp(), "test_checkpoints_mem.db")

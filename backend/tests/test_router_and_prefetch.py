@@ -119,6 +119,24 @@ class TestRouterAndPrefetch(unittest.TestCase):
             decision = route_turn("qualcosa di anomalo 123")
             self.assertEqual(decision.mode, "act")
 
+    def test_router_fallback_when_llm_unavailable(self):
+        """Senza LLM il router applica il fallback deterministico (parole intere, nessuna sottostringa)."""
+        cases = [
+            ("Dammi informazioni sul container immich", None, "act", False),
+            ("Procedi con base", "act", "act", False),
+            ("Riorganizza il progetto in moduli", None, "chat", False),  # "progetto"/"project" non è infrastruttura
+            ("Explain how to select a database", None, "chat", False),  # "select" contiene "ct"
+            ("Spiegami la differenza tra ZFS e Btrfs", None, "ask", True),
+            ("cerca un container immich aggiornato", None, "act", False),
+            ("crea un piano per migrare il database", None, "plan", False),
+        ]
+        with patch("router.requests.post", side_effect=ConnectionError("LLM offline")):
+            for query, previous_mode, expected_mode, expected_web in cases:
+                decision = route_turn(query, previous_mode=previous_mode)
+                self.assertEqual(decision.mode, expected_mode, f"mode per '{query}'")
+                self.assertEqual(decision.web_search_needed, expected_web, f"web per '{query}'")
+                self.assertEqual(decision.reasoning, "Fallback decision due to router timeout/offline")
+
     def test_dynamic_capabilities_summary(self):
         """Verifica che il riassunto delle capabilities dinamiche sia popolato e utilizzi la cache."""
         summary1 = get_dynamic_capabilities_summary()

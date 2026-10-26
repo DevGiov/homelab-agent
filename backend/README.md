@@ -137,17 +137,26 @@ sudo systemctl enable main-agent-api
 
 ## Test
 
+I test stanno in `tests/` (configurazione in `pytest.ini`). Due categorie:
+
+- **Ermetici** (default): nessun servizio esterno. `tests/conftest.py` reindirizza tutti i dati in una
+  directory temporanea e blocca le connessioni verso host non locali, quindi un servizio reale non mockato
+  fa fallire il test subito. Timeout di 60 s per test.
+- **`live`**: verificano il comportamento contro LLM, MetaMCP o Firecracker reali. Esclusi di default.
+
 ```bash
-# Test unitari e integrazione (env isolate via conftest.py)
-pytest test_tool_safety.py test_guardrails.py test_memory_rag.py test_api_integration.py -v
+make venv                              # venv Python 3.12 con requirements-dev.txt
+make test                              # suite ermetica
+make test ARGS="-m live"               # solo test live (richiede la LAN homelab)
+make test ARGS="tests/test_router_and_prefetch.py -q"
+
+# Su CT 125: container di test isolato (nessun volume di produzione)
+docker compose -f docker-compose.prod.yml run --rm --build backend-test
+docker compose -f docker-compose.prod.yml run --rm backend-test -m live
 
 # Lint
-ruff check .
+make lint
 ```
-
-Nota: i vecchi test `test_dynamic_tool_selection.py`, `test_phase4.py`, `test_rollback.py`,
-`test_modes_and_registries.py`, `test_agent_verification.py`, `test_conversation_length.py`
-richiedono servizi reali (LLM, MetaMCP) e non fanno parte della suite CI.
 
 ## Docker Compose (dev)
 

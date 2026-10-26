@@ -23,6 +23,47 @@ logger = logging.getLogger("registry.automations")
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "automations" / "templates"
 
 
+def _template_tokens(value: str) -> set:
+    return {t for t in value.lower().replace("-", "_").split("_") if t and t != "tpl"}
+
+
+def _resolve_template(template_id: str) -> Optional[Dict[str, Any]]:
+    """Risolve un id o alias di template in modo deterministico.
+
+    Priorità: id esatto → id normalizzato o nome file → alias i cui token sono tutti
+    contenuti in un solo template (es. "tpl_email_briefing" → "tpl-daily-email-briefing").
+    Un alias ambiguo non risolve nulla.
+    """
+    if not template_id or not TEMPLATES_DIR.exists():
+        return None
+
+    templates = []
+    for f in sorted(TEMPLATES_DIR.glob("*.json")):
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                templates.append((f, json.load(fp)))
+        except Exception as e:
+            logger.warning(f"Errore caricamento template {f}: {e}")
+
+    for _, data in templates:
+        if data.get("id") == template_id:
+            return data
+
+    normalized = template_id.lower().replace("-", "_")
+    for f, data in templates:
+        if str(data.get("id", "")).lower().replace("-", "_") == normalized or f.stem == normalized:
+            return data
+
+    wanted = _template_tokens(template_id)
+    if not wanted:
+        return None
+    candidates = [
+        data for f, data in templates
+        if wanted <= (_template_tokens(str(data.get("id", ""))) | _template_tokens(f.stem))
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 class AutomationRegistry(BaseToolRegistry):
     """Tool Registry per la gestione delle automazioni e dei template."""
 
@@ -410,25 +451,10 @@ class AutomationRegistry(BaseToolRegistry):
             return auto
 
         # Se non trovata nelle attive, cerca nei template
-        if TEMPLATES_DIR.exists():
-            for f in TEMPLATES_DIR.glob("*.json"):
-                try:
-                    with open(f, "r", encoding="utf-8") as fp:
-                        tpl = json.load(fp)
-                        tid = tpl.get("id", "")
-                        clean_aid = automation_id.lower().replace("-", "_")
-                        clean_tid = tid.lower().replace("-", "_")
-                        if (
-                            tid == automation_id
-                            or clean_tid == clean_aid
-                            or f.stem == clean_aid
-                            or ("email" in clean_aid and "email" in clean_tid)
-                            or ("repair" in clean_aid and "repair" in clean_tid)
-                        ):
-                            tpl["_is_template"] = True
-                            return tpl
-                except Exception:
-                    pass
+        tpl = _resolve_template(automation_id)
+        if tpl:
+            tpl["_is_template"] = True
+            return tpl
 
         return {"error": f"Automazione o template '{automation_id}' non trovata."}
 
@@ -439,32 +465,9 @@ class AutomationRegistry(BaseToolRegistry):
         custom_cron: Optional[str] = None,
         enabled: bool = True,
     ) -> Dict[str, Any]:
-        target_file = None
-        if TEMPLATES_DIR.exists():
-            for f in TEMPLATES_DIR.glob("*.json"):
-                try:
-                    with open(f, "r", encoding="utf-8") as fp:
-                        data = json.load(fp)
-                        tid = data.get("id", "")
-                        clean_tid = tid.lower().replace("-", "_")
-                        clean_target = template_id.lower().replace("-", "_")
-                        if (
-                            tid == template_id
-                            or clean_tid == clean_target
-                            or f.stem == clean_target
-                            or ("email" in clean_target and "email" in clean_tid)
-                            or ("repair" in clean_target and "repair" in clean_tid)
-                        ):
-                            target_file = f
-                            break
-                except Exception:
-                    pass
-
-        if not target_file:
+        data = _resolve_template(template_id)
+        if not data:
             return {"error": f"Template '{template_id}' non trovato."}
-
-        with open(target_file, "r", encoding="utf-8") as fp:
-            data = json.load(fp)
 
         if custom_name:
             data["name"] = custom_name

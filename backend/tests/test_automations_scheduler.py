@@ -124,7 +124,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
     def test_daily_email_briefing_template_dry_run(self):
         """Verifica il template Daily Email Briefing in modalità dry-run completo."""
         template_file = (
-            Path(__file__).parent / "automations" / "templates" / "daily_email_briefing.json"
+            Path(__file__).parent.parent / "automations" / "templates" / "daily_email_briefing.json"
         )
         self.assertTrue(template_file.exists(), f"File {template_file} non trovato")
 

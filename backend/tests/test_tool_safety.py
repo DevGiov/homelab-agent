@@ -3,6 +3,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import guardrails
 import permissions
 
@@ -217,6 +219,7 @@ class TestMetaMCPPrefixAndRouter(unittest.TestCase):
         self.assertTrue(permissions.is_tool_preapproved("proxmox-mcp__exec_host_command", args, thread_id="t_cross"))
         self.assertTrue(permissions.is_tool_preapproved("exec_host_command", args, thread_id="t_cross"))
 
+    @pytest.mark.live  # verifica la classificazione dell'LLM reale (il fallback è coperto in test_router_and_prefetch)
     def test_router_infrastructure_and_confirmation_queries(self):
         """Infrastructure and confirmation queries must be classified as mode=act."""
         import router

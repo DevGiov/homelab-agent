@@ -27,7 +27,7 @@
 5. **In-Container Test Execution**:
    - Run tests in the isolated `backend-test` container (test image target, `/data` on tmpfs, never the production volume):
      `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml run --rm --build backend-test")`
-   - Pass pytest args after the service name (e.g. `... run --rm backend-test test_x.py -q`).
+   - Pass pytest args after the service name (e.g. `... run --rm backend-test tests/test_x.py -q`; live tests: `... run --rm backend-test -m live`).
    - Never run `pytest` inside `agent-backend`: it has no test dependencies and its `/data` is the production data.
 6. **Live API Testing**:
    - Verify health and target endpoints:

@@ -15,4 +15,4 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"test_*.py" = ["B011", "B008"]
+"tests/*" = ["B011", "B008"]

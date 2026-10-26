@@ -1,8 +1,8 @@
 import os
-import sys
 import unittest
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import pytest
+
 
 from agent_loop import run_agent_loop
 from mode_policy import get_mode_policy
@@ -35,6 +35,7 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertIn("web_search", names)
         self.assertIn("python_interpreter", names)
 
+    @pytest.mark.live  # richiede la microVM Firecracker reale sull'host Proxmox
     def test_code_exec_sandbox(self):
         reg = CodeExecRegistry()
         res = reg.execute_tool("python_interpreter", {"code": "print(2 + 2)"})

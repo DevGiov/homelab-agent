@@ -1,9 +1,7 @@
 """Test unitari per guardrails, audit log, vector store e knowledge base (Fasi 0-3)."""
 import os
-import sys
 import unittest
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import guardrails
 

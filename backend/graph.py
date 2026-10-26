@@ -1116,7 +1116,14 @@ def execute_plan_node(state: AgentState) -> AgentState:
 
         # Verifica guardrail di sicurezza e autorizzazioni
         import guardrails as _gr
-        guard = _gr.enforce_guardrails(tool_name, resolved_args, thread_id=state.get("thread_id"), mode="plan", task=state.get("task"))
+        guard = _gr.enforce_guardrails(
+            tool_name,
+            resolved_args,
+            thread_id=state.get("thread_id"),
+            mode="plan",
+            security_mode=state.get("security_mode") or "normal",
+            task=state.get("task"),
+        )
         if guard:
             if guard.get("blocked"):
                 has_error = True

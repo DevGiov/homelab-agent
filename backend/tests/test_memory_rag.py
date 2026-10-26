@@ -1,10 +1,8 @@
 """Test unitari per vector store e knowledge base (Fase 2). Usa DB temporaneo isolato."""
 import os
-import sys
 import tempfile
 import unittest
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Isola il DB in un file temporaneo PRIMA di importare i moduli che lo usano
 _tmp_db = os.path.join(tempfile.mkdtemp(), "test_checkpoints.db")

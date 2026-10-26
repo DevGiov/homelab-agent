@@ -162,7 +162,7 @@ def route_turn(
     # 3. Fast shortcut per pianificazioni esplicite
     plan_keywords = [
         "pianifica", "piano per", "crea piano", "prepara sequenza", "workflow", "progetta architettura", "strategia",
-        "plan a", "plan for", "create a plan", "architecture plan", "migration plan", "multi-step plan"
+        "plan a", "plan for", "plan the", "create a plan", "architecture plan", "migration plan", "multi-step plan"
     ]
     explicit_plan = any(kw in input_lower for kw in plan_keywords)
 
@@ -316,12 +316,14 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
         logger.warning(f"Chiamata LLM router fallita o timeout ({e}). Applicazione fallback semantico resiliente.")
 
     # 5. Fallback semantico resiliente (se llama.cpp offline/timeout)
+    # Parole intere: "ct"/"vm" come sottostringhe catturerebbero "project", "select", ...
+    local_infra = re.search(r"\b(container|ct|lxc|vm|proxmox|evento|calendario|automazione)\b", input_lower) is not None
     fallback_mode = "chat"
     if explicit_plan:
         fallback_mode = "plan"
     elif previous_mode == "act":
         fallback_mode = "act"
-    elif any(kw in input_lower for kw in ["container", "ct", "lxc", "vm", "proxmox", "evento", "calendario", "automazione"]):
+    elif local_infra:
         fallback_mode = "act"
     elif any(kw in input_lower for kw in ["cerca", "search", "cosa è", "chi è", "perché", "confronta", "differenza", "spiegami", "parlami", "raccontami"]):
         fallback_mode = "ask"
@@ -329,7 +331,7 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
         fallback_mode = force_mode.lower()
 
-    web_needed = (fallback_mode == "ask") and not any(kw in input_lower for kw in ["container", "ct", "lxc", "vm", "proxmox", "calendario", "evento"])
+    web_needed = fallback_mode == "ask" and not local_infra
     if web_search_override is False or web_search_override == "off":
         web_needed = False
     elif web_search_override is True or web_search_override == "on":

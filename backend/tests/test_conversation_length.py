@@ -4,6 +4,11 @@ import time
 
 from graph import MEMORY_DIR, build_graph
 
+import pytest
+
+# Valutazione end-to-end contro LLM/MetaMCP reali: esclusa dalla suite di default
+pytestmark = [pytest.mark.live, pytest.mark.timeout(1800)]
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("test_conversation_length")
 
