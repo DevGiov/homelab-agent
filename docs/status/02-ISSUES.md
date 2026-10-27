@@ -35,23 +35,23 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 
 - **Evidenza**: log di `agent-backend` su CT 125:
   `ERROR:automations.scheduler:Errore durante l'esecuzione di auto-retention cleanup: bulk_delete_runs() got an unexpected keyword argument 'older_than_days'`
-- **Causa**: [automations/db.py:622](../../backend/automations/db.py#L622) definisce `bulk_delete_runs(status, before_date, automation_id, failed_only, preserve_protected, run_ids, db_path)`, ma tre chiamanti passano `older_than_days`:
-  - [automations/scheduler.py:189](../../backend/automations/scheduler.py#L189) e `:195` (job di retention)
-  - [automations/router.py:262](../../backend/automations/router.py#L262) (`DELETE /v1/automations/runs`)
-  - [automations/router.py:275](../../backend/automations/router.py#L275) (`POST /v1/automations/runs/delete-batch`)
+- **Causa**: [automations/db.py:622](../../backend/app/automations/db.py) definisce `bulk_delete_runs(status, before_date, automation_id, failed_only, preserve_protected, run_ids, db_path)`, ma tre chiamanti passano `older_than_days`:
+  - [automations/scheduler.py:189](../../backend/app/automations/scheduler.py) e `:195` (job di retention)
+  - [automations/router.py:262](../../backend/app/automations/router.py) (`DELETE /v1/automations/runs`)
+  - [automations/router.py:275](../../backend/app/automations/router.py) (`POST /v1/automations/runs/delete-batch`)
 - **Impatto**: le run storiche non vengono mai eliminate e `automations.db` cresce senza limite. Gli endpoint di cancellazione massiva rispondono con 500 (dedotto dal codice). Il tracker M9 segna la retention come completata, ma non funziona.
 - **Perché i test non l'hanno visto**: nessun test esegue `_run_retention_cleanup` né le due route di cancellazione con i parametri reali.
 
 ## ISS-02
 **`logger` non definito in `api.py`** — S1
 
-- **Evidenza**: `ruff F821` su [api.py:1012](../../backend/api.py#L1012) e [api.py:1048](../../backend/api.py#L1048). Il modulo importa `logging` ma non definisce mai `logger`.
+- **Evidenza**: `ruff F821` su [api.py:1012](../../backend/app/api/) e [api.py:1048](../../backend/app/api/). Il modulo importa `logging` ma non definisce mai `logger`.
 - **Impatto**: quando si entra nei rami di errore, l'endpoint fallisce con `NameError` (500) invece di scrivere un warning nel log e proseguire.
 
 ## ISS-03
 **`GET /v1/threads` → 500 su DB checkpoint vuoto** — S1
 
-- **Evidenza**: `test_stream_api.py` (2 test) riceve `500 != 200`. Riprodotto: in un DB di test pulito `sqlite_master` è vuoto e la query in [api.py:743](../../backend/api.py#L743) fa `SELECT ... FROM checkpoints`.
+- **Evidenza**: `test_stream_api.py` (2 test) riceve `500 != 200`. Riprodotto: in un DB di test pulito `sqlite_master` è vuoto e la query in [api.py:743](../../backend/app/api/) fa `SELECT ... FROM checkpoints`.
 - **Causa**: la tabella `checkpoints` viene creata da `SqliteSaver` in modo lazy, solo alla prima esecuzione del grafo. `thread_store.init_db()` crea le sue tabelle, non quelle di LangGraph.
 - **Impatto**: dopo un reset del database (operazione prevista in dev da AGENTS.md), la lista dei thread va in errore finché non parte la prima chat. La UI resta senza sidebar.
 
@@ -98,15 +98,16 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 ## ISS-09
 **Moduli monolitici, backend non strutturato a pacchetti** — S3
 
-- File oltre le 1000 righe: [graph.py](../../backend/graph.py) (1730), [automations/db.py](../../backend/automations/db.py) (1315), [api.py](../../backend/api.py) (1202).
+- File oltre le 1000 righe: [graph.py](../../backend/app/agent/graph.py) (1730), [automations/db.py](../../backend/app/automations/db.py) (1315), [api.py](../../backend/app/api/) (1202).
 - Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
 - La ristrutturazione a pacchetti (Fase 1.5 della vecchia roadmap) era stata rinviata per non rompere CT 112, ora dismesso: il vincolo non esiste più.
+- **Avanzamento (B1, 2026-10-27)**: codice nel pacchetto `app/` con sottopacchetti per dominio e import assoluti; `api.py` diviso in `app/api/routes/` (8 router, il più grande ~240 righe) più `agent_runner.py` e `deps.py`. Restano `graph.py` (B2), `automations/db.py` (B3) e i database nella radice del codice (B7).
 
 ## ISS-10
 **Fallback MCP legacy e shim di retrocompatibilità** — S3
 
-- [registry/metamcp.py:25](../../backend/registry/metamcp.py#L25): l'SDK MCP ufficiale è primario, ma resta il fallback al client custom [mcp_client.py](../../backend/mcp_client.py) (316 righe).
-- [config.py](../../backend/config.py) mantiene costanti "per retrocompatibilità" oltre a Pydantic Settings.
+- [registry/metamcp.py:25](../../backend/app/registry/metamcp.py): l'SDK MCP ufficiale è primario, ma resta il fallback al client custom [mcp_client.py](../../backend/app/mcp/client.py) (316 righe).
+- [config.py](../../backend/app/core/config.py) mantiene costanti "per retrocompatibilità" oltre a Pydantic Settings.
 - Contrario al principio "No Legacy Code" di [AGENTS.md](../../AGENTS.md).
 
 ## ISS-11
@@ -148,7 +149,7 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 ## ISS-16
 **Attesa di 180 s sul caricamento del modello anche se il load fallisce** — S1 · ✅ Risolto in `b20e63b`
 
-- **Causa**: `OpenAICompatProvider.ensure_model_loaded` ([providers.py](../../backend/providers.py)), introdotto in `675d12a`, dopo una richiesta `/models/load` fallita (server irraggiungibile, endpoint non supportato, modello sconosciuto) continuava a interrogare `/models` ogni secondo fino a 180 s.
+- **Causa**: `OpenAICompatProvider.ensure_model_loaded` ([providers.py](../../backend/app/llm/providers.py)), introdotto in `675d12a`, dopo una richiesta `/models/load` fallita (server irraggiungibile, endpoint non supportato, modello sconosciuto) continuava a interrogare `/models` ogni secondo fino a 180 s.
 - **Impatto**: con l'LLM non raggiungibile, ogni chiamata (router, chat, titoli) restava appesa fino a 3 minuti invece di fallire. È anche la causa principale dei test bloccati di [ISS-04](#iss-04).
 - **Fix**: se il load non parte (`status != "ok"`), il metodo ritorna subito `False`. Coperto da due test in `test_model_features.py`.
 
@@ -162,7 +163,7 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 ## ISS-18
 **Fallback della sandbox: codice LLM eseguito dentro `agent-backend`** — S2 · ✅ Risolto (opzione b: fallback solo previa approvazione)
 
-- **Evidenza**: [registry/firecracker_sandbox.py](../../backend/registry/firecracker_sandbox.py) `_execute_fallback`. Se l'API Firecracker non risponde, fallisce o va in timeout, il codice Python del tool `python_interpreter` viene eseguito con `subprocess` nel container del backend (`sandboxed: False`).
+- **Evidenza**: [registry/firecracker_sandbox.py](../../backend/app/registry/firecracker_sandbox.py) `_execute_fallback`. Se l'API Firecracker non risponde, fallisce o va in timeout, il codice Python del tool `python_interpreter` viene eseguito con `subprocess` nel container del backend (`sandboxed: False`).
 - **Impatto**: codice generato dall'LLM con accesso a `/data` (database, memoria), a `.env` (chiavi API) e alla rete del backend. Oggi su CT 125 Firecracker risponde, quindi il fallback scatta solo se la sandbox va giù.
 - **Opzioni valutate**: (a) nessun fallback; (b) fallback solo previa approvazione utente; (c) container usa-e-getta. **Scelta (b)**, il 2026-10-26.
 - **Implementazione**:
@@ -176,18 +177,18 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 ## ISS-19
 **PLAN ignorava la modalità di sicurezza scelta dall'utente** — S1 · ✅ Risolto in `0021414`
 
-- `execute_plan_node` ([graph.py](../../backend/graph.py)) chiamava `enforce_guardrails` senza `security_mode`, quindi i piani giravano sempre in `normal`: `safest` applicava meno controlli di quelli richiesti e `dangerous` veniva ignorato.
+- `execute_plan_node` ([graph.py](../../backend/app/agent/graph.py)) chiamava `enforce_guardrails` senza `security_mode`, quindi i piani giravano sempre in `normal`: `safest` applicava meno controlli di quelli richiesti e `dangerous` veniva ignorato.
 - Coperto da `tests/test_rollback.py` (piano in `dangerous` fino al rollback; piano in `normal` fermo all'approvazione).
 
 ## ISS-20
 **Fallback del router: "ct"/"vm" cercati come sottostringhe** — S3 · ✅ Risolto in `0021414`
 
-- Con l'LLM non disponibile, il fallback di [router.py](../../backend/router.py) classificava come ACT qualsiasi testo contenente "ct" o "vm" ("project", "select", "direct"...). Ora usa parole intere. Aggiunta anche "plan the" alle parole chiave di pianificazione esplicita.
+- Con l'LLM non disponibile, il fallback di [router.py](../../backend/app/agent/mode_router.py) classificava come ACT qualsiasi testo contenente "ct" o "vm" ("project", "select", "direct"...). Ora usa parole intere. Aggiunta anche "plan the" alle parole chiave di pianificazione esplicita.
 
 ## ISS-21
 **Risoluzione template non deterministica** — S1 · ✅ Risolto in `0021414`
 
-- [registry/automations_tool.py](../../backend/registry/automations_tool.py) risolveva id e alias con un confronto approssimativo ("contiene `email`") in ordine di filesystem. Con due template "email", `get_automation_details` e `create_automation_from_template` potevano restituire o **creare il template sbagliato**, anche se l'id richiesto era esatto. Su CT 125 (ordine ext4) succedeva.
+- [registry/automations_tool.py](../../backend/app/registry/automations_tool.py) risolveva id e alias con un confronto approssimativo ("contiene `email`") in ordine di filesystem. Con due template "email", `get_automation_details` e `create_automation_from_template` potevano restituire o **creare il template sbagliato**, anche se l'id richiesto era esatto. Su CT 125 (ordine ext4) succedeva.
 - Ora c'è un unico resolver a priorità (id esatto, poi id normalizzato o nome file, poi alias solo se univoco), coperto da `tests/test_automation_templates.py`.
 
 ## ISS-22
@@ -198,5 +199,5 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 ## ISS-23
 **Il router chiama l'LLM con `requests` diretto, scavalcando i provider** — S3 · Aperto
 
-- `route_turn` ([router.py](../../backend/router.py)) costruisce il payload e chiama `config.LLAMA_CPP_URL` con `requests.post`, ignorando il provider attivo (Ollama, provider di default scelto in UI) e le sue opzioni. Usa il provider solo per `ensure_model_loaded`.
+- `route_turn` ([router.py](../../backend/app/agent/mode_router.py)) costruisce il payload e chiama `config.LLAMA_CPP_URL` con `requests.post`, ignorando il provider attivo (Ollama, provider di default scelto in UI) e le sue opzioni. Usa il provider solo per `ensure_model_loaded`.
 - Da allineare in Fase B: il router deve passare da `providers.get_provider().chat(...)`.

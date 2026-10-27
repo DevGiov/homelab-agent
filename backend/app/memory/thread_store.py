@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from app.core import config
+
 logger = logging.getLogger("thread_store")
 
 def _get_conn():

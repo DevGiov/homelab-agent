@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from app.core import config
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("letta_client")
 

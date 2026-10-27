@@ -15,16 +15,16 @@ Rilevata il 2026-10-26 su `dev` @ `4e9f040`.
 
 **Stack**: Python 3.12 (Docker) · FastAPI · LangGraph 1.2 con `SqliteSaver` · Pydantic Settings · slowapi · sqlite-vec + fastembed · SDK MCP ufficiale.
 
-### 2.1 Grafo LangGraph ([graph.py](../../backend/graph.py))
+### 2.1 Grafo LangGraph ([graph.py](../../backend/app/agent/graph.py))
 
 ```
 intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | act | plan → execute_plan } → respond → commit_memory
 ```
 
 - **Modalità**: CHAT (conversazione), ASK (ricerca/consultazione), ACT (tool MCP con self-correction), PLAN (piani multi-step con rollback Saga/WAL).
-- **Routing**: [router.py](../../backend/router.py) usa regole più un LLM di fallback; [mode_policy.py](../../backend/mode_policy.py) definisce budget di tool e reasoning per ogni modalità.
+- **Routing**: [router.py](../../backend/app/agent/mode_router.py) usa regole più un LLM di fallback; [mode_policy.py](../../backend/app/agent/mode_policy.py) definisce budget di tool e reasoning per ogni modalità.
 
-### 2.2 Registry dei tool ([registry/](../../backend/registry/))
+### 2.2 Registry dei tool ([registry/](../../backend/app/registry/))
 
 `metamcp` (Proxmox via MetaMCP), `web` (SearXNG + DDGS, protezione SSRF), `code` (sandbox / Firecracker), `memory` (recall ibrido), `vision`, `email`, `automations`, `calendar`.
 
@@ -32,14 +32,14 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 
 | Area | Moduli principali | Note |
 | :--- | :--- | :--- |
-| API REST/SSE | [api.py](../../backend/api.py) (~40 route) | Chat, thread, stream, approvazioni, KB, audit, modelli |
-| Automazioni | [automations/](../../backend/automations/) (~44 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
-| Calendario | [calendar_db.py](../../backend/calendar_db.py), [calendar_router.py](../../backend/calendar_router.py) (~15 route), [calendar_sync.py](../../backend/calendar_sync.py) | Import ICS/Google |
-| Sicurezza | [guardrails.py](../../backend/guardrails.py), [permissions.py](../../backend/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
-| Memoria | [vector_store.py](../../backend/vector_store.py), [knowledge_base.py](../../backend/knowledge_base.py), [letta_client.py](../../backend/letta_client.py), [thread_store.py](../../backend/thread_store.py) | sqlite-vec, BM25+RRF, persistenza thread |
-| Streaming | [stream_session.py](../../backend/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
-| LLM | [providers.py](../../backend/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
-| Integrazioni | [integrations/manager.py](../../backend/integrations/manager.py) | Integrazioni modulari per le automazioni |
+| API REST/SSE | [api.py](../../backend/app/api/) (~40 route) | Chat, thread, stream, approvazioni, KB, audit, modelli |
+| Automazioni | [automations/](../../backend/app/automations/) (~44 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
+| Calendario | [calendar_db.py](../../backend/app/calendar/db.py), [calendar_router.py](../../backend/app/calendar/router.py) (~15 route), [calendar_sync.py](../../backend/app/calendar/sync.py) | Import ICS/Google |
+| Sicurezza | [guardrails.py](../../backend/app/security/guardrails.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
+| Memoria | [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [letta_client.py](../../backend/app/memory/letta_client.py), [thread_store.py](../../backend/app/memory/thread_store.py) | sqlite-vec, BM25+RRF, persistenza thread |
+| Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
+| LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
+| Integrazioni | [integrations/manager.py](../../backend/app/integrations/manager.py) | Integrazioni modulari per le automazioni |
 
 ### 2.4 Persistenza
 

@@ -6,9 +6,9 @@ Backend LangGraph + FastAPI per l'agente AI del mio homelab.
 
 ```mermaid
 flowchart LR
-    U[Utente / Frontend React] -->|REST + SSE| API[FastAPI api.py]
+    U[Utente / Frontend React] -->|REST + SSE| API[FastAPI app/api]
     API --> SS[stream_session<br/>session queue + reconnect]
-    API --> G[LangGraph graph.py]
+    API --> G[LangGraph app/agent/graph.py]
 
     subgraph Grafo
         I[intake] --> RM[retrieve_memory] --> MR[mode_router]
@@ -21,7 +21,7 @@ flowchart LR
     AL --> REG[ToolRegistryManager]
 
     subgraph Registries
-        MM[metamcp] --> SDK[mcp_sdk_client<br/>SDK ufficiale MCP]
+        MM[metamcp] --> SDK[mcp/sdk_client<br/>SDK ufficiale MCP]
         WS[web] --> SX[SearXNG / DDG + SSRF guard]
         CE[code] --> FC[Firecracker sandbox]
         ME[memory] --> LT[Letta hybrid retrieval]
@@ -38,7 +38,7 @@ flowchart LR
         CP[(checkpoints LangGraph)]
     end
 
-    AL --> LLM[providers.py<br/>llama.cpp / Ollama]
+    AL --> LLM[llm/providers<br/>llama.cpp / Ollama]
     RM --> VEC
     RS --> VEC
 ```
@@ -72,28 +72,22 @@ sequenceDiagram
 
 ## Struttura
 
-- `main.py`: CLI entry point
-- `graph.py`: grafo LangGraph (intake → retrieve_memory → mode_router → web_prefetch → chat/ask/act/plan → respond → commit_memory) con visual query grounding
-- `agent_loop.py`: loop ReAct custom con cache dedup, parallel calls read-only e regole per dati live di mercato
-- `image_utils.py`: decodifica multimodale (JPEG, PNG, WebP, HEIC/HEIF via pillow-heif) e ottimizzazione immagini
-- `stream_session.py`: gestione sessioni streaming SSE isolate con pause/resume/stop e riconnessione multi-device
-- `thread_store.py`: store SQLite per cronologia messaggi, immagini allegate (`images_json`) e generazione asincrona titoli
-- `providers.py`: astrazione LLM multi-provider (llama.cpp OpenAI-compat, Ollama) con disattivazione thinking su reasoning_budget=0
-- `mcp_sdk_client.py`: client MCP basato sull'SDK ufficiale (sessione persistente, retry)
-- `mcp_client.py`: client legacy SSE/REST (fallback)
-- `registry/`: registries dei tool (`metamcp`, `web`, `code`, `memory`, `vision`)
-- `permissions.py`: motore di autorizzazione e policy tool (Human-in-the-Loop) con persistenza SQLite (`tool_permissions`, scope `always`) e memoria di sessione (`_SESSION_PERMISSIONS`, scope `thread`)
-- `guardrails.py`: sistema di sicurezza a 2 livelli (Tier 1 blocco deterministico comandi malevoli/distruttivi senza bypass LLM, Tier 2 HITL approval workflow con 4 opzioni di risposta)
-- `audit_log.py`: audit persistente di ogni tool call
-- `vector_store.py`: memoria semantica (sqlite-vec cosine + fastembed locale)
-- `knowledge_base.py`: KB documentale (.md/.txt/.pdf) con chunking
-- `letta_client.py`: client Letta (memoria conversazionale + hybrid retrieval BM25+RRF)
-- `router.py`: mode router neurale (chat/ask/act/plan)
-- `mode_policy.py`: policy per mode (tool calls, registries, reasoning budget)
-- `config.py`: Pydantic Settings (.env) con fail-fast sicurezza
-- `api.py`: API REST FastAPI con endpoint approvazione (`/v1/approvals/.../resolve`) e gestione permessi (`/v1/permissions`)
-- `schemas.py`: modelli Pydantic
-- `run_api.py`: entry point uvicorn
+Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). Avvio API: `python -m app`; CLI: `python -m app.cli "task" --thread alice`.
+
+| Pacchetto | Contenuto |
+| :--- | :--- |
+| `app/api/` | `main.py` (app FastAPI, lifespan, middleware), `deps.py` (API key, rate limit), `agent_runner.py` (esecuzione del grafo sincrona e in streaming), `schemas.py`, `routes/` con un router per dominio: `chat`, `threads`, `approvals` (approvazioni e permessi), `memory`, `kb`, `providers`, `uploads`, `system` (health, status, audit) |
+| `app/agent/` | `graph.py` (grafo LangGraph), `agent_loop.py` (loop ReAct con cache e chiamate parallele read-only), `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio), `monitoring.py` |
+| `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
+| `app/security/` | `guardrails.py` (Tier 1 blocco deterministico, Tier 2 approvazione), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
+| `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `knowledge_base.py`, `letta_client.py`, `thread_store.py` (cronologia, immagini, titoli) |
+| `app/registry/` | Registry dei tool: `metamcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
+| `app/automations/` | Definizioni, run, scheduler, runner, code runner, template, loop |
+| `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
+| `app/mcp/` | `sdk_client.py` (SDK ufficiale MCP), `client.py` (client legacy, da rimuovere in B4) |
+| `app/integrations/` | Integrazioni di servizio per le automazioni |
+| `app/core/` | `config.py` (Pydantic Settings, fail-fast sicurezza, `BACKEND_DIR`), `text_utils.py`, `image_utils.py` |
+| `sdk/` | SDK pubblico per gli script delle automazioni (`@workflow`, `@step`, `AutomationContext`): resta fuori da `app/` perché lo importano gli script utente |
 
 ## Installazione
 
@@ -111,12 +105,12 @@ i valori (riferimento completo in [.env.example](.env.example)). In Docker i dat
 
 ### CLI
 ```bash
-.venv/bin/python3 main.py "task" --thread alice
+.venv/bin/python -m app.cli "task" --thread alice
 ```
 
 ### API REST
 ```bash
-.venv/bin/python3 run_api.py
+.venv/bin/python -m app
 ```
 
 ## Test

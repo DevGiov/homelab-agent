@@ -10,6 +10,7 @@ import threading
 from typing import Any, Dict, List, Optional
 
 from app.core import config
+
 logger = logging.getLogger("vector_store")
 
 # Il Dockerfile pre-scarica questo modello nell'immagine (FASTEMBED_CACHE_PATH): tenerli allineati
