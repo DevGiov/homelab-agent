@@ -52,8 +52,8 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 - **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Knowledge, Impostazioni (sicurezza, modelli, temi).
 - **Componenti più grandi**: `AutomationsView.tsx` (1385 righe), `api.ts` (1293), `CalendarView.tsx` (1285), `Chat.tsx` (1205), `SettingsModal.tsx` (956), `useChat.ts` (830).
-- **Build**: passa. Il bundle è unico, `index.js` pesa 947 kB (262 kB gzip), oltre la soglia di 500 kB.
-- **Lint (oxlint)**: 8 warning (variabili `catch` inutilizzate, dipendenze mancanti negli hook).
+- **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 291 kB più `react` 190 kB e `api` 60 kB (160 kB gzip in tutto, prima 947 kB in un chunk unico da 262 kB gzip). Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
+- **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
 
 ## 4. Deploy (CT 125)
 
@@ -71,7 +71,7 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 | Gate | Risultato |
 | :--- | :--- |
-| `npm run build` | ✅ passa (warning sulla dimensione del bundle) |
+| `npm run build` | ✅ passa |
 | `oxlint` | ⚠️ 8 warning |
 | `ruff check` | ❌ 208 errori (120 auto-fixabili), di cui 2 `F821` reali |
 | `pytest` (suite completa) | ❌ non termina (blocco > 10 min) |

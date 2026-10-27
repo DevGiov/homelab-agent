@@ -22,7 +22,7 @@
    - Restart or rebuild services:
      - Backend code change: `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml restart backend")`
      - Backend dependencies/Dockerfile: `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml up -d --build backend")`
-     - Frontend code change: `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml up -d --build frontend")`
+     - Frontend code change: `exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml up -d --build --no-deps frontend")` (`--no-deps`: otherwise compose also recreates `backend` when its image changed, resetting the active model to the `.env` default)
      - Database reset / breaking change: wipe legacy SQLite db if required and restart containers.
 5. **In-Container Test Execution**:
    - Run tests in the isolated `backend-test` container (test image target, `/data` on tmpfs, never the production volume):

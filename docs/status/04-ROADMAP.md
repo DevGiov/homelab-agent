@@ -50,7 +50,7 @@ Valutazione dei file sopra 600 righe (2026-10-27): `calendar/db.py`, `registry/c
 
 | # | Attività | Issue |
 | :--- | :--- | :--- |
-| C1 | Code-splitting con `React.lazy` per le viste Automations, Calendar, Knowledge e Settings; highlight.js caricato on demand | ISS-11 |
+| C1 | ~~Code-splitting con `React.lazy` per le viste Automations, Calendar, Knowledge e Settings; highlight.js caricato on demand~~ ✅ 2026-10-27 (chunk iniziale 947 → 291 kB; in più: card delle proposte lazy, chunk vendor `react`, header di cache in nginx) | ISS-11 |
 | C2 | `api.ts` diviso per dominio (`api/chat.ts`, `api/automations.ts`, …) | ISS-11 |
 | C3 | `Chat.tsx`, `AutomationsView.tsx`, `CalendarView.tsx` divisi in sotto-componenti con hook dedicati | ISS-11 |
 | C4 | Test frontend minimi (Vitest) per `useChat` (parsing SSE) e per i client API | — |

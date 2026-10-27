@@ -121,7 +121,7 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
    ```
    Riavvio o rebuild mirato:
    - Backend: `docker compose -f docker-compose.prod.yml restart backend` (o `up -d --build backend` per modifiche a Dockerfile/dipendenze).
-   - Frontend: `docker compose -f docker-compose.prod.yml up -d --build frontend`.
+   - Frontend: `docker compose -f docker-compose.prod.yml up -d --build --no-deps frontend` (`--no-deps` evita di ricreare il backend).
 4. **Test in-container & API**:
    ```python
    # Mai dentro agent-backend: il suo /data è il dato di produzione

@@ -14,7 +14,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | ✅ Risolto (A4) |
 | [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | ✅ Risolto (B4, B5) |
-| [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | Aperto |
+| [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | 🟡 Bundle risolto (C1), componenti grandi aperti |
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | ✅ Risolto (A5, `v0.9.0`) |
 | [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | ✅ Risolto (A5) |
@@ -126,6 +126,9 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 **Bundle frontend unico da 947 kB** — S3
 
 Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti nel chunk iniziale. Componenti da oltre 1000 righe: `AutomationsView`, `api.ts`, `CalendarView`, `Chat`.
+
+- **C1 (2026-10-27)**: viste secondarie con `React.lazy` dietro `LazyBoundary` (Suspense + ErrorBoundary, così un chunk che non arriva non fa cadere l'app); highlight.js caricato da `MarkdownRenderer` solo quando il contenuto ha un blocco di codice; React in un chunk vendor separato. Chunk iniziale da 947 a 291 kB, JS iniziale da 262 a 160 kB gzip. In nginx: `index.html` sempre rivalidato, asset con hash `immutable`, chunk mancante = 404 invece della pagina SPA, gzip attivo.
+- **Resta**: axios (46 kB nel chunk `api`) e i componenti sopra le 1000 righe, in C2 e C3.
 
 ## ISS-12
 **Warning oxlint** — S4 · ✅ Risolto in A4
