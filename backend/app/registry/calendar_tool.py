@@ -22,36 +22,6 @@ from app.registry.base import BaseToolRegistry
 logger = logging.getLogger("registry.calendar")
 
 
-def _parse_natural_duration(duration_str: str) -> Optional[int]:
-    """Converte durate come '30m', '1h', '1h30m', '90min' in minuti interi."""
-    if not duration_str or not isinstance(duration_str, str):
-        return None
-    d = duration_str.strip().lower()
-
-    # Pattern tipo 1h30m o 1h 30min
-    match_hm = re.match(r"^(\d+)\s*h(?:ours?|ore)?\s*(\d+)?\s*(?:m|min|minuti)?$", d)
-    if match_hm:
-        hours = int(match_hm.group(1))
-        minutes = int(match_hm.group(2) or 0)
-        return hours * 60 + minutes
-
-    # Pattern solo ore: 2h o 2 hours
-    match_h = re.match(r"^(\d+)\s*h(?:ours?|ore)?$", d)
-    if match_h:
-        return int(match_h.group(1)) * 60
-
-    # Pattern solo minuti: 45m o 45min
-    match_m = re.match(r"^(\d+)\s*(?:m|min|minuti|minutes?)$", d)
-    if match_m:
-        return int(match_m.group(1))
-
-    # Pattern numerico puro (assunto minuti)
-    if d.isdigit():
-        return int(d)
-
-    return None
-
-
 def _normalize_iso_datetime(dt_str: str, default_date: Optional[date] = None) -> str:
     """Normalizza stringhe di data/ora in formato ISO-8601 YYYY-MM-DDTHH:MM:SS."""
     if not dt_str:
@@ -533,7 +503,7 @@ class CalendarRegistry(BaseToolRegistry):
         if end_raw:
             dtend = _normalize_iso_datetime(end_raw)
         else:
-            duration_mins = _parse_natural_duration(duration_raw) or 60
+            duration_mins = calendar_db.parse_natural_duration(duration_raw) or 60
             try:
                 s_dt = datetime.fromisoformat(dtstart.replace("Z", "").split("+")[0])
                 dtend = (s_dt + timedelta(minutes=duration_mins)).isoformat()

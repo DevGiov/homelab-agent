@@ -83,8 +83,6 @@ VIEW_TOOLS = {
     "calendar_create_event", "calendar_update_event", "calendar_check_availability",
 }
 
-SAFE_TOOLS = VIEW_TOOLS  # Retrocompatibilità
-
 # Comandi shell diagnostici e di sola lettura (Safe-Read)
 SAFE_READ_COMMAND_ROOTS = {
     "ls", "dir", "pwd", "cat", "head", "tail", "more", "less",

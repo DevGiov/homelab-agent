@@ -10,11 +10,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request, Security
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
+from app.api.deps import verify_api_key
 from app.automations.db import approvals as approvals_db
 from app.automations.db import artifacts as artifacts_db
 from app.automations.db import definitions as definitions_db
@@ -34,15 +34,6 @@ from app.core.config import settings
 
 logger = logging.getLogger("automations.router")
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
-    expected_key = settings.api_secret_key.strip()
-    if expected_key:
-        if not x_api_key or x_api_key != expected_key:
-            raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
-    return x_api_key
 
 
 router = APIRouter(prefix="/v1/automations", tags=["Automations"], dependencies=[Depends(verify_api_key)])

@@ -137,7 +137,7 @@ def init_calendar_db(db_path: Optional[str] = None):
 
 # --- Utility Temporali e Durata ---
 
-def _parse_natural_duration(duration_str: str) -> Optional[int]:
+def parse_natural_duration(duration_str: str) -> Optional[int]:
     """Converte durate naturali come '30m', '1h', '1h30m', '90min' in minuti interi."""
     if not duration_str or not isinstance(duration_str, str):
         return None
@@ -165,7 +165,7 @@ def _parse_natural_duration(duration_str: str) -> Optional[int]:
 
 def _calculate_dtend(dtstart: str, duration: str) -> str:
     """Calcola la data/ora di fine aggiungendo una durata naturale a dtstart."""
-    minutes = _parse_natural_duration(duration) or 60
+    minutes = parse_natural_duration(duration) or 60
     try:
         clean_s = dtstart.replace("Z", "").split("+")[0]
         s_dt = datetime.fromisoformat(clean_s)

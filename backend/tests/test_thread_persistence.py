@@ -1,6 +1,5 @@
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 
 from app.core.config import settings
 from app.memory import thread_store
@@ -89,54 +88,6 @@ class TestThreadPersistence(unittest.TestCase):
         last = thread_store.get_last_message(thread_id)
         self.assertEqual(last, "Prompt con assistente vuoto")
 
-    def test_backfill_from_interrupted_state_history(self):
-        thread_id = "test_interrupted_thread"
-
-        # Crea un mock di app_graph con snapshot non-terminale (next != ())
-        class MockSnapshot:
-            def __init__(self, next_nodes, values):
-                self.next = next_nodes
-                self.values = values
-
-        mock_graph = MagicMock()
-        # Simulazione: 2 snapshot non-terminali, interrotti su 'agent_loop'
-        mock_graph.get_state_history.return_value = [
-            MockSnapshot(
-                next_nodes=("agent_loop",),
-                values={
-                    "task": "Calcola la traiettoria orbitale",
-                    "mode": "act",
-                    "final_response": None,
-                    "reasoning_content": "Sto calcolando...",
-                    "execution_trace": [{"step": 1, "reasoning": "Analisi iniziale"}]
-                }
-            ),
-            MockSnapshot(
-                next_nodes=("retrieve_memory",),
-                values={"task": "Calcola la traiettoria orbitale"}
-            )
-        ]
-
-        # Inizialmente thread_messages è vuoto
-        self.assertEqual(thread_store.get_thread_messages(thread_id), [])
-
-        # Esegue il backfill
-        reconstructed = thread_store.backfill_from_state_history(thread_id, mock_graph)
-        self.assertEqual(len(reconstructed), 2)
-
-        # Messaggio utente recuperato
-        self.assertEqual(reconstructed[0]["sender"], "user")
-        self.assertEqual(reconstructed[0]["content"], "Calcola la traiettoria orbitale")
-
-        # Messaggio assistente parziale recuperato
-        self.assertEqual(reconstructed[1]["sender"], "assistant")
-        self.assertIn("Esecuzione interrotta", reconstructed[1]["content"])
-        self.assertEqual(reconstructed[1]["reasoning_content"], "Sto calcolando...")
-
-        # get_last_message funziona
-        last = thread_store.get_last_message(thread_id)
-        self.assertIsNotNone(last)
-
     def test_save_user_message_with_empty_text_and_images(self):
         thread_id = "test_thread_images_no_text"
         fake_images = ["data:image/jpeg;base64,/9j/4AAQSkZJRg==", "data:image/png;base64,iVBORw0KGgo="]
@@ -149,35 +100,6 @@ class TestThreadPersistence(unittest.TestCase):
         self.assertEqual(messages[0]["content"], "")
         self.assertEqual(messages[0]["images"], fake_images)
 
-    def test_backfill_preserves_images(self):
-        thread_id = "test_backfill_with_images"
-        fake_images = ["data:image/jpeg;base64,testdata123"]
-
-        class MockSnapshot:
-            def __init__(self, next_nodes, values):
-                self.next = next_nodes
-                self.values = values
-
-        mock_graph = MagicMock()
-        mock_graph.get_state_history.return_value = [
-            MockSnapshot(
-                next_nodes=(),
-                values={
-                    "task": "Analizza e descrivi l'immagine allegata.",
-                    "mode": "chat",
-                    "final_response": "Questa è una bella foto.",
-                    "images": fake_images
-                }
-            )
-        ]
-
-        reconstructed = thread_store.backfill_from_state_history(thread_id, mock_graph)
-        self.assertEqual(len(reconstructed), 2)
-        self.assertEqual(reconstructed[0]["sender"], "user")
-        self.assertEqual(reconstructed[0]["images"], fake_images)
-
-        stored = thread_store.get_thread_messages(thread_id)
-        self.assertEqual(len(stored), 2)
     def test_web_prefetch_persistence(self):
         thread_id = "test_thread_web_prefetch_persisted"
         thread_store.save_user_message(thread_id, "Cos'è GPT Astra?")
@@ -207,88 +129,6 @@ class TestThreadPersistence(unittest.TestCase):
         self.assertEqual(ast_msg["web_prefetch"]["provider_used"], "SearXNG (it)")
         self.assertEqual(len(ast_msg["web_prefetch"]["sources"]), 1)
         self.assertEqual(ast_msg["web_prefetch"]["sources"][0]["url"], "https://example.com/astra")
-
-    def test_backfill_preserves_web_prefetch(self):
-        thread_id = "test_backfill_with_web_prefetch"
-        fake_prefetch = {
-            "query": "Novità AI 2026",
-            "provider_used": "DuckDuckGo",
-            "sources": [{"title": "AI 2026", "url": "https://ai.example.com", "snippet": "Novità"}]
-        }
-
-        class MockSnapshot:
-            def __init__(self, next_nodes, values):
-                self.next = next_nodes
-                self.values = values
-
-        mock_graph = MagicMock()
-        mock_graph.get_state_history.return_value = [
-            MockSnapshot(
-                next_nodes=(),
-                values={
-                    "task": "Quali sono le novità AI?",
-                    "mode": "chat",
-                    "final_response": "Ecco le novità dell'AI nel 2026...",
-                    "web_prefetch_metadata": fake_prefetch
-                }
-            )
-        ]
-
-        reconstructed = thread_store.backfill_from_state_history(thread_id, mock_graph)
-        self.assertEqual(len(reconstructed), 2)
-        self.assertEqual(reconstructed[1]["sender"], "assistant")
-        self.assertEqual(reconstructed[1]["web_prefetch"], fake_prefetch)
-
-        stored = thread_store.get_thread_messages(thread_id)
-        self.assertEqual(len(stored), 2)
-        self.assertEqual(stored[1]["web_prefetch"], fake_prefetch)
-
-    def test_repair_missing_web_prefetch(self):
-        thread_id = "test_repair_web_prefetch"
-        fake_prefetch = {
-            "query": "Info GPT Astra",
-            "provider_used": "DuckDuckGo",
-            "sources": [{"title": "Astra", "url": "https://astra.example.com", "snippet": "Astra info"}]
-        }
-
-        # Simula messaggio salvato senza web_prefetch (stato legacy)
-        thread_store.save_user_message(thread_id, "Info GPT Astra")
-        thread_store.save_assistant_message(thread_id, {
-            "response": "Risposta su Astra",
-            "mode": "ask"
-        })
-
-        # Verifica che inizialmente web_prefetch sia None
-        initial_msgs = thread_store.get_thread_messages(thread_id)
-        self.assertIsNone(initial_msgs[1].get("web_prefetch"))
-
-        class MockSnapshot:
-            def __init__(self, next_nodes, values):
-                self.next = next_nodes
-                self.values = values
-
-        mock_graph = MagicMock()
-        mock_graph.get_state_history.return_value = [
-            MockSnapshot(
-                next_nodes=(),
-                values={
-                    "task": "Info GPT Astra",
-                    "mode": "ask",
-                    "final_response": "Risposta su Astra",
-                    "web_prefetch_metadata": fake_prefetch
-                }
-            )
-        ]
-
-        repaired_msgs = thread_store.repair_missing_web_prefetch(thread_id, mock_graph)
-        self.assertEqual(len(repaired_msgs), 2)
-        self.assertIsNotNone(repaired_msgs[1].get("web_prefetch"))
-        self.assertEqual(repaired_msgs[1]["web_prefetch"]["query"], "Info GPT Astra")
-
-        # Verifica che sia stato salvato permanentemente su SQLite
-        stored = thread_store.get_thread_messages(thread_id)
-        self.assertIsNotNone(stored[1].get("web_prefetch"))
-
 
 if __name__ == "__main__":
     unittest.main()

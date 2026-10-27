@@ -10,25 +10,15 @@ Fornisce:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Security, UploadFile
-from fastapi.security import APIKeyHeader
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
+from app.api.deps import verify_api_key
 from app.calendar import db as calendar_db
 from app.calendar import sync as calendar_sync
-from app.core.config import settings
 
 logger = logging.getLogger("calendar.router")
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
-    expected_key = settings.api_secret_key.strip()
-    if expected_key:
-        if not x_api_key or x_api_key != expected_key:
-            raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
-    return x_api_key
 
 
 router = APIRouter(prefix="/v1/calendar", tags=["Calendar"], dependencies=[Depends(verify_api_key)])

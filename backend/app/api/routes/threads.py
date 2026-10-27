@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.agent.stream_session import (
     get_session,
 )
-from app.api.agent_runner import get_app_graph
 from app.api.deps import verify_api_key
 from app.api.schemas import (
     SaveVersionsDataRequest,
@@ -30,16 +29,15 @@ async def list_threads():
     try:
         conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
+        # Lo store dei messaggi è la fonte di verità: i thread con soli checkpoint (incognito, CLI) non compaiono
         cursor.execute("""
-            SELECT thread_id, MAX(cp_count) as checkpoint_count, MAX(last_activity) as sort_key
+            SELECT m.thread_id, COALESCE(c.cp_count, 0)
             FROM (
-                SELECT thread_id, COUNT(*) as cp_count, MAX(rowid) as last_activity FROM checkpoints GROUP BY thread_id
-                UNION ALL
-                SELECT thread_id, 0 as cp_count, MAX(rowid) as last_activity FROM thread_messages GROUP BY thread_id
-            )
-            WHERE thread_id IS NOT NULL AND thread_id != ''
-            GROUP BY thread_id
-            ORDER BY sort_key DESC
+                SELECT thread_id, MAX(rowid) AS last_activity FROM thread_messages
+                WHERE thread_id IS NOT NULL AND thread_id != '' GROUP BY thread_id
+            ) m
+            LEFT JOIN (SELECT thread_id, COUNT(*) AS cp_count FROM checkpoints GROUP BY thread_id) c USING (thread_id)
+            ORDER BY m.last_activity DESC
         """)
         rows = cursor.fetchall()
 
@@ -50,18 +48,9 @@ async def list_threads():
         summaries = []
         found_tids = set()
         for row in rows:
-            tid = row[0]
-            count = row[1]
-            if not tid:
-                continue
+            tid, count = row
             found_tids.add(tid)
             last_msg = thread_store.get_last_message(tid)
-
-            # Se non c'è last_message, tenta backfill da LangGraph per popolare lo store
-            if last_msg is None and count > 0:
-                backfilled = thread_store.backfill_from_state_history(tid, get_app_graph())
-                if backfilled:
-                    last_msg = thread_store.get_last_message(tid)
 
             sess = get_session(tid)
             is_active = sess is not None and sess.is_active()
@@ -102,16 +91,9 @@ async def get_thread(thread_id: str):
         count = cursor.fetchone()[0]
         conn.close()
 
-        # 1. Prova lo store locale (istantaneo)
         stored_messages = thread_store.get_thread_messages(thread_id)
 
-        # 2. Se vuoto ma il thread ha checkpoint, ricostruisci da LangGraph state history
-        if not stored_messages and count > 0:
-            stored_messages = thread_store.backfill_from_state_history(thread_id, get_app_graph())
-        elif stored_messages and count > 0 and any(m.get("sender") == "assistant" and not m.get("web_prefetch") for m in stored_messages):
-            stored_messages = thread_store.repair_missing_web_prefetch(thread_id, get_app_graph())
-
-        # 3. Controlla se c'è una sessione attiva per questo thread
+        # Sessione attiva: lo stato in tempo reale non è ancora nello store
         sess = get_session(thread_id)
         is_active = sess is not None and sess.is_active()
         is_paused = sess.is_paused() if sess else False

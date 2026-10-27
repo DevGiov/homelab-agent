@@ -28,6 +28,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-22](#iss-22) | Modello di embedding scaricato a runtime da HuggingFace | S2 | deploy | ✅ Risolto (`16eae3a`) |
 | [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | ✅ Risolto in B8 |
 | [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | Aperto |
+| [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
 
 ---
 
@@ -218,3 +219,12 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - Impatto: [letta_client.py](../../backend/app/memory/letta_client.py) fallisce in modo silenzioso. La cronologia ripiega sulla trascrizione JSONL ([transcript.py](../../backend/app/memory/transcript.py)), ma la memoria archivistica Letta (fatti salienti, summary incrementali) non viene salvata e `commit_memory` non scrive nulla. Il recall semantico cross-thread usa sqlite-vec e non ne risente.
 - Da decidere: ripristinare Letta su CT 102 oppure toglierlo e affidare summary e fatti a sqlite-vec, eliminando una dipendenza esterna.
 
+## ISS-25
+**Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata** — S3 · ✅ Risolto in B10
+
+- **Evidenza**: `GET /v1/threads/{id}` chiama `thread_store.repair_missing_web_prefetch` se una qualunque risposta non ha `web_prefetch`, cosa normale per i turni chat e act. In produzione succede per 4 thread su 10: ogni apertura rilegge l'intera storia dei checkpoint LangGraph e scrive sul DB durante una GET (40–50 ms con 51 checkpoint, cresce con la lunghezza del thread). `backfill_from_state_history` (211 righe) ricostruisce i messaggi dei thread nati prima di `thread_store`: in produzione nessun thread ne ha bisogno.
+- **Causa**: funzioni di recupero introdotte per migrare i dati (agosto e settembre 2026), rimaste nel percorso di lettura.
+- `verify_api_key` è definita in `api/deps.py`, `automations/router.py` e `calendar/router.py`, con un confronto `!=` invece di uno a tempo costante.
+- **Effetto collaterale trovato**: anche i turni in incognito scrivono checkpoint LangGraph. La lista dei thread univa checkpoint e messaggi, quindi un thread incognito compariva nella sidebar e `backfill_from_state_history` ne salvava i turni nello store, annullando l'incognito. L'ordinamento confrontava inoltre i `rowid` di due tabelle diverse.
+- **Fix (B10, 2026-10-27)**: rimosse le due funzioni di recupero (`thread_store` da 707 a 430 righe). La lista dei thread parte da `thread_messages`, la fonte di verità, con il conteggio dei checkpoint in `LEFT JOIN`; l'apertura di un thread legge solo lo store. `verify_api_key` esiste solo in [deps.py](../../backend/app/api/deps.py) con `secrets.compare_digest`, usata anche dai router di calendario e automazioni. Unificato `parse_natural_duration` in `calendar/db.py`; rimosso l'alias `SAFE_TOOLS`. Test: `test_threads_api.py`, `test_auth.py`.
+- **Resta aperto**: i checkpoint LangGraph dei turni incogniti restano nel DB (il grafo ha sempre il checkpointer). Da valutare se usare un thread effimero o cancellarli a fine turno.
