@@ -259,15 +259,16 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     [currentThreadId, threadMessagesMap, updateThread]
   );
 
+  /** Rigenera la risposta; `editedPrompt` è il prompt appena modificato, non ancora visibile nello stato. */
   const handleRegenerateMessage = useCallback(
-    async (assistantMsgId: string) => {
+    async (assistantMsgId: string, editedPrompt?: FormattedMessage) => {
       if (!currentThreadId || isLoadingChat) return;
       const threadId = currentThreadId;
       const msgs = threadMessagesMap[threadId] || [];
       const astIndex = msgs.findIndex((m) => m.id === assistantMsgId);
       if (astIndex === -1) return;
       const astMsg = msgs[astIndex];
-      const userMsg = msgs.slice(0, astIndex).reverse().find((m) => m.sender === 'user');
+      const userMsg = editedPrompt ?? msgs.slice(0, astIndex).reverse().find((m) => m.sender === 'user');
       if (!userMsg) return;
 
       // La rigenerazione diventa una nuova versione nel carosello del messaggio
@@ -351,21 +352,13 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         { id: `user_edit_${Date.now()}`, content, timestamp, mode, model, reasoningBudget, images: userMsg.images },
       ];
       const versionIndex = versions.length - 1;
-      messageUpdater(currentThreadId, userMsgId)((m) => ({
-        ...m,
-        content,
-        mode,
-        model,
-        reasoningBudget,
-        timestamp,
-        versions,
-        versionIndex,
-      }));
+      const editedMsg: FormattedMessage = { ...userMsg, content, mode, model, reasoningBudget, timestamp, versions, versionIndex };
+      messageUpdater(currentThreadId, userMsgId)(() => editedMsg);
       saveMessageVersions(currentThreadId, userMsgId, versions, versionIndex);
 
       const nextMsg = msgs[userIndex + 1];
       if (nextMsg?.sender === 'assistant') {
-        await handleRegenerateMessage(nextMsg.id);
+        await handleRegenerateMessage(nextMsg.id, editedMsg);
       } else {
         await handleSendMessage(content, {
           mode,
