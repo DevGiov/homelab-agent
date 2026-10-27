@@ -13,8 +13,10 @@ import shutil
 import tempfile
 import unittest
 
-from app.automations import db as auto_db
 from app.automations.code_runner import SandboxedCodeRunner, ast_security_check, validate_manifest
+from app.automations.db import artifacts as artifacts_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import schema as schema_db
 from app.automations.models import (
     RunStatus,
     TriggerType,
@@ -28,7 +30,7 @@ class TestAutomationsSDKAndCodeRunner(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.tmp_dir, "test_sdk.db")
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
         self.runner = AutomationRunner(db_path=self.db_path)
         self.code_runner = SandboxedCodeRunner()
 
@@ -235,7 +237,7 @@ def run(ctx):
                 "allowed_registries": ["code"],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         run = self.runner.start_run("auto_custom_code_e2e", trigger_type=TriggerType.MANUAL)
         self.assertEqual(run.status, RunStatus.PENDING)
@@ -249,6 +251,6 @@ def run(ctx):
         self.assertEqual(step_res.output_payload, {"healthy": True, "service": "nginx-ingress"})
 
         # Verifica che l'artefatto sia stato salvato su DB
-        db_artifacts = auto_db.list_artifacts(run.run_id, db_path=self.db_path)
+        db_artifacts = artifacts_db.list_artifacts(run.run_id, db_path=self.db_path)
         self.assertEqual(len(db_artifacts), 1)
         self.assertEqual(db_artifacts[0]["name"], "e2e_report.md")

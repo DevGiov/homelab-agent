@@ -6,7 +6,9 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.automations import db as auto_db
+from app.automations.db import approvals as approvals_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import schema as schema_db
 from app.automations.models import (
     AutomationDefinition,
     Budget,
@@ -23,7 +25,7 @@ class TestAutomationRunner(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "runner_test.db")
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
         self.runner = AutomationRunner(db_path=self.db_path)
         self._orig_execute_tool = self.runner.registry_manager.execute_tool
 
@@ -59,7 +61,7 @@ class TestAutomationRunner(unittest.TestCase):
                 allowed_tools=["mock_tool_1", "mock_tool_2"]
             )
         )
-        auto_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
+        definitions_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
 
         def mock_execute(tool_name, params, **kwargs):
             if tool_name == "mock_tool_1":
@@ -113,7 +115,7 @@ class TestAutomationRunner(unittest.TestCase):
                 allowed_tools=["tool_prep", "tool_final"]
             )
         )
-        auto_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
+        definitions_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
 
         self.runner.registry_manager.execute_tool = MagicMock(return_value={"status": "ok"})
 
@@ -126,7 +128,7 @@ class TestAutomationRunner(unittest.TestCase):
         self.assertIsNotNone(paused_run.pending_approval_id)
 
         # Verifichiamo che l'approvazione sia presente su DB
-        apprs = auto_db.list_pending_approvals(run_id=run.run_id, db_path=self.db_path)
+        apprs = approvals_db.list_pending_approvals(run_id=run.run_id, db_path=self.db_path)
         self.assertEqual(len(apprs), 1)
         appr_id = apprs[0]["request_id"]
 
@@ -154,7 +156,7 @@ class TestAutomationRunner(unittest.TestCase):
             ),
             permission_policy=ExecutionPolicy(allowed_tools=["dangerous_tool"])
         )
-        auto_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
+        definitions_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
         self.runner.registry_manager.execute_tool = MagicMock()
 
         run = self.runner.start_run("auto_dry_test", dry_run=True)
@@ -190,7 +192,7 @@ class TestAutomationRunner(unittest.TestCase):
             ),
             permission_policy=ExecutionPolicy(allowed_tools=["tool_1", "tool_2"])
         )
-        auto_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
+        definitions_db.save_definition(auto_def.model_dump(), db_path=self.db_path)
 
         # Simuliamo un output con molti token
         with patch.object(self.runner, "_execute_step") as mock_step:

@@ -13,7 +13,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.automations import db as auto_db
+from app.automations.db import artifacts as artifacts_db
+from app.automations.db import definitions as definitions_db
 from app.automations.models import AutomationDefinition
 from app.core import config
 from app.registry.base import BaseToolRegistry
@@ -368,7 +369,7 @@ class AutomationRegistry(BaseToolRegistry):
             storage_uri = f"db://artifacts/{art_id}"
 
         try:
-            auto_db.save_artifact({
+            artifacts_db.save_artifact({
                 "artifact_id": art_id,
                 "run_id": run_id,
                 "step_run_id": step_run_id,
@@ -423,7 +424,7 @@ class AutomationRegistry(BaseToolRegistry):
         return templates
 
     def _list_automations(self, enabled_only: bool = False) -> List[Dict[str, Any]]:
-        autos = auto_db.list_automations(enabled_only=enabled_only, db_path=config.AUTOMATIONS_DB_PATH)
+        autos = definitions_db.list_definitions(enabled_only=enabled_only, db_path=config.AUTOMATIONS_DB_PATH)
         result = []
         for a in autos:
             triggers_summary = []
@@ -446,7 +447,7 @@ class AutomationRegistry(BaseToolRegistry):
         if not automation_id:
             return {"error": "automation_id obbligatorio."}
 
-        auto = auto_db.get_automation(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
+        auto = definitions_db.get_definition(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
         if auto:
             return auto
 
@@ -476,7 +477,7 @@ class AutomationRegistry(BaseToolRegistry):
         # Assegna un ID operativo univoco distinto dal template
         base_id = data.get("id", "auto").replace("tpl-", "auto-").replace("tpl_", "auto_")
         candidate_id = base_id
-        if auto_db.get_definition(candidate_id, db_path=config.AUTOMATIONS_DB_PATH):
+        if definitions_db.get_definition(candidate_id, db_path=config.AUTOMATIONS_DB_PATH):
             import uuid
             candidate_id = f"{base_id}_{uuid.uuid4().hex[:6]}"
         data["id"] = candidate_id
@@ -488,7 +489,7 @@ class AutomationRegistry(BaseToolRegistry):
 
         try:
             auto_def = AutomationDefinition(**data)
-            saved = auto_db.save_automation(auto_def.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_def.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
 
             # Sincronizza lo scheduler in background
             try:
@@ -540,7 +541,7 @@ class AutomationRegistry(BaseToolRegistry):
                         )
                     }
 
-            saved = auto_db.save_automation(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
 
             try:
                 from app.automations.scheduler import get_scheduler
@@ -565,7 +566,7 @@ class AutomationRegistry(BaseToolRegistry):
         if not updates or not isinstance(updates, dict):
             return {"error": "updates deve essere un oggetto JSON con i campi da aggiornare."}
 
-        existing = auto_db.get_automation(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
+        existing = definitions_db.get_definition(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
         if not existing:
             return {"error": f"Automazione '{automation_id}' non trovata."}
 
@@ -595,7 +596,7 @@ class AutomationRegistry(BaseToolRegistry):
                     )
                 }
 
-            saved = auto_db.save_automation(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
 
             try:
                 from app.automations.scheduler import get_scheduler

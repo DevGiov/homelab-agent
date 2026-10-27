@@ -35,7 +35,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 
 - **Evidenza**: log di `agent-backend` su CT 125:
   `ERROR:automations.scheduler:Errore durante l'esecuzione di auto-retention cleanup: bulk_delete_runs() got an unexpected keyword argument 'older_than_days'`
-- **Causa**: [automations/db.py:622](../../backend/app/automations/db.py) definisce `bulk_delete_runs(status, before_date, automation_id, failed_only, preserve_protected, run_ids, db_path)`, ma tre chiamanti passano `older_than_days`:
+- **Causa**: `automations/db.py:622` (oggi [db/runs.py](../../backend/app/automations/db/runs.py)) definisce `bulk_delete_runs(status, before_date, automation_id, failed_only, preserve_protected, run_ids, db_path)`, ma tre chiamanti passano `older_than_days`:
   - [automations/scheduler.py:189](../../backend/app/automations/scheduler.py) e `:195` (job di retention)
   - [automations/router.py:262](../../backend/app/automations/router.py) (`DELETE /v1/automations/runs`)
   - [automations/router.py:275](../../backend/app/automations/router.py) (`POST /v1/automations/runs/delete-batch`)
@@ -98,11 +98,12 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 ## ISS-09
 **Moduli monolitici, backend non strutturato a pacchetti** — S3
 
-- File oltre le 1000 righe: [graph.py](../../backend/app/agent/graph.py) (1730), [automations/db.py](../../backend/app/automations/db.py) (1315), [api.py](../../backend/app/api/) (1202).
+- File oltre le 1000 righe: [graph.py](../../backend/app/agent/graph.py) (1730), `automations/db.py` (1315), [api.py](../../backend/app/api/) (1202).
 - Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
 - La ristrutturazione a pacchetti (Fase 1.5 della vecchia roadmap) era stata rinviata per non rompere CT 112, ora dismesso: il vincolo non esiste più.
 - **Avanzamento (B1, 2026-10-27)**: codice nel pacchetto `app/` con sottopacchetti per dominio e import assoluti; `api.py` diviso in `app/api/routes/` (8 router, il più grande ~240 righe) più `agent_runner.py` e `deps.py`. Restano `graph.py` (B2), `automations/db.py` (B3) e i database nella radice del codice (B7).
 - **Avanzamento (B2, 2026-10-27)**: `graph.py` (1730 righe) diviso in `app/agent/nodes/` (un modulo per nodo, il più grande ~235 righe), `execution_log.py` (Saga/WAL, ~340), `llm_calls.py`, `state.py` e `memory/transcript.py`; `graph.py` resta con la sola costruzione del grafo (~75 righe). Restano `automations/db.py` (B3) e i database nella radice del codice (B7).
+- **Avanzamento (B3, 2026-10-27)**: `automations/db.py` (1316 righe) diviso nel pacchetto `app/automations/db/` (il modulo più grande, `runs.py`, ~420 righe); i chiamanti importano i moduli per aggregato. Sopra le ~600 righe restano `automations/runner.py` (995), `automations/router.py` (808), `agent_loop.py` (605) e `automations/models.py` (602).
 
 ## ISS-10
 **Fallback MCP legacy e shim di retrocompatibilità** — S3

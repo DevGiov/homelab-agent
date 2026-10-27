@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from cryptography.fernet import Fernet
 
-from app.automations import db as auto_db
+from app.automations.db import integrations as integrations_db
 from app.core import config
 
 logger = logging.getLogger("integrations.manager")
@@ -81,7 +81,7 @@ class IntegrationManager:
 
     def list_integrations(self, service_type: Optional[str] = None, decrypt: bool = False) -> List[Dict[str, Any]]:
         """Elenca tutte le integrazioni registrate."""
-        raw_list = auto_db.list_integrations(service_type=service_type, db_path=self.db_path)
+        raw_list = integrations_db.list_integrations(service_type=service_type, db_path=self.db_path)
         results = []
         for r in raw_list:
             item = dict(r)
@@ -101,7 +101,7 @@ class IntegrationManager:
 
     def get_integration(self, integration_id: str, decrypt: bool = False) -> Optional[Dict[str, Any]]:
         """Recupera il dettaglio di una singola integrazione."""
-        r = auto_db.get_integration(integration_id, db_path=self.db_path)
+        r = integrations_db.get_integration(integration_id, db_path=self.db_path)
         if not r:
             return None
         item = dict(r)
@@ -124,7 +124,7 @@ class IntegrationManager:
         if not integration_id:
             raise ValueError("Il campo 'id' è obbligatorio per l'integrazione.")
 
-        existing = auto_db.get_integration(integration_id, db_path=self.db_path)
+        existing = integrations_db.get_integration(integration_id, db_path=self.db_path)
         existing_secrets = {}
         if existing:
             existing_secrets = decrypt_secrets(existing.get("encrypted_secrets_json") or "{}")
@@ -156,12 +156,12 @@ class IntegrationManager:
             "updated_at": now_iso,
         }
 
-        auto_db.save_integration(db_payload, db_path=self.db_path)
+        integrations_db.save_integration(db_payload, db_path=self.db_path)
         return self.get_integration(integration_id, decrypt=False)
 
     def delete_integration(self, integration_id: str) -> bool:
         """Elimina un'integrazione."""
-        return auto_db.delete_integration(integration_id, db_path=self.db_path)
+        return integrations_db.delete_integration(integration_id, db_path=self.db_path)
 
     def test_connection(self, integration_id: str) -> Dict[str, Any]:
         """Esegue il test di connessione in tempo reale per l'integrazione specificata."""
@@ -198,7 +198,7 @@ class IntegrationManager:
         # Aggiorna lo stato nel database
         new_status = "connected" if outcome.get("success") else "error"
         now_iso = datetime.now(timezone.utc).isoformat()
-        auto_db.update_integration_status(
+        integrations_db.update_integration_status(
             integration_id=integration_id,
             status=new_status,
             last_tested_at=now_iso,

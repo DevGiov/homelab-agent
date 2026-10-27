@@ -11,8 +11,9 @@ import os
 import tempfile
 import unittest
 
-from app.automations import db as auto_db
 from app.automations.circuit_breaker import CircuitBreakerManager, CircuitState
+from app.automations.db import definitions as definitions_db
+from app.automations.db import schema as schema_db
 from app.automations.models import RunStatus, TriggerType
 from app.automations.runner import AutomationRunner
 from app.security import audit_log
@@ -22,7 +23,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.tmp_dir.name, "test_gov.db")
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
         self.runner = AutomationRunner(db_path=self.db_path)
         self.cb = CircuitBreakerManager(db_path=self.db_path)
 
@@ -53,7 +54,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
                 "allowed_registries": ["email"],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         # Esecuzione run
         run = self.runner.start_run("auto_audit_corr_test", trigger_type=TriggerType.MANUAL, dry_run=False)
@@ -94,7 +95,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
                 "allowed_registries": ["email"],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         # 3 esecuzioni consecutive fallite
         for _ in range(3):
@@ -149,7 +150,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
                 "allowed_registries": ["email"],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         # Configura limite ridotto per il test (es. 2 run/ora)
         allowed, _ = self.cb.check_execution_allowed(auto_id, max_runs_per_hour=2)
@@ -190,7 +191,7 @@ class TestAutomationsGovernanceAndSecurity(unittest.TestCase):
                 "allowed_registries": ["email"],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         run = self.runner.start_run("auto_security_policy_test", trigger_type=TriggerType.MANUAL)
         finished_run = self.runner.execute_run(run.run_id)

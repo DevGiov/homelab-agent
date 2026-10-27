@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.automations.db import artifacts as artifacts_db
 from app.registry.base import BaseToolRegistry
 
 logger = logging.getLogger("registry.email")
@@ -233,8 +234,7 @@ class EmailRegistry(BaseToolRegistry):
 
         # Tenta il salvataggio su tabella DB 'artifacts' se disponibile
         try:
-            from app.automations import db as auto_db
-            auto_db.save_artifact({
+            artifacts_db.save_artifact({
                 "artifact_id": artifact_id,
                 "run_id": eff_run_id,
                 "step_run_id": step_run_id,

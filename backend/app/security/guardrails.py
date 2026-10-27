@@ -13,6 +13,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.automations.db import approvals as approvals_db
 from app.security import permissions
 
 logger = logging.getLogger("guardrails")
@@ -386,8 +387,7 @@ def create_approval_request(
 
     # Sincronizzazione persistente su automations.db
     try:
-        from app.automations import db as auto_db
-        auto_db.create_automation_approval({
+        approvals_db.create_automation_approval({
             "request_id": req.request_id,
             "run_id": thread_id or "chat_session",
             "tool_name": tool_name,
@@ -491,8 +491,7 @@ def resolve_approval(
         if not req:
             # Fallback a recupero da DB se riavviato
             try:
-                from app.automations import db as auto_db
-                db_appr = auto_db.get_automation_approval(request_id)
+                db_appr = approvals_db.get_automation_approval(request_id)
                 if db_appr and db_appr.get("status") == "pending":
                     req = ApprovalRequest(
                         request_id=db_appr["request_id"],
@@ -514,8 +513,7 @@ def resolve_approval(
         if time.time() - req.created_at > APPROVAL_TTL_SECONDS:
             req.status = "expired"
             try:
-                from app.automations import db as auto_db
-                auto_db.resolve_automation_approval(request_id, "expired", resolved_by=resolved_by)
+                approvals_db.resolve_automation_approval(request_id, "expired", resolved_by=resolved_by)
             except Exception:
                 pass
             return req
@@ -525,8 +523,7 @@ def resolve_approval(
             req.status = "denied"
             req.resolved_by = resolved_by
             try:
-                from app.automations import db as auto_db
-                auto_db.resolve_automation_approval(request_id, "deny", resolved_by=resolved_by)
+                approvals_db.resolve_automation_approval(request_id, "deny", resolved_by=resolved_by)
             except Exception:
                 pass
             logger.info(f"Approval {request_id}: NEGATA da {resolved_by}")
@@ -536,8 +533,7 @@ def resolve_approval(
         req.status = "approved"
         req.resolved_by = resolved_by
         try:
-            from app.automations import db as auto_db
-            auto_db.resolve_automation_approval(request_id, "approve", resolved_by=resolved_by)
+            approvals_db.resolve_automation_approval(request_id, "approve", resolved_by=resolved_by)
         except Exception:
             pass
 
@@ -582,8 +578,7 @@ def get_pending_approvals(thread_id: Optional[str] = None) -> List[Dict[str, Any
 
         # Integrazione record persistenti da DB per richieste sopravvissute al restart
         try:
-            from app.automations import db as auto_db
-            db_pending = auto_db.list_pending_approvals()
+            db_pending = approvals_db.list_pending_approvals()
             for d in db_pending:
                 rid = d.get("request_id")
                 if rid and rid not in seen_ids:

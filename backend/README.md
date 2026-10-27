@@ -82,7 +82,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/security/` | `guardrails.py` (Tier 1 blocco deterministico, Tier 2 approvazione), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
 | `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `knowledge_base.py`, `letta_client.py`, `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
 | `app/registry/` | Registry dei tool: `metamcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
-| `app/automations/` | Definizioni, run, scheduler, runner, code runner, template, loop |
+| `app/automations/` | Definizioni, run, scheduler, runner, code runner, template, loop; `db/` è il database SQLite con un modulo per aggregato (`definitions`, `runs`, `approvals`, `artifacts`, `breaker_states`, `integrations`) più `connection.py` e `schema.py` |
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
 | `app/mcp/` | `sdk_client.py` (SDK ufficiale MCP), `client.py` (client legacy, da rimuovere in B4) |
 | `app/integrations/` | Integrazioni di servizio per le automazioni |

@@ -7,7 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.automations import db as auto_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import runs as runs_db
+from app.automations.db import schema as schema_db
 from app.automations.models import RunStatus, TriggerType
 from app.automations.runner import AutomationRunner
 from app.automations.scheduler import AutomationScheduler
@@ -18,7 +20,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.tmp_dir.name, "test_scheduler.db")
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
         self.runner = AutomationRunner(db_path=self.db_path)
         self.scheduler = AutomationScheduler(db_path=self.db_path)
 
@@ -96,7 +98,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
                 ],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         # Avvio scheduler
         self.scheduler.start()
@@ -109,7 +111,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
 
         # Disabilitazione automazione e re-sync
         auto_payload["enabled"] = False
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
         self.scheduler.sync_triggers()
 
         jobs_after = self.scheduler.get_scheduled_jobs()
@@ -130,7 +132,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
             tpl_data = json.load(f)
 
         # Salva definizione template nel DB di test
-        auto_db.save_definition(tpl_data, db_path=self.db_path)
+        definitions_db.save_definition(tpl_data, db_path=self.db_path)
 
         # Inizia run in modalità dry-run
         run = self.runner.start_run(
@@ -147,7 +149,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
         self.assertIsNone(finished_run.error_message)
 
         # Verifica che tutti e 4 gli step siano stati eseguiti con successo
-        step_runs = auto_db.list_step_runs(run.run_id, db_path=self.db_path)
+        step_runs = runs_db.list_step_runs(run.run_id, db_path=self.db_path)
         self.assertEqual(len(step_runs), 4)
 
         step_ids = [sr["step_id"] for sr in step_runs]
@@ -187,17 +189,17 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
                 ],
             },
         }
-        auto_db.save_definition(auto_payload, db_path=self.db_path)
+        definitions_db.save_definition(auto_payload, db_path=self.db_path)
 
         # Invocazione asincrona del callback dello scheduler
         asyncio.run(self.scheduler._execute_scheduled_run("auto_cron_exec_test", "trg_cron_noon"))
 
         # Verifica che la run sia stata creata su DB con trigger_type="cron" e payload corretto
-        runs = auto_db.list_runs(automation_id="auto_cron_exec_test", db_path=self.db_path)
+        runs = runs_db.list_runs(automation_id="auto_cron_exec_test", db_path=self.db_path)
         self.assertGreaterEqual(len(runs), 1)
         latest_summary = runs[0]
         self.assertEqual(latest_summary["trigger_type"], "cron")
-        full_run = auto_db.get_run(latest_summary["run_id"], db_path=self.db_path)
+        full_run = runs_db.get_run(latest_summary["run_id"], db_path=self.db_path)
         self.assertIsNotNone(full_run)
         self.assertEqual(full_run["trigger_payload"].get("trigger_id"), "trg_cron_noon")
 

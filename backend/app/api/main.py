@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.deps import limiter
 from app.api.routes import approvals, chat, kb, memory, providers, system, threads, uploads
-from app.automations.db import init_automations_db
+from app.automations.db.schema import init_automations_db
 from app.automations.router import router as automations_router
 from app.automations.router import webhook_router as automations_webhook_router
 from app.calendar.db import init_calendar_db

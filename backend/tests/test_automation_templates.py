@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.automations import db as auto_db
+from app.automations.db import schema as schema_db
 from app.core import config
 from app.registry import automations_tool
 from app.registry.automations_tool import AutomationRegistry, _resolve_template
@@ -48,7 +48,7 @@ def test_exact_id_wins_regardless_of_file_order(templates_dir):
 
 
 def test_details_falls_back_to_resolved_template(templates_dir):
-    auto_db.init_automations_db(config.AUTOMATIONS_DB_PATH)
+    schema_db.init_automations_db(config.AUTOMATIONS_DB_PATH)
     details = AutomationRegistry().execute_tool("get_automation_details", {"automation_id": "tpl_email_briefing"})
     assert details["id"] == "tpl-daily-email-briefing"
     assert details["_is_template"] is True

@@ -7,21 +7,26 @@ import threading
 import time
 import unittest
 
-from app.automations import db as auto_db
+from app.automations.db import approvals as approvals_db
+from app.automations.db import artifacts as artifacts_db
+from app.automations.db import connection as connection_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import runs as runs_db
+from app.automations.db import schema as schema_db
 
 
 class TestAutomationsDB(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_automations.db")
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_pragmas_and_wal_mode(self):
         """Verifica che la connessione imposti WAL mode e busy_timeout adeguato."""
-        conn = auto_db.get_db_connection(self.db_path)
+        conn = connection_db.get_db_connection(self.db_path)
         cur = conn.cursor()
         cur.execute("PRAGMA journal_mode;")
         row = cur.fetchone()
@@ -48,32 +53,32 @@ class TestAutomationsDB(unittest.TestCase):
             },
             "created_by": "tester"
         }
-        saved = auto_db.save_definition(auto_data, db_path=self.db_path)
+        saved = definitions_db.save_definition(auto_data, db_path=self.db_path)
         self.assertEqual(saved["id"], "auto_test_1")
 
-        loaded = auto_db.get_definition("auto_test_1", db_path=self.db_path)
+        loaded = definitions_db.get_definition("auto_test_1", db_path=self.db_path)
         self.assertIsNotNone(loaded)
         self.assertEqual(loaded["name"], "Test Routine")
         self.assertTrue(loaded["enabled"])
 
         # Toggle enabled
-        auto_db.set_definition_enabled("auto_test_1", False, db_path=self.db_path)
-        updated = auto_db.get_definition("auto_test_1", db_path=self.db_path)
+        definitions_db.set_definition_enabled("auto_test_1", False, db_path=self.db_path)
+        updated = definitions_db.get_definition("auto_test_1", db_path=self.db_path)
         self.assertFalse(updated["enabled"])
 
         # List
-        all_defs = auto_db.list_definitions(db_path=self.db_path)
+        all_defs = definitions_db.list_definitions(db_path=self.db_path)
         self.assertEqual(len(all_defs), 1)
 
         # Delete
-        del_res = auto_db.delete_definition("auto_test_1", db_path=self.db_path)
+        del_res = definitions_db.delete_definition("auto_test_1", db_path=self.db_path)
         self.assertTrue(del_res)
-        self.assertIsNone(auto_db.get_definition("auto_test_1", db_path=self.db_path))
+        self.assertIsNone(definitions_db.get_definition("auto_test_1", db_path=self.db_path))
 
     def test_run_and_step_run_lifecycle(self):
         """Verifica creazione run, aggiornamento stato, tracciamento step e artefatti."""
         # Creiamo prima una definizione genitore
-        auto_db.save_definition({
+        definitions_db.save_definition({
             "id": "auto_parent",
             "name": "Parent",
             "workflow": {"steps": []}
@@ -89,15 +94,15 @@ class TestAutomationsDB(unittest.TestCase):
             "idempotency_key": "idemp_test_001",
             "is_dry_run": False
         }
-        auto_db.create_run(run_data, db_path=self.db_path)
+        runs_db.create_run(run_data, db_path=self.db_path)
 
         # Idempotency check
-        dup_run = auto_db.get_run_by_idempotency_key("idemp_test_001", db_path=self.db_path)
+        dup_run = runs_db.get_run_by_idempotency_key("idemp_test_001", db_path=self.db_path)
         self.assertIsNotNone(dup_run)
         self.assertEqual(dup_run["run_id"], "run_001")
 
         # Step 1
-        auto_db.save_step_run({
+        runs_db.save_step_run({
             "step_run_id": "sr_1",
             "run_id": "run_001",
             "step_id": "step_fetch",
@@ -110,7 +115,7 @@ class TestAutomationsDB(unittest.TestCase):
         }, db_path=self.db_path)
 
         # Artifact
-        auto_db.save_artifact({
+        artifacts_db.save_artifact({
             "artifact_id": "art_1",
             "run_id": "run_001",
             "step_run_id": "sr_1",
@@ -121,10 +126,10 @@ class TestAutomationsDB(unittest.TestCase):
         }, db_path=self.db_path)
 
         # Update run status
-        auto_db.update_run_status("run_001", "completed", total_tokens=150, total_duration_ms=2000, db_path=self.db_path)
+        runs_db.update_run_status("run_001", "completed", total_tokens=150, total_duration_ms=2000, db_path=self.db_path)
 
         # Verifica stato completo del run
-        full_run = auto_db.get_run("run_001", db_path=self.db_path)
+        full_run = runs_db.get_run("run_001", db_path=self.db_path)
         self.assertIsNotNone(full_run)
         self.assertEqual(full_run["status"], "completed")
         self.assertEqual(len(full_run["step_runs"]), 1)
@@ -134,14 +139,14 @@ class TestAutomationsDB(unittest.TestCase):
         self.assertEqual(full_run["artifacts"][0]["title"], "report.md")
 
         # Verifica salvataggio resiliente senza run pre-esistente (nessuna violazione FK)
-        standalone_art = auto_db.save_artifact({
+        standalone_art = artifacts_db.save_artifact({
             "artifact_id": "art_standalone",
             "run_id": "manual_or_direct",
             "name": "manual_report.md",
             "storage_uri": "/tmp/test.md"
         }, db_path=self.db_path)
         self.assertEqual(standalone_art["artifact_id"], "art_standalone")
-        saved_art = auto_db.get_artifact("art_standalone", db_path=self.db_path)
+        saved_art = artifacts_db.get_artifact("art_standalone", db_path=self.db_path)
         self.assertIsNotNone(saved_art)
         self.assertEqual(saved_art["title"], "manual_report.md")
 
@@ -160,26 +165,26 @@ class TestAutomationsDB(unittest.TestCase):
             "status": "pending",
             "expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
         }
-        auto_db.create_automation_approval(appr_data, db_path=self.db_path)
+        approvals_db.create_automation_approval(appr_data, db_path=self.db_path)
 
         # Query pending
-        pendings = auto_db.list_pending_approvals(db_path=self.db_path)
+        pendings = approvals_db.list_pending_approvals(db_path=self.db_path)
         self.assertEqual(len(pendings), 1)
         self.assertEqual(pendings[0]["request_id"], "apr_test_persist")
 
         # Resolve approve
-        resolved = auto_db.resolve_automation_approval("apr_test_persist", "approve", resolved_by="admin", db_path=self.db_path)
+        resolved = approvals_db.resolve_automation_approval("apr_test_persist", "approve", resolved_by="admin", db_path=self.db_path)
         self.assertIsNotNone(resolved)
         self.assertEqual(resolved["status"], "approved")
         self.assertEqual(resolved["resolved_by"], "admin")
 
         # Query pending di nuovo: deve essere vuota
-        pendings_after = auto_db.list_pending_approvals(db_path=self.db_path)
+        pendings_after = approvals_db.list_pending_approvals(db_path=self.db_path)
         self.assertEqual(len(pendings_after), 0)
 
     def test_concurrent_multithreaded_writes(self):
         """Verifica che 10 thread simultanei possano scrivere su SQLite in WAL mode senza collisioni."""
-        auto_db.save_definition({
+        definitions_db.save_definition({
             "id": "auto_concurrent",
             "name": "Concurrent Parent",
             "workflow": {"steps": []}
@@ -190,7 +195,7 @@ class TestAutomationsDB(unittest.TestCase):
         def worker(thread_idx: int):
             try:
                 run_id = f"run_thread_{thread_idx}"
-                auto_db.create_run({
+                runs_db.create_run({
                     "run_id": run_id,
                     "automation_id": "auto_concurrent",
                     "status": "running",
@@ -198,7 +203,7 @@ class TestAutomationsDB(unittest.TestCase):
                 }, db_path=self.db_path)
 
                 for step_idx in range(5):
-                    auto_db.save_step_run({
+                    runs_db.save_step_run({
                         "step_run_id": f"sr_{thread_idx}_{step_idx}",
                         "run_id": run_id,
                         "step_id": f"step_{step_idx}",
@@ -207,7 +212,7 @@ class TestAutomationsDB(unittest.TestCase):
                     }, db_path=self.db_path)
                     time.sleep(0.01)
 
-                auto_db.update_run_status(run_id, "completed", total_tokens=50, db_path=self.db_path)
+                runs_db.update_run_status(run_id, "completed", total_tokens=50, db_path=self.db_path)
             except Exception as e:
                 errors.append(e)
 
@@ -218,7 +223,7 @@ class TestAutomationsDB(unittest.TestCase):
             t.join()
 
         self.assertEqual(len(errors), 0, f"Errori di concorrenza rilevati: {errors}")
-        runs = auto_db.list_runs(automation_id="auto_concurrent", limit=100, db_path=self.db_path)
+        runs = runs_db.list_runs(automation_id="auto_concurrent", limit=100, db_path=self.db_path)
         self.assertEqual(len(runs), 10)
 
 

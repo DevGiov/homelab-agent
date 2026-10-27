@@ -13,7 +13,8 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app.api.main import api
-from app.automations import db as auto_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import schema as schema_db
 from app.core import config
 
 
@@ -23,7 +24,7 @@ class TestAutomationsTriggersV2(unittest.TestCase):
         cls.test_dir = tempfile.mkdtemp()
         cls.db_path = os.path.join(cls.test_dir, "test_triggers_v2.db")
         config.AUTOMATIONS_DB_PATH = cls.db_path
-        auto_db.init_automations_db(cls.db_path)
+        schema_db.init_automations_db(cls.db_path)
         cls.client = TestClient(api)
         cls.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
 
@@ -54,7 +55,7 @@ class TestAutomationsTriggersV2(unittest.TestCase):
         self.assertFalse(data["enabled"])
 
         # Check DB
-        d = auto_db.get_definition("auto_test_toggle", db_path=self.db_path)
+        d = definitions_db.get_definition("auto_test_toggle", db_path=self.db_path)
         self.assertFalse(d["enabled"])
 
         # 2. Toggle explicitly with payload -> set to True
@@ -67,7 +68,7 @@ class TestAutomationsTriggersV2(unittest.TestCase):
         data = res.json()
         self.assertTrue(data["enabled"])
 
-        d = auto_db.get_definition("auto_test_toggle", db_path=self.db_path)
+        d = definitions_db.get_definition("auto_test_toggle", db_path=self.db_path)
         self.assertTrue(d["enabled"])
 
     def test_update_triggers_directly(self):

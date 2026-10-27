@@ -12,7 +12,10 @@ import shutil
 import tempfile
 import unittest
 
-from app.automations import db as auto_db
+from app.automations.db import artifacts as artifacts_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import runs as runs_db
+from app.automations.db import schema as schema_db
 from app.automations.introspection import introspect_automation_parameters
 from app.automations.models import (
     AutomationDefinition,
@@ -29,7 +32,7 @@ class TestAutomationsV2(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_automations.db")
         config.AUTOMATIONS_DB_PATH = self.db_path
-        auto_db.init_automations_db(self.db_path)
+        schema_db.init_automations_db(self.db_path)
 
     def tearDown(self):
         from app.core import config
@@ -52,39 +55,39 @@ class TestAutomationsV2(unittest.TestCase):
         with open(art1["storage_uri"], "w") as f:
             f.write("# Briefing 1 Content")
 
-        auto_db.save_artifact(art1, db_path=self.db_path)
+        artifacts_db.save_artifact(art1, db_path=self.db_path)
 
         # List all
-        all_arts = auto_db.list_all_artifacts(db_path=self.db_path)
+        all_arts = artifacts_db.list_all_artifacts(db_path=self.db_path)
         self.assertEqual(len(all_arts), 1)
         self.assertEqual(all_arts[0]["title"], "Daily Briefing 1")
         self.assertFalse(all_arts[0]["is_favorite"])
         self.assertFalse(all_arts[0]["is_preserved"])
 
         # Toggle favorite
-        fav = auto_db.toggle_artifact_favorite("art_test_1", db_path=self.db_path)
+        fav = artifacts_db.toggle_artifact_favorite("art_test_1", db_path=self.db_path)
         self.assertTrue(fav)
-        all_favs = auto_db.list_all_artifacts(favorite_only=True, db_path=self.db_path)
+        all_favs = artifacts_db.list_all_artifacts(favorite_only=True, db_path=self.db_path)
         self.assertEqual(len(all_favs), 1)
 
         # Toggle preserve
-        pres = auto_db.toggle_artifact_preserve("art_test_1", db_path=self.db_path)
+        pres = artifacts_db.toggle_artifact_preserve("art_test_1", db_path=self.db_path)
         self.assertTrue(pres)
 
         # Delete when preserved should fail
-        del_fail = auto_db.delete_artifact("art_test_1", db_path=self.db_path)
+        del_fail = artifacts_db.delete_artifact("art_test_1", db_path=self.db_path)
         self.assertFalse(del_fail)
         self.assertTrue(os.path.exists(art1["storage_uri"]))
 
         # Unlock preserve and delete should succeed
-        auto_db.toggle_artifact_preserve("art_test_1", db_path=self.db_path)
-        del_ok = auto_db.delete_artifact("art_test_1", db_path=self.db_path)
+        artifacts_db.toggle_artifact_preserve("art_test_1", db_path=self.db_path)
+        del_ok = artifacts_db.delete_artifact("art_test_1", db_path=self.db_path)
         self.assertTrue(del_ok)
         self.assertFalse(os.path.exists(art1["storage_uri"]))
 
     def test_run_management_and_bulk_delete(self):
         """Testa gestione run, star, preserve, delete singola e bulk delete."""
-        auto_db.save_definition({
+        definitions_db.save_definition({
             "id": "auto_test",
             "name": "Test Automation",
             "workflow": {
@@ -102,7 +105,7 @@ class TestAutomationsV2(unittest.TestCase):
             "is_dry_run": False,
             "started_at": "2026-09-01T10:00:00Z",
         }
-        auto_db.create_run(run_data, db_path=self.db_path)
+        runs_db.create_run(run_data, db_path=self.db_path)
 
         run_data_2 = {
             "run_id": "run_02",
@@ -113,30 +116,30 @@ class TestAutomationsV2(unittest.TestCase):
             "is_dry_run": False,
             "started_at": "2026-09-02T10:00:00Z",
         }
-        auto_db.create_run(run_data_2, db_path=self.db_path)
+        runs_db.create_run(run_data_2, db_path=self.db_path)
 
-        runs = auto_db.list_runs(automation_id="auto_test", db_path=self.db_path)
+        runs = runs_db.list_runs(automation_id="auto_test", db_path=self.db_path)
         self.assertEqual(len(runs), 2)
 
         # Toggle star / favorite
-        is_fav = auto_db.toggle_run_favorite("run_01", db_path=self.db_path)
+        is_fav = runs_db.toggle_run_favorite("run_01", db_path=self.db_path)
         self.assertTrue(is_fav)
 
         # Toggle preserve
-        is_pres = auto_db.toggle_run_preserve("run_02", db_path=self.db_path)
+        is_pres = runs_db.toggle_run_preserve("run_02", db_path=self.db_path)
         self.assertTrue(is_pres)
 
         # Single delete run_02 (preserved) -> must raise ValueError
         with self.assertRaises(ValueError):
-            auto_db.delete_run("run_02", db_path=self.db_path)
+            runs_db.delete_run("run_02", db_path=self.db_path)
 
         # Bulk delete failed_only (run_01 is failed and not preserved, but is_favorite -> bulk delete skips favorites unless older)
         # Unfavorite run_01
-        auto_db.toggle_run_favorite("run_01", db_path=self.db_path)
-        del_count = auto_db.bulk_delete_runs(automation_id="auto_test", failed_only=True, db_path=self.db_path)
+        runs_db.toggle_run_favorite("run_01", db_path=self.db_path)
+        del_count = runs_db.bulk_delete_runs(automation_id="auto_test", failed_only=True, db_path=self.db_path)
         self.assertEqual(del_count, 1)
 
-        remaining = auto_db.list_runs(automation_id="auto_test", db_path=self.db_path)
+        remaining = runs_db.list_runs(automation_id="auto_test", db_path=self.db_path)
         self.assertEqual(len(remaining), 1)
         self.assertEqual(remaining[0]["run_id"], "run_02")
 
@@ -263,7 +266,6 @@ class TestAutomationsV2(unittest.TestCase):
 
     def test_trigger_normalization_and_inference(self):
         """Verifica la normalizzazione resiliente dei trigger (dict, schedule synonym, e time inference)."""
-        from app.automations import db as auto_db
         from app.automations.models import TriggerType
 
         # 1. Triggers passato come dict singolo con sinonimo 'schedule'
@@ -297,7 +299,7 @@ class TestAutomationsV2(unittest.TestCase):
         self.assertEqual(cron_trgs[0].cron_expression, "0 12 * * *")
 
         # 3. Test Runner.start_run con trigger_id e is_dry_run
-        auto_db.save_definition(a1.model_dump(mode="json"), db_path=self.db_path)
+        definitions_db.save_definition(a1.model_dump(mode="json"), db_path=self.db_path)
         runner = AutomationRunner(db_path=self.db_path)
         run = runner.start_run(
             automation_id="auto_dict_trigger",

@@ -8,7 +8,8 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app.api.main import api
-from app.automations.db import init_automations_db, save_definition
+from app.automations.db.definitions import save_definition
+from app.automations.db.schema import init_automations_db
 from app.automations.models import (
     AutomationDefinition,
     ExecutionPolicy,

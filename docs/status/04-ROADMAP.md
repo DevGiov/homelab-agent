@@ -29,7 +29,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | :--- | :--- | :--- |
 | B1 | ~~Backend in pacchetto `app/`: `api/` (router per dominio), `agent/`, `registry/`, `automations/`, `calendar/`, `memory/`, `core/`~~ ✅ 2026-10-27 (in più: `security/`, `llm/`, `mcp/`; `sdk/` resta fuori perché pubblico) | ISS-09 |
 | B2 | ~~Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato~~ ✅ 2026-10-27 (in più: `state.py`, `llm_calls.py`, `memory/transcript.py`) | ISS-09 |
-| B3 | Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts) | ISS-09 |
+| B3 | ~~Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts)~~ ✅ 2026-10-27 (in più: `breaker_states`, `integrations`; rimossi la migrazione `_ensure_v2_columns` e gli alias `*_automation`) | ISS-09 |
 | B4 | Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione | ISS-10 |
 | B8 | Router via provider astratto invece di `requests` diretto | ISS-23 |
 | B9 | ~~Decisione e fix sul fallback non isolato della sandbox codice~~ ✅ 2026-10-26 (fallback previa approvazione) | ISS-18 |

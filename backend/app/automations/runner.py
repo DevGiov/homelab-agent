@@ -13,7 +13,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from app.automations import db as auto_db
+from app.automations.db import approvals as approvals_db
+from app.automations.db import artifacts as artifacts_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import runs as runs_db
 from app.automations.models import (
     AutomationDefinition,
     AutomationRun,
@@ -298,7 +301,7 @@ class AutomationRunner:
         if trigger_id and "trigger_id" not in payload:
             payload["trigger_id"] = trigger_id
 
-        definition_dict = auto_db.get_definition(automation_id, db_path=self.db_path)
+        definition_dict = definitions_db.get_definition(automation_id, db_path=self.db_path)
         if not definition_dict:
             raise ValueError(f"Automazione '{automation_id}' non trovata.")
 
@@ -310,10 +313,10 @@ class AutomationRunner:
         idemp_key = idempotency_key or f"{automation_id}_{time.time()}_{uuid.uuid4().hex[:6]}"
 
         # Verifica duplicati
-        existing = auto_db.get_run_by_idempotency_key(idemp_key, db_path=self.db_path)
+        existing = runs_db.get_run_by_idempotency_key(idemp_key, db_path=self.db_path)
         if existing and existing["status"] in ("pending", "running", "completed"):
             logger.info(f"Run con idempotency_key '{idemp_key}' già registrata. Ritorno istanza esistente.")
-            loaded = auto_db.get_run(existing["run_id"], db_path=self.db_path)
+            loaded = runs_db.get_run(existing["run_id"], db_path=self.db_path)
             return AutomationRun(**loaded)
 
         # Verifica Circuit Breaker (Milestone M4)
@@ -333,7 +336,7 @@ class AutomationRunner:
                 "associated_thread_id": associated_thread_id,
                 "error_message": reason,
             }
-            auto_db.create_run(run_data, db_path=self.db_path)
+            runs_db.create_run(run_data, db_path=self.db_path)
             return AutomationRun(**run_data)
 
         run_data = {
@@ -349,7 +352,7 @@ class AutomationRunner:
             "associated_thread_id": associated_thread_id,
         }
 
-        auto_db.create_run(run_data, db_path=self.db_path)
+        runs_db.create_run(run_data, db_path=self.db_path)
         logger.info(f"Run '{run_id}' creata per automazione '{automation_id}' (dry_run={dry_run})")
         return AutomationRun(**run_data)
 
@@ -357,7 +360,7 @@ class AutomationRunner:
 
     def execute_run(self, run_id: str) -> AutomationRun:
         """Esegue sequenzialmente gli step della run fino a completamento, blocco o approval."""
-        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        run_dict = runs_db.get_run(run_id, db_path=self.db_path)
         if not run_dict:
             raise ValueError(f"Run '{run_id}' non trovata.")
 
@@ -365,13 +368,13 @@ class AutomationRunner:
         if run.status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.BLOCKED):
             return run
 
-        auto_dict = auto_db.get_definition(run.automation_id, db_path=self.db_path)
+        auto_dict = definitions_db.get_definition(run.automation_id, db_path=self.db_path)
         if not auto_dict:
             raise ValueError(f"Definizione '{run.automation_id}' mancante per run '{run_id}'.")
         auto_def = AutomationDefinition(**auto_dict)
 
         # Transizione a RUNNING
-        auto_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
+        runs_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
         run.status = RunStatus.RUNNING
 
         # Parametri effettivi: i parametri del trigger_payload sovrascrivono i default
@@ -439,11 +442,11 @@ class AutomationRunner:
 
         while current_step_id:
             # 0. Controllo cooperativo di stato (PAUSED o CANCELLED)
-            db_run = auto_db.get_run(run_id, db_path=self.db_path)
+            db_run = runs_db.get_run(run_id, db_path=self.db_path)
             if db_run:
                 if db_run["status"] == RunStatus.PAUSED.value:
                     logger.info(f"Run '{run_id}' congelata in PAUSA prima dello step '{current_step_id}'.")
-                    auto_db.update_run_status(run_id, RunStatus.PAUSED.value, current_step_id=current_step_id, db_path=self.db_path)
+                    runs_db.update_run_status(run_id, RunStatus.PAUSED.value, current_step_id=current_step_id, db_path=self.db_path)
                     run.status = RunStatus.PAUSED
                     run.current_step_id = current_step_id
                     return run
@@ -455,7 +458,7 @@ class AutomationRunner:
             step_def = steps_map.get(current_step_id)
             if not step_def:
                 logger.error(f"Step '{current_step_id}' non trovato nel workflow.")
-                auto_db.update_run_status(run_id, RunStatus.FAILED.value, error_message=f"Step '{current_step_id}' mancante", db_path=self.db_path)
+                runs_db.update_run_status(run_id, RunStatus.FAILED.value, error_message=f"Step '{current_step_id}' mancante", db_path=self.db_path)
                 run.status = RunStatus.FAILED
                 break
 
@@ -464,14 +467,14 @@ class AutomationRunner:
             if elapsed_sec > auto_def.budget.max_duration_seconds:
                 err_msg = f"Timeout globale run superato: {elapsed_sec:.1f}s > {auto_def.budget.max_duration_seconds}s"
                 logger.warning(f"Run '{run_id}': {err_msg}")
-                auto_db.update_run_status(run_id, RunStatus.EXHAUSTED.value, error_message=err_msg, db_path=self.db_path)
+                runs_db.update_run_status(run_id, RunStatus.EXHAUSTED.value, error_message=err_msg, db_path=self.db_path)
                 run.status = RunStatus.EXHAUSTED
                 break
 
             if total_tokens > auto_def.budget.max_tokens:
                 err_msg = f"Tetto massimo token superato: {total_tokens} > {auto_def.budget.max_tokens}"
                 logger.warning(f"Run '{run_id}': {err_msg}")
-                auto_db.update_run_status(run_id, RunStatus.EXHAUSTED.value, error_message=err_msg, db_path=self.db_path)
+                runs_db.update_run_status(run_id, RunStatus.EXHAUSTED.value, error_message=err_msg, db_path=self.db_path)
                 run.status = RunStatus.EXHAUSTED
                 break
 
@@ -491,8 +494,8 @@ class AutomationRunner:
                 status=RunStatus.RUNNING,
                 started_at=datetime.now(timezone.utc).isoformat(),
             )
-            auto_db.save_step_run(step_run.model_dump(mode="json"), db_path=self.db_path)
-            auto_db.update_run_status(run_id, RunStatus.RUNNING.value, current_step_id=current_step_id, db_path=self.db_path)
+            runs_db.save_step_run(step_run.model_dump(mode="json"), db_path=self.db_path)
+            runs_db.update_run_status(run_id, RunStatus.RUNNING.value, current_step_id=current_step_id, db_path=self.db_path)
 
             # 4. Esecuzione Step in base al tipo
             try:
@@ -518,23 +521,23 @@ class AutomationRunner:
             total_tokens += tokens_step
             step_run.approval_request_id = outcome.get("approval_request_id")
 
-            auto_db.save_step_run(step_run.model_dump(mode="json"), db_path=self.db_path)
+            runs_db.save_step_run(step_run.model_dump(mode="json"), db_path=self.db_path)
 
             if step_status == RunStatus.WAITING_APPROVAL:
                 logger.info(f"Run '{run_id}' sospesa su step '{current_step_id}' in attesa di approvazione.")
-                auto_db.update_run_status(
+                runs_db.update_run_status(
                     run_id, RunStatus.WAITING_APPROVAL.value,
                     current_step_id=current_step_id,
                     total_tokens=total_tokens,
                     db_path=self.db_path
                 )
-                updated_run = auto_db.get_run(run_id, db_path=self.db_path)
+                updated_run = runs_db.get_run(run_id, db_path=self.db_path)
                 return AutomationRun(**updated_run)
 
             if step_status == RunStatus.FAILED:
                 logger.warning(f"Run '{run_id}' fallita su step '{current_step_id}': {step_run.error_message}")
                 self.circuit_breaker.record_failure(auto_def.id, step_run.error_message or "Fallimento step")
-                auto_db.update_run_status(
+                runs_db.update_run_status(
                     run_id, RunStatus.FAILED.value,
                     current_step_id=current_step_id,
                     error_message=step_run.error_message,
@@ -542,7 +545,7 @@ class AutomationRunner:
                     total_duration_ms=int((time.monotonic() - start_time) * 1000),
                     db_path=self.db_path
                 )
-                updated_run = auto_db.get_run(run_id, db_path=self.db_path)
+                updated_run = runs_db.get_run(run_id, db_path=self.db_path)
                 return AutomationRun(**updated_run)
 
             # Step completato con successo: memorizzazione in contesto e avanzamento
@@ -553,7 +556,7 @@ class AutomationRunner:
         if run.status != RunStatus.FAILED and run.status != RunStatus.EXHAUSTED and run.status != RunStatus.BLOCKED:
             self.circuit_breaker.record_success(auto_def.id)
             total_duration_ms = int((time.monotonic() - start_time) * 1000)
-            auto_db.update_run_status(
+            runs_db.update_run_status(
                 run_id, RunStatus.COMPLETED.value,
                 current_step_id=None,
                 total_tokens=total_tokens,
@@ -562,7 +565,7 @@ class AutomationRunner:
             )
             logger.info(f"Run '{run_id}' completata con successo ({total_duration_ms}ms, {total_tokens} tokens).")
 
-        updated_run = auto_db.get_run(run_id, db_path=self.db_path)
+        updated_run = runs_db.get_run(run_id, db_path=self.db_path)
         return AutomationRun(**updated_run)
 
     def resume_run(
@@ -573,28 +576,28 @@ class AutomationRunner:
         resolved_by: str = "user"
     ) -> AutomationRun:
         """Risolve l'approvazione pendente e riprende l'esecuzione della run."""
-        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        run_dict = runs_db.get_run(run_id, db_path=self.db_path)
         if not run_dict:
             raise ValueError(f"Run '{run_id}' non trovata.")
 
-        resolved = auto_db.resolve_automation_approval(approval_id, action, resolved_by=resolved_by, db_path=self.db_path)
+        resolved = approvals_db.resolve_automation_approval(approval_id, action, resolved_by=resolved_by, db_path=self.db_path)
         if not resolved:
             raise ValueError(f"Approvazione '{approval_id}' non trovata o già risolta.")
 
         if action.lower() in ("deny", "false", "refuse"):
-            auto_db.update_run_status(
+            runs_db.update_run_status(
                 run_id, RunStatus.BLOCKED.value,
                 error_message=f"Azione negata dall'utente ({resolved_by})",
                 db_path=self.db_path
             )
-            updated_run = auto_db.get_run(run_id, db_path=self.db_path)
+            updated_run = runs_db.get_run(run_id, db_path=self.db_path)
             return AutomationRun(**updated_run)
 
         # Se approvata, segniamo lo step che era in attesa come completato e avanziamo
         current_step_id = run_dict.get("current_step_id")
         if current_step_id:
             sr_id = f"sr_{run_id}_{current_step_id}"
-            auto_db.save_step_run({
+            runs_db.save_step_run({
                 "step_run_id": sr_id,
                 "run_id": run_id,
                 "step_id": current_step_id,
@@ -603,36 +606,36 @@ class AutomationRunner:
                 "output_payload": {"approval": "granted", "resolved_by": resolved_by}
             }, db_path=self.db_path)
 
-            auto_dict = auto_db.get_definition(run_dict["automation_id"], db_path=self.db_path)
+            auto_dict = definitions_db.get_definition(run_dict["automation_id"], db_path=self.db_path)
             if auto_dict:
                 auto_def = AutomationDefinition(**auto_dict)
                 next_step = self._next_step_id(auto_def.workflow.steps, current_step_id)
-                auto_db.update_run_status(run_id, RunStatus.RUNNING.value, current_step_id=next_step, db_path=self.db_path)
+                runs_db.update_run_status(run_id, RunStatus.RUNNING.value, current_step_id=next_step, db_path=self.db_path)
 
         logger.info(f"Approvazione '{approval_id}' concessa. Ripresa esecuzione run '{run_id}'...")
         return self.execute_run(run_id)
 
     def pause_run(self, run_id: str) -> Dict[str, Any]:
         """Richiede la messa in pausa cooperativa di una run in corso."""
-        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        run_dict = runs_db.get_run(run_id, db_path=self.db_path)
         if not run_dict:
             raise ValueError(f"Run '{run_id}' non trovata.")
         if run_dict["status"] not in (RunStatus.RUNNING.value, RunStatus.PENDING.value):
             raise ValueError(f"Impossibile mettere in pausa una run in stato '{run_dict['status']}'.")
 
-        auto_db.update_run_status(run_id, RunStatus.PAUSED.value, db_path=self.db_path)
+        runs_db.update_run_status(run_id, RunStatus.PAUSED.value, db_path=self.db_path)
         logger.info(f"Stato della run '{run_id}' impostato a PAUSED.")
         return {"paused": True, "run_id": run_id, "status": RunStatus.PAUSED.value}
 
     def resume_paused_run(self, run_id: str) -> AutomationRun:
         """Riprende l'esecuzione di una run precedentemente messa in pausa."""
-        run_dict = auto_db.get_run(run_id, db_path=self.db_path)
+        run_dict = runs_db.get_run(run_id, db_path=self.db_path)
         if not run_dict:
             raise ValueError(f"Run '{run_id}' non trovata.")
         if run_dict["status"] != RunStatus.PAUSED.value:
             raise ValueError(f"La run '{run_id}' non è in pausa (stato attuale: {run_dict['status']}).")
 
-        auto_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
+        runs_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=self.db_path)
         logger.info(f"Ripresa esecuzione della run in pausa '{run_id}'...")
         return self.execute_run(run_id)
 
@@ -649,7 +652,7 @@ class AutomationRunner:
         # Se lo step è esplicitamente un Approval Gate manuale
         if step_type == StepType.APPROVAL_GATE or step_def.requires_approval:
             req_id = f"apr_{uuid.uuid4().hex[:12]}"
-            auto_db.create_automation_approval({
+            approvals_db.create_automation_approval({
                 "request_id": req_id,
                 "run_id": run.run_id,
                 "step_run_id": f"sr_{run.run_id}_{step_def.step_id}",
@@ -711,7 +714,7 @@ class AutomationRunner:
             # Salva gli eventuali artefatti prodotti nel database
             for art in code_res.get("artifacts", []):
                 art_id = f"art_{uuid.uuid4().hex[:8]}"
-                auto_db.save_artifact({
+                artifacts_db.save_artifact({
                     "artifact_id": art_id,
                     "run_id": run.run_id,
                     "step_run_id": f"sr_{run.run_id}_{step_def.step_id}",

@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
-from app.automations import db as auto_db
+from app.automations.db import breaker_states as breaker_db
+from app.automations.db import runs as runs_db
 from app.automations.models import Budget
 from app.core import config
 
@@ -48,7 +49,7 @@ class CircuitBreakerManager:
         max_daily_tokens: Optional[int] = None,
     ) -> Tuple[bool, Optional[str]]:
         """Verifica se l'automazione può essere eseguita o deve essere bloccata."""
-        state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path)
+        state_data = breaker_db.get_circuit_breaker_state(automation_id, db_path=self.db_path)
         now = datetime.now(timezone.utc)
 
         if state_data:
@@ -77,7 +78,7 @@ class CircuitBreakerManager:
 
         # Controllo Rate Limit Orario (max runs/hour)
         limit_runs = max_runs_per_hour or self.default_max_runs_per_hour
-        recent_runs = auto_db.count_recent_runs(automation_id, window_seconds=3600, db_path=self.db_path)
+        recent_runs = runs_db.count_recent_runs(automation_id, window_seconds=3600, db_path=self.db_path)
         if recent_runs >= limit_runs:
             reason = (
                 f"Rate limit orario superato per '{automation_id}': "
@@ -88,7 +89,7 @@ class CircuitBreakerManager:
 
         # Controllo Tetto Massimo Token Giornalieri (max tokens/day)
         limit_tokens = max_daily_tokens or self.default_max_daily_tokens
-        recent_tokens = auto_db.sum_recent_tokens(automation_id, window_seconds=86400, db_path=self.db_path)
+        recent_tokens = runs_db.sum_recent_tokens(automation_id, window_seconds=86400, db_path=self.db_path)
         if recent_tokens >= limit_tokens:
             reason = (
                 f"Budget token giornaliero esaurito per '{automation_id}': "
@@ -101,11 +102,11 @@ class CircuitBreakerManager:
 
     def record_success(self, automation_id: str):
         """Registra un'esecuzione completata con successo, ripristinando CLOSED."""
-        state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path)
+        state_data = breaker_db.get_circuit_breaker_state(automation_id, db_path=self.db_path)
         if state_data and (state_data.get("state") != CircuitState.CLOSED.value or state_data.get("consecutive_failures", 0) > 0):
             logger.info(f"Ripristino Circuit Breaker a CLOSED per '{automation_id}' dopo esito positivo.")
 
-        auto_db.save_circuit_breaker_state({
+        breaker_db.save_circuit_breaker_state({
             "automation_id": automation_id,
             "state": CircuitState.CLOSED.value,
             "consecutive_failures": 0,
@@ -123,7 +124,7 @@ class CircuitBreakerManager:
         cooldown_seconds: Optional[int] = None,
     ):
         """Registra un fallimento e fa scattare il circuito se si supera la soglia."""
-        state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {}
+        state_data = breaker_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {}
         current_failures = int(state_data.get("consecutive_failures", 0)) + 1
         threshold = max_consecutive_failures or self.default_max_consecutive_failures
         cooldown = cooldown_seconds or self.default_cooldown_seconds
@@ -143,7 +144,7 @@ class CircuitBreakerManager:
                 f"Fallimento registrato per '{automation_id}': {current_failures}/{threshold} tentativi prima del blocco."
             )
 
-        auto_db.save_circuit_breaker_state({
+        breaker_db.save_circuit_breaker_state({
             "automation_id": automation_id,
             "state": new_state,
             "consecutive_failures": current_failures,
@@ -156,7 +157,7 @@ class CircuitBreakerManager:
     def reset(self, automation_id: str):
         """Reimposta manualmente il circuito a CLOSED."""
         logger.info(f"Reset manuale del Circuit Breaker per '{automation_id}'.")
-        auto_db.save_circuit_breaker_state({
+        breaker_db.save_circuit_breaker_state({
             "automation_id": automation_id,
             "state": CircuitState.CLOSED.value,
             "consecutive_failures": 0,
@@ -168,9 +169,9 @@ class CircuitBreakerManager:
 
     def get_status(self, automation_id: str) -> Dict[str, Any]:
         """Restituisce lo stato diagnostico completo del circuit breaker per l'automazione."""
-        state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {}
-        recent_runs = auto_db.count_recent_runs(automation_id, window_seconds=3600, db_path=self.db_path)
-        recent_tokens = auto_db.sum_recent_tokens(automation_id, window_seconds=86400, db_path=self.db_path)
+        state_data = breaker_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {}
+        recent_runs = runs_db.count_recent_runs(automation_id, window_seconds=3600, db_path=self.db_path)
+        recent_tokens = runs_db.sum_recent_tokens(automation_id, window_seconds=86400, db_path=self.db_path)
 
         return {
             "automation_id": automation_id,
@@ -186,10 +187,10 @@ class CircuitBreakerManager:
         }
 
     def _set_state(self, automation_id: str, new_state: str):
-        state_data = auto_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {"automation_id": automation_id}
+        state_data = breaker_db.get_circuit_breaker_state(automation_id, db_path=self.db_path) or {"automation_id": automation_id}
         state_data["state"] = new_state
         state_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        auto_db.save_circuit_breaker_state(state_data, db_path=self.db_path)
+        breaker_db.save_circuit_breaker_state(state_data, db_path=self.db_path)
 
 
 # Singleton

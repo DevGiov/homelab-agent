@@ -12,7 +12,8 @@ from typing import Any, Dict, List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.automations import db as auto_db
+from app.automations.db import definitions as definitions_db
+from app.automations.db import runs as runs_db
 from app.automations.models import AutomationDefinition, TriggerType
 from app.automations.runner import AutomationRunner
 from app.core import config
@@ -80,7 +81,7 @@ class AutomationScheduler:
                 self.scheduler.remove_job(job.id)
 
         # Recupera definizioni attive dal DB
-        definitions = auto_db.list_definitions(enabled_only=True, db_path=self.db_path)
+        definitions = definitions_db.list_definitions(enabled_only=True, db_path=self.db_path)
         scheduled_count = 0
 
         for def_dict in definitions:
@@ -177,20 +178,20 @@ class AutomationScheduler:
 
     def _prune_expired_runs(self) -> int:
         """Pulisce le run scadute rispettando retention_days di ciascuna automazione (default 14 giorni)."""
-        defs = auto_db.list_definitions(enabled_only=False, db_path=self.db_path)
+        defs = definitions_db.list_definitions(enabled_only=False, db_path=self.db_path)
         total_deleted = 0
         global_retention_days = 14
 
         for d in defs:
             retention = d.get("retention_days") or global_retention_days
-            deleted = auto_db.bulk_delete_runs(
+            deleted = runs_db.bulk_delete_runs(
                 automation_id=d["id"],
                 older_than_days=retention,
                 db_path=self.db_path,
             )
             total_deleted += deleted
 
-        total_deleted += auto_db.bulk_delete_runs(
+        total_deleted += runs_db.bulk_delete_runs(
             older_than_days=global_retention_days,
             db_path=self.db_path,
         )

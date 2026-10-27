@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.automations.db import init_automations_db
+from app.automations.db.schema import init_automations_db
 from app.automations.models import AutomationDefinition
 from app.automations.runner import _render_template
 from app.integrations.manager import (

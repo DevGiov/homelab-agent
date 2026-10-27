@@ -5,7 +5,7 @@ Ogni step segue il workflow di [AGENTS.md](../../AGENTS.md): modifica su `dev`, 
 ## Step 1 — Hotfix di produzione (ISS-01, ISS-02, ISS-03)
 
 ### 1.1 Retention automazioni
-- In `bulk_delete_runs` ([automations/db.py](../../backend/app/automations/db.py)) sostituire `before_date` (nessun chiamante lo usa) con `older_than_days: Optional[int]`, tradotto nel filtro esistente `started_at < now - N giorni`. Resta un solo modo di esprimere il cutoff.
+- In `bulk_delete_runs` ([automations/db/runs.py](../../backend/app/automations/db/runs.py)) sostituire `before_date` (nessun chiamante lo usa) con `older_than_days: Optional[int]`, tradotto nel filtro esistente `started_at < now - N giorni`. Resta un solo modo di esprimere il cutoff.
 - Verificare che `preserve_protected` resti attivo nella retention automatica (le run marcate come protette non si cancellano).
 - **Test nuovi**: retention per singola automazione e globale; `DELETE /v1/automations/runs?older_than_days=` e `POST /runs/delete-batch`.
 

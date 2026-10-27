@@ -9,7 +9,8 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.api.main import api
-from app.automations import db as auto_db
+from app.automations.db import approvals as approvals_db
+from app.automations.db import schema as schema_db
 from app.core import config
 
 
@@ -19,7 +20,7 @@ class TestAutomationsAPI(unittest.TestCase):
         cls.test_dir = tempfile.mkdtemp()
         cls.db_path = os.path.join(cls.test_dir, "api_test.db")
         config.AUTOMATIONS_DB_PATH = cls.db_path
-        auto_db.init_automations_db(cls.db_path)
+        schema_db.init_automations_db(cls.db_path)
         cls.client = TestClient(api)
         cls.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
 
@@ -109,7 +110,7 @@ class TestAutomationsAPI(unittest.TestCase):
         from datetime import datetime, timedelta, timezone
 
         # 1. Inserisci approvazione originata da chat (senza run_id reale su automations.db)
-        auto_db.create_automation_approval({
+        approvals_db.create_automation_approval({
             "request_id": "apr_test_chat_1",
             "run_id": "t_safest",
             "tool_name": "exec_lxc_command",
@@ -133,11 +134,11 @@ class TestAutomationsAPI(unittest.TestCase):
             self.assertIn(data["status"], ["resolved", "approved"])
 
         # Verifica stato aggiornato su DB
-        appr = auto_db.get_automation_approval("apr_test_chat_1", db_path=self.db_path)
+        appr = approvals_db.get_automation_approval("apr_test_chat_1", db_path=self.db_path)
         self.assertEqual(appr["status"], "approved")
 
         # 2. Test eliminazione esplicita
-        auto_db.create_automation_approval({
+        approvals_db.create_automation_approval({
             "request_id": "apr_test_chat_2",
             "run_id": "t_safest",
             "tool_name": "exec_lxc_command",
@@ -149,11 +150,11 @@ class TestAutomationsAPI(unittest.TestCase):
         res_del = self.client.delete("/v1/automations/approvals/apr_test_chat_2", headers=self.headers)
         self.assertEqual(res_del.status_code, 200)
         self.assertEqual(res_del.json()["status"], "deleted")
-        self.assertIsNone(auto_db.get_automation_approval("apr_test_chat_2", db_path=self.db_path))
+        self.assertIsNone(approvals_db.get_automation_approval("apr_test_chat_2", db_path=self.db_path))
 
     def test_clear_expired_approvals_endpoint(self):
         """Verifica la pulizia massiva delle richieste scadute."""
-        auto_db.create_automation_approval({
+        approvals_db.create_automation_approval({
             "request_id": "apr_past_expired",
             "run_id": "t_chat_past",
             "tool_name": "exec_lxc_command",
@@ -166,7 +167,7 @@ class TestAutomationsAPI(unittest.TestCase):
         self.assertEqual(res_clear.status_code, 200)
         self.assertGreaterEqual(res_clear.json()["cleared_count"], 1)
 
-        appr = auto_db.get_automation_approval("apr_past_expired", db_path=self.db_path)
+        appr = approvals_db.get_automation_approval("apr_past_expired", db_path=self.db_path)
         self.assertEqual(appr["status"], "expired")
 
     def test_automations_registry_tools(self):
