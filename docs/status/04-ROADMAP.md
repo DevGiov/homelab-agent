@@ -52,7 +52,7 @@ Valutazione dei file sopra 600 righe (2026-10-27): `calendar/db.py`, `registry/c
 | :--- | :--- | :--- |
 | C1 | ~~Code-splitting con `React.lazy` per le viste Automations, Calendar, Knowledge e Settings; highlight.js caricato on demand~~ ✅ 2026-10-27 (chunk iniziale 947 → 291 kB; in più: card delle proposte lazy, chunk vendor `react`, header di cache in nginx) | ISS-11 |
 | C2 | ~~`api.ts` diviso per dominio (`api/chat.ts`, `api/automations.ts`, …)~~ ✅ 2026-10-27 (in più: client `fetch` con `ApiError` al posto di axios, parser SSE unico in `api/sse.ts`, rimosse 8 funzioni inutilizzate) | ISS-11 |
-| C3 | `Chat.tsx`, `AutomationsView.tsx`, `CalendarView.tsx` divisi in sotto-componenti con hook dedicati | ISS-11 |
+| C3 | ~~`Chat.tsx`, `AutomationsView.tsx`, `CalendarView.tsx` divisi in sotto-componenti con hook dedicati~~ ✅ 2026-10-27 (in più: `useChat` 830 → 450 righe; restano 6 componenti tra 504 e 938 righe fuori dall'elenco) | ISS-11 |
 | C4 | Test frontend minimi (Vitest) per `useChat` (parsing SSE) e per i client API | — |
 
 **Uscita**: chunk iniziale sotto i 400 kB, nessun componente sopra le ~500 righe.

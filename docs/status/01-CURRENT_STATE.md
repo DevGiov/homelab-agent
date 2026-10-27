@@ -51,7 +51,8 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 **Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
 
 - **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Knowledge, Impostazioni (sicurezza, modelli, temi).
-- **Componenti più grandi**: `AutomationsView.tsx` (1385 righe), `CalendarView.tsx` (1285), `Chat.tsx` (1205), `SettingsModal.tsx` (956), `useChat.ts` (830).
+- **Struttura (C3)**: chat in `components/chat/` (10 componenti, il più grande 193 righe), automazioni e calendario divisi per scheda e vista, stato negli hook (`useChat` 450 righe, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …), calcoli puri in `utils/` (`chatMessages`, `calendarDates`).
+- **Componenti ancora sopra le 500 righe**: `SettingsModal.tsx` (938), `CalendarManageModal.tsx` (699), `EditAutomationModal.tsx` (693), `IntegrationsTab.tsx` (644), `ArtifactsView.tsx` (630), `TriggerEditorModal.tsx` (504).
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
 - **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
 
