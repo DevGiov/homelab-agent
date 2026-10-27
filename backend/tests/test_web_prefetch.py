@@ -4,9 +4,9 @@ import ipaddress
 import unittest
 from unittest.mock import MagicMock, patch
 
-from registry.search_content import fetch_webpage_content
-from registry.search_ranking import normalize_search_query
-from registry.search_security import (
+from app.registry.search_content import fetch_webpage_content
+from app.registry.search_ranking import normalize_search_query
+from app.registry.search_security import (
     GUARD_CLOSE,
     GUARD_OPEN,
     escape_guard_delimiters,
@@ -14,7 +14,7 @@ from registry.search_security import (
     sanitize_source_url,
     wrap_untrusted_web_evidence,
 )
-from registry.web_search_service import deduplicate_by_url, execute_search
+from app.registry.web_search_service import deduplicate_by_url, execute_search
 
 
 class TestSearchSecurity(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestSearchSecurity(unittest.TestCase):
         self.assertFalse(is_safe_url("file:///etc/passwd"))
         self.assertFalse(is_safe_url("gopher://127.0.0.1"))
 
-    @patch("registry.search_security.resolve_hostname_ips")
+    @patch("app.registry.search_security.resolve_hostname_ips")
     def test_ssrf_allowing_public_urls_mocked(self, mock_dns):
         mock_dns.return_value = [ipaddress.ip_address("93.184.216.34")]
         self.assertTrue(is_safe_url("https://en.wikipedia.org/wiki/Solar_eclipse"))
@@ -84,8 +84,8 @@ class TestSearchSecurity(unittest.TestCase):
 
 
 class TestSSRFRedirectHardening(unittest.TestCase):
-    @patch("registry.search_content.is_safe_url")
-    @patch("registry.search_content.requests.get")
+    @patch("app.registry.search_content.is_safe_url")
+    @patch("app.registry.search_content.requests.get")
     def test_redirect_to_private_ip_blocked_before_second_hop(self, mock_get, mock_safe):
         # Initial URL is safe, redirect destination is private (192.168.1.69)
         mock_safe.side_effect = lambda u: "192.168.1" not in u
@@ -101,8 +101,8 @@ class TestSSRFRedirectHardening(unittest.TestCase):
         mock_get.assert_called_once()
         self.assertEqual(mock_get.call_args[0][0], "https://example.com/redirect")
 
-    @patch("registry.search_content.is_safe_url")
-    @patch("registry.search_content.requests.get")
+    @patch("app.registry.search_content.is_safe_url")
+    @patch("app.registry.search_content.requests.get")
     def test_safe_relative_redirect_normalized(self, mock_get, mock_safe):
         mock_safe.return_value = True
         res1 = MagicMock()
@@ -122,8 +122,8 @@ class TestSSRFRedirectHardening(unittest.TestCase):
         self.assertEqual(result["url"], "https://example.com/news/article")
         self.assertEqual(mock_get.call_count, 2)
 
-    @patch("registry.search_content.is_safe_url")
-    @patch("registry.search_content.requests.get")
+    @patch("app.registry.search_content.is_safe_url")
+    @patch("app.registry.search_content.requests.get")
     def test_redirect_loop_bounded(self, mock_get, mock_safe):
         mock_safe.return_value = True
         res = MagicMock()
@@ -149,8 +149,8 @@ class TestWebSearchService(unittest.TestCase):
         urls = [d["url"].rstrip("/") for d in deduped]
         self.assertEqual(urls, ["https://example.com/a", "https://example.com/b"])
 
-    @patch("registry.web_search_service.search_with_fallback")
-    @patch("registry.web_search_service.fetch_webpage_content")
+    @patch("app.registry.web_search_service.search_with_fallback")
+    @patch("app.registry.web_search_service.fetch_webpage_content")
     def test_execute_search_pipeline_budgeted(self, mock_fetch, mock_fallback):
         mock_fallback.return_value = (
             [
@@ -180,10 +180,10 @@ class TestWebSearchService(unittest.TestCase):
 
 
 class TestWebPrefetchGraph(unittest.TestCase):
-    @patch("registry.web_search_service.execute_search")
-    @patch("graph._call_llm")
+    @patch("app.registry.web_search_service.execute_search")
+    @patch("app.agent.graph._call_llm")
     def test_chat_mode_with_web_prefetch_and_compact_metadata(self, mock_llm, mock_search):
-        from api import run_agent_flow
+        from app.api.main import run_agent_flow
 
         mock_search.return_value = {
             "query": "prossima eclissi 2026",
@@ -215,7 +215,7 @@ class TestWebPrefetchGraph(unittest.TestCase):
         system_prompt_passed = call_args[1].get("system_prompt", "")
         self.assertIn("UNTRUSTED SOURCE DATA", prompt_passed)
         self.assertIn("Eclipse 2026", prompt_passed)
-        from registry.search_security import UNTRUSTED_CONTEXT_POLICY
+        from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
         self.assertIn(UNTRUSTED_CONTEXT_POLICY, system_prompt_passed)
 
         # Verify response attributes & compactness
@@ -229,10 +229,10 @@ class TestWebPrefetchGraph(unittest.TestCase):
         self.assertNotIn("fetched_content", resp.web_prefetch)
         self.assertNotIn("ranked_results", resp.web_prefetch)
 
-    @patch("registry.web_search_service.execute_search")
-    @patch("graph._call_llm")
+    @patch("app.registry.web_search_service.execute_search")
+    @patch("app.agent.graph._call_llm")
     def test_plan_mode_with_web_prefetch(self, mock_llm, mock_search):
-        from api import run_agent_flow
+        from app.api.main import run_agent_flow
 
         mock_search.return_value = {
             "query": "configurazione proxmox lxc cluster",
@@ -262,11 +262,11 @@ class TestWebPrefetchGraph(unittest.TestCase):
         self.assertIn("UNTRUSTED SOURCE DATA", prompt_passed)
         self.assertIn("Proxmox Doc", prompt_passed)
 
-    @patch("registry.web_search_service.execute_search")
+    @patch("app.registry.web_search_service.execute_search")
     def test_web_prefetch_disabled_does_not_call_search(self, mock_search):
-        from api import run_agent_flow
+        from app.api.main import run_agent_flow
 
-        with patch("graph._call_llm") as mock_llm:
+        with patch("app.agent.graph._call_llm") as mock_llm:
             mock_llm.return_value = {"content": "Ciao! Come posso aiutarti?"}
             resp = run_agent_flow(
                 task="ciao come stai",
@@ -280,9 +280,9 @@ class TestWebPrefetchGraph(unittest.TestCase):
 
 
 class TestAgentLoopWebSearchGuard(unittest.TestCase):
-    @patch("agent_loop.get_registry_manager")
+    @patch("app.agent.agent_loop.get_registry_manager")
     def test_react_web_search_observation_guarded(self, mock_get_mgr):
-        from agent_loop import ToolSelection, run_agent_loop
+        from app.agent.agent_loop import ToolSelection, run_agent_loop
 
         mock_mgr = MagicMock()
         mock_mgr.get_tools_for_mode.return_value = [

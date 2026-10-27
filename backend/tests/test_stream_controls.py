@@ -4,14 +4,14 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from api import api as app
-from stream_session import (
+from app.agent.stream_session import (
     _active_sessions,
     _sessions_lock,
     create_session,
     get_session,
     remove_session,
 )
+from app.api.main import api as app
 
 
 class TestStreamControls(unittest.TestCase):
@@ -89,7 +89,7 @@ class TestStreamControls(unittest.TestCase):
         remove_session("thread_stop_test")
 
     def test_api_endpoints_stop_pause_resume(self):
-        import config
+        from app.core import config
         headers = {"X-API-Key": config.get_settings().api_secret_key} if config.get_settings().api_secret_key else {}
         client = TestClient(app, headers=headers)
 

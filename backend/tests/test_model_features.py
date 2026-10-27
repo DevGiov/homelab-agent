@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-import thread_store
-from providers import OpenAICompatProvider
-from stream_session import StreamSession
+from app.agent.stream_session import StreamSession
+from app.llm.providers import OpenAICompatProvider
+from app.memory import thread_store
 
 
 def test_stream_session_metrics_preserves_tok_per_s():
@@ -23,7 +23,7 @@ def test_stream_session_metrics_preserves_tok_per_s():
 def test_thread_store_message_model(tmp_path):
     # In-memory or temp sqlite test
     db_file = str(tmp_path / "test_threads.db")
-    with patch("config.CHECKPOINT_DB_PATH", db_file):
+    with patch("app.core.config.CHECKPOINT_DB_PATH", db_file):
         thread_store.init_db()
         t_id = "thread_model_test"
         thread_store.save_user_message(t_id, "ciao")
@@ -155,7 +155,7 @@ def test_ensure_model_loaded_fails_fast_when_load_request_fails():
     provider = OpenAICompatProvider(base_url="http://llm.invalid/v1", default_model="m1")
     with patch.object(provider, "list_models_with_details", return_value=[]) as list_mock, \
          patch.object(provider, "load_model", return_value={"status": "error", "detail": "connection refused"}), \
-         patch("providers.time.sleep") as sleep_mock:
+         patch("app.llm.providers.time.sleep") as sleep_mock:
         assert provider.ensure_model_loaded("m1", timeout=180.0) is False
     sleep_mock.assert_not_called()
     assert list_mock.call_count == 1
@@ -166,5 +166,5 @@ def test_ensure_model_loaded_waits_until_model_is_loaded():
     states = [[], [{"id": "m1", "is_loaded": False}], [{"id": "m1", "is_loaded": True}]]
     with patch.object(provider, "list_models_with_details", side_effect=states), \
          patch.object(provider, "load_model", return_value={"status": "ok", "detail": {}}), \
-         patch("providers.time.sleep"):
+         patch("app.llm.providers.time.sleep"):
         assert provider.ensure_model_loaded("m1", timeout=180.0) is True

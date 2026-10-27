@@ -2,9 +2,9 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from graph import should_prefetch_web, web_prefetch_node
-from router import get_dynamic_capabilities_summary, route_turn
-from schemas import ChatRequest
+from app.agent.graph import should_prefetch_web, web_prefetch_node
+from app.agent.mode_router import get_dynamic_capabilities_summary, route_turn
+from app.api.schemas import ChatRequest
 
 
 class TestRouterAndPrefetch(unittest.TestCase):
@@ -130,7 +130,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             ("cerca un container immich aggiornato", None, "act", False),
             ("crea un piano per migrare il database", None, "plan", False),
         ]
-        with patch("router.requests.post", side_effect=ConnectionError("LLM offline")):
+        with patch("app.agent.mode_router.requests.post", side_effect=ConnectionError("LLM offline")):
             for query, previous_mode, expected_mode, expected_web in cases:
                 decision = route_turn(query, previous_mode=previous_mode)
                 self.assertEqual(decision.mode, expected_mode, f"mode per '{query}'")
@@ -182,7 +182,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "mode": "live"
         }
 
-        with patch("registry.web_search_service.execute_search", return_value=mock_search_result):
+        with patch("app.registry.web_search_service.execute_search", return_value=mock_search_result):
             # 1. Mode OFF: should skip
             s_off = {"task": "quali sono le novità di debian 13?", "web_search": "off"}
             res_off = web_prefetch_node(s_off)
@@ -264,10 +264,10 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
     def test_title_generation_uses_specified_model(self):
         """Verifica che generate_and_save_title passi il modello selezionato a provider.chat."""
-        from thread_store import generate_and_save_title
+        from app.memory.thread_store import generate_and_save_title
         mock_provider = MagicMock()
         mock_provider.chat.return_value = {"content": "Titolo Di Prova"}
-        with patch("providers.get_provider", return_value=mock_provider):
+        with patch("app.llm.providers.get_provider", return_value=mock_provider):
             res = generate_and_save_title("thread_test_model", "Come installare Docker su Debian?", model="Gemma-4-26B-Q3")
             mock_provider.chat.assert_called_once()
             _, kwargs = mock_provider.chat.call_args

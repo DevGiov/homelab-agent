@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-import config
-import thread_store
+from app.core import config
+from app.memory import thread_store
 
 
 class TestThreadPersistence(unittest.TestCase):

@@ -13,7 +13,7 @@ class TestApiEndpoints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Import dopo aver impostato le env vars
-        import api as api_module
+        from app.api import main as api_module
         cls.client = TestClient(api_module.api)
 
     def test_health(self):
@@ -30,7 +30,7 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertIn("providers", data)
 
     def test_auth_required_when_key_set(self):
-        import config
+        from app.core import config
         original = config.API_SECRET_KEY
         try:
             config.API_SECRET_KEY = "test-secret-123"
@@ -76,7 +76,7 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
     def test_approvals_flow(self):
-        import guardrails
+        from app.security import guardrails
         guardrails._APPROVALS.clear()
 
         # Crea una richiesta pendente direttamente (simula agent loop)
@@ -105,9 +105,8 @@ class TestApiEndpoints(unittest.TestCase):
     def test_resolve_approval_with_synthesis_and_trace(self):
         from unittest.mock import patch
 
-        import guardrails
-        import thread_store
-
+        from app.memory import thread_store
+        from app.security import guardrails
         t_id = "t_synth_unit_test"
         # Inizializza messaggio utente nel thread
         thread_store.save_user_message(t_id, "Elenca i file nella cartella /opt")
@@ -124,8 +123,8 @@ class TestApiEndpoints(unittest.TestCase):
         rid = req.request_id
 
         mock_tool_result = {"vmid": 125, "stdout": "containerd\nhomelab-agent\n", "exit_code": 0}
-        with patch("registry.manager.ToolRegistryManager.execute_approved_tool", return_value=mock_tool_result):
-            with patch("api._call_llm", return_value={"content": "Nella directory /opt sono presenti: containerd e homelab-agent."}):
+        with patch("app.registry.manager.ToolRegistryManager.execute_approved_tool", return_value=mock_tool_result):
+            with patch("app.api.main._call_llm", return_value={"content": "Nella directory /opt sono presenti: containerd e homelab-agent."}):
                 r = self.client.post(f"/v1/approvals/{rid}/resolve", json={"action": "approve"})
                 self.assertEqual(r.status_code, 200)
                 data = r.json()
@@ -181,7 +180,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
     """Test dell'agent loop con LLM e registry mockati (Fase 5.2)."""
 
     def _run_loop(self, selections):
-        from agent_loop import run_agent_loop
+        from app.agent.agent_loop import run_agent_loop
 
         calls = []
 
@@ -205,7 +204,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
                 self.final_answer = kw.get("final_answer")
                 self.parallel_calls = kw.get("parallel_calls")
 
-        from registry.manager import get_registry_manager
+        from app.registry.manager import get_registry_manager
         mgr = get_registry_manager()
         orig_exec = mgr.execute_tool
         orig_par = mgr.execute_tools_parallel
@@ -250,10 +249,10 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
     def test_approval_breaks_loop(self):
         """Override temporaneo del registry metamcp con un fake contenente stop_container."""
-        import guardrails
+        from app.security import guardrails
         guardrails._APPROVALS.clear()
 
-        from registry.manager import get_registry_manager
+        from app.registry.manager import get_registry_manager
         mgr = get_registry_manager()
 
         class FakeMetaMCPRegistry:
@@ -272,7 +271,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
         s1 = SimpleNamespace(tool_needed=True, tool_name="stop_container", arguments={"vmid": 1}, reasoning="", final_answer=None, parallel_calls=None)
 
-        from agent_loop import run_agent_loop
+        from app.agent.agent_loop import run_agent_loop
 
         def mock_llm(prompt, system_prompt=None, reasoning_budget=-1):
             return {"content": "sintesi", "reasoning_content": ""}

@@ -4,8 +4,7 @@ import unittest
 
 import pytest
 
-import guardrails
-import permissions
+from app.security import guardrails, permissions
 
 
 class TestCommandGuardrails(unittest.TestCase):
@@ -221,8 +220,7 @@ class TestMetaMCPPrefixAndRouter(unittest.TestCase):
     @pytest.mark.live  # verifica la classificazione dell'LLM reale (il fallback è coperto in test_router_and_prefetch)
     def test_router_infrastructure_and_confirmation_queries(self):
         """Infrastructure and confirmation queries must be classified as mode=act."""
-        import router
-
+        from app.agent import mode_router as router
         # Container information queries
         m1 = router.classify_mode("Dammi informazioni sul container immich")
         self.assertEqual(m1, "act")

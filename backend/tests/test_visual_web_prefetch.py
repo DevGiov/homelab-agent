@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from graph import (
+from app.agent.graph import (
     formulate_visual_search_query,
     is_purely_visual_request,
     web_prefetch_node,
@@ -31,7 +31,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         self.assertFalse(is_purely_visual_request("Dove posso comprare questo componente?"))
         self.assertFalse(is_purely_visual_request("Cerca online il manuale d'uso"))
 
-    @patch("graph._call_llm")
+    @patch("app.agent.graph._call_llm")
     def test_formulate_visual_search_query_success(self, mock_llm):
         """Micro-pass should extract subject from image and return a clean query."""
         mock_llm.return_value = {
@@ -50,7 +50,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         self.assertEqual(kwargs.get("reasoning_budget"), 0)
         self.assertEqual(kwargs.get("temperature"), 0.0)
 
-    @patch("graph._call_llm")
+    @patch("app.agent.graph._call_llm")
     def test_formulate_visual_search_query_prefixes_cleaned(self, mock_llm):
         """Prefixed responses like 'Query: ...' should be cleanly stripped."""
         mock_llm.return_value = "Query: Apple iMac G4 specifiche tecniche"
@@ -60,7 +60,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         )
         self.assertEqual(query, "Apple iMac G4 specifiche tecniche")
 
-    @patch("graph._call_llm")
+    @patch("app.agent.graph._call_llm")
     def test_formulate_visual_search_query_failure_fallback(self, mock_llm):
         """If the vision micro-pass fails, it should gracefully fall back to original task."""
         mock_llm.side_effect = RuntimeError("API timeout")
@@ -70,7 +70,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         )
         self.assertEqual(query, "Cerca prezzo visore")
 
-    @patch("registry.web_search_service.execute_search")
+    @patch("app.registry.web_search_service.execute_search")
     def test_web_prefetch_skips_purely_visual(self, mock_search):
         """Purely visual request with image should skip prefetch entirely."""
         state = {
@@ -82,8 +82,8 @@ class TestVisualWebPrefetch(unittest.TestCase):
         mock_search.assert_not_called()
         self.assertNotIn("web_prefetch_data", res_state)
 
-    @patch("graph.formulate_visual_search_query")
-    @patch("registry.web_search_service.execute_search")
+    @patch("app.agent.graph.formulate_visual_search_query")
+    @patch("app.registry.web_search_service.execute_search")
     def test_web_prefetch_executes_grounded_query(self, mock_search, mock_formulate):
         """Search-oriented request with image should ground query and search with it."""
         mock_formulate.return_value = "Eachine EV800DM prezzo specifiche"

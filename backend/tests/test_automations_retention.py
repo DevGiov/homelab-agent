@@ -7,10 +7,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import config
-from api import api
-from automations import db as auto_db
-from automations.scheduler import AutomationScheduler
+from app.api.main import api
+from app.automations import db as auto_db
+from app.automations.scheduler import AutomationScheduler
+from app.core import config
 
 
 def _make_definition(auto_id: str, retention_days=None) -> dict:

@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from automations import db as auto_db
-from automations.models import (
+from app.automations import db as auto_db
+from app.automations.models import (
     AutomationDefinition,
     Budget,
     ExecutionPolicy,
@@ -16,7 +16,7 @@ from automations.models import (
     WorkflowSpec,
     WorkflowStepDefinition,
 )
-from automations.runner import AutomationRunner
+from app.automations.runner import AutomationRunner
 
 
 class TestAutomationRunner(unittest.TestCase):
@@ -206,7 +206,7 @@ class TestAutomationRunner(unittest.TestCase):
 
     def test_xml_feed_parsing_and_content_extraction(self):
         """Verifica estrazione pulita e parsing di feed XML Atom/RSS."""
-        from automations.runner import _extract_step_content, _parse_xml_feed_to_text
+        from app.automations.runner import _extract_step_content, _parse_xml_feed_to_text
 
         sample_atom_xml = """<?xml version="1.0" encoding="UTF-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom">
@@ -241,7 +241,7 @@ class TestAutomationRunner(unittest.TestCase):
 
     def test_input_source_and_content_source_resolution(self):
         """Verifica che _resolve_parameters popoli content/body e path da content_source e filename."""
-        from automations.runner import _resolve_parameters
+        from app.automations.runner import _resolve_parameters
 
         ctx = {
             "steps": {

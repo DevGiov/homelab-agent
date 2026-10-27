@@ -1,8 +1,8 @@
 """Test unitari per vector store e knowledge base (Fase 2). Usa DB temporaneo isolato."""
 import unittest
 
-import vector_store
-from knowledge_base import _chunk_text, delete_document, ingest_document, list_documents, search_knowledge
+from app.memory import vector_store
+from app.memory.knowledge_base import _chunk_text, delete_document, ingest_document, list_documents, search_knowledge
 
 
 class TestVectorStore(unittest.TestCase):

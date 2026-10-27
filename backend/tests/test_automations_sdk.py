@@ -13,13 +13,13 @@ import shutil
 import tempfile
 import unittest
 
-from automations import db as auto_db
-from automations.code_runner import SandboxedCodeRunner, ast_security_check, validate_manifest
-from automations.models import (
+from app.automations import db as auto_db
+from app.automations.code_runner import SandboxedCodeRunner, ast_security_check, validate_manifest
+from app.automations.models import (
     RunStatus,
     TriggerType,
 )
-from automations.runner import AutomationRunner
+from app.automations.runner import AutomationRunner
 from sdk.context import AutomationContext
 from sdk.decorators import step, workflow
 

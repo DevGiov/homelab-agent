@@ -2,11 +2,11 @@ import unittest
 
 import pytest
 
-from agent_loop import run_agent_loop
-from mode_policy import get_mode_policy
-from registry.code_exec import CodeExecRegistry
-from registry.firecracker_sandbox import FirecrackerSandbox
-from registry.manager import get_registry_manager
+from app.agent.agent_loop import run_agent_loop
+from app.agent.mode_policy import get_mode_policy
+from app.registry.code_exec import CodeExecRegistry
+from app.registry.firecracker_sandbox import FirecrackerSandbox
+from app.registry.manager import get_registry_manager
 
 
 class TestModesAndRegistries(unittest.TestCase):
@@ -72,7 +72,7 @@ class TestModesAndRegistries(unittest.TestCase):
 
     def test_execute_approved_tool_includes_automations_and_email(self):
         """Verifica che execute_approved_tool cerchi su tutti i registry registrati (inclusi automations ed email)."""
-        import guardrails
+        from app.security import guardrails
         mgr = get_registry_manager()
 
         req = guardrails.ApprovalRequest(

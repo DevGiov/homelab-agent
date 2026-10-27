@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import unittest
 
-import calendar_db
+from app.calendar import db as calendar_db
 
 
 class TestCalendarDB(unittest.TestCase):

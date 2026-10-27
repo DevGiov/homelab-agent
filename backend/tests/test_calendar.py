@@ -7,12 +7,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import calendar_db
-import calendar_sync
-import config
-from api import api
-from automations.db import init_automations_db, save_definition
-from automations.models import (
+from app.api.main import api
+from app.automations.db import init_automations_db, save_definition
+from app.automations.models import (
     AutomationDefinition,
     ExecutionPolicy,
     RunStatus,
@@ -20,7 +17,10 @@ from automations.models import (
     WorkflowSpec,
     WorkflowStepDefinition,
 )
-from automations.runner import AutomationRunner
+from app.automations.runner import AutomationRunner
+from app.calendar import db as calendar_db
+from app.calendar import sync as calendar_sync
+from app.core import config
 
 
 class TestCalendarSync(unittest.TestCase):

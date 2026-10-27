@@ -2,9 +2,9 @@
 import json
 from unittest.mock import patch
 
-from analyze_monitoring import analyze_monitoring_logs
-from graph import AgentSpan, extract_salient_facts
-from letta_client import BM25Retriever, reciprocal_rank_fusion
+from app.agent.graph import AgentSpan, extract_salient_facts
+from app.agent.monitoring import analyze_monitoring_logs
+from app.memory.letta_client import BM25Retriever, reciprocal_rank_fusion
 
 
 def test_bm25_exact_match_and_rrf_fusion():
@@ -46,7 +46,7 @@ def test_monitoring_log_aggregation(tmp_path):
 
 def test_extract_salient_facts_parses_llm_bullets():
     llm_output = {"content": "- Preferisce Debian per i container LXC\n- ok\n* Usa un homelab Proxmox\n"}
-    with patch("graph._call_llm", return_value=llm_output) as mock_llm:
+    with patch("app.agent.graph._call_llm", return_value=llm_output) as mock_llm:
         facts = extract_salient_facts(
             "Preferisco sempre usare Debian per tutti i container LXC del mio Homelab.",
             "Ricevuto! Userò Debian come distribuzione predefinita.",
@@ -59,6 +59,6 @@ def test_extract_salient_facts_parses_llm_bullets():
 
 
 def test_extract_salient_facts_skips_llm_on_empty_input():
-    with patch("graph._call_llm") as mock_llm:
+    with patch("app.agent.graph._call_llm") as mock_llm:
         assert extract_salient_facts("", "risposta", "") == []
     mock_llm.assert_not_called()

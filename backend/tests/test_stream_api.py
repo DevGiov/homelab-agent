@@ -3,9 +3,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import config
-from api import api
-from stream_session import create_session, remove_session
+from app.agent.stream_session import create_session, remove_session
+from app.api.main import api
+from app.core import config
 
 
 class TestStreamApi(unittest.TestCase):

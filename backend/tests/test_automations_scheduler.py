@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from automations import db as auto_db
-from automations.models import RunStatus, TriggerType
-from automations.runner import AutomationRunner
-from automations.scheduler import AutomationScheduler
-from registry.email_tool import EmailRegistry
+from app.automations import db as auto_db
+from app.automations.models import RunStatus, TriggerType
+from app.automations.runner import AutomationRunner
+from app.automations.scheduler import AutomationScheduler
+from app.registry.email_tool import EmailRegistry
 
 
 class TestAutomationsSchedulerAndEmail(unittest.TestCase):
@@ -122,7 +122,7 @@ class TestAutomationsSchedulerAndEmail(unittest.TestCase):
     def test_daily_email_briefing_template_dry_run(self):
         """Verifica il template Daily Email Briefing in modalità dry-run completo."""
         template_file = (
-            Path(__file__).parent.parent / "automations" / "templates" / "daily_email_briefing.json"
+            Path(__file__).parent.parent / "app" / "automations" / "templates" / "daily_email_briefing.json"
         )
         self.assertTrue(template_file.exists(), f"File {template_file} non trovato")
 

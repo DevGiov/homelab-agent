@@ -12,19 +12,19 @@ import shutil
 import tempfile
 import unittest
 
-from automations import db as auto_db
-from automations.introspection import introspect_automation_parameters
-from automations.models import (
+from app.automations import db as auto_db
+from app.automations.introspection import introspect_automation_parameters
+from app.automations.models import (
     AutomationDefinition,
     RunStatus,
 )
-from automations.runner import AutomationRunner
-from registry.automations_tool import AutomationRegistry
+from app.automations.runner import AutomationRunner
+from app.registry.automations_tool import AutomationRegistry
 
 
 class TestAutomationsV2(unittest.TestCase):
     def setUp(self):
-        import config
+        from app.core import config
         self.orig_db_path = config.AUTOMATIONS_DB_PATH
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_automations.db")
@@ -32,7 +32,7 @@ class TestAutomationsV2(unittest.TestCase):
         auto_db.init_automations_db(self.db_path)
 
     def tearDown(self):
-        import config
+        from app.core import config
         config.AUTOMATIONS_DB_PATH = self.orig_db_path
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -214,8 +214,8 @@ class TestAutomationsV2(unittest.TestCase):
 
     def test_create_custom_with_null_or_string_budget_and_policy(self):
         """Verifica che payload con budget: null o permission_policy: string vengano gestiti e normalizzati con successo."""
-        from automations.models import Budget, ExecutionPolicy
-        from registry.automations_tool import AutomationRegistry
+        from app.automations.models import Budget, ExecutionPolicy
+        from app.registry.automations_tool import AutomationRegistry
         reg = AutomationRegistry()
 
         payload = {
@@ -263,8 +263,8 @@ class TestAutomationsV2(unittest.TestCase):
 
     def test_trigger_normalization_and_inference(self):
         """Verifica la normalizzazione resiliente dei trigger (dict, schedule synonym, e time inference)."""
-        import automations.db as auto_db
-        from automations.models import TriggerType
+        from app.automations import db as auto_db
+        from app.automations.models import TriggerType
 
         # 1. Triggers passato come dict singolo con sinonimo 'schedule'
         p1 = {

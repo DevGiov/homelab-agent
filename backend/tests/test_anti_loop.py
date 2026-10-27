@@ -1,13 +1,13 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from agent_loop import (
+from app.agent.agent_loop import (
     _normalize_call_signature,
     _query_jaccard_similarity,
     run_agent_loop,
 )
-from registry.search_ranking import is_result_relevant
-from tool_schemas import ToolSelection
+from app.agent.tool_schemas import ToolSelection
+from app.registry.search_ranking import is_result_relevant
 
 
 class TestEntityRelevance(unittest.TestCase):
@@ -52,7 +52,7 @@ class TestAntiLoop(unittest.TestCase):
         mock_call_structured = MagicMock(return_value=mock_selection)
         mock_call_llm = MagicMock(return_value={"content": "Risposta finale sintetizzata", "reasoning_content": "CoT finale"})
 
-        with patch("agent_loop.get_registry_manager") as mock_mgr_getter:
+        with patch("app.agent.agent_loop.get_registry_manager") as mock_mgr_getter:
             mock_mgr = MagicMock()
             mock_mgr.get_tools_for_mode.return_value = [
                 {"name": "web_search", "description": "search web", "parameters": {}}
@@ -82,7 +82,7 @@ class TestAntiLoop(unittest.TestCase):
 
 class TestSamplingPayload(unittest.TestCase):
     def test_sampling_penalties_injected(self):
-        from providers import OpenAICompatProvider
+        from app.llm.providers import OpenAICompatProvider
         provider = OpenAICompatProvider(base_url="http://mock:8080/v1", default_model="Qwen3.6-35B-HugeCtx")
         payload = provider._build_payload(
             messages=[{"role": "user", "content": "hello"}],

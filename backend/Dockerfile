@@ -26,4 +26,4 @@ COPY . .
 
 EXPOSE 8090
 
-CMD ["python", "run_api.py"]
+CMD ["python", "-m", "app"]

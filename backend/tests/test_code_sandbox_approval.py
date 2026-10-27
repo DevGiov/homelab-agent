@@ -4,10 +4,9 @@ from unittest.mock import patch
 
 import pytest
 
-import guardrails
-import permissions
-from registry.firecracker_sandbox import FirecrackerSandbox
-from registry.manager import get_registry_manager
+from app.registry.firecracker_sandbox import FirecrackerSandbox
+from app.registry.manager import get_registry_manager
+from app.security import guardrails, permissions
 
 TOOL = "python_interpreter"
 
@@ -145,13 +144,13 @@ def test_sandbox_available_never_prompts_for_fallback(thread_id):
 def test_resolve_endpoint_surfaces_local_fallback_as_new_approval(sandbox_down, thread_id, tmp_path):
     from fastapi.testclient import TestClient
 
-    from api import api
+    from app.api.main import api
 
     client = TestClient(api)
     marker = tmp_path / "marker"
     pending = _run(_code_writing(marker), thread_id)
 
-    with patch("api._call_llm") as llm_mock:
+    with patch("app.api.main._call_llm") as llm_mock:
         first = client.post(f"/v1/approvals/{pending['request_id']}/resolve", json={"action": "approve"}).json()
     llm_mock.assert_not_called()
 
@@ -160,7 +159,7 @@ def test_resolve_endpoint_surfaces_local_fallback_as_new_approval(sandbox_down, 
     assert step["command_prefix"] == guardrails.LOCAL_CODE_FALLBACK
     assert not marker.exists()
 
-    with patch("api._call_llm", return_value={"content": "Codice eseguito fuori sandbox."}):
+    with patch("app.api.main._call_llm", return_value={"content": "Codice eseguito fuori sandbox."}):
         second = client.post(f"/v1/approvals/{step['request_id']}/resolve", json={"action": "approve"}).json()
 
     assert second["result"]["output"] == "eseguito"

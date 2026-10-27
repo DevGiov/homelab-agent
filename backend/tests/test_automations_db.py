@@ -7,7 +7,7 @@ import threading
 import time
 import unittest
 
-from automations import db as auto_db
+from app.automations import db as auto_db
 
 
 class TestAutomationsDB(unittest.TestCase):

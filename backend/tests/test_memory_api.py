@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-import vector_store
-from api import api
+from app.api.main import api
+from app.memory import vector_store
 
 
 class TestMemoryAPI(unittest.TestCase):
@@ -71,7 +71,7 @@ class TestMemoryAPI(unittest.TestCase):
 
     def test_incognito_chat_does_not_save_facts(self):
         # Esegui una chat in incognito con mock dell'LLM
-        with patch("graph._call_llm") as mock_llm:
+        with patch("app.agent.graph._call_llm") as mock_llm:
             mock_llm.return_value = {
                 "content": "Risposta di test in incognito",
                 "reasoning_content": "Ragionamento isolato"

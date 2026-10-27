@@ -3,8 +3,8 @@ import queue
 import unittest
 from unittest.mock import MagicMock, patch
 
-from graph import _call_llm, _call_llm_structured, stream_queue, stream_reasoning_phase_count
-from tool_schemas import ToolSelection
+from app.agent.graph import _call_llm, _call_llm_structured, stream_queue, stream_reasoning_phase_count
+from app.agent.tool_schemas import ToolSelection
 
 
 class TestStreamingIsolation(unittest.TestCase):
@@ -18,7 +18,7 @@ class TestStreamingIsolation(unittest.TestCase):
         stream_queue.set(None)
         stream_reasoning_phase_count.set(0)
 
-    @patch("graph.get_provider")
+    @patch("app.agent.graph.get_provider")
     def test_reasoning_only_filters_out_content_events(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -51,7 +51,7 @@ class TestStreamingIsolation(unittest.TestCase):
         self.assertIn("Sto analizzando se servono tool...", full_reasoning)
         self.assertNotIn("tool_needed", full_reasoning)
 
-    @patch("graph.get_provider")
+    @patch("app.agent.graph.get_provider")
     def test_stream_mode_none_suppresses_all_events(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -66,7 +66,7 @@ class TestStreamingIsolation(unittest.TestCase):
         _call_llm("prompt", stream_mode="none")
         self.assertTrue(self.q.empty(), "La coda stream deve rimanere completamente vuota")
 
-    @patch("graph.get_provider")
+    @patch("app.agent.graph.get_provider")
     def test_structured_output_sets_raw_thinking_and_isolates_content(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -102,7 +102,7 @@ class TestStreamingIsolation(unittest.TestCase):
         self.assertNotIn("content", types, "Nessun JSON grezzo deve essere emesso su content")
         self.assertIn("reasoning", types)
 
-    @patch("graph.get_provider")
+    @patch("app.agent.graph.get_provider")
     def test_multi_phase_reasoning_headers(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider

@@ -2,8 +2,8 @@
 import time
 from unittest.mock import patch
 
-from graph import ExecutionLog, build_graph, execute_rollback_for_step, generate_rollback_plan_with_llm
-from tool_catalog import get_tool_catalog
+from app.agent.graph import ExecutionLog, build_graph, execute_rollback_for_step, generate_rollback_plan_with_llm
+from app.agent.tool_catalog import get_tool_catalog
 
 PLAN_WITH_FAILING_LAST_STEP = {
     "steps": [
@@ -68,7 +68,7 @@ def _run_plan(security_mode: str):
         return {"status": "success"}
 
     thread_id = f"test_rollback_{security_mode}_{time.time_ns()}"
-    with patch("graph.client.call_tool", side_effect=mock_call_tool):
+    with patch("app.agent.graph.client.call_tool", side_effect=mock_call_tool):
         build_graph().invoke(_plan_state(thread_id, security_mode), config={"configurable": {"thread_id": thread_id}})
     return forward_calls, rollback_calls
 
@@ -100,7 +100,7 @@ def test_non_reversible_tool_is_skipped():
 
 def test_llm_rollback_plan_uses_model_output():
     log = ExecutionLog({"id": 1}, "proxmox-mcp__exec_lxc_command", {"vmid": 100, "command": "rm -rf /tmp/test"})
-    with patch("graph._call_llm", return_value={"content": "  1. Ripristina i file da backup  "}) as mock_llm:
+    with patch("app.agent.graph._call_llm", return_value={"content": "  1. Ripristina i file da backup  "}) as mock_llm:
         plan = generate_rollback_plan_with_llm([log], "Pulizia file temporanei", "Comando fallito a metà")
 
     mock_llm.assert_called_once()

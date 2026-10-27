@@ -12,9 +12,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import config
-from api import api
-from automations import db as auto_db
+from app.api.main import api
+from app.automations import db as auto_db
+from app.core import config
 
 
 class TestAutomationsTriggersV2(unittest.TestCase):

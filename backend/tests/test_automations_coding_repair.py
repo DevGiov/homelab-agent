@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 
-from automations.loops.coding_repair import CodingRepairLoop
+from app.automations.loops.coding_repair import CodingRepairLoop
 
 
 class TestCodingRepairLoop(unittest.TestCase):

@@ -4,10 +4,10 @@ from unittest.mock import patch
 
 import pytest
 
-import config
-import registry.automations_tool as automations_tool
-from automations import db as auto_db
-from registry.automations_tool import AutomationRegistry, _resolve_template
+from app.automations import db as auto_db
+from app.core import config
+from app.registry import automations_tool
+from app.registry.automations_tool import AutomationRegistry, _resolve_template
 
 
 @pytest.fixture

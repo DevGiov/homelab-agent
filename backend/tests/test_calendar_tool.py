@@ -3,8 +3,8 @@ import shutil
 import tempfile
 import unittest
 
-import calendar_db
-from registry.calendar_tool import CalendarRegistry
+from app.calendar import db as calendar_db
+from app.registry.calendar_tool import CalendarRegistry
 
 
 class TestCalendarTool(unittest.TestCase):

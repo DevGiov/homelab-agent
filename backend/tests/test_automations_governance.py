@@ -11,11 +11,11 @@ import os
 import tempfile
 import unittest
 
-import audit_log
-from automations import db as auto_db
-from automations.circuit_breaker import CircuitBreakerManager, CircuitState
-from automations.models import RunStatus, TriggerType
-from automations.runner import AutomationRunner
+from app.automations import db as auto_db
+from app.automations.circuit_breaker import CircuitBreakerManager, CircuitState
+from app.automations.models import RunStatus, TriggerType
+from app.automations.runner import AutomationRunner
+from app.security import audit_log
 
 
 class TestAutomationsGovernanceAndSecurity(unittest.TestCase):

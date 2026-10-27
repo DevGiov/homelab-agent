@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-import config
-from api import api
-from automations import db as auto_db
+from app.api.main import api
+from app.automations import db as auto_db
+from app.core import config
 
 
 class TestAutomationsAPI(unittest.TestCase):
@@ -70,7 +70,7 @@ class TestAutomationsAPI(unittest.TestCase):
         self.assertEqual(res_get.json()["name"], "API Demo Automation")
 
         # 4. Trigger Run (Sincrono per test)
-        with patch("automations.runner.get_registry_manager") as mock_mgr_factory:
+        with patch("app.automations.runner.get_registry_manager") as mock_mgr_factory:
             mock_mgr = MagicMock()
             mock_mgr.execute_tool.return_value = {"reply": "echoed_hello"}
             mock_mgr_factory.return_value = mock_mgr
@@ -121,7 +121,7 @@ class TestAutomationsAPI(unittest.TestCase):
         }, db_path=self.db_path)
 
         # Risolvi tramite endpoint delle automazioni
-        with patch("guardrails.resolve_approval") as mock_resolve:
+        with patch("app.security.guardrails.resolve_approval") as mock_resolve:
             mock_resolve.return_value = MagicMock(status="approved")
             res_resolve = self.client.post(
                 "/v1/automations/runs/t_safest/approvals/apr_test_chat_1/resolve",
@@ -171,7 +171,7 @@ class TestAutomationsAPI(unittest.TestCase):
 
     def test_automations_registry_tools(self):
         """Verifica che l'AutomationRegistry esponga i tool e ritorni i template canonici."""
-        from registry.automations_tool import AutomationRegistry
+        from app.registry.automations_tool import AutomationRegistry
         reg = AutomationRegistry()
         tools = reg.get_tools()
         tool_names = [t["name"] for t in tools]
@@ -193,7 +193,7 @@ class TestAutomationsAPI(unittest.TestCase):
 
     def test_resolve_approval_create_automation_from_template(self):
         """Verifica che la risoluzione di un'approvazione per create_automation_from_template crei l'automazione senza errore di registry."""
-        import guardrails
+        from app.security import guardrails
         req = guardrails.ApprovalRequest(
             request_id="apr_test_tpl_create",
             tool_name="create_automation_from_template",

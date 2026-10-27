@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from stream_session import create_session, remove_session
+from app.agent.stream_session import create_session, remove_session
 
 
 class TestStreamSession(unittest.TestCase):
