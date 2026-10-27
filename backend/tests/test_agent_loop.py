@@ -118,3 +118,9 @@ def test_chat_mode_never_selects_tools(manager):
 
     assert res["final_response"] == "Ciao!"
     select.assert_not_called()
+
+
+def test_null_arguments_mean_no_arguments():
+    # LFM2.5 scrive `"arguments": null` per i tool senza parametri: prima la selezione veniva scartata
+    selection = ToolSelection.model_validate({"tool_needed": True, "tool_name": "list_containers", "arguments": None, "reasoning": None})
+    assert selection.arguments == {} and selection.reasoning == ""

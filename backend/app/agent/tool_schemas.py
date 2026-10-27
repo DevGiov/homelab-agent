@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 try:
     import jsonschema
@@ -23,6 +23,14 @@ class ToolSelection(BaseModel):
     reasoning: str = Field(default="", description="Motivazione o spiegazione interna della decisione (Chain of Thought)")
     final_answer: Optional[str] = Field(default=None, description="Risposta finale formattata ed esplicita per l'utente, da compilare specialmente quando tool_needed=False")
     raw_thinking: Optional[str] = Field(default=None, description="Thinking nativo catturato durante la chiamata LLM")
+
+    @field_validator("arguments", "reasoning", mode="before")
+    @classmethod
+    def _null_as_empty(cls, v, info):
+        # I modelli scrivono spesso `"arguments": null` per i tool senza parametri: è una chiamata valida
+        if v is None:
+            return {} if info.field_name == "arguments" else ""
+        return v
 
 def validate_tool_args(tool_name: str, arguments: dict, tools_catalog: List[dict]) -> Optional[str]:
     """Valida gli argomenti contro lo schema del tool. Ritorna None se ok, altrimenti messaggio di errore."""
