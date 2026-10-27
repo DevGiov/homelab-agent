@@ -184,7 +184,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
         calls = []
 
-        def mock_llm(prompt, system_prompt=None, reasoning_budget=-1):
+        def mock_llm(prompt, system_prompt=None, reasoning_budget=-1, reasoning_phase=None):
             return {"content": "risposta mock", "reasoning_content": ""}
 
         idx = [0]
@@ -273,7 +273,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
         from app.agent.agent_loop import run_agent_loop
 
-        def mock_llm(prompt, system_prompt=None, reasoning_budget=-1):
+        def mock_llm(prompt, system_prompt=None, reasoning_budget=-1, reasoning_phase=None):
             return {"content": "sintesi", "reasoning_content": ""}
         idx = [0]
         def mock_structured(**kw):

@@ -59,7 +59,7 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertFalse(res.get("sandboxed"))
 
     def test_agent_loop_chat_mode(self):
-        def dummy_llm(prompt, system_prompt=None, reasoning_budget=-1):
+        def dummy_llm(prompt, system_prompt=None, reasoning_budget=-1, reasoning_phase=None):
             return {"content": "Ciao! Risposta chat mock.", "reasoning_content": ""}
 
         res = run_agent_loop(

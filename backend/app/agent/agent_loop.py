@@ -1,18 +1,38 @@
+"""Loop ReAct dell'agente: Reason -> Act -> Observe fino a una risposta finale o al limite di passi della modalità.
+
+`run_agent_loop` è il punto d'ingresso; lo stato di un turno vive in `AgentLoop` (osservazioni, cache delle
+chiamate, anti-loop, ragionamenti accumulati) e ogni fase è un metodo. I testi dei prompt stanno in
+`agent_prompts.py`.
+
+Funzioni LLM attese dal chiamante:
+- `call_llm_fn(prompt, system_prompt=..., reasoning_budget=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
+- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., images=...)` -> ToolSelection
+"""
 import json
 import logging
 import re
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from app.agent import agent_prompts as prompts
 from app.agent.llm_calls import stream_queue
 from app.agent.mode_policy import get_mode_policy
+from app.agent.stream_session import current_session_var
 from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_catalog_response
 from app.agent.tool_schemas import ToolSelection, validate_tool_args
 from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
 from app.registry.manager import get_registry_manager
+from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
+from app.security import guardrails
 
 logger = logging.getLogger("agent_loop")
+
+# Query web con similarità di Jaccard almeno pari a questa soglia contano come la stessa ricerca
+SEARCH_SIMILARITY_THRESHOLD = 0.80
+SESSION_PAUSE_TIMEOUT_SECONDS = 300
+SELECTION_MAX_TOKENS = 4096
+SELECTION_REASONING_CAP = 1024
+SYNTHESIS_REASONING_CAP = 512
 
 
 def is_tools_discovery_query(query: str) -> bool:
@@ -41,15 +61,6 @@ def is_tools_discovery_query(query: str) -> bool:
     return has_target and has_intent
 
 
-def _call_llm_with_phase(fn: Any, prompt: str, system_prompt: Optional[str] = None, reasoning_budget: int = -1, reasoning_phase: Optional[str] = None) -> Any:
-    if not fn:
-        return None
-    try:
-        return fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget, reasoning_phase=reasoning_phase)
-    except TypeError:
-        return fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget)
-
-
 def _normalize_call_signature(tool_name: str, arguments: Dict[str, Any]) -> str:
     if tool_name == "web_search":
         q = str(arguments.get("query", "")).lower().strip().strip('"\'')
@@ -66,540 +77,371 @@ def _query_jaccard_similarity(q1: str, q2: str) -> float:
     return len(tokens1 & tokens2) / len(tokens1 | tokens2)
 
 
+def _as_observation_text(tool_name: str, res: Any) -> str:
+    """Risultato serializzato per lo storico; quello della ricerca web è racchiuso tra delimitatori non fidati."""
+    res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
+    if tool_name == "web_search":
+        return f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
+    return res_str
+
+
+def _content(res: Any) -> Tuple[str, str]:
+    """(content, reasoning_content) di una risposta LLM."""
+    if isinstance(res, dict):
+        return res.get("content", "") or "", res.get("reasoning_content", "") or ""
+    return (res or ""), ""
+
+
+class AgentLoop:
+    def __init__(
+        self,
+        task: str,
+        mode: str,
+        memory_context: Optional[str],
+        call_llm_fn: Optional[Callable[..., Any]],
+        call_llm_structured_fn: Optional[Callable[..., Any]],
+        thread_id: Optional[str],
+        web_prefetch_data: Optional[Dict[str, Any]],
+        images: Optional[List[str]],
+        security_mode: str,
+    ):
+        self.task = task
+        self.mode = mode
+        self.memory_context = memory_context
+        self.call_llm_fn = call_llm_fn
+        self.call_llm_structured_fn = call_llm_structured_fn
+        self.thread_id = thread_id
+        self.images = images
+        self.security_mode = security_mode
+
+        self.policy = get_mode_policy(mode)
+        self.manager = get_registry_manager()
+        self.available_tools = self.manager.get_tools_for_mode(self.policy.allowed_registries)
+        self.prefetch_block = ""
+        if web_prefetch_data and web_prefetch_data.get("summary_text"):
+            self.prefetch_block = wrap_untrusted_web_evidence(
+                query=web_prefetch_data.get("query", task),
+                formatted_content=web_prefetch_data.get("summary_text", ""),
+                sources=web_prefetch_data.get("sources", []),
+            )
+
+        self.execution_trace: List[Dict[str, Any]] = []
+        self.observations: List[str] = []
+        self.reasonings: List[Tuple[str, str]] = []
+        # Risultati dei tool read-only già eseguiti nel turno, conteggio delle chiamate per l'anti-loop
+        self.call_cache: Dict[str, Any] = {}
+        self.call_counts: Dict[str, int] = {}
+        self.search_queries: List[str] = []
+
+    # --- risultato ------------------------------------------------------------
+
+    def _reasoning_content(self) -> Optional[str]:
+        if not self.reasonings:
+            return None
+        return "\n\n---\n\n".join(
+            f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}" for title, body in self.reasonings
+        )
+
+    def _result(self, final_response: str) -> Dict[str, Any]:
+        return {"final_response": final_response, "execution_trace": self.execution_trace,
+                "reasoning_content": self._reasoning_content()}
+
+    def _observation_text(self) -> str:
+        text = "\n".join(self.observations)
+        if len(text) > settings.truncation_limit:
+            text = text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
+        return text
+
+    def _ask_llm(self, prompt: str, system_prompt: str, reasoning_budget: int, phase: str) -> str:
+        """Chiamata testuale; il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
+        res = self.call_llm_fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget, reasoning_phase=phase)
+        content, reasoning = _content(res)
+        if reasoning:
+            self.reasonings.append((phase, reasoning))
+        return clean_synthesis_content(content)
+
+    def _synthesis_budget(self) -> int:
+        return min(self.policy.reasoning_budget, SYNTHESIS_REASONING_CAP) if self.policy.reasoning_budget > 0 else 0
+
+    # --- percorso principale ----------------------------------------------------
+
+    def run(self) -> Dict[str, Any]:
+        logger.info(f"Avvio agent loop per mode='{self.mode}' (max_tool_calls={self.policy.max_tool_calls}, registries={self.policy.allowed_registries})")
+
+        if is_tools_discovery_query(self.task):
+            logger.info("Query di discovery tool rilevata: formattazione dinamica del catalogo attivo")
+            return {
+                "final_response": format_dynamic_catalog_response(self.available_tools),
+                "execution_trace": [],
+                "reasoning_content": f"Elenco dinamico generato con successo per i {len(self.available_tools)} tool attivi.",
+            }
+
+        if self.policy.max_tool_calls <= 0 or not self.available_tools:
+            return self._answer_without_tools()
+
+        if not self.call_llm_structured_fn:
+            return self._plain_answer()
+
+        catalog = format_catalog_for_prompt(self.available_tools)
+        for step_id in range(1, self.policy.max_tool_calls + 1):
+            if self._session_stopped():
+                break
+
+            base = prompts.base_system_prompt(self.mode)
+            selection = self._select_tool(step_id, base, catalog)
+            if not selection or (not selection.tool_needed and not selection.parallel_calls) or not selection.tool_name:
+                return self._final_answer(selection, base)
+
+            if self._run_parallel(step_id, selection):
+                continue
+
+            tool_name, arguments = selection.tool_name, selection.arguments or {}
+            if not self._arguments_valid(step_id, tool_name, arguments, selection.reasoning):
+                continue
+            if self._is_repetition(step_id, tool_name, arguments, selection.reasoning):
+                break
+
+            res, cached = self._execute(step_id, tool_name, arguments)
+            if isinstance(res, dict) and res.get("approval_required"):
+                return self._approval_result(step_id, tool_name, arguments, res, selection.reasoning)
+            self._record(step_id, tool_name, arguments, res, selection.reasoning, cached)
+
+        return self._synthesize_after_loop()
+
+    # --- risposte senza selezione dei tool ------------------------------------
+
+    def _answer_without_tools(self) -> Dict[str, Any]:
+        """Modalità senza tool (es. chat) o catalogo vuoto: una sola chiamata LLM."""
+        if self.call_llm_fn:
+            res = self.call_llm_fn(
+                prompts.no_tools_prompt(self.task, self.prefetch_block),
+                system_prompt=prompts.no_tools_system_prompt(self.mode, self.memory_context),
+                reasoning_budget=self.policy.reasoning_budget,
+                reasoning_phase=None,
+            )
+            if res:
+                raw, reasoning = _content(res)
+                return {"final_response": clean_synthesis_content(raw) or raw, "execution_trace": [], "reasoning_content": reasoning}
+        return {"final_response": f"Ho ricevuto la tua richiesta: '{self.task}'.", "execution_trace": [], "reasoning_content": None}
+
+    def _plain_answer(self) -> Dict[str, Any]:
+        """Chiamante senza output strutturato (es. step agentici delle automazioni): risposta diretta."""
+        if not self.call_llm_fn:
+            return self._result("Richiesta completata.")
+        res = self.call_llm_fn(
+            prompts.plain_answer_prompt(self.task, self.memory_context),
+            system_prompt=prompts.plain_answer_system_prompt(prompts.base_system_prompt(self.mode)),
+            reasoning_budget=self.policy.reasoning_budget,
+            reasoning_phase="Elaborazione Risposta Finale",
+        )
+        content, reasoning = _content(res)
+        return {"final_response": content or "Richiesta completata.", "execution_trace": self.execution_trace,
+                "reasoning_content": reasoning}
+
+    # --- fasi di un passo -----------------------------------------------------
+
+    def _session_stopped(self) -> bool:
+        """Rispetta stop e pausa della sessione di streaming (la pausa attende fino a 5 minuti)."""
+        sess = current_session_var.get()
+        if not sess:
+            return False
+        if sess.is_stopped():
+            logger.info("Agent loop interrotto da session stop")
+            return True
+        sess.pause_event.wait(timeout=SESSION_PAUSE_TIMEOUT_SECONDS)
+        return sess.is_stopped()
+
+    def _select_tool(self, step_id: int, base: str, catalog: str) -> Optional[ToolSelection]:
+        observations = "\n".join(self.observations) if self.observations else "Nessuna azione eseguita finora."
+        system_prompt = prompts.tool_selection_system_prompt(
+            base, catalog, self.memory_context, self.prefetch_block, len(self.images or []), observations,
+        )
+        budget = self.policy.reasoning_budget
+        selection = self.call_llm_structured_fn(
+            prompt=self.task,
+            system_prompt=system_prompt,
+            schema_cls=ToolSelection,
+            max_tokens=SELECTION_MAX_TOKENS,
+            temperature=0.10,
+            max_retries=2,
+            reasoning_budget=min(budget, SELECTION_REASONING_CAP) if budget > 0 else SELECTION_REASONING_CAP,
+            images=self.images,
+        )
+        reasoning = (getattr(selection, "raw_thinking", "") or "") or ((selection.reasoning if selection else "") or "")
+        if reasoning:
+            self.reasonings.append((f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool", reasoning))
+        return selection
+
+    def _final_answer(self, selection: Optional[ToolSelection], base: str) -> Dict[str, Any]:
+        """Il modello non chiede altri tool: risposta esplicita, sintesi delle osservazioni o risposta diretta."""
+        if selection and selection.final_answer and len(selection.final_answer.strip()) > 10:
+            final = selection.final_answer.strip()
+            # La risposta arriva già completa: la si rimanda alla UI a parole come se fosse in streaming
+            q = stream_queue.get()
+            if q:
+                for word in re.findall(r"\S+|\s+", final):
+                    q.put({"type": "content", "delta": word})
+            return self._result(final)
+
+        if not self.call_llm_fn:
+            return self._result("Richiesta completata.")
+
+        if self.observations:
+            answer = self._ask_llm(
+                prompts.tool_synthesis_prompt(self.task, self._observation_text()),
+                prompts.tool_synthesis_system_prompt(base),
+                self._synthesis_budget(),
+                "Sintesi Risultati Tool",
+            )
+            return self._result(answer or "The model processed the information but did not produce a text response. Please retry or adjust mode.")
+
+        answer = self._ask_llm(
+            prompts.direct_answer_prompt(self.task, self.memory_context, self.prefetch_block),
+            prompts.direct_answer_system_prompt(base),
+            self.policy.reasoning_budget,
+            "Elaborazione Risposta Finale",
+        )
+        return self._result(answer or "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità.")
+
+    def _run_parallel(self, step_id: int, selection: ToolSelection) -> bool:
+        """Esegue in parallelo le chiamate read-only proposte; False se non ce ne sono almeno due."""
+        calls = [c for c in (selection.parallel_calls or [])
+                 if isinstance(c, dict) and c.get("tool_name") and guardrails.classify_tool(c["tool_name"]) == "safe"]
+        if len(selection.parallel_calls or []) <= 1 or len(calls) <= 1:
+            return False
+
+        logger.info(f"Step {step_id}: esecuzione parallela di {len(calls)} tool read-only")
+        results = self.manager.execute_tools_parallel(
+            calls, self.policy.allowed_registries, thread_id=self.thread_id, mode=self.mode, security_mode=self.security_mode,
+        )
+        for i, (call, res) in enumerate(zip(calls, results, strict=True)):
+            tool_name, arguments = call["tool_name"], call.get("arguments", {})
+            self.execution_trace.append({
+                "step_id": step_id,
+                "parallel_index": i,
+                "tool_name": tool_name,
+                "args": arguments,
+                "result": res,
+                "reasoning": selection.reasoning,
+                "parallel": True,
+                "error": res.get("error") if isinstance(res, dict) else None,
+            })
+            if tool_name == "web_search":
+                self.search_queries.append(str(arguments.get("query", "")).strip())
+            sig = _normalize_call_signature(tool_name, arguments)
+            self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
+            self.observations.append(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')}) -> {_as_observation_text(tool_name, res)}")
+        return True
+
+    def _arguments_valid(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
+        error = validate_tool_args(tool_name, arguments, self.available_tools)
+        if not error:
+            return True
+        logger.warning(f"Step {step_id}: errore validazione argomenti per '{tool_name}': {error}")
+        self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments,
+                                     "reasoning": reasoning, "error": f"Validazione fallita: {error}"})
+        self.observations.append(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {error}")
+        return False
+
+    def _is_repetition(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
+        """Anti-loop: una chiamata già fatta nel turno (o una ricerca web quasi uguale) chiude il loop e passa alla sintesi."""
+        sig = _normalize_call_signature(tool_name, arguments)
+        repeated = sig in self.call_counts
+        self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
+
+        if tool_name == "web_search" and not repeated:
+            query = str(arguments.get("query", "")).strip()
+            for previous in self.search_queries:
+                similarity = _query_jaccard_similarity(query, previous)
+                if similarity >= SEARCH_SIMILARITY_THRESHOLD:
+                    logger.info(f"Step {step_id}: query '{query}' ha similarità {similarity:.2f} con precedente '{previous}', trattata come duplicato")
+                    repeated = True
+                    break
+            if not repeated:
+                self.search_queries.append(query)
+
+        if repeated:
+            logger.warning(f"Step {step_id}: Rilevata ripetizione per '{tool_name}'. Interruzione loop ReAct per prevenire cicli infiniti.")
+            self.observations.append(f"Step {step_id}: [LOOP INTERROTTO] L'azione '{tool_name}' è già stata eseguita in precedenza. Si procede alla sintesi finale.")
+            self.execution_trace.append({
+                "step_id": step_id, "tool_name": tool_name, "args": arguments, "reasoning": reasoning,
+                "result": {"warning": "Chiamata duplicata bloccata. Interruzione loop ReAct per convergenza rapida."},
+                "cached": True, "duplicate_blocked": True,
+            })
+        return repeated
+
+    def _execute(self, step_id: int, tool_name: str, arguments: Dict[str, Any]) -> Tuple[Any, bool]:
+        """Esegue il tool tramite il registry (guardrail, approvazione, audit); i read-only finiscono in cache."""
+        cache_key = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
+        if cache_key in self.call_cache:
+            logger.info(f"Step {step_id}: hit cache deduplicazione per '{tool_name}'")
+            return self.call_cache[cache_key], True
+        try:
+            res = self.manager.execute_tool(tool_name, arguments, self.policy.allowed_registries, thread_id=self.thread_id,
+                                            mode=self.mode, security_mode=self.security_mode, task=self.task)
+        except Exception as e:
+            logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
+            return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
+        if guardrails.classify_tool(tool_name) == "safe":
+            self.call_cache[cache_key] = res
+        return res, False
+
+    def _approval_result(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Dict[str, Any],
+                         reasoning: Optional[str]) -> Dict[str, Any]:
+        """Il guardrail chiede conferma: notifica la UI e chiude il turno in attesa della decisione."""
+        logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita ({res.get('risk_reason')}).")
+        message = res.get("message", "Richiesta di approvazione richiesta.")
+        approval = {
+            "request_id": res.get("request_id"),
+            "command_preview": res.get("command_preview"),
+            "command_prefix": res.get("command_prefix"),
+            "risk_reason": res.get("risk_reason"),
+        }
+        q = stream_queue.get()
+        if q:
+            q.put({"type": "approval_required", "tool_name": tool_name, "arguments": arguments, "message": message, **approval})
+
+        self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
+                                     "reasoning": reasoning, "approval_required": True, "approval_prompt": message, **approval})
+        return {"final_response": message, "execution_trace": self.execution_trace, "reasoning_content": reasoning,
+                "approval_required": True, "approval_prompt": message, **approval}
+
+    def _record(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Any, reasoning: Optional[str], cached: bool):
+        observation = _as_observation_text(tool_name, res)
+        logger.info(f"Step {step_id}: Risultato tool '{tool_name}': {observation[:200]}...")
+        self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
+                                     "reasoning": reasoning, "cached": cached,
+                                     "error": res.get("error") if isinstance(res, dict) else None})
+        self.observations.append(f"Step {step_id}: {tool_name}({arguments}) -> {observation}")
+
+    def _synthesize_after_loop(self) -> Dict[str, Any]:
+        """Passi esauriti, anti-loop o stop: sintesi di quanto osservato."""
+        if not (self.observations and self.call_llm_fn):
+            return self._result("Richiesta completata.")
+        answer = self._ask_llm(
+            prompts.final_synthesis_prompt(self.task, self._observation_text()),
+            prompts.final_synthesis_system_prompt(),
+            self._synthesis_budget(),
+            "Sintesi Risultati Finali",
+        )
+        return self._result(answer or "Operazione completata.")
+
 
 def run_agent_loop(
     task: str,
     mode: str,
     memory_context: Optional[str] = None,
-    call_llm_fn: Any = None,
-    call_llm_structured_fn: Any = None,
+    call_llm_fn: Optional[Callable[..., Any]] = None,
+    call_llm_structured_fn: Optional[Callable[..., Any]] = None,
     thread_id: Optional[str] = None,
     web_prefetch_data: Optional[Dict[str, Any]] = None,
     images: Optional[List[str]] = None,
     security_mode: str = "normal",
 ) -> Dict[str, Any]:
+    """Esegue il loop ReAct secondo la ModePolicy della modalità.
+
+    Con max_tool_calls == 0 (es. chat) risponde direttamente; altrimenti cicla Reason -> Act -> Observe
+    fino a una risposta finale o al limite di passi.
     """
-    Esegue il loop ReAct autonomo in base alla ModePolicy della modalità corrente.
-    - Se max_tool_calls == 0 (es. chat), risponde direttamente senza tool.
-    - Altrimenti cicla: Reason -> Act -> Observe -> Loop fino al raggiungimento di max_tool_calls o final answer.
-    """
-    policy = get_mode_policy(mode)
-    logger.info(f"Avvio agent loop per mode='{mode}' (max_tool_calls={policy.max_tool_calls}, registries={policy.allowed_registries})")
-
-
-    manager = get_registry_manager()
-    available_tools = manager.get_tools_for_mode(policy.allowed_registries)
-    execution_trace = []
-
-    # Risposta immediata e dinamica per query di verifica tool/MCP disponibili
-    if is_tools_discovery_query(task):
-        logger.info("Query di discovery tool rilevata: formattazione dinamica del catalogo attivo")
-        catalog_reply = format_dynamic_catalog_response(available_tools)
-        return {
-            "final_response": catalog_reply,
-            "execution_trace": [],
-            "reasoning_content": f"Elenco dinamico generato con successo per i {len(available_tools)} tool attivi."
-        }
-
-    # Blocco prefetch formattato (se disponibile)
-    prefetch_block = ""
-    if web_prefetch_data and web_prefetch_data.get("summary_text"):
-        from app.registry.search_security import wrap_untrusted_web_evidence
-        prefetch_block = wrap_untrusted_web_evidence(
-            query=web_prefetch_data.get("query", task),
-            formatted_content=web_prefetch_data.get("summary_text", ""),
-            sources=web_prefetch_data.get("sources", [])
-        )
-
-    # Se la modalità non ammette tool o il catalogo ammessi è vuoto
-    if policy.max_tool_calls <= 0 or not available_tools:
-        if call_llm_fn:
-            now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
-            from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
-            sys_prompt = (
-                f"Data e Ora Corrente del Sistema: {now_str}\n"
-                f"Sei l'Agente AI per la gestione dell'Homelab (modalità: {mode.upper()}). Rispondi in modo naturale e completo in italiano.\n"
-                f"{UNTRUSTED_CONTEXT_POLICY}\n"
-                f"Contesto memoria:\n{memory_context or ''}"
-            )
-            prompt_parts = []
-            if prefetch_block:
-                prompt_parts.append(prefetch_block)
-            prompt_parts.append(f"Richiesta utente: '{task}'")
-            combined_task = "\n\n".join(prompt_parts)
-
-            ans_res = call_llm_fn(combined_task, system_prompt=sys_prompt, reasoning_budget=policy.reasoning_budget)
-            if ans_res:
-                raw_ans = ans_res.get("content", "")
-                reasoning = ans_res.get("reasoning_content", "")
-                ans = clean_synthesis_content(raw_ans) or raw_ans
-                return {"final_response": ans, "execution_trace": [], "reasoning_content": reasoning}
-        return {"final_response": f"Ho ricevuto la tua richiesta: '{task}'.", "execution_trace": [], "reasoning_content": None}
-
-    catalog_str = format_catalog_for_prompt(available_tools)
-    history_observations = []
-    accumulated_reasonings: List[Tuple[str, str]] = []
-
-    # Cache/deduplicazione e tracciamento storico chiamate nello stesso run
-    call_cache: Dict[str, Any] = {}
-    call_history_counts: Dict[str, int] = {}
-    executed_search_queries: List[str] = []
-
-    for step_id in range(1, policy.max_tool_calls + 1):
-        from app.agent.stream_session import current_session_var
-        sess = current_session_var.get()
-        if sess:
-            if sess.is_stopped():
-                logger.info("Agent loop interrotto da session stop")
-                break
-            sess.pause_event.wait(timeout=300)
-            if sess.is_stopped():
-                break
-
-        obs_context = "\n".join(history_observations) if history_observations else "Nessuna azione eseguita finora."
-
-        now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
-        from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
-        base_system_prompt = (
-            f"Current System Date and Time: {now_str}\n"
-            f"You are the Homelab AI Management Agent (mode: {mode.upper()}).\n"
-            "You have access to the connected MCP ecosystem, infrastructure tools, visual analysis, web search, code execution, and the integrated Homelab Automations & Loops engine.\n"
-            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
-            "HOMELAB AUTOMATIONS & LOOPS SUBSYSTEM:\n"
-            "- Homelab-agent has a built-in 'Automazioni' (Automations & Loops) engine supporting durable step workflows, background cron schedules, approval gates, and sandboxed code execution.\n"
-            "- Pre-packaged canonical templates available:\n"
-            "  * `tpl-daily-email-briefing`: Daily Email Briefing & Triage (reads unread emails, triages urgency, prepares drafts with zero auto-send policy, saves markdown report).\n"
-            "  * `tpl-github-issue-repair`: GitHub Issue Auto-Repair Loop (diagnoses bugs in isolated workspaces, tests baseline, runs repair loop, validates fixes, generates unified diff patch).\n"
-            "- If the user asks about the Automations section, templates, or creating/modifying workflows:\n"
-            "  1. Use `list_automation_templates` to view available templates or `list_automations` to view active ones.\n"
-            "  2. To create a new automation: use `create_automation_from_template` or `create_custom_automation`.\n"
-            "  3. To MODIFY, FIX, or UPDATE an existing automation: use `update_automation` (with `automation_id` and `updates`) to update it directly in-place, OR output an ```automation_proposal code block with the same `id`. DO NOT create a duplicate `_v2` ID unless the user explicitly requested a separate new workflow!\n"
-            "  4. Interactive proposals in chat: output a code block starting with ```automation_proposal on its own line, followed by the JSON object on the next line (NEVER put `{` on the same line as ```automation_proposal). The frontend renders an interactive card with Dry-Run, Activate/Update buttons!\n"
-            "- Canonical Workflow Specification for Custom Automations:\n"
-            "  * `id`: unique id in snake_case (e.g. 'auto_github_trending'). When fixing an existing automation, KEEP the same id.\n"
-            "  * `name`: descriptive name\n"
-            "  * `description`: concise explanation of purpose and schedule\n"
-            "  * `triggers`: list of triggers. CRITICAL: For scheduled/recurring automations (e.g. daily, hourly, at specific times), you MUST include a cron trigger:\n"
-            "    - format: `[{\"id\": \"trg_cron_1\", \"type\": \"cron\", \"cron_expression\": \"0 12 * * *\", \"timezone\": \"Europe/Rome\", \"enabled\": true}]`\n"
-            "    - Standard 5-field cron syntax: minute hour day month day-of-week (e.g. '0 12 * * *' for 12:00 noon daily, '0 10 * * *' for 10:00 daily, '0 8 * * 1-5' for weekdays at 08:00, '0 * * * *' for hourly).\n"
-            "    - If the user specifies any execution frequency, hour, or schedule, NEVER omit triggers or set type to manual!\n"
-            "  * `workflow.initial_step_id`: MUST strictly match the `step_id` of the first step (e.g. 'step_1_search')\n"
-            "  * `workflow.steps`: list of steps, each with:\n"
-            "    - `step_id`: unique string ID (e.g. 'step_1_search', 'step_2_synthesis')\n"
-            "    - `name`: step title\n"
-            "    - `type`: 'deterministic_action' (for tools) or 'agentic_task' (for LLM reasoning) or 'approval_gate'\n"
-            "    - `action_or_tool`: exact tool name (e.g. 'web_search', 'save_artifact', 'http_get')\n"
-            "    - `parameters`: dictionary containing tool arguments (e.g. `{\"query\": \"trending repositories\"}`). NEVER omit query for web_search!\n"
-            "    - `prompt_template`: string template for agentic tasks, e.g. 'Analyze the following search results: {{steps.step_1_search.output.text}}'\n"
-            "  * `permission_policy`: object with `allowed_tools` (list of tool names used in steps) and `security_mode` ('normal' | 'safest' | 'dangerous'). NEVER set permission_policy to a raw string like 'auto_execute'!\n"
-            "  * `budget`: execution resource and safety limits per run (can be omitted for safe defaults, NEVER set to null or raw string):\n"
-            "    - `max_duration_seconds`: global timeout in seconds (default 300)\n"
-            "    - `max_tokens`: token safety cap (default 50000)\n"
-            "    - `max_llm_calls`: max LLM reasoning steps allowed (default 10)\n"
-            "    - `max_tool_calls`: max tool calls allowed per run (default 25)\n"
-            "    - `max_retries_per_step`: retry attempts for failed step (default 2)\n"
-            f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        )
-
-        prefetch_guidance = ""
-        if prefetch_block:
-            prefetch_guidance = (
-                f"\n\nAVAILABLE WEB PREFETCH DATA:\n{prefetch_block}\n\n"
-                "NOTE: A web prefetch has already been performed for this turn. "
-                "If the above information is sufficient to answer the user's request, "
-                "set `tool_needed=false` and provide the final answer immediately in `final_answer`. "
-                "Only use `web_search` if you require further details or different data not present in the prefetch.\n"
-            )
-
-        vision_guidance = ""
-        if images and len(images) > 0:
-            vision_guidance = (
-                f"\n\nAVAILABLE VISUAL CONTEXT:\n"
-                f"The user attached {len(images)} image(s) directly to this request.\n"
-                "If the user's request asks to analyze, describe, interpret, or answer questions about the attached image, "
-                "you can perceive it directly: set `tool_needed=false` and provide your thorough, detailed, and accurate answer in `final_answer`.\n"
-                "Only invoke tools if external actions on Homelab/MCP resources, additional web searches, or code execution are needed.\n"
-            )
-
-        tool_system_prompt = base_system_prompt + (
-            f"Catalog of available tools for this mode:\n{catalog_str}\n\n"
-            f"Conversational memory context:\n{memory_context or ''}\n\n"
-            f"{prefetch_guidance}"
-            f"{vision_guidance}"
-            f"History of actions executed in this turn:\n{obs_context}\n\n"
-            "CORE TOOL SELECTION RULES:\n"
-            "1. DISTINCTION BETWEEN VIEW vs EXECUTE TOOLS:\n"
-            "   - `[VIEW]`: Purely informational, read-only diagnostic tools (e.g. `get_container_status`, `list_containers`, `list_templates`, `list_automation_templates`, `list_automations`, `get_automation_details`, `web_search`). These run automatically without interrupting the flow.\n"
-            "   - `[EXECUTE]`: Shell commands on host/containers and operations that mutate infrastructure, DNS, configs, or automations (e.g. `exec_lxc_command`, `create_service`, `stop_container`, `allocate_ip`, `create_automation_from_template`, `create_custom_automation`, `update_automation`). These trigger Human-In-The-Loop (HITL) approval in the UI when required. In the `reasoning` field, always clearly explain what action you intend to take before calling them.\n"
-            "2. If the user request asks about recent events, latest news, updates, dates, live prices, or information not present in your certain knowledge (and not covered by prefetch), set `tool_needed=true` and select `tool_name='web_search'`.\n"
-            "3. If the request requires operating on homelab resources, files, network configs, DNS, or any service managed via the MCP ecosystem, set `tool_needed=true` and specify the corresponding MCP tool.\n"
-            "4. If the request can be answered with absolute certainty from internal knowledge, the attached image, or the web prefetch without further actions (and does not ask for live market prices), set `tool_needed=false` and provide the complete response in `final_answer`.\n"
-            "5. For `web_search`: use natural, concise queries without superfluous quotes or arbitrary years (e.g. 'SpaceX Starship latest launch updates').\n"
-            "6. PARALLEL CALLS: if you need information from MULTIPLE independent read-only tools, use `parallel_calls`.\n"
-            "7. IF AN ACTION OR TOOL HAS ALREADY BEEN EXECUTED (e.g. `inspect_image`, `web_search`, infrastructure command) and the result is in 'History of actions executed in this turn', that action is ALREADY COMPLETED: DO NOT repeat the same call or analogous tools. Set `tool_needed=false` and summarize the results in `final_answer` for the user.\n"
-            "8. ANTI-HALLUCINATION ON EMPTY SEARCH: If web searches return no matches for the requested terms, DO NOT search in an endless loop and DO NOT invent that entities are fictitious. Transparently report what was found or the absence of official records in consulted sources.\n"
-            "9. REASONING: Reason freely in the `reasoning` field. When `tool_needed=false`, ALWAYS provide the final response for the user in `final_answer` in the user's language.\n"
-            "10. ALWAYS PREFER DEDICATED MCP TOOLS: To create or clone containers, check status, manage DNS or proxy, ALWAYS use the dedicated MCP tools (e.g. `create_lxc_from_template`, `create_service`, `get_container_status`, `list_containers`, `stop_container`, `start_container`, `allocate_ip`, `add_pihole_dns_record`, etc.). DO NOT attempt raw shell commands like `pct clone` when a dedicated tool exists.\n"
-            "11. HOMELAB AUTOMATIONS & TEMPLATES: If the user asks about the Automations section, available templates, or scheduling/modifying workflows, DO NOT search external web sources for third-party platforms. Use `list_automation_templates` or `list_automations` to inspect workflows. To modify an existing automation, call `update_automation` or emit a proposal with the same ID. When outputting proposal cards, use:\n"
-            "```automation_proposal\n"
-            "{\n"
-            '  "id": "...",\n'
-            "  ...\n"
-            "}\n"
-            "```\n"
-            "(Always place the opening brace `{` on the line AFTER ```automation_proposal).\n"
-        )
-
-        if not call_llm_structured_fn:
-            if call_llm_fn:
-                direct_system_prompt = base_system_prompt + "Respond naturally, completely, clearly, and thoroughly in the language used by the user in their prompt. If the request concerns recent events or unverified data, state it transparently instead of inventing facts."
-                direct_prompt = f"Request: '{task}'\nMemory context:\n{memory_context or ''}"
-                syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
-                syn_ans = syn_res.get("content", "") if isinstance(syn_res, dict) else (syn_res or "")
-                reasoning_content = syn_res.get("reasoning_content", "") if isinstance(syn_res, dict) else ""
-                return {"final_response": syn_ans or "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}
-            break
-
-        effective_reasoning_cap = min(policy.reasoning_budget, 1024) if policy.reasoning_budget > 0 else 1024
-        try:
-            selection = call_llm_structured_fn(
-                prompt=task,
-                system_prompt=tool_system_prompt,
-                schema_cls=ToolSelection,
-                max_tokens=4096,
-                temperature=0.10,
-                max_retries=2,
-                reasoning_budget=effective_reasoning_cap,
-                images=images,
-            )
-        except TypeError:
-            selection = call_llm_structured_fn(
-                prompt=task,
-                system_prompt=tool_system_prompt,
-                schema_cls=ToolSelection,
-                max_tokens=4096,
-                temperature=0.10,
-                max_retries=2,
-                reasoning_budget=effective_reasoning_cap,
-            )
-
-        step_thinking = getattr(selection, "raw_thinking", "") or ""
-        step_cot = (selection.reasoning if selection else "") or ""
-        step_reasoning = step_thinking or step_cot
-        if step_reasoning:
-            phase_label = f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool"
-            accumulated_reasonings.append((phase_label, step_reasoning))
-
-        if not selection or (not selection.tool_needed and not selection.parallel_calls) or not selection.tool_name:
-            # 1. Se l'LLM ha fornito un final_answer esplicito
-            if selection and selection.final_answer and len(selection.final_answer.strip()) > 10:
-                final_ans = selection.final_answer.strip()
-                # Emette la risposta finale in streaming pulito verso il frontend se la coda è attiva
-                q = stream_queue.get()
-                if q:
-                    words = re.findall(r'\S+|\s+', final_ans)
-                    for w in words:
-                        q.put({"type": "content", "delta": w})
-                reasoning_content = "\n\n---\n\n".join(
-                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-                    for title, body in accumulated_reasonings
-                ) if accumulated_reasonings else None
-            # 2. Se abbiamo eseguito dei tool ed abbiamo delle osservazioni, sintetizziamo la risposta per l'utente
-            elif history_observations and call_llm_fn:
-                summary_system_prompt = base_system_prompt + (
-                    "You are in the final synthesis stage after executing tool actions.\n"
-                    "Your task is to synthesize the information obtained from the tools into a fluent, thorough, and structured response in the language used by the user in their prompt.\n"
-                    "Present the data clearly and in natural prose (no raw JSON dump): this is the final response for the user."
-                )
-                obs_text = "\n".join(history_observations)
-                if len(obs_text) > settings.truncation_limit:
-                    obs_text = obs_text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
-                summary_prompt = (
-                    f"User task: '{task}'\n\n"
-                    f"History of actions and tool results:\n{obs_text}\n\n"
-                    "Provide a final, comprehensive, structured response to the user in the language used in their prompt. "
-                    "Explain the findings and results clearly. "
-                    "If search tools (e.g. web_search) were used, cite and explain the retrieved information accurately."
-                )
-                synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
-                syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Tool")
-                raw_syn = syn_res.get("content", "") if syn_res else ""
-                syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
-                if syn_reasoning:
-                    accumulated_reasonings.append(("Sintesi Risultati Tool", syn_reasoning))
-                syn_ans = clean_synthesis_content(raw_syn)
-                final_ans = syn_ans if syn_ans else (
-                    "The model processed the information but did not produce a text response. Please retry or adjust mode."
-                )
-                reasoning_content = "\n\n---\n\n".join(
-                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-                    for title, body in accumulated_reasonings
-                ) if accumulated_reasonings else None
-            # 3. Se la richiesta non richiede tool (es. domande concettuali o coperte da prefetch), generiamo una risposta diretta
-            elif call_llm_fn:
-                direct_system_prompt = base_system_prompt + (
-                    "You are in direct dialogue mode with the user.\n"
-                    "Respond in a natural, comprehensive, clear, and helpful manner in the language used by the user in their prompt.\n"
-                    "If web context is present, use it to provide an accurate, up-to-date response.\n"
-                    "If the request involves recent events or dates not covered in the context and unverifiable with certainty, "
-                    "transparently state that a web search is recommended."
-                )
-                direct_prompt_parts = []
-                if prefetch_block:
-                    direct_prompt_parts.append(prefetch_block)
-                direct_prompt_parts.append(
-                    f"Respond completely, clearly, and thoroughly in the language used by the user in their prompt.\n"
-                    f"User request: '{task}'\n"
-                    f"Memory context:\n{memory_context or ''}"
-                )
-                direct_prompt = "\n\n".join(direct_prompt_parts)
-                syn_res = _call_llm_with_phase(call_llm_fn, direct_prompt, system_prompt=direct_system_prompt, reasoning_budget=policy.reasoning_budget, reasoning_phase="Elaborazione Risposta Finale")
-                raw_syn = syn_res.get("content", "") if syn_res else ""
-                syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
-                if syn_reasoning:
-                    accumulated_reasonings.append(("Elaborazione Risposta Finale", syn_reasoning))
-                syn_ans = clean_synthesis_content(raw_syn)
-                final_ans = syn_ans if syn_ans else (
-                    "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità."
-                )
-                reasoning_content = "\n\n---\n\n".join(
-                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-                    for title, body in accumulated_reasonings
-                ) if accumulated_reasonings else None
-            else:
-                final_ans = "Richiesta completata."
-                reasoning_content = "\n\n---\n\n".join(
-                    f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-                    for title, body in accumulated_reasonings
-                ) if accumulated_reasonings else None
-
-            return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
-
-        # Chiamate parallele per tool read-only indipendenti
-        if selection.parallel_calls and len(selection.parallel_calls) > 1:
-            from app.security import guardrails as _gr
-            readonly_calls = [
-                c for c in selection.parallel_calls
-                if isinstance(c, dict) and c.get("tool_name") and _gr.classify_tool(c["tool_name"]) == "safe"
-            ]
-            if len(readonly_calls) > 1:
-                logger.info(f"Step {step_id}: esecuzione parallela di {len(readonly_calls)} tool read-only")
-                results = manager.execute_tools_parallel(
-                    readonly_calls, policy.allowed_registries, thread_id=thread_id, mode=mode,
-                    security_mode=security_mode
-                )
-                for i, (call, res) in enumerate(zip(readonly_calls, results, strict=True)):
-                    execution_trace.append({
-                        "step_id": step_id,
-                        "parallel_index": i,
-                        "tool_name": call["tool_name"],
-                        "args": call.get("arguments", {}),
-                        "result": res,
-                        "reasoning": selection.reasoning,
-                        "parallel": True,
-                        "error": res.get("error") if isinstance(res, dict) else None
-                    })
-                    res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
-                    if call.get("tool_name") == "web_search":
-                        from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
-                        res_str = f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
-                        executed_search_queries.append(str(call.get("arguments", {}).get("query", "")).strip())
-                    p_sig = _normalize_call_signature(call.get("tool_name", ""), call.get("arguments", {}))
-                    call_history_counts[p_sig] = call_history_counts.get(p_sig, 0) + 1
-                    history_observations.append(f"Step {step_id}.{i} [parallelo]: {call['tool_name']}({call.get('arguments')}) -> {res_str}")
-                continue
-
-        tool_name = selection.tool_name
-        arguments = selection.arguments or {}
-
-        # Validazione argomenti
-        val_error = validate_tool_args(tool_name, arguments, available_tools)
-        if val_error:
-            logger.warning(f"Step {step_id}: errore validazione argomenti per '{tool_name}': {val_error}")
-            execution_trace.append({
-                "step_id": step_id,
-                "tool_name": tool_name,
-                "args": arguments,
-                "reasoning": selection.reasoning if selection else None,
-                "error": f"Validazione fallita: {val_error}"
-            })
-            history_observations.append(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {val_error}")
-            continue
-
-        # Verifica duplicati e prevenzione loop
-        call_sig = _normalize_call_signature(tool_name, arguments)
-        is_duplicate = False
-
-        if call_sig in call_history_counts:
-            is_duplicate = True
-            call_history_counts[call_sig] += 1
-        else:
-            call_history_counts[call_sig] = 1
-
-        if tool_name == "web_search" and not is_duplicate:
-            current_q = str(arguments.get("query", "")).strip()
-            for prev_q in executed_search_queries:
-                sim = _query_jaccard_similarity(current_q, prev_q)
-                if sim >= 0.80:
-                    logger.info(f"Step {step_id}: query '{current_q}' ha similarità {sim:.2f} con precedente '{prev_q}', trattata come duplicato")
-                    is_duplicate = True
-                    call_history_counts[call_sig] = call_history_counts.get(call_sig, 1) + 1
-                    break
-
-        if is_duplicate:
-            repeat_count = call_history_counts[call_sig]
-            if repeat_count >= 2:
-                logger.warning(f"Step {step_id}: Rilevata ripetizione persistente per '{tool_name}'. Interruzione loop ReAct per prevenire cicli infiniti.")
-                history_observations.append(f"Step {step_id}: [LOOP INTERROTTO] L'azione '{tool_name}' è già stata eseguita in precedenza. Si procede alla sintesi finale.")
-                execution_trace.append({
-                    "step_id": step_id,
-                    "tool_name": tool_name,
-                    "args": arguments,
-                    "result": {"warning": "Chiamata duplicata bloccata. Interruzione loop ReAct per convergenza rapida."},
-                    "reasoning": selection.reasoning if selection else None,
-                    "cached": True,
-                    "duplicate_blocked": True
-                })
-                break
-            else:
-                warning_msg = (
-                    f"ATTENZIONE: Hai già eseguito la chiamata '{tool_name}' con parametri analoghi. "
-                    "Non ripetere la stessa azione. Se le informazioni non sono reperibili nel web o i dati ottenuti sono sufficienti, "
-                    "imposta `tool_needed=false` e sintetizza la risposta in `final_answer`."
-                )
-                logger.warning(f"Step {step_id}: Chiamata duplicata per '{tool_name}'. Iniezione feedback correttivo.")
-                execution_trace.append({
-                    "step_id": step_id,
-                    "tool_name": tool_name,
-                    "args": arguments,
-                    "result": {"warning": warning_msg},
-                    "reasoning": selection.reasoning if selection else None,
-                    "cached": True,
-                    "duplicate_blocked": True
-                })
-                history_observations.append(f"Step {step_id}: [DUPLICATO BLOCCATO] {warning_msg}")
-                continue
-
-        if tool_name == "web_search":
-            executed_search_queries.append(str(arguments.get("query", "")).strip())
-
-        # Esecuzione del tool via Registry Manager (con guardrail + approval + audit)
-        cache_key = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
-        is_cached = False
-        if cache_key in call_cache:
-            logger.info(f"Step {step_id}: hit cache deduplicazione per '{tool_name}'")
-            res = call_cache[cache_key]
-            is_cached = True
-        else:
-            try:
-                res = manager.execute_tool(tool_name, arguments, policy.allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode, task=task)
-                from app.security import guardrails as _gr
-                if _gr.classify_tool(tool_name) == "safe":
-                    call_cache[cache_key] = res
-            except Exception as e:
-                logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
-                res = {"error": f"Eccezione durante l'esecuzione: {str(e)}"}
-
-        if isinstance(res, dict) and res.get("approval_required"):
-            logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita ({res.get('risk_reason')}).")
-            req_id = res.get("request_id")
-            msg = res.get("message", "Richiesta di approvazione richiesta.")
-            cmd_prev = res.get("command_preview")
-            cmd_pref = res.get("command_prefix")
-            risk_rsn = res.get("risk_reason")
-
-            q = stream_queue.get()
-            if q:
-                q.put({
-                    "type": "approval_required",
-                    "request_id": req_id,
-                    "tool_name": tool_name,
-                    "arguments": arguments,
-                    "command_preview": cmd_prev,
-                    "command_prefix": cmd_pref,
-                    "risk_reason": risk_rsn,
-                    "message": msg
-                })
-
-            execution_trace.append({
-                "step_id": step_id,
-                "tool_name": tool_name,
-                "args": arguments,
-                "result": res,
-                "reasoning": selection.reasoning,
-                "approval_required": True,
-                "request_id": req_id,
-                "approval_prompt": msg,
-                "command_preview": cmd_prev,
-                "command_prefix": cmd_pref,
-                "risk_reason": risk_rsn
-            })
-            return {
-                "final_response": msg,
-                "execution_trace": execution_trace,
-                "reasoning_content": selection.reasoning,
-                "approval_required": True,
-                "request_id": req_id,
-                "approval_prompt": msg,
-                "command_preview": cmd_prev,
-                "command_prefix": cmd_pref,
-                "risk_reason": risk_rsn
-            }
-
-        res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
-        logger.info(f"Step {step_id}: Risultato tool '{tool_name}': {res_str[:200]}...")
-
-        execution_trace.append({
-            "step_id": step_id,
-            "tool_name": tool_name,
-            "args": arguments,
-            "result": res,
-            "reasoning": selection.reasoning,
-            "cached": is_cached,
-            "error": res.get("error") if isinstance(res, dict) else None
-        })
-
-        if tool_name == "web_search":
-            from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
-            safe_res_str = f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
-            obs_entry = f"Step {step_id}: {tool_name}({arguments}) -> {safe_res_str}"
-        else:
-            obs_entry = f"Step {step_id}: {tool_name}({arguments}) -> {res_str}"
-        history_observations.append(obs_entry)
-
-    # Se abbiamo completato tutti gli step del loop, sintetizziamo il risultato
-    if history_observations and call_llm_fn:
-        from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
-        summary_system_prompt = (
-            f"Current System Date and Time: {datetime.now().strftime('%A %d %B %Y, %H:%M:%S')}\n"
-            "You are the Proxmox VE Homelab AI Agent.\n"
-            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
-            f"{UNTRUSTED_CONTEXT_POLICY}"
-        )
-        obs_text = "\n".join(history_observations)
-        if len(obs_text) > settings.truncation_limit:
-            obs_text = obs_text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
-        summary_prompt = (
-            f"User task: '{task}'\n\n"
-            f"History of executed actions:\n{obs_text}\n\n"
-            "Provide a final, comprehensive, structured response in the language used by the user in their prompt. "
-            "Respond in natural prose (no raw JSON dump): this is the final answer for the user."
-        )
-        synthesis_budget = min(policy.reasoning_budget, 512) if policy.reasoning_budget > 0 else 0
-        syn_res = _call_llm_with_phase(call_llm_fn, summary_prompt, system_prompt=summary_system_prompt, reasoning_budget=synthesis_budget, reasoning_phase="Sintesi Risultati Finali")
-        raw_ans = syn_res.get("content", "") if syn_res else ""
-        syn_reasoning = syn_res.get("reasoning_content", "") if syn_res else ""
-        if syn_reasoning:
-            accumulated_reasonings.append(("Sintesi Risultati Finali", syn_reasoning))
-        final_ans = clean_synthesis_content(raw_ans) or "Operazione completata."
-        reasoning_content = "\n\n---\n\n".join(
-            f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-            for title, body in accumulated_reasonings
-        ) if accumulated_reasonings else None
-        return {"final_response": final_ans, "execution_trace": execution_trace, "reasoning_content": reasoning_content}
-
-    reasoning_content = "\n\n---\n\n".join(
-        f"#### {'🔍' if 'Analisi' in title else '💡'} {title}\n\n{body}"
-        for title, body in accumulated_reasonings
-    ) if accumulated_reasonings else None
-    return {"final_response": "Richiesta completata.", "execution_trace": execution_trace, "reasoning_content": reasoning_content}
+    return AgentLoop(task, mode, memory_context, call_llm_fn, call_llm_structured_fn, thread_id,
+                     web_prefetch_data, images, security_mode).run()
