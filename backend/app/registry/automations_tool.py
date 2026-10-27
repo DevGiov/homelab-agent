@@ -359,7 +359,9 @@ class AutomationRegistry(BaseToolRegistry):
         art_id = f"art_{uuid.uuid4().hex[:10]}"
         now_str = datetime.now(timezone.utc).isoformat()
 
-        storage_uri = target_path or f"/data/artifacts/{art_id}.md"
+        # Il nome suggerito dal modello resta confinato nella directory degli artefatti
+        file_name = Path(target_path).name if target_path else f"{art_id}.md"
+        storage_uri = str(Path(settings.artifacts_dir) / file_name)
         try:
             p = Path(storage_uri)
             p.parent.mkdir(parents=True, exist_ok=True)

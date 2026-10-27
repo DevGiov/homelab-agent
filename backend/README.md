@@ -99,8 +99,19 @@ make venv   # dalla radice del repo: backend/.venv con Python 3.12 e requirement
 ## Configurazione
 
 `make setup` genera `backend/.env` in modo interattivo; in alternativa copia `.env.example` in `.env` e compila
-i valori (riferimento completo in [.env.example](.env.example)). In Docker i dati stanno in `/data`
-(`CHECKPOINT_DB_PATH=/data/checkpoints.db`, gli altri database e la memoria accanto).
+i valori (riferimento completo in [.env.example](.env.example)).
+
+Tutti i dati persistenti stanno in un'unica directory, `DATA_DIR`: in locale `data/` nella radice del repo
+(ignorata da git), nei compose `/data` sul volume `agent_data`. I percorsi interni sono fissi e derivati
+da `DATA_DIR` (`settings.checkpoint_db_path`, `settings.memory_dir`, …):
+
+| Percorso | Contenuto |
+| :--- | :--- |
+| `checkpoints.db` | Checkpoint LangGraph, thread e messaggi, audit, permessi, memoria vettoriale (sqlite-vec) |
+| `automations.db` | Automazioni, run, approvazioni, artefatti, circuit breaker, integrazioni |
+| `calendar.db` | Calendari ed eventi |
+| `memory/` | Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring |
+| `artifacts/`, `uploads/`, `knowledge_base/` | Artefatti delle automazioni, immagini caricate, documenti della knowledge base |
 
 ## Avvio
 

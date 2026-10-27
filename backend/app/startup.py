@@ -23,9 +23,11 @@ def configure_logging() -> None:
     logging.basicConfig(level=logging.INFO)
 
 
-def init_databases() -> None:
-    """Crea gli schemi mancanti di tutti i database (idempotente)."""
-    Path(settings.checkpoint_db_path).parent.mkdir(parents=True, exist_ok=True)
+def init_storage() -> None:
+    """Crea le directory dei dati e gli schemi mancanti di tutti i database (idempotente)."""
+    for directory in (settings.data_dir, settings.memory_dir, settings.artifacts_dir, settings.uploads_dir,
+                      settings.knowledge_base_dir, Path(settings.checkpoint_db_path).parent):
+        Path(directory).mkdir(parents=True, exist_ok=True)
     # checkpoints.db: checkpoint LangGraph, thread, audit, permessi e memoria vettoriale
     get_checkpointer().setup()
     thread_store.init_db()
@@ -34,13 +36,13 @@ def init_databases() -> None:
     vector_store.init_vector_db()
     init_automations_db()
     init_calendar_db()
-    logger.info("Schemi dei database pronti")
+    logger.info(f"Dati in {settings.data_dir}: directory e schemi pronti")
 
 
 def start() -> None:
     """Avvio completo del servizio API."""
     settings.validate_security()
-    init_databases()
+    init_storage()
     get_registry_manager()
     if settings.enable_automation_scheduler:
         get_scheduler().start()

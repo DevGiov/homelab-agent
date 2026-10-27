@@ -1,6 +1,5 @@
 """Upload e download delle immagini per l'input multimodale."""
 import base64
-import os
 import uuid
 from pathlib import Path
 
@@ -12,18 +11,10 @@ from app.api.schemas import (
     ImageUploadResponse,
 )
 from app.core import image_utils
-from app.core.config import BACKEND_DIR
+from app.core.config import settings
 
 router = APIRouter(tags=["uploads"])
 
-
-# Gestione upload file multimodali
-
-if os.path.exists("/data") and os.access("/data", os.W_OK):
-    UPLOAD_DIR = Path("/data/uploads")
-else:
-    UPLOAD_DIR = BACKEND_DIR / "data" / "uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/v1/upload", response_model=ImageUploadResponse, dependencies=[Depends(verify_api_key)])
 async def upload_file_endpoint(file: UploadFile = File(...)):
@@ -51,7 +42,7 @@ async def upload_file_endpoint(file: UploadFile = File(...)):
 
     ext = ".jpg" if mime == "image/jpeg" else (Path(filename).suffix or ".jpg")
     safe_name = f"{uuid.uuid4().hex}{ext}"
-    file_path = UPLOAD_DIR / safe_name
+    file_path = Path(settings.uploads_dir) / safe_name
 
     with open(file_path, "wb") as f:
         f.write(opt_bytes)
@@ -71,7 +62,7 @@ async def upload_file_endpoint(file: UploadFile = File(...)):
 async def get_uploaded_file(filename: str):
     """Restituisce un file immagine caricato con intestazioni di sicurezza."""
     safe_filename = Path(filename).name
-    file_path = UPLOAD_DIR / safe_filename
+    file_path = Path(settings.uploads_dir) / safe_filename
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File non trovato.")
 

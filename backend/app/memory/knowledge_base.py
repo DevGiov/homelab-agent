@@ -15,14 +15,13 @@ from app.memory import vector_store
 
 logger = logging.getLogger("knowledge_base")
 
-KB_DIR = Path(settings.checkpoint_db_path).parent / "knowledge_base"
 
 CHUNK_SIZE = 800       # caratteri per chunk
 CHUNK_OVERLAP = 150    # sovrapposizione tra chunk
 
 
-def _ensure_dir():
-    KB_DIR.mkdir(parents=True, exist_ok=True)
+def _kb_dir() -> Path:
+    return Path(settings.knowledge_base_dir)
 
 
 def _chunk_text(text: str) -> List[str]:
@@ -79,7 +78,7 @@ def ingest_document(
     source: str = "upload",
 ) -> Dict[str, Any]:
     """Ingesta un documento nella KB. Ritorna stats {doc_id, chunks}."""
-    _ensure_dir()
+    _kb_dir().mkdir(parents=True, exist_ok=True)
     safe_name = Path(filename).name
     suffix = Path(safe_name).suffix.lower()
 
@@ -87,7 +86,7 @@ def ingest_document(
     if suffix == ".pdf":
         if not content_bytes:
             raise ValueError("Contenuto PDF mancante")
-        tmp = KB_DIR / safe_name
+        tmp = _kb_dir() / safe_name
         tmp.write_bytes(content_bytes)
         text = _extract_pdf(tmp)
     elif suffix in (".md", ".txt"):
@@ -99,7 +98,7 @@ def ingest_document(
         raise ValueError("Documento vuoto")
 
     # Salva copia testuale
-    doc_path = KB_DIR / f"{safe_name}.md" if suffix != ".md" else KB_DIR / safe_name
+    doc_path = _kb_dir() / f"{safe_name}.md" if suffix != ".md" else _kb_dir() / safe_name
     doc_path.write_text(text, encoding="utf-8")
 
     # Chunking + indicizzazione
@@ -212,7 +211,7 @@ def delete_document(filename: str) -> int:
         conn.close()
         # Rimuovi anche il file salvato
         for ext in ("", ".md", ".txt"):
-            p = KB_DIR / f"{filename}{ext}"
+            p = _kb_dir() / f"{filename}{ext}"
             if p.exists():
                 p.unlink()
         logger.info(f"Eliminati {deleted} chunk di '{filename}'")

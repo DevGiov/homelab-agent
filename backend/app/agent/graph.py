@@ -21,7 +21,7 @@ from app.core.config import settings
 
 @lru_cache(maxsize=1)
 def get_checkpointer() -> SqliteSaver:
-    """Checkpointer condiviso; lo schema (checkpoints/writes) lo crea app.startup.init_databases."""
+    """Checkpointer condiviso; lo schema (checkpoints/writes) lo crea app.startup.init_storage."""
     return SqliteSaver(sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False))
 
 

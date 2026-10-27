@@ -1,6 +1,9 @@
 """Test unitari per guardrails, audit log, vector store e knowledge base (Fasi 0-3)."""
+import tempfile
 import unittest
 
+from app.automations.db.schema import init_automations_db
+from app.core.config import settings
 from app.security import guardrails
 
 
@@ -60,8 +63,16 @@ class TestToolMetadata(unittest.TestCase):
 
 class TestApprovalWorkflow(unittest.TestCase):
     def setUp(self):
-        # Pulisci le approvazioni tra i test
+        # Approvazioni pulite tra i test: in memoria e nel DB delle automazioni (dove vengono persistite)
         guardrails._APPROVALS.clear()
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.orig_data_dir = settings.data_dir
+        settings.data_dir = self.tmp_dir.name
+        init_automations_db()
+
+    def tearDown(self):
+        settings.data_dir = self.orig_data_dir
+        self.tmp_dir.cleanup()
 
     def test_approval_required_for_risky(self):
         res = guardrails.enforce_guardrails("stop_container", {"vmid": 137}, thread_id="t", mode="act")

@@ -130,11 +130,11 @@ END:VCALENDAR"""
 class TestCalendarAutomation(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.auto_db_path = os.path.join(self.test_dir, "test_automations.db")
         self.cal_db_path = os.path.join(self.test_dir, "test_cal_auto.db")
 
-        self.original_auto_db = settings.automations_db_path
-        settings.automations_db_path = self.auto_db_path
+        self.original_data_dir = settings.data_dir
+        settings.data_dir = self.test_dir
+        self.auto_db_path = settings.automations_db_path
         init_automations_db(self.auto_db_path)
 
         calendar_db.init_calendar_db(self.cal_db_path)
@@ -143,7 +143,7 @@ class TestCalendarAutomation(unittest.TestCase):
 
     def tearDown(self):
         calendar_db.get_db_path = self.orig_db_path
-        settings.automations_db_path = self.original_auto_db
+        settings.data_dir = self.original_data_dir
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_automation_runner_calendar_step(self):

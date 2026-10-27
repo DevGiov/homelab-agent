@@ -41,5 +41,5 @@ dist-ssr/
 # Database/Checkpoints
 *.sqlite
 *.db
-backend/checkpoints.db
-backend/memory/
+# Directory dati locale (DATA_DIR di default)
+/data/

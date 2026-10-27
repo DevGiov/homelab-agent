@@ -690,11 +690,7 @@ class AutomationRunner:
 
             from app.automations.code_runner import SandboxedCodeRunner
             code_runner = SandboxedCodeRunner()
-            if self.db_path:
-                artifacts_base = os.path.join(os.path.dirname(self.db_path), "artifacts")
-            else:
-                artifacts_base = settings.artifacts_dir
-            artifacts_dir = os.path.join(artifacts_base, run.run_id)
+            artifacts_dir = os.path.join(settings.artifacts_dir, run.run_id)
             ctx_payload = {
                 "automation_id": auto_def.id,
                 "run_id": run.run_id,

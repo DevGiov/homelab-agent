@@ -20,11 +20,7 @@ _TEST_DATA_DIR = tempfile.mkdtemp(prefix="agent_test_")
 
 os.environ["ALLOW_INSECURE"] = "1"
 os.environ["API_SECRET_KEY"] = ""
-os.environ["CHECKPOINT_DB_PATH"] = os.path.join(_TEST_DATA_DIR, "test_checkpoints.db")
-os.environ["AUTOMATIONS_DB_PATH"] = os.path.join(_TEST_DATA_DIR, "test_automations.db")
-os.environ["CALENDAR_DB_PATH"] = os.path.join(_TEST_DATA_DIR, "test_calendar.db")
-os.environ["ARTIFACTS_DIR"] = os.path.join(_TEST_DATA_DIR, "artifacts")
-os.environ["MEMORY_DIR"] = os.path.join(_TEST_DATA_DIR, "memory")
+os.environ["DATA_DIR"] = _TEST_DATA_DIR
 os.environ["ENABLE_AUTOMATION_SCHEDULER"] = "0"
 
 
@@ -71,7 +67,7 @@ def _block_external_network(request, monkeypatch):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _init_databases():
+def _init_storage():
     """Schemi dei DB di test creati come all'avvio del servizio (i TestClient non eseguono il lifespan)."""
     from app import startup
-    startup.init_databases()
+    startup.init_storage()

@@ -7,6 +7,4 @@
 *.db
 *.db-shm
 *.db-wal
-/memory/
-/data/
 /tests/

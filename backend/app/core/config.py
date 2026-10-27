@@ -1,7 +1,6 @@
-import os
 from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Radice del backend (contiene app/, sdk/ e .env)
@@ -38,21 +37,9 @@ class Settings(BaseSettings):
     letta_api_key: str = Field(default="", alias="LETTA_API_KEY")
 
     # --- Storage ---
-    checkpoint_db_path: str = Field(default=str(BACKEND_DIR / "checkpoints.db"), alias="CHECKPOINT_DB_PATH")
-    automations_db_path: str = Field(
-        default=str(Path("/data/automations.db") if Path("/data").exists() and os.access("/data", os.W_OK) else BACKEND_DIR / "automations.db"),
-        alias="AUTOMATIONS_DB_PATH",
-    )
-    calendar_db_path: str = Field(
-        default=str(Path("/data/calendar.db") if Path("/data").exists() and os.access("/data", os.W_OK) else BACKEND_DIR / "calendar.db"),
-        alias="CALENDAR_DB_PATH",
-    )
-    artifacts_dir: str = Field(
-        default=str(Path("/data/artifacts") if Path("/data").exists() and os.access("/data", os.W_OK) else BACKEND_DIR / "data" / "artifacts"),
-        alias="ARTIFACTS_DIR",
-    )
-    # Vuoto = directory "memory" accanto al DB dei checkpoint (risolta in _resolve_memory_dir)
-    memory_dir: str = Field(default="", alias="MEMORY_DIR")
+    # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).
+    # Default: <repo>/data, che dentro il container (backend in /app) coincide con il volume /data.
+    data_dir: str = Field(default=str(BACKEND_DIR.parent / "data"), alias="DATA_DIR")
     enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
 
@@ -76,11 +63,36 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    @model_validator(mode="after")
-    def _resolve_memory_dir(self):
-        if not self.memory_dir:
-            self.memory_dir = str(Path(self.checkpoint_db_path).parent / "memory")
-        return self
+    # --- Percorsi derivati da data_dir: non configurabili singolarmente ---
+    @property
+    def checkpoint_db_path(self) -> str:
+        """Checkpoint LangGraph, thread, audit, permessi e memoria vettoriale."""
+        return str(Path(self.data_dir) / "checkpoints.db")
+
+    @property
+    def automations_db_path(self) -> str:
+        return str(Path(self.data_dir) / "automations.db")
+
+    @property
+    def calendar_db_path(self) -> str:
+        return str(Path(self.data_dir) / "calendar.db")
+
+    @property
+    def memory_dir(self) -> str:
+        """Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring."""
+        return str(Path(self.data_dir) / "memory")
+
+    @property
+    def artifacts_dir(self) -> str:
+        return str(Path(self.data_dir) / "artifacts")
+
+    @property
+    def uploads_dir(self) -> str:
+        return str(Path(self.data_dir) / "uploads")
+
+    @property
+    def knowledge_base_dir(self) -> str:
+        return str(Path(self.data_dir) / "knowledge_base")
 
     def validate_security(self) -> None:
         """Fail-fast se l'API è esposta senza chiave e senza ALLOW_INSECURE."""

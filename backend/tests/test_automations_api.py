@@ -1,6 +1,5 @@
 """Test per gli endpoint REST FastAPI di Automations & Loops."""
 
-import os
 import shutil
 import tempfile
 import unittest
@@ -18,14 +17,16 @@ class TestAutomationsAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.test_dir = tempfile.mkdtemp()
-        cls.db_path = os.path.join(cls.test_dir, "api_test.db")
-        settings.automations_db_path = cls.db_path
+        cls.orig_data_dir = settings.data_dir
+        settings.data_dir = cls.test_dir
+        cls.db_path = settings.automations_db_path
         schema_db.init_automations_db(cls.db_path)
         cls.client = TestClient(api)
         cls.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
 
     @classmethod
     def tearDownClass(cls):
+        settings.data_dir = cls.orig_data_dir
         shutil.rmtree(cls.test_dir, ignore_errors=True)
 
     def test_crud_and_run_endpoints(self):

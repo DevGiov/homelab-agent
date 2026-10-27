@@ -110,9 +110,9 @@ class TestBulkDeleteRunsRetention(unittest.TestCase):
 class TestBulkDeleteRunsAPI(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.test_dir, "retention_api.db")
-        self._orig_db_path = settings.automations_db_path
-        settings.automations_db_path = self.db_path
+        self._orig_data_dir = settings.data_dir
+        settings.data_dir = self.test_dir
+        self.db_path = settings.automations_db_path
         schema_db.init_automations_db(self.db_path)
         definitions_db.save_definition(_make_definition("auto_a"), db_path=self.db_path)
         _make_run(self.db_path, "run_old", "auto_a", age_days=30)
@@ -121,7 +121,7 @@ class TestBulkDeleteRunsAPI(unittest.TestCase):
         self.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
 
     def tearDown(self):
-        settings.automations_db_path = self._orig_db_path
+        settings.data_dir = self._orig_data_dir
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_delete_runs_with_older_than_days(self):

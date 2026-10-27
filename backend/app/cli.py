@@ -21,7 +21,7 @@ def main():
     print()
 
     startup.configure_logging()
-    startup.init_databases()
+    startup.init_storage()
     app = build_graph()
     initial_state = {
         "task": args.task,

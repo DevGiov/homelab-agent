@@ -12,9 +12,11 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.automations.db import artifacts as artifacts_db
+from app.core.config import settings
 from app.registry.base import BaseToolRegistry
 
 logger = logging.getLogger("registry.email")
@@ -222,10 +224,9 @@ class EmailRegistry(BaseToolRegistry):
         artifact_id = f"art_{uuid.uuid4().hex[:10]}"
         now_str = datetime.now(timezone.utc).isoformat()
         eff_run_id = run_id or "manual_or_direct"
-        storage_uri = f"/data/artifacts/{artifact_id}.md"
+        storage_uri = str(Path(settings.artifacts_dir) / f"{artifact_id}.md")
 
         try:
-            from pathlib import Path
             p = Path(storage_uri)
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(str(content), encoding="utf-8")

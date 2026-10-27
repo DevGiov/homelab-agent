@@ -23,8 +23,7 @@ def test_stream_session_metrics_preserves_tok_per_s():
 
 def test_thread_store_message_model(tmp_path):
     # In-memory or temp sqlite test
-    db_file = str(tmp_path / "test_threads.db")
-    with patch.object(settings, "checkpoint_db_path", db_file):
+    with patch.object(settings, "data_dir", str(tmp_path)):
         thread_store.init_db()
         t_id = "thread_model_test"
         thread_store.save_user_message(t_id, "ciao")

@@ -11,9 +11,7 @@ from app.core.config import settings
 
 @pytest.fixture
 def fresh_data_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "checkpoint_db_path", str(tmp_path / "data" / "checkpoints.db"))
-    monkeypatch.setattr(settings, "automations_db_path", str(tmp_path / "data" / "automations.db"))
-    monkeypatch.setattr(settings, "calendar_db_path", str(tmp_path / "data" / "calendar.db"))
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"))
     get_checkpointer.cache_clear()
     yield tmp_path / "data"
     get_checkpointer.cache_clear()
@@ -24,19 +22,20 @@ def _tables(path):
         return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
-def test_init_databases_creates_every_schema_on_empty_data_dir(fresh_data_dir):
-    startup.init_databases()
-    startup.init_databases()  # idempotente
+def test_init_storage_creates_every_schema_on_empty_data_dir(fresh_data_dir):
+    startup.init_storage()
+    startup.init_storage()  # idempotente
 
     assert {"checkpoints", "writes", "thread_metadata", "thread_messages", "audit_log", "tool_permissions",
             "vec_memory", "vec_memory_idx"} <= _tables(fresh_data_dir / "checkpoints.db")
     assert {"automation_definitions", "automation_runs", "automation_approvals"} <= _tables(fresh_data_dir / "automations.db")
     assert "calendars" in _tables(fresh_data_dir / "calendar.db")
+    assert {"memory", "artifacts", "uploads", "knowledge_base"} <= {p.name for p in fresh_data_dir.iterdir()}
 
 
 def test_thread_list_works_right_after_startup(fresh_data_dir):
     # ISS-03: la lista dei thread non deve dipendere dalla prima esecuzione del grafo
-    startup.init_databases()
+    startup.init_storage()
     assert TestClient(api).get("/v1/threads").json() == []
 
 

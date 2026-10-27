@@ -14,7 +14,8 @@ services:
     environment:
       # In dev container l'auth è disabilitata di default (sovrascrivibile)
       ALLOW_INSECURE: ${ALLOW_INSECURE:-1}
-      CHECKPOINT_DB_PATH: /data/checkpoints.db
+      # Database, memoria, artefatti, upload e knowledge base nel volume agent_data
+      DATA_DIR: /data
     volumes:
       - agent_data:/data
       - ./backend:/app:ro

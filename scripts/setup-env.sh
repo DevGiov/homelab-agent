@@ -138,7 +138,7 @@ ask LETTA_API_KEY "LETTA_API_KEY" "$(read_existing LETTA_API_KEY "")" true
 
 section "📦 Storage"
 
-ask CHECKPOINT_DB_PATH "CHECKPOINT_DB_PATH" "$(read_existing CHECKPOINT_DB_PATH "/data/checkpoints.db")"
+ask DATA_DIR "DATA_DIR (database, memoria, artefatti)" "$(read_existing DATA_DIR "/data")"
 ask TRUNCATION_LIMIT "TRUNCATION_LIMIT (max token contesto)" "$(read_existing TRUNCATION_LIMIT "40000")"
 
 # ── SearXNG ──
@@ -186,7 +186,7 @@ LETTA_URL=${LETTA_URL}
 LETTA_API_KEY=${LETTA_API_KEY}
 
 # --- Storage ---
-CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH}
+DATA_DIR=${DATA_DIR}
 TRUNCATION_LIMIT=${TRUNCATION_LIMIT}
 
 # --- SearXNG ---
