@@ -624,14 +624,17 @@ class AutomationRegistry(BaseToolRegistry):
             return {"error": "automation_id obbligatorio."}
 
         try:
-            from app.automations.runner import get_runner
-            runner = get_runner()
-            res = runner.execute_run(
-                automation_id=automation_id,
-                trigger_type="manual",
+            # Import locale: il runner dipende (tramite gli step agentici) dal registry che contiene questo tool
+            from app.automations.models import TriggerType
+            from app.automations.runner import AutomationRunner
+            runner = AutomationRunner(db_path=settings.automations_db_path)
+            run = runner.start_run(
+                automation_id,
+                trigger_type=TriggerType.MANUAL,
                 trigger_payload={"triggered_by": "agent_chat"},
                 dry_run=dry_run,
             )
+            res = runner.execute_run(run.run_id)
             return {
                 "status": res.status.value,
                 "run_id": res.run_id,

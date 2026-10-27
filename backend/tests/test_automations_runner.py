@@ -208,7 +208,7 @@ class TestAutomationRunner(unittest.TestCase):
 
     def test_xml_feed_parsing_and_content_extraction(self):
         """Verifica estrazione pulita e parsing di feed XML Atom/RSS."""
-        from app.automations.runner import _extract_step_content, _parse_xml_feed_to_text
+        from app.automations.templating import extract_step_content, parse_xml_feed_to_text
 
         sample_atom_xml = """<?xml version="1.0" encoding="UTF-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom">
@@ -222,7 +222,7 @@ class TestAutomationRunner(unittest.TestCase):
           </entry>
         </feed>"""
 
-        parsed = _parse_xml_feed_to_text(sample_atom_xml)
+        parsed = parse_xml_feed_to_text(sample_atom_xml)
         self.assertIsNotNone(parsed)
         self.assertIn("Advances in Multi-Agent Reasoning", parsed)
         self.assertIn("Alice Smith", parsed)
@@ -235,15 +235,15 @@ class TestAutomationRunner(unittest.TestCase):
             }
         }
 
-        extracted_fetch = _extract_step_content("step:fetch", ctx)
+        extracted_fetch = extract_step_content("step:fetch", ctx)
         self.assertIn("Advances in Multi-Agent Reasoning", extracted_fetch)
 
-        extracted_agent = _extract_step_content("step:agent", ctx)
+        extracted_agent = extract_step_content("step:agent", ctx)
         self.assertEqual(extracted_agent, "Ecco la sintesi dei paper selezionati.")
 
     def test_input_source_and_content_source_resolution(self):
-        """Verifica che _resolve_parameters popoli content/body e path da content_source e filename."""
-        from app.automations.runner import _resolve_parameters
+        """Verifica che resolve_parameters popoli content/body e path da content_source e filename."""
+        from app.automations.templating import resolve_parameters
 
         ctx = {
             "steps": {
@@ -257,7 +257,7 @@ class TestAutomationRunner(unittest.TestCase):
             "title": "Report Test"
         }
 
-        resolved = _resolve_parameters(params, ctx)
+        resolved = resolve_parameters(params, ctx)
         self.assertEqual(resolved["content"], "# Report Finale\nOttimi risultati.")
         self.assertEqual(resolved["path"], "/tmp/test_report.md")
 

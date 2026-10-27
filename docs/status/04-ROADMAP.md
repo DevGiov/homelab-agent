@@ -37,7 +37,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | B6 | ~~Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry~~ ✅ 2026-10-27 (`app/startup.py`; nessuna inizializzazione all'import) | ISS-03 |
 | B7 | ~~Database in una directory dati unica (`DATA_DIR`), niente `.db` nella radice del codice~~ ✅ 2026-10-27 | ISS-09 |
 | B10 | ~~Pulizia: rimuovere `backfill_from_state_history` e `repair_missing_web_prefetch` da `thread_store`, `verify_api_key` unica con confronto a tempo costante, duplicato `_parse_natural_duration`, alias `SAFE_TOOLS`~~ ✅ 2026-10-27 (in più: lista thread dallo store dei messaggi, i thread incogniti non compaiono più) | ISS-25 |
-| B11 | `automations/runner.py`: un gestore per tipo di step (`automations/steps/`) e helper di template in `templating.py` | ISS-09 |
+| B11 | ~~`automations/runner.py`: un gestore per tipo di step (`automations/steps/`) e helper di template in `templating.py`~~ ✅ 2026-10-27 (in più: `run_secrets.py`; corretto l'avvio di un'automazione dalla chat) | ISS-09 |
 | B12 | `agent/agent_loop.py`: `run_agent_loop` (536 righe) diviso in fasi di una classe `AgentLoop`; verifica live | ISS-09 |
 | B13 | `automations/router.py` in un router per dominio (`automations/routes/`); `guardrails.py` diviso in `security/policy.py` e `security/approvals.py` | ISS-09 |
 

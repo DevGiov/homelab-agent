@@ -298,14 +298,14 @@ class TestAutomationsV2(unittest.TestCase):
         self.assertEqual(len(cron_trgs), 1)
         self.assertEqual(cron_trgs[0].cron_expression, "0 12 * * *")
 
-        # 3. Test Runner.start_run con trigger_id e is_dry_run
+        # 3. Test Runner.start_run con trigger_id e dry_run
         definitions_db.save_definition(a1.model_dump(mode="json"), db_path=self.db_path)
         runner = AutomationRunner(db_path=self.db_path)
         run = runner.start_run(
             automation_id="auto_dict_trigger",
             trigger_type=TriggerType.CRON,
             trigger_id="trg_1",
-            is_dry_run=True,
+            dry_run=True,
         )
         self.assertEqual(run.trigger_type, "cron")
         self.assertTrue(run.is_dry_run)

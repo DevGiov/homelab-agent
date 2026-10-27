@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from app.automations.db.schema import init_automations_db
 from app.automations.models import AutomationDefinition
-from app.automations.runner import _render_template
+from app.automations.templating import render_template
 from app.integrations.manager import (
     IntegrationManager,
     decrypt_secrets,
@@ -95,14 +95,14 @@ class TestIntegrationsAndParameters(unittest.TestCase):
         item = self.mgr.get_integration("email_test_ok")
         self.assertEqual(item["status"], "connected")
 
-    def test_render_template_dynamic_variables_and_config(self):
+    def testrender_template_dynamic_variables_and_config(self):
         context = {
             "inputs": {"category": "cs.AI", "limit": 5},
             "config": {"category": "cs.AI"},
             "run_id": "run_12345",
             "steps": {"fetch": {"output": {"count": 10}}},
         }
-        rendered = _render_template(
+        rendered = render_template(
             "Cerca {{inputs.category}} con max {{inputs.limit}} su data {{date}} per run {{run_id}} e output {{steps.fetch.output.count}}.",
             context
         )
@@ -113,7 +113,7 @@ class TestIntegrationsAndParameters(unittest.TestCase):
 
         # Test shell date syntax normalization
         shell_path = "/homelab/reports/ai-papers-briefing-$(date +%Y-%m-%d).md"
-        norm_path = _render_template(shell_path, context)
+        norm_path = render_template(shell_path, context)
         self.assertNotIn("$(date", norm_path)
         self.assertTrue(norm_path.startswith("/homelab/reports/ai-papers-briefing-20"))
 
