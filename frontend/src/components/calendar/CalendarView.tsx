@@ -1,1284 +1,154 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Calendar as CalIcon,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  RefreshCw,
-  Search,
-  Filter,
-  Clock,
-  MapPin,
-  Check,
-  CalendarDays,
-  ExternalLink,
-  Menu,
-  Settings,
-  X,
-} from 'lucide-react';
-import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
-import { calendarApi } from '../../api/calendar';
-import { EventModal } from './EventModal';
+import React, { useEffect, useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import type { CalendarEventItem } from '../../api/calendar';
+import { useCalendarData } from '../../hooks/useCalendarData';
+import { useCalendarNavigation } from '../../hooks/useCalendarNavigation';
+import { groupByDate, toMonthKey } from '../../utils/calendarDates';
+import { AgendaView } from './AgendaView';
 import { CalendarManageModal } from './CalendarManageModal';
+import { CalendarSidebar } from './CalendarSidebar';
+import { CalendarToolbar } from './CalendarToolbar';
+import { EventModal } from './EventModal';
+import { MonthView } from './MonthView';
+import { WeekView } from './WeekView';
 
 interface CalendarViewProps {
+  /** Evento da aprire all'ingresso (link `#event-<uid>` dalla chat). */
   initialEventUid?: string | null;
   onClearInitialEvent?: () => void;
   onOpenMobileSidebar?: () => void;
 }
 
-// Helper date
-const monthNames = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-];
-const dayNamesShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+type EventEditor = { event: CalendarEventItem | null; date?: string } | null;
 
-export const CalendarView: React.FC<CalendarViewProps> = ({
-  initialEventUid,
-  onClearInitialEvent,
-  onOpenMobileSidebar,
-}) => {
-  const [calendars, setCalendars] = useState<CalendarItem[]>([]);
-  const [events, setEvents] = useState<CalendarEventItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  // Navigazione temporale & Selettore Mese/Anno rapido
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'agenda'>('month');
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
-  const datePickerRef = useRef<HTMLDivElement>(null);
-  const todayMarkerRef = useRef<HTMLDivElement>(null);
-  const agendaContainerRef = useRef<HTMLDivElement>(null);
-
-  // Filtri & Sidebar
-  const [visibleCalendarIds, setVisibleCalendarIds] = useState<Set<string>>(new Set());
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onClearInitialEvent, onOpenMobileSidebar }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [category, setCategory] = useState('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [mobileSelectedDate, setMobileSelectedDate] = useState<string | null>(null);
+  const [isManageOpen, setIsManageOpen] = useState(false);
+  const [editor, setEditor] = useState<EventEditor>(null);
+  const data = useCalendarData(searchQuery);
 
-  // Modale Gestione Calendari
-  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const filteredEvents = useMemo(
+    () =>
+      data.events.filter(
+        (ev) =>
+          (data.visibleCalendarIds.size === 0 || data.visibleCalendarIds.has(ev.calendar_id)) &&
+          (category === 'all' || ev.category === category)
+      ),
+    [data.events, data.visibleCalendarIds, category]
+  );
+  const sortedEvents = useMemo(
+    () => [...filteredEvents].sort((a, b) => new Date(a.dtstart).getTime() - new Date(b.dtstart).getTime()),
+    [filteredEvents]
+  );
+  const presentMonths = useMemo(
+    () => Array.from(new Set(sortedEvents.filter((ev) => ev.dtstart).map((ev) => toMonthKey(new Date(ev.dtstart))))).sort(),
+    [sortedEvents]
+  );
+  const eventsByDate = useMemo(() => groupByDate(filteredEvents), [filteredEvents]);
+  const navigation = useCalendarNavigation(presentMonths);
+  const { setCurrentDate } = navigation;
 
-  // Modale Evento
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [eventToEdit, setEventToEdit] = useState<CalendarEventItem | null>(null);
-  const [selectedDateForNew, setSelectedDateForNew] = useState<string | undefined>(undefined);
-
-  // Caricamento iniziale calendari
-  const loadCalendars = async () => {
-    try {
-      const cals = await calendarApi.getCalendars();
-      setCalendars(cals);
-      setVisibleCalendarIds(new Set(cals.map(c => c.id)));
-    } catch (err) {
-      console.error('Errore caricamento calendari:', err);
-    }
-  };
-
-  // Caricamento eventi
-  const loadEvents = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const evs = await calendarApi.getEvents({
-        query: searchQuery.trim() || undefined,
-      });
-      setEvents(evs);
-    } catch (err) {
-      console.error('Errore caricamento eventi:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [searchQuery]);
-
+  // Apertura dell'evento richiesto dalla chat appena gli eventi sono caricati
   useEffect(() => {
-    loadCalendars();
-  }, []);
+    if (!initialEventUid) return;
+    const target = data.events.find((e) => e.uid === initialEventUid || e.id === initialEventUid);
+    if (!target) return;
+    setEditor({ event: target });
+    if (target.dtstart) setCurrentDate(new Date(target.dtstart));
+    onClearInitialEvent?.();
+  }, [initialEventUid, data.events, onClearInitialEvent, setCurrentDate]);
 
-  useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
-
-  // Se c'è un initialEventUid passato (da chat markdown anchor), aprilo
-  useEffect(() => {
-    if (!initialEventUid || events.length === 0) return;
-    const target = events.find(e => e.uid === initialEventUid || e.id === initialEventUid);
-    if (target) {
-      setEventToEdit(target);
-      setIsModalOpen(true);
-      if (target.dtstart) {
-        setCurrentDate(new Date(target.dtstart));
-      }
-      if (onClearInitialEvent) onClearInitialEvent();
-    }
-  }, [initialEventUid, events, onClearInitialEvent]);
-
-  // Sincronizzazione remota
-  const handleSync = async () => {
-    setIsSyncing(true);
-    setSyncMessage(null);
-    try {
-      const res = await calendarApi.syncCalendars();
-      setSyncMessage(`Sincronizzazione completata: ${res.result?.total_synced || 0} feed processati.`);
-      await loadEvents();
-      await loadCalendars();
-    } catch (err: any) {
-      setSyncMessage(`Errore sync: ${err.message || 'Server non raggiungibile'}`);
-    } finally {
-      setIsSyncing(false);
-      setTimeout(() => setSyncMessage(null), 5000);
-    }
-  };
-
-  // Toggle visibilità singolo calendario
-  const toggleCalendarVisibility = (calId: string) => {
-    setVisibleCalendarIds(prev => {
-      const next = new Set(prev);
-      if (next.has(calId)) next.delete(calId);
-      else next.add(calId);
-      return next;
-    });
-  };
-
-  // Chiudi date picker al click fuori
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        isDatePickerOpen &&
-        datePickerRef.current &&
-        !datePickerRef.current.contains(e.target as Node)
-      ) {
-        setIsDatePickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDatePickerOpen]);
-
-  // Filtraggio eventi visibili
-  const filteredEvents = useMemo(() => {
-    return events.filter(ev => {
-      if (visibleCalendarIds.size > 0 && !visibleCalendarIds.has(ev.calendar_id)) {
-        return false;
-      }
-      if (selectedCategory !== 'all' && ev.category !== selectedCategory) {
-        return false;
-      }
-      return true;
-    });
-  }, [events, visibleCalendarIds, selectedCategory]);
-
-  // Eventi ordinati per agenda cronologica
-  const sortedAgendaEvents = useMemo(() => {
-    return [...filteredEvents].sort((a, b) => new Date(a.dtstart).getTime() - new Date(b.dtstart).getTime());
-  }, [filteredEvents]);
-
-  // Mesi effettivamente presenti nell'agenda (ordinati)
-  const presentMonths = useMemo(() => {
-    const keys = new Set<string>();
-    for (const ev of sortedAgendaEvents) {
-      if (ev.dtstart) {
-        const d = new Date(ev.dtstart);
-        keys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      }
-    }
-    return Array.from(keys).sort();
-  }, [sortedAgendaEvents]);
-
-  // Indice di taglio per linea "Oggi" nell'agenda
-  const todaySplitIndex = useMemo(() => {
-    const nowTime = Date.now();
-    const idx = sortedAgendaEvents.findIndex(ev => {
-      const t = ev.dtend ? new Date(ev.dtend).getTime() : new Date(ev.dtstart).getTime();
-      return t >= nowTime;
-    });
-    return idx === -1 ? sortedAgendaEvents.length : idx;
-  }, [sortedAgendaEvents]);
-
-  // Titolo intervallo vista settimana (es. 14 - 20 Settembre 2026)
-  const weekRangeTitle = useMemo(() => {
-    const curr = new Date(currentDate);
-    const dayOfWeek = curr.getDay() === 0 ? 6 : curr.getDay() - 1; // 0=Lun, 6=Dom
-    const monday = new Date(curr);
-    monday.setDate(curr.getDate() - dayOfWeek);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-
-    const mDay = monday.getDate();
-    const sDay = sunday.getDate();
-    const mMonth = monday.getMonth();
-    const sMonth = sunday.getMonth();
-    const mYear = monday.getFullYear();
-    const sYear = sunday.getFullYear();
-
-    if (mYear !== sYear) {
-      return `${mDay} ${monthNames[mMonth]} ${mYear} - ${sDay} ${monthNames[sMonth]} ${sYear}`;
-    }
-    if (mMonth !== sMonth) {
-      return `${mDay} ${monthNames[mMonth]} - ${sDay} ${monthNames[sMonth]} ${sYear}`;
-    }
-    return `${mDay} - ${sDay} ${monthNames[mMonth]} ${sYear}`;
-  }, [currentDate]);
-
-  // Raggruppamento mese per vista agenda
-  const agendaMonthGroups = useMemo(() => {
-    const groups: { monthKey: string; dateObj: Date; events: CalendarEventItem[] }[] = [];
-    let currentGroup: { monthKey: string; dateObj: Date; events: CalendarEventItem[] } | null = null;
-
-    sortedAgendaEvents.forEach(ev => {
-      if (!ev.dtstart) return;
-      const d = new Date(ev.dtstart);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!currentGroup || currentGroup.monthKey !== key) {
-        currentGroup = {
-          monthKey: key,
-          dateObj: new Date(d.getFullYear(), d.getMonth(), 1),
-          events: [],
-        };
-        groups.push(currentGroup);
-      }
-      currentGroup.events.push(ev);
-    });
-
-    return groups;
-  }, [sortedAgendaEvents]);
-
-  // Scroll helper matematico per il contenitore agenda
-  const scrollToMonth = (monthKey: string) => {
-    const container = agendaContainerRef.current;
-    const targetEl = document.getElementById(`agenda-month-${monthKey}`);
-    if (!container || !targetEl) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const targetRect = targetEl.getBoundingClientRect();
-    const relativeOffset = targetRect.top - containerRect.top + container.scrollTop;
-
-    container.scrollTo({
-      top: Math.max(0, relativeOffset - 8),
-      behavior: 'smooth',
-    });
-  };
-
-  // Navigazione temporale (consapevole del mese/agenda/settimana)
-  const handlePrev = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000));
-    } else {
-      // In modalità Agenda: passa al mese precedente effettivamente presente negli eventi
-      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-      const preceding = presentMonths.filter(k => k < currentMonthKey);
-      if (preceding.length > 0) {
-        const targetKey = preceding[preceding.length - 1];
-        const [y, m] = targetKey.split('-').map(Number);
-        setCurrentDate(new Date(y, m - 1, 1));
-        scrollToMonth(targetKey);
-      } else if (presentMonths.length > 0) {
-        const firstKey = presentMonths[0];
-        const [y, m] = firstKey.split('-').map(Number);
-        setCurrentDate(new Date(y, m - 1, 1));
-        scrollToMonth(firstKey);
-      }
-    }
-  };
-
-  const handleNext = () => {
-    if (viewMode === 'month') {
-      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    } else if (viewMode === 'week') {
-      setCurrentDate(prev => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000));
-    } else {
-      // In modalità Agenda: passa al mese successivo presente
-      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-      const succeeding = presentMonths.filter(k => k > currentMonthKey);
-      if (succeeding.length > 0) {
-        const targetKey = succeeding[0];
-        const [y, m] = targetKey.split('-').map(Number);
-        setCurrentDate(new Date(y, m - 1, 1));
-        scrollToMonth(targetKey);
-      }
-    }
-  };
-
-  const handleToday = () => {
-    const today = new Date();
-    setCurrentDate(today);
-    if (viewMode === 'agenda') {
-      if (todayMarkerRef.current && agendaContainerRef.current) {
-        const container = agendaContainerRef.current;
-        const markerRect = todayMarkerRef.current.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const targetTop = markerRect.top - containerRect.top + container.scrollTop - (container.clientHeight / 2) + (markerRect.height / 2);
-        container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
-      } else {
-        const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        scrollToMonth(currentMonthKey);
-      }
-    }
-  };
-
-  const handleSelectMonth = (monthIdx: number, year: number) => {
-    const targetDate = new Date(year, monthIdx, 1);
-    setCurrentDate(targetDate);
-    setIsDatePickerOpen(false);
-    if (viewMode === 'agenda') {
-      const targetKey = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
-      let jumpKey = targetKey;
-      if (!presentMonths.includes(targetKey)) {
-        const preceding = presentMonths.filter(k => k <= targetKey);
-        if (preceding.length > 0) {
-          jumpKey = preceding[preceding.length - 1];
-        } else if (presentMonths.length > 0) {
-          jumpKey = presentMonths[0];
-        }
-      }
-      setTimeout(() => {
-        scrollToMonth(jumpKey);
-      }, 50);
-    }
-  };
-
-  // Auto-scroll su Oggi quando si entra in vista Agenda
-  useEffect(() => {
-    if (viewMode === 'agenda') {
-      const timer = setTimeout(() => {
-        if (todayMarkerRef.current && agendaContainerRef.current) {
-          const container = agendaContainerRef.current;
-          const markerRect = todayMarkerRef.current.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          const targetTop = markerRect.top - containerRect.top + container.scrollTop - (container.clientHeight / 2) + (markerRect.height / 2);
-          container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
-        }
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [viewMode]);
-
-  // Calcolo griglia mese
-  const monthDays = useMemo(() => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-
-    // Giorno della settimana dell'1 del mese (0 = Domenica, trasformiamo in 0 = Lunedì)
-    let startDayOfWeek = firstDayOfMonth.getDay() - 1;
-    if (startDayOfWeek === -1) startDayOfWeek = 6;
-
-    const daysInMonth = lastDayOfMonth.getDate();
-
-    // Giorni mese precedente per riempire l'inizio
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    const days: Array<{
-      dateStr: string;
-      dayNumber: number;
-      isCurrentMonth: boolean;
-      isToday: boolean;
-    }> = [];
-
-    const todayStr = new Date().toISOString().substring(0, 10);
-
-    for (let i = startDayOfWeek - 1; i >= 0; i--) {
-      const dNum = prevMonthLastDay - i;
-      const prevM = month === 0 ? 11 : month - 1;
-      const prevY = month === 0 ? year - 1 : year;
-      const dateStr = `${prevY}-${String(prevM + 1).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
-      days.push({
-        dateStr,
-        dayNumber: dNum,
-        isCurrentMonth: false,
-        isToday: dateStr === todayStr,
-      });
-    }
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      days.push({
-        dateStr,
-        dayNumber: i,
-        isCurrentMonth: true,
-        isToday: dateStr === todayStr,
-      });
-    }
-
-    // Riempimento fine griglia a multiplo di 7
-    const remaining = (7 - (days.length % 7)) % 7;
-    for (let i = 1; i <= remaining; i++) {
-      const nextM = month === 11 ? 0 : month + 1;
-      const nextY = month === 11 ? year + 1 : year;
-      const dateStr = `${nextY}-${String(nextM + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      days.push({
-        dateStr,
-        dayNumber: i,
-        isCurrentMonth: false,
-        isToday: dateStr === todayStr,
-      });
-    }
-
-    return days;
-  }, [currentDate]);
-
-  // Mappa data -> lista eventi del giorno
-  const eventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEventItem[]>();
-    for (const ev of filteredEvents) {
-      const d = ev.dtstart.substring(0, 10);
-      if (!map.has(d)) map.set(d, []);
-      map.get(d)!.push(ev);
-    }
-    return map;
-  }, [filteredEvents]);
-
-  // Click su giorno per creare evento
-  const handleDayClick = (dateStr: string) => {
-    setSelectedDateForNew(dateStr);
-    setEventToEdit(null);
-    setIsModalOpen(true);
-  };
-
-  // Click su evento per modificare
-  const handleEventClick = (e: React.MouseEvent, ev: CalendarEventItem) => {
-    e.stopPropagation();
-    setEventToEdit(ev);
-    setIsModalOpen(true);
-  };
+  const newEvent = (date?: string) => setEditor({ event: null, date });
+  const openEvent = (event: CalendarEventItem) => setEditor({ event });
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative">
-      {/* Top Navbar / Control Header */}
-      <header className="px-3 sm:px-5 py-3 border-b border-border/70 glass-panel bg-panel/70 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0">
-        {/* Sinistra: Navigazione Data & Mobile Hamburger */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {onOpenMobileSidebar && (
-            <button
-              onClick={onOpenMobileSidebar}
-              className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition shrink-0 cursor-pointer"
-              title="Apri menu principale"
-            >
-              <Menu size={20} />
-            </button>
-          )}
+      <CalendarToolbar
+        navigation={navigation}
+        isSyncing={data.isSyncing}
+        isSidebarOpen={isSidebarOpen}
+        onSync={data.sync}
+        onManageCalendars={() => setIsManageOpen(true)}
+        onNewEvent={() => newEvent()}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onOpenMobileSidebar={onOpenMobileSidebar}
+      />
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Blocco < [Mese Anno / Settimana] > */}
-            <div className="flex items-center bg-input-bg border border-input-border rounded-xl p-0.5 sm:p-1 shadow-inner shrink-0 relative">
-              <button
-                onClick={handlePrev}
-                className="p-1 sm:p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
-                title="Precedente"
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold text-fg hover:bg-panel-hover hover:text-accent rounded-lg transition cursor-pointer flex items-center gap-1 tracking-tight"
-                  title="Clicca per scegliere mese e anno desiderati"
-                >
-                  <span className="truncate max-w-[140px] sm:max-w-none">
-                    {viewMode === 'week'
-                      ? weekRangeTitle
-                      : `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
-                  </span>
-                </button>
-
-                {/* Popover selezione rapida Mese / Anno */}
-                {isDatePickerOpen && (
-                  <div
-                    ref={datePickerRef}
-                    className="absolute top-full left-0 mt-2 z-50 p-3 rounded-2xl border border-border shadow-2xl text-fg w-64 animate-in fade-in zoom-in-95 duration-150"
-                    style={{
-                      backgroundColor: 'var(--panel)',
-                      backdropFilter: 'blur(24px)',
-                      WebkitBackdropFilter: 'blur(24px)',
-                      boxShadow: '0 20px 45px -12px rgba(0,0,0,0.8), 0 0 0 1px var(--border)',
-                    }}
-                  >
-                    {/* Anno */}
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentDate((prev) => new Date(prev.getFullYear() - 1, prev.getMonth(), 1));
-                        }}
-                        className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
-                        title="Anno precedente"
-                      >
-                        <ChevronLeft size={14} />
-                      </button>
-                      <span className="font-bold text-sm text-fg tracking-wide">
-                        {currentDate.getFullYear()}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentDate((prev) => new Date(prev.getFullYear() + 1, prev.getMonth(), 1));
-                        }}
-                        className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
-                        title="Anno successivo"
-                      >
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-
-                    {/* Griglia 12 Mesi */}
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {monthNames.map((mName, mIdx) => {
-                        const isCur = currentDate.getMonth() === mIdx;
-                        return (
-                          <button
-                            key={mName}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectMonth(mIdx, currentDate.getFullYear());
-                              setIsDatePickerOpen(false);
-                            }}
-                            className={`p-1.5 text-xs rounded-lg font-medium transition cursor-pointer ${
-                              isCur
-                                ? 'bg-accent text-white shadow-sm'
-                                : 'text-fg-muted hover:text-fg hover:bg-panel-header'
-                            }`}
-                          >
-                            {mName.substring(0, 3)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={handleNext}
-                className="p-1 sm:p-1.5 hover:bg-panel-hover text-fg-muted hover:text-fg rounded-lg transition cursor-pointer"
-                title="Successivo"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
-            {/* Pulsante Oggi a fianco */}
-            <button
-              onClick={handleToday}
-              className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-fg hover:text-accent bg-input-bg hover:bg-panel-hover border border-input-border rounded-xl shadow-inner transition cursor-pointer shrink-0"
-              title="Torna ad oggi"
-            >
-              Oggi
-            </button>
-          </div>
-        </div>
-
-        {/* Destra: View Mode Toggle & Azioni */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Selettore Viste (Mese / Settimana / Agenda) */}
-          <div className="flex items-center bg-input-bg border border-input-border rounded-xl p-1 text-xs shadow-inner">
-            <button
-              onClick={() => setViewMode('month')}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
-                viewMode === 'month'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-fg-muted hover:text-fg'
-              }`}
-            >
-              Mese
-            </button>
-            <button
-              onClick={() => setViewMode('week')}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
-                viewMode === 'week'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-fg-muted hover:text-fg'
-              }`}
-            >
-              Settimana
-            </button>
-            <button
-              onClick={() => setViewMode('agenda')}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
-                viewMode === 'agenda'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-fg-muted hover:text-fg'
-              }`}
-            >
-              Agenda
-            </button>
-          </div>
-
-          {/* Gestisci Calendari & Import */}
-          <button
-            onClick={() => setIsManageModalOpen(true)}
-            className="p-2 bg-input-bg hover:bg-panel-hover text-fg-muted hover:text-fg border border-input-border rounded-xl transition cursor-pointer"
-            title="Gestione Calendari & Import"
-          >
-            <Settings size={15} />
-          </button>
-
-          {/* Sync Button */}
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="p-2 bg-input-bg hover:bg-panel-hover text-fg-muted hover:text-fg border border-input-border rounded-xl transition cursor-pointer disabled:opacity-50"
-            title="Sincronizza calendari esterni"
-          >
-            <RefreshCw size={15} className={isSyncing ? 'animate-spin text-accent' : ''} />
-          </button>
-
-          {/* Nuovo Evento */}
-          <button
-            onClick={() => {
-              setSelectedDateForNew(undefined);
-              setEventToEdit(null);
-              setIsModalOpen(true);
-            }}
-            className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer"
-          >
-            <Plus size={15} />
-            <span className="hidden sm:inline">Nuovo Evento</span>
-          </button>
-
-          {/* Toggle Sidebar Filtri su Mobile */}
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`p-2 md:hidden rounded-xl border transition cursor-pointer ${
-              isSidebarOpen
-                ? 'bg-accent text-white border-accent'
-                : 'bg-input-bg text-fg-muted hover:text-fg border-input-border'
-            }`}
-            title="Filtri e calendari"
-          >
-            <Filter size={15} />
-          </button>
-        </div>
-      </header>
-
-      {/* Sync Message Alert */}
-      {syncMessage && (
+      {data.syncMessage && (
         <div className="px-5 py-2 bg-accent/10 border-b border-accent/25 text-xs text-accent flex items-center justify-between">
-          <span>{syncMessage}</span>
-          <button onClick={() => setSyncMessage(null)} className="text-fg-muted hover:text-fg">
+          <span>{data.syncMessage}</span>
+          <button onClick={data.dismissSyncMessage} className="text-fg-muted hover:text-fg">
             ✕
           </button>
         </div>
       )}
 
-      {/* Main Content Area: Sidebar + Grid */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Contenuto Sidebar condivisibile */}
-        {(() => {
-          const sidebarContent = (
-            <div className="p-4 space-y-5 overflow-y-auto flex-1">
-              {/* Ricerca Rapida */}
-              <div>
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-2.5 text-fg-muted" />
-                  <input
-                    type="text"
-                    placeholder="Cerca eventi..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-input-bg border border-input-border rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition"
-                  />
-                </div>
-              </div>
+        <CalendarSidebar
+          calendars={data.calendars}
+          visibleCalendarIds={data.visibleCalendarIds}
+          onToggleCalendar={data.toggleCalendar}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          category={category}
+          onCategoryChange={setCategory}
+          totalEvents={data.events.length}
+          filteredEvents={filteredEvents.length}
+          onManageCalendars={() => setIsManageOpen(true)}
+          isMobileOpen={isSidebarOpen}
+          onCloseMobile={() => setIsSidebarOpen(false)}
+        />
 
-              {/* Lista Calendari */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase">
-                    I Miei Calendari
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setIsManageModalOpen(true)}
-                      className="p-1 text-fg-muted hover:text-accent hover:bg-panel-hover rounded-md transition"
-                      title="Gestisci calendari e import"
-                    >
-                      <Settings size={13} />
-                    </button>
-                    <span className="text-[10px] text-fg-muted bg-panel px-1.5 py-0.5 rounded-full border border-border/50">
-                      {calendars.length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  {calendars.map(c => {
-                    const isChecked = visibleCalendarIds.has(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => toggleCalendarVisibility(c.id)}
-                        className={`px-2.5 py-1.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition select-none ${
-                          isChecked
-                            ? 'bg-panel-hover/50 border-border/70 text-fg'
-                            : 'bg-transparent border-transparent text-fg-muted/60 hover:bg-panel-hover/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                            style={{ backgroundColor: c.color || '#3b82f6' }}
-                          />
-                          <span className="truncate font-medium">{c.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {c.event_count !== undefined && (
-                            <span className="text-[10px] text-fg-muted">{c.event_count}</span>
-                          )}
-                          <div
-                            className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
-                              isChecked
-                                ? 'bg-accent border-accent text-white'
-                                : 'border-border/80 bg-input-bg'
-                            }`}
-                          >
-                            {isChecked && <Check size={10} strokeWidth={3} />}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={() => setIsManageModalOpen(true)}
-                  className="w-full mt-2.5 py-1.5 px-2.5 text-xs text-accent hover:bg-accent/10 border border-accent/25 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <Plus size={13} />
-                  <span>Aggiungi / Importa</span>
-                </button>
-              </div>
-
-              {/* Filtro Categorie */}
-              <div>
-                <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase block mb-2">
-                  Categorie
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'all', label: 'Tutte' },
-                    { id: 'meeting', label: 'Meeting' },
-                    { id: 'personal', label: 'Personale' },
-                    { id: 'homelab', label: 'Homelab' },
-                    { id: 'flight', label: 'Viaggi' },
-                    { id: 'reminder', label: 'Promemoria' },
-                  ].map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${
-                        selectedCategory === cat.id
-                          ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
-                          : 'bg-input-bg/40 border-border/40 text-fg-muted hover:text-fg hover:bg-panel-hover'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick Summary Card */}
-              <div className="p-3 bg-panel-header/40 border border-border/50 rounded-xl space-y-1.5 text-xs">
-                <div className="flex items-center justify-between text-fg-muted">
-                  <span>Eventi totali</span>
-                  <span className="font-semibold text-fg">{events.length}</span>
-                </div>
-                <div className="flex items-center justify-between text-fg-muted">
-                  <span>Eventi filtrati</span>
-                  <span className="font-semibold text-accent">{filteredEvents.length}</span>
-                </div>
-              </div>
-            </div>
-          );
-
-          return (
-            <>
-              {/* Desktop Sidebar: sempre visibile affiancata */}
-              <aside className="hidden md:flex w-64 border-r border-border/60 glass-panel bg-panel/40 flex-col shrink-0 overflow-hidden">
-                {sidebarContent}
-              </aside>
-
-              {/* Mobile Sidebar: Drawer overlay non distruttivo per la griglia */}
-              {isSidebarOpen && (
-                <div className="fixed inset-0 z-40 md:hidden flex">
-                  <div
-                    className="fixed inset-0 bg-bg/80 backdrop-blur-sm transition-opacity"
-                    onClick={() => setIsSidebarOpen(false)}
-                  />
-                  <div className="relative w-72 max-w-[85vw] h-full bg-panel border-r border-border flex flex-col shadow-2xl z-50">
-                    <div className="p-3 border-b border-border flex items-center justify-between">
-                      <span className="text-xs font-semibold text-fg uppercase tracking-wider">
-                        Filtri & Calendari
-                      </span>
-                      <button
-                        onClick={() => setIsSidebarOpen(false)}
-                        className="p-1 text-fg-muted hover:text-fg rounded-lg"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                    {sidebarContent}
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-
-        {/* Vista Principale Calendario */}
         <main className="flex-1 overflow-y-auto p-2 sm:p-6 flex flex-col min-w-0">
-          {isLoading ? (
+          {data.isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex items-center gap-2 text-fg-muted text-sm">
                 <RefreshCw size={18} className="animate-spin text-accent" />
                 <span>Caricamento eventi...</span>
               </div>
             </div>
-          ) : viewMode === 'month' ? (
-            /* --- GRIGLIA MESE --- */
-            <div className="flex-1 flex flex-col glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30">
-              {/* Header Giorni della Settimana */}
-              <div className="grid grid-cols-7 border-b border-border/60 bg-panel-header/60 text-center py-2 text-xs font-semibold text-fg-muted">
-                {dayNamesShort.map((d, i) => (
-                  <div key={d} className={i >= 5 ? 'text-fg-muted/60' : ''}>
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              {/* Griglia Giorni */}
-              <div className="grid grid-cols-7 flex-1 auto-rows-fr divide-x divide-y divide-border/40 bg-panel/10">
-                {monthDays.map(day => {
-                  const dayEvents = eventsByDate.get(day.dateStr) || [];
-                  const isSelectedMobile = mobileSelectedDate === day.dateStr;
-
-                  return (
-                    <div
-                      key={day.dateStr}
-                      onClick={() => {
-                        if (window.innerWidth < 640) {
-                          setMobileSelectedDate(day.dateStr === mobileSelectedDate ? null : day.dateStr);
-                        } else {
-                          handleDayClick(day.dateStr);
-                        }
-                      }}
-                      className={`min-h-[64px] sm:min-h-[100px] p-1 sm:p-2 flex flex-col transition cursor-pointer hover:bg-panel-hover/40 relative group ${
-                        !day.isCurrentMonth ? 'opacity-35 bg-background/20' : ''
-                      } ${day.isToday ? 'bg-accent/5' : ''} ${
-                        isSelectedMobile ? 'ring-2 ring-accent ring-inset' : ''
-                      }`}
-                    >
-                      {/* Intestazione Cella Giorno */}
-                      <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                        <span
-                          className={`text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full transition ${
-                            day.isToday
-                              ? 'bg-accent text-white font-bold shadow-sm shadow-accent/40'
-                              : 'text-fg-muted group-hover:text-fg'
-                          }`}
-                        >
-                          {day.dayNumber}
-                        </span>
-
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleDayClick(day.dateStr);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-accent rounded transition hidden sm:block"
-                          title="Aggiungi evento qui"
-                        >
-                          <Plus size={13} />
-                        </button>
-                      </div>
-
-                      {/* Mobile view: puntini colorati ed eventuale contatore */}
-                      <div className="flex sm:hidden flex-wrap gap-1 justify-center mt-1">
-                        {dayEvents.slice(0, 3).map((ev, i) => (
-                          <span
-                            key={ev.uid || ev.id || i}
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
-                          />
-                        ))}
-                        {dayEvents.length > 3 && (
-                          <span className="text-[9px] text-fg-muted font-bold leading-none">
-                            +{dayEvents.length - 3}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Desktop view: pillole complete */}
-                      <div className="hidden sm:block space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
-                        {dayEvents.map(ev => {
-                          const calColor = ev.calendar_color || '#3b82f6';
-                          const timeStr = ev.all_day
-                            ? 'Tutto il giorno'
-                            : ev.dtstart.substring(11, 16);
-
-                          return (
-                            <div
-                              key={ev.uid || ev.id}
-                              onClick={e => handleEventClick(e, ev)}
-                              className="px-2 py-1 rounded-md text-[11px] leading-tight font-medium truncate flex items-center gap-1.5 transition shadow-sm hover:scale-[1.01]"
-                              style={{
-                                backgroundColor: `${calColor}20`,
-                                borderLeft: `3px solid ${calColor}`,
-                                color: 'var(--fg)',
-                              }}
-                              title={`${timeStr} - ${ev.summary}${ev.location ? ` @ ${ev.location}` : ''}`}
-                            >
-                              <span
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
-                                style={{ backgroundColor: calColor }}
-                              />
-                              <span className="text-[10px] text-fg-muted shrink-0 font-mono">
-                                {ev.all_day ? 'ALL' : timeStr}
-                              </span>
-                              <span className="truncate">{ev.summary}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Dettaglio giorno selezionato su Mobile */}
-              {mobileSelectedDate && (
-                <div className="sm:hidden border-t border-border/70 p-3 bg-panel/95 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-fg">
-                      Eventi del {mobileSelectedDate}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleDayClick(mobileSelectedDate)}
-                        className="text-xs text-accent font-medium hover:underline flex items-center gap-1"
-                      >
-                        <Plus size={12} /> Aggiungi
-                      </button>
-                      <button
-                        onClick={() => setMobileSelectedDate(null)}
-                        className="text-fg-muted hover:text-fg p-1"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {(!eventsByDate.get(mobileSelectedDate) || eventsByDate.get(mobileSelectedDate)!.length === 0) ? (
-                      <p className="text-xs text-fg-muted italic py-1">Nessun evento in questa data.</p>
-                    ) : (
-                      eventsByDate.get(mobileSelectedDate)!.map(ev => (
-                        <div
-                          key={ev.uid || ev.id}
-                          onClick={e => handleEventClick(e, ev)}
-                          className="p-2 rounded-lg bg-panel-hover/50 border border-border/50 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.calendar_color || '#3b82f6' }} />
-                            <span className="font-medium text-fg truncate">{ev.summary}</span>
-                          </div>
-                          <span className="text-[10px] text-fg-muted font-mono shrink-0">
-                            {ev.all_day ? 'Tutto il giorno' : ev.dtstart.substring(11, 16)}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : viewMode === 'week' ? (
-            /* --- VISTA SETTIMANA --- */
-            <div className="flex-1 flex flex-col glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30">
-              <div className="p-4 border-b border-border/60 bg-panel-header/60 flex items-center justify-between">
-                <span className="text-xs font-semibold text-fg-muted uppercase">Vista Settimanale</span>
-                <span className="text-xs text-fg-muted">Dettaglio orario appuntamenti</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* 7 Giorni della settimana corrente */}
-                {Array.from({ length: 7 }).map((_, idx) => {
-                  const curr = new Date(currentDate);
-                  const first = curr.getDate() - (curr.getDay() === 0 ? 6 : curr.getDay() - 1);
-                  const dayDate = new Date(curr.setDate(first + idx));
-                  const dateStr = dayDate.toISOString().substring(0, 10);
-                  const dayEvents = eventsByDate.get(dateStr) || [];
-                  const isToday = dateStr === new Date().toISOString().substring(0, 10);
-
-                  return (
-                    <div
-                      key={dateStr}
-                      onClick={() => handleDayClick(dateStr)}
-                      className={`p-3 rounded-xl border transition cursor-pointer hover:border-accent/40 ${
-                        isToday
-                          ? 'bg-accent/10 border-accent/30'
-                          : 'bg-panel/40 border-border/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-white' : 'bg-input-bg text-fg'}`}>
-                            {dayNamesShort[idx]} {dayDate.getDate()} {monthNames[dayDate.getMonth()].substring(0, 3)}
-                          </span>
-                          {isToday && <span className="text-[10px] text-accent font-semibold uppercase tracking-wider">Oggi</span>}
-                        </div>
-                        <span className="text-xs text-fg-muted">{dayEvents.length} eventi</span>
-                      </div>
-
-                      {dayEvents.length === 0 ? (
-                        <p className="text-xs text-fg-muted/50 italic py-1">Nessun impegno pianificato</p>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {dayEvents.map(ev => (
-                            <div
-                              key={ev.uid || ev.id}
-                              onClick={e => handleEventClick(e, ev)}
-                              className="p-2.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex items-start justify-between gap-2 shadow-sm transition"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ev.calendar_color || '#3b82f6' }} />
-                                  <span className="text-xs font-semibold text-fg truncate">{ev.summary}</span>
-                                </div>
-                                <div className="text-[11px] text-fg-muted flex items-center gap-2">
-                                  <span className="flex items-center gap-1">
-                                    <Clock size={11} />
-                                    {ev.all_day ? 'Tutto il giorno' : `${ev.dtstart.substring(11, 16)} - ${ev.dtend.substring(11, 16)}`}
-                                  </span>
-                                  {ev.location && (
-                                    <span className="truncate flex items-center gap-0.5">
-                                      <MapPin size={11} /> {ev.location}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          ) : navigation.viewMode === 'month' ? (
+            <MonthView
+              currentDate={navigation.currentDate}
+              eventsByDate={eventsByDate}
+              onNewEvent={newEvent}
+              onOpenEvent={openEvent}
+            />
+          ) : navigation.viewMode === 'week' ? (
+            <WeekView
+              currentDate={navigation.currentDate}
+              eventsByDate={eventsByDate}
+              onNewEvent={newEvent}
+              onOpenEvent={openEvent}
+            />
           ) : (
-            /* --- VISTA AGENDA --- */
-            <div className="flex-1 glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30 flex flex-col">
-              <div className="p-4 border-b border-border/60 bg-panel-header/60 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CalendarDays size={16} className="text-accent" />
-                  <span className="text-xs font-semibold text-fg uppercase">Agenda Cronologica</span>
-                </div>
-                <span className="text-xs text-fg-muted">{sortedAgendaEvents.length} eventi totali</span>
-              </div>
-
-              <div ref={agendaContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                {sortedAgendaEvents.length === 0 ? (
-                  <div className="py-12 text-center text-fg-muted text-sm space-y-2">
-                    <p>Nessun evento trovato nei calendari selezionati.</p>
-                    <button
-                      onClick={() => setIsModalOpen(true)}
-                      className="px-3.5 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent rounded-xl text-xs font-medium inline-flex items-center gap-1.5 transition"
-                    >
-                      <Plus size={14} /> Crea il tuo primo evento
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {agendaMonthGroups.map((group) => {
-                      return (
-                        <div
-                          key={group.monthKey}
-                          id={`agenda-month-${group.monthKey}`}
-                          className="space-y-3"
-                        >
-                          {/* Separatore di Mese */}
-                          <div className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10">
-                            <div className="flex items-center gap-2">
-                              <CalendarDays size={15} className="text-accent" />
-                              <h3 className="font-bold text-xs sm:text-sm text-fg tracking-wide uppercase">
-                                {monthNames[group.dateObj.getMonth()]} {group.dateObj.getFullYear()}
-                              </h3>
-                            </div>
-                            <span className="text-[11px] text-fg-muted">
-                              {group.events.length} {group.events.length === 1 ? 'evento' : 'eventi'}
-                            </span>
-                          </div>
-
-                          {/* Eventi del Mese */}
-                          <div className="space-y-3">
-                            {group.events.map((ev) => {
-                              const globalEvIdx = sortedAgendaEvents.indexOf(ev);
-                              const isTodayDivider = globalEvIdx === todaySplitIndex;
-                              const dateObj = new Date(ev.dtstart);
-                              const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-                              const timeRange = ev.all_day
-                                ? 'Tutto il giorno'
-                                : `${ev.dtstart.substring(11, 16)} → ${ev.dtend.substring(11, 16)}`;
-
-                              return (
-                                <React.Fragment key={ev.uid || ev.id || globalEvIdx}>
-                                  {/* Linea Divisoria "Oggi" */}
-                                  {isTodayDivider && (
-                                    <div
-                                      ref={todayMarkerRef}
-                                      id="agenda-today-marker"
-                                      className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
-                                        <span className="font-bold text-xs text-accent uppercase tracking-wider">
-                                          Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                        </span>
-                                      </div>
-                                      <span className="text-[10px] text-fg-muted font-mono">
-                                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {/* Card Evento */}
-                                  <div
-                                    onClick={e => handleEventClick(e, ev)}
-                                    className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
-                                  >
-                                    <div className="flex items-start gap-3 min-w-0">
-                                      <div
-                                        className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
-                                        style={{ backgroundColor: ev.calendar_color || '#3b82f6' }}
-                                      />
-                                      <div className="space-y-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">
-                                            {ev.summary}
-                                          </h4>
-                                          {ev.category && (
-                                            <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
-                                              {ev.category}
-                                            </span>
-                                          )}
-                                          {ev.importance === 'high' || ev.importance === 'critical' ? (
-                                            <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
-                                              {ev.importance}
-                                            </span>
-                                          ) : null}
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-                                          <span className="flex items-center gap-1">
-                                            <CalIcon size={12} /> {formattedDate}
-                                          </span>
-                                          <span className="flex items-center gap-1 font-mono text-[11px]">
-                                            <Clock size={12} /> {timeRange}
-                                          </span>
-                                          {ev.location && (
-                                            <span className="flex items-center gap-1 truncate max-w-[200px]">
-                                              <MapPin size={12} /> {ev.location}
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        {ev.description && (
-                                          <p className="text-xs text-fg-muted/80 line-clamp-1">
-                                            {ev.description}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                                      {ev.location && (ev.location.startsWith('http://') || ev.location.startsWith('https://')) && (
-                                        <a
-                                          href={ev.location}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          onClick={e => e.stopPropagation()}
-                                          className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
-                                        >
-                                          <span>Partecipa</span>
-                                          <ExternalLink size={12} />
-                                        </a>
-                                      )}
-                                      <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">
-                                        Modifica →
-                                      </span>
-                                    </div>
-                                  </div>
-                                </React.Fragment>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Se tutti gli eventi sono nel passato, posiziona la linea Oggi alla fine */}
-                    {todaySplitIndex >= sortedAgendaEvents.length && (
-                      <div
-                        ref={todayMarkerRef}
-                        id="agenda-today-marker"
-                        className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
-                          <span className="font-bold text-xs text-accent uppercase tracking-wider">
-                            Oggi — {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-fg-muted font-mono">
-                          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
+            <AgendaView
+              events={sortedEvents}
+              containerRef={navigation.agendaRefs.container}
+              todayMarkerRef={navigation.agendaRefs.todayMarker}
+              onNewEvent={() => newEvent()}
+              onOpenEvent={openEvent}
+            />
           )}
         </main>
       </div>
 
-      {/* Modale Creazione / Modifica Evento */}
       <EventModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEventToEdit(null);
-          setSelectedDateForNew(undefined);
-        }}
-        onSave={() => {
-          loadEvents();
-          loadCalendars();
-        }}
-        calendars={calendars}
-        eventToEdit={eventToEdit}
-        defaultDate={selectedDateForNew}
+        isOpen={editor !== null}
+        onClose={() => setEditor(null)}
+        onSave={data.reload}
+        calendars={data.calendars}
+        eventToEdit={editor?.event ?? null}
+        defaultDate={editor?.date}
       />
 
-      {/* Modale Gestione Calendari & Import */}
       <CalendarManageModal
-        isOpen={isManageModalOpen}
-        onClose={() => setIsManageModalOpen(false)}
-        calendars={calendars}
-        onCalendarsUpdated={() => {
-          loadCalendars();
-          loadEvents();
-        }}
+        isOpen={isManageOpen}
+        onClose={() => setIsManageOpen(false)}
+        calendars={data.calendars}
+        onCalendarsUpdated={data.reload}
       />
     </div>
   );
