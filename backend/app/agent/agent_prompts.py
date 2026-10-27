@@ -141,8 +141,24 @@ def tool_selection_system_prompt(mode: str, catalog: str) -> str:
     )
 
 
-def tool_synthesis_system_prompt(mode: str) -> str:
-    return base_system_prompt(mode) + (
+# La sintesi non riceve catalogo né specifica delle automazioni: ai modelli piccoli (es. LFM2.5) suggerivano di
+# rispondere con una nuova tool call invece che con il testo per l'utente.
+_NO_TOOLS_AT_SYNTHESIS = ("All tool calls for this turn are already done and no tools are available in this stage: "
+                          "do NOT emit tool calls, write the answer as text.\n")
+
+
+def _synthesis_identity() -> str:
+    return (
+        "You are the Proxmox VE Homelab AI Agent.\n"
+        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}\n"
+        f"{_NO_TOOLS_AT_SYNTHESIS}"
+    )
+
+
+def tool_synthesis_system_prompt() -> str:
+    """Sintesi quando il modello non chiede altri tool."""
+    return _synthesis_identity() + (
         "You are in the final synthesis stage after executing tool actions.\n"
         "Your task is to synthesize the information obtained from the tools into a fluent, thorough, and structured response in the language used by the user in their prompt.\n"
         "Present the data clearly and in natural prose (no raw JSON dump): this is the final response for the user."
@@ -191,12 +207,8 @@ def plain_answer_prompt(task: str, now: str, memory_context: Optional[str]) -> s
 
 
 def final_synthesis_system_prompt() -> str:
-    """Sintesi dopo aver esaurito i passi del loop: prompt ridotto, senza catalogo né specifica automazioni."""
-    return (
-        "You are the Proxmox VE Homelab AI Agent.\n"
-        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
-        f"{UNTRUSTED_CONTEXT_POLICY}"
-    )
+    """Sintesi dopo aver esaurito i passi del loop (limite, anti-loop o stop)."""
+    return _synthesis_identity()
 
 
 def final_synthesis_prompt(task: str, now: str, obs_text: str) -> str:

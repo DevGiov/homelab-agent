@@ -156,6 +156,9 @@ def test_long_results_are_shortened_for_selection_but_complete_for_synthesis(man
     # La final_answer della selezione vedeva dati troncati: si sintetizza sui risultati interi
     assert res["final_response"] == "Sintesi sui dati completi."
     assert "499" in llm.call_args.args[0]
+    # Niente catalogo né specifica automazioni nella sintesi: LFM2.5 rispondeva con una tool call
+    synthesis_system = llm.call_args.kwargs["system_prompt"]
+    assert "no tools are available" in synthesis_system and "Catalog" not in synthesis_system
 
 
 def test_unavailable_model_ends_the_turn_without_more_requests(manager):

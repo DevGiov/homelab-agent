@@ -175,8 +175,9 @@ class AgentLoop:
         short = full
         if len(full) > limit:
             self.history_truncated = True
-            short = (f"{full[:limit]}\n... [result truncated to {limit} of {len(full)} characters: the full result will be "
-                     "used for the final answer, do not call the tool again to read the rest]")
+            short = (f"{full[:limit]}\n... [result truncated to {limit} of {len(full)} characters. The final answer is written "
+                     "separately from the full result: do not call the tool again to read the rest, and if no other tool is "
+                     "needed set tool_needed=false with final_answer=null]")
         self.history.append(f"{header} -> {_guarded(tool_name, short)}")
         return full
 
@@ -329,7 +330,7 @@ class AgentLoop:
         if self.observations:
             answer = self._ask_llm(
                 prompts.tool_synthesis_prompt(self.task, self.now, self._observation_text()),
-                prompts.tool_synthesis_system_prompt(self.mode),
+                prompts.tool_synthesis_system_prompt(),
                 self._synthesis_budget(),
                 "Sintesi Risultati Tool",
             )
