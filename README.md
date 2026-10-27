@@ -110,7 +110,7 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 - **Orchestrazione**: `docker-compose.prod.yml` con volumi persistenti per database SQLite, upload e modelli locali.
 
 ### Workflow di Deploy e Testing E2E
-1. **Validazione Locale**: `make test` (pytest), `make lint` (ruff + oxlint) e build frontend (`npm run build`). Gli stessi controlli girano in CI ([ci.yml](.github/workflows/ci.yml)) e sono bloccanti.
+1. **Validazione Locale**: `make test` (pytest + Vitest), `make lint` (ruff + oxlint) e build frontend (`npm run build`). Gli stessi controlli girano in CI ([ci.yml](.github/workflows/ci.yml)) e sono bloccanti.
 2. **Push Git**: `git push origin dev`
 3. **Pull & Rebuild via MCP**:
    ```python

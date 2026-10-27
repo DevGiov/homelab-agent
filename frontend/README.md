@@ -1,6 +1,6 @@
 # Home Lab Agent — Frontend
 
-Interfaccia web moderna basata su **React 18**, **Vite**, **TypeScript** e **Tailwind CSS** per interagire con l'agente LangGraph e orchestrare l'infrastruttura Homelab.
+Interfaccia web moderna basata su **React 19**, **Vite**, **TypeScript** e **Tailwind CSS** per interagire con l'agente LangGraph e orchestrare l'infrastruttura Homelab.
 
 ---
 
@@ -39,11 +39,20 @@ Interfaccia web moderna basata su **React 18**, **Vite**, **TypeScript** e **Tai
 # Installa le dipendenze
 npm install
 
-# Avvia il server di sviluppo Vite
-npm run dev
+# Avvia il server di sviluppo Vite verso il backend locale
+VITE_API_BASE=http://localhost:8090/v1 npm run dev
 ```
 
-Il server Vite espone la porta `5173` e inoltra automaticamente le chiamate `/v1` al backend locale su `http://localhost:8090`.
+Il server Vite espone la porta `5173`, già ammessa nei `CORS_ORIGINS` di default del backend. Senza `VITE_API_BASE` le chiamate vanno a `/v1` sulla stessa origine, come in produzione dietro nginx.
+
+---
+
+## 🗂️ Struttura
+
+- `src/api/`: un modulo per gruppo di route del backend su un client `fetch` comune (`http.ts`: API key, timeout, `ApiError` con il `detail` di FastAPI già leggibile; `sse.ts`: parser degli stream).
+- `src/components/`: viste e componenti; `chat/`, `automations/` e `calendar/` divisi per area. Le viste secondarie (automazioni, calendario, knowledge, impostazioni) sono caricate on demand con `React.lazy`.
+- `src/hooks/`: stato e logica delle viste (`useChat`, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …).
+- `src/utils/`: funzioni pure (`chatMessages`, `calendarDates`, `messageAdapter`).
 
 ---
 
@@ -55,6 +64,16 @@ npm run build
 ```
 
 L'output ottimizzato viene generato nella directory `dist/`.
+
+---
+
+## 🧪 Test
+
+```bash
+npm test
+```
+
+Vitest con jsdom; i test stanno accanto al modulo che verificano (`*.test.ts`) e usano il backend finto di `src/test/backend.ts` (router di `fetch`, risposte JSON e stream SSE). Coprono parser SSE, client HTTP, stream della chat, `useChat` e i calcoli puri. Girano anche in `make test` e in CI.
 
 ---
 

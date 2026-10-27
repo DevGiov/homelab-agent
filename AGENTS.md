@@ -14,7 +14,7 @@
 
 ## End-to-End Development & Verification Workflow
 1. **Local Modification**: Implement changes cleanly in this repository on the `dev` branch.
-2. **Local Validation**: `make test` (pytest), `make lint` (ruff + oxlint), and frontend build (`npm run build`). Recreate the backend venv with `make venv` (Python 3.12, same as Docker/CI).
+2. **Local Validation**: `make test` (pytest + Vitest), `make lint` (ruff + oxlint), and frontend build (`npm run build`). Recreate the backend venv with `make venv` (Python 3.12, same as Docker/CI).
 3. **Push to Remote**: `git push origin dev`
 4. **Deploy & Rebuild in CT 125 via MCP**:
    - Pull updated branch:

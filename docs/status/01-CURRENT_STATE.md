@@ -68,6 +68,8 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 ## 5. Quality gate (eseguiti in locale)
 
+> **Aggiornamento 2026-10-27 (C4)**: frontend con Vitest (`npm test`, anche in `make test` e in CI): 58 test su parser SSE, client HTTP, stream della chat, `useChat` (invio, errori, versioni, modifica del prompt, riaggancio, stop) e calcoli di calendario e messaggi. Backend: 300 test pytest.
+
 > **Aggiornamento 2026-10-26 (dopo A1–A4)**: `pytest` → 244 passati, 0 falliti, 0 warning, ~4 s (test in `backend/tests/`, 4 test `live` esclusi di default). `ruff check` → 0 errori, `oxlint --deny-warnings` → 0 warning, tutti bloccanti in [CI](../../.github/workflows/ci.yml). La tabella sotto è lo stato dell'assessment iniziale.
 
 | Gate | Risultato |
