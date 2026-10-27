@@ -54,8 +54,9 @@ Valutazione dei file sopra 600 righe (2026-10-27): `calendar/db.py`, `registry/c
 | C2 | ~~`api.ts` diviso per dominio (`api/chat.ts`, `api/automations.ts`, …)~~ ✅ 2026-10-27 (in più: client `fetch` con `ApiError` al posto di axios, parser SSE unico in `api/sse.ts`, rimosse 8 funzioni inutilizzate) | ISS-11 |
 | C3 | ~~`Chat.tsx`, `AutomationsView.tsx`, `CalendarView.tsx` divisi in sotto-componenti con hook dedicati~~ ✅ 2026-10-27 (in più: `useChat` 830 → 436 righe; restano 6 componenti tra 504 e 938 righe fuori dall'elenco) | ISS-11 |
 | C4 | ~~Test frontend minimi (Vitest) per `useChat` (parsing SSE) e per i client API~~ ✅ 2026-10-27 (58 test, ~1 s; in CI e in `make test`) | — |
+| C5 | ~~Divisione dei 6 componenti rimasti sopra le 500 righe~~ ✅ 2026-10-28 (8 bug corretti, vedi [ISS-11](02-ISSUES.md#iss-11); test a 81) | ISS-11 |
 
-**Uscita**: chunk iniziale sotto i 400 kB, nessun componente sopra le ~500 righe.
+**Uscita**: chunk iniziale sotto i 400 kB, nessun componente sopra le ~500 righe. ✅ Raggiunta il 2026-10-28 (chunk iniziale 293 kB, file più grande 492 righe).
 
 ## Fase D — Nuove funzionalità (backlog prioritizzato)
 

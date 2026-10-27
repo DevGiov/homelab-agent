@@ -14,7 +14,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | ✅ Risolto (A4) |
 | [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | ✅ Risolto (B4, B5) |
-| [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | 🟡 Bundle risolto (C1, C2), componenti grandi aperti |
+| [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | ✅ Risolto (Fase C) |
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | ✅ Risolto (A5, `v0.9.0`) |
 | [ISS-14](#iss-14) | Documentazione disallineata | S4 | docs | ✅ Risolto (A5) |
@@ -130,7 +130,12 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **C1 (2026-10-27)**: viste secondarie con `React.lazy` dietro `LazyBoundary` (Suspense + ErrorBoundary, così un chunk che non arriva non fa cadere l'app); highlight.js caricato da `MarkdownRenderer` solo quando il contenuto ha un blocco di codice; React in un chunk vendor separato. Chunk iniziale da 947 a 291 kB, JS iniziale da 262 a 160 kB gzip. In nginx: `index.html` sempre rivalidato, asset con hash `immutable`, chunk mancante = 404 invece della pagina SPA, gzip attivo.
 - **C2 (2026-10-27)**: `api.ts` diviso in `src/api/` (un modulo per gruppo di route) su un client `fetch` con `ApiError`; axios rimosso, JS iniziale da 541 a 490 kB (144 kB gzip).
 - **C3 (2026-10-27)**: `Chat.tsx` (1205), `AutomationsView.tsx` (1385) e `CalendarView.tsx` (1285) divisi in sotto-componenti con hook dedicati; `useChat` da 830 a 436 righe (stream con oggetto `StreamHandlers`, diagnostica in un unico stato, un solo updater dei messaggi). Bug trovati e corretti: la rigenerazione dopo la modifica di un prompt inviava il prompt vecchio; vista settimana e "oggi" del mese usavano date UTC (giorno sbagliato tra mezzanotte e le 2); il selettore del mese si riapriva cliccando sul titolo.
-- **Resta**: 6 componenti tra 504 e 938 righe (vedi [stato attuale](01-CURRENT_STATE.md)), oltre la soglia di uscita della Fase C.
+- **Chiusura (2026-10-28)**: divisi anche i 6 componenti rimasti sopra le 500 righe, valutati uno per uno. Bug trovati e corretti:
+  - **Modifica automazione**: il salvataggio sostituiva tutti i trigger con un solo cron (webhook e manuali cancellati, il primo trigger trasformato in un cron alle 12:00). Scheda trigger rimossa: i trigger si modificano solo dal loro modale.
+  - **Modifica automazione**: il JSON dei parametri di uno step non si poteva digitare (ogni tasto che lo rendeva non valido veniva scartato); tipi di step e tool sconosciuti comparivano come la prima opzione; id dei nuovi step potevano collidere.
+  - **Trigger**: un cron `1-5` veniva salvato come solo lunedì; il fuso era sempre forzato a `Europe/Rome`; i trigger manuali e di altri tipi venivano eliminati.
+  - **Impostazioni**: la modalità di sicurezza non arrivava alla toolbar della chat fino al reload (ora `useSecurityMode`, condiviso).
+  - **Artefatti e trigger**: la copia negli appunti usava `navigator.clipboard`, assente su HTTP in LAN; gli artefatti mostravano due toast per ogni azione.
 
 ## ISS-12
 **Warning oxlint** — S4 · ✅ Risolto in A4

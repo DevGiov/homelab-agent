@@ -52,7 +52,7 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 - **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Knowledge, Impostazioni (sicurezza, modelli, temi).
 - **Struttura (C3)**: chat in `components/chat/` (10 componenti, il più grande 193 righe), automazioni e calendario divisi per scheda e vista, stato negli hook (`useChat` 436 righe, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …), calcoli puri in `utils/` (`chatMessages`, `calendarDates`).
-- **Componenti ancora sopra le 500 righe**: `SettingsModal.tsx` (938), `CalendarManageModal.tsx` (699), `EditAutomationModal.tsx` (693), `IntegrationsTab.tsx` (644), `ArtifactsView.tsx` (630), `TriggerEditorModal.tsx` (504).
+- **Dimensioni**: nessun file sopra le 500 righe (il più grande è `ParametersModal.tsx`, 492). Impostazioni, gestione calendari, integrazioni, artefatti, modifica automazione e trigger sono cartelle per area (`settings/`, `calendar/manage/`, `automations/{integrations,artifacts,edit,triggers}/`), con la logica pura in `utils/` (`automationForm`, `cronSchedule`, `artifactGroups`).
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
 - **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
 
@@ -68,7 +68,7 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 ## 5. Quality gate (eseguiti in locale)
 
-> **Aggiornamento 2026-10-27 (C4)**: frontend con Vitest (`npm test`, anche in `make test` e in CI): 58 test su parser SSE, client HTTP, stream della chat, `useChat` (invio, errori, versioni, modifica del prompt, riaggancio, stop) e calcoli di calendario e messaggi. Backend: 300 test pytest.
+> **Aggiornamento 2026-10-27 (C4)**: frontend con Vitest (`npm test`, anche in `make test` e in CI): 81 test su parser SSE, client HTTP, stream della chat, `useChat` (invio, errori, versioni, modifica del prompt, riaggancio, stop), modalità di sicurezza condivisa e funzioni pure (calendario, messaggi, form delle automazioni, cron, gruppi di artefatti). Backend: 300 test pytest.
 
 > **Aggiornamento 2026-10-26 (dopo A1–A4)**: `pytest` → 244 passati, 0 falliti, 0 warning, ~4 s (test in `backend/tests/`, 4 test `live` esclusi di default). `ruff check` → 0 errori, `oxlint --deny-warnings` → 0 warning, tutti bloccanti in [CI](../../.github/workflows/ci.yml). La tabella sotto è lo stato dell'assessment iniziale.
 
