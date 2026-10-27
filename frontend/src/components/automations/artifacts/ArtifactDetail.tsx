@@ -163,7 +163,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                 <MarkdownRenderer content={artifact.content || '*Nessun contenuto nel report.*'} />
               </div>
             ) : (
-              <pre className="font-mono text-xs p-4 sm:p-6 bg-black/60 border border-border/80 rounded-xl sm:rounded-2xl overflow-x-auto text-fg-muted whitespace-pre-wrap select-all leading-relaxed">
+              <pre className="font-mono text-xs p-4 sm:p-6 bg-bg/60 border border-border/80 rounded-xl sm:rounded-2xl overflow-x-auto text-fg-muted whitespace-pre-wrap select-all leading-relaxed">
                 {artifact.content || '*Vuoto*'}
               </pre>
             )}

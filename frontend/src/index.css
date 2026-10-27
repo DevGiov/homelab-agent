@@ -22,6 +22,8 @@
   --input-border: #223049;
   --glow-1: rgba(56, 189, 248, 0.28);
   --glow-2: rgba(99, 102, 241, 0.24);
+  /* Derivata: segue il tema perché --panel e --fg sono impostati sullo stesso elemento */
+  --panel-hover: color-mix(in srgb, var(--panel), var(--fg) 8%);
 }
 
 @layer base {

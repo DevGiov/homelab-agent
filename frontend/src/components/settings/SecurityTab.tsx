@@ -152,7 +152,7 @@ export const SecurityTab: React.FC = () => {
               key={mode}
               onClick={() => selectMode(mode)}
               className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
-                securityMode === mode ? selected : `bg-black/20 border-border ${idle}`
+                securityMode === mode ? selected : `bg-bg/60 border-border ${idle}`
               }`}
             >
               <div>
@@ -187,7 +187,7 @@ export const SecurityTab: React.FC = () => {
         </p>
         <div className="grid grid-cols-1 gap-1.5 pt-1 text-[10px] text-fg-muted">
           {BLOCKED_COMMANDS.map((text, idx) => (
-            <div key={idx} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/30 border border-border/60">
+            <div key={idx} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg/60 border border-border/60">
               <Lock size={11} className="text-rose-400 shrink-0" />
               <span>{text}</span>
             </div>
@@ -227,7 +227,7 @@ export const SecurityTab: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-emerald-300">{perm.tool_name}</span>
                     {perm.command_prefix && (
-                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40 border border-border text-fg-muted">
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-bg/60 border border-border text-fg-muted">
                         prefisso: {perm.command_prefix}
                       </span>
                     )}

@@ -51,7 +51,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
         <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Richieste di Approvazione in Sospeso</h2>
         <button
           onClick={clearExpired}
-          className="px-2.5 py-1 text-xs text-fg-muted hover:text-fg bg-panel border border-border hover:border-border-accent rounded-lg flex items-center gap-1.5 transition"
+          className="px-2.5 py-1 text-xs text-fg-muted hover:text-fg bg-panel border border-border hover:border-accent/40 rounded-lg flex items-center gap-1.5 transition"
           title="Rimuovi le richieste di approvazione scadute"
         >
           <Trash2 size={13} />
@@ -118,7 +118,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   </div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-black/40 border border-border/60 text-xs space-y-1.5">
+                <div className="p-3 rounded-lg bg-bg/60 border border-border/60 text-xs space-y-1.5">
                   <div className="text-fg-muted">
                     <span className="font-semibold text-fg">Motivo Guardrail:</span> {apr.risk_reason || 'Conferma richiesta da policy.'}
                   </div>

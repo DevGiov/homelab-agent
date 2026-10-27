@@ -91,7 +91,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
@@ -254,7 +254,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                                 {sr.tool_calls.map((tc, tcIdx) => (
                                   <div
                                     key={tcIdx}
-                                    className="p-2 rounded bg-black/40 border border-border/60 font-mono text-[11px]"
+                                    className="p-2 rounded bg-bg/60 border border-border/60 font-mono text-[11px]"
                                   >
                                     <div className="text-accent font-semibold">
                                       {tc.tool_name}
@@ -273,7 +273,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                           {sr.output_payload && (
                             <div>
                               <span className="text-fg-muted font-medium block mb-1">Output Step:</span>
-                              <pre className="p-2.5 rounded-lg bg-black/50 border border-border font-mono text-[11px] overflow-x-auto text-emerald-300 max-h-60">
+                              <pre className="p-2.5 rounded-lg bg-bg/60 border border-border font-mono text-[11px] overflow-x-auto text-emerald-300 max-h-60">
                                 {typeof sr.output_payload === 'string'
                                   ? sr.output_payload
                                   : JSON.stringify(sr.output_payload, null, 2)}
@@ -355,7 +355,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                   </>
                 )}
               </button>
-              <pre className="p-4 rounded-xl bg-black/60 border border-border font-mono text-xs text-fg-muted overflow-x-auto max-h-[60vh]">
+              <pre className="p-4 rounded-xl bg-bg/60 border border-border font-mono text-xs text-fg-muted overflow-x-auto max-h-[60vh]">
                 {JSON.stringify(run, null, 2)}
               </pre>
             </div>

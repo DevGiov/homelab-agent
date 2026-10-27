@@ -10,7 +10,7 @@ export const ImageLightbox: React.FC<{ url: string; onClose: () => void }> = ({ 
       <button
         type="button"
         onClick={onClose}
-        className="absolute -top-10 right-0 p-1.5 rounded-full bg-panel text-fg hover:text-rose-400 hover:bg-panel-border transition cursor-pointer shadow-lg"
+        className="absolute -top-10 right-0 p-1.5 rounded-full bg-panel text-fg hover:text-rose-400 hover:bg-panel-hover transition cursor-pointer shadow-lg"
         title="Chiudi"
       >
         <X size={20} />
