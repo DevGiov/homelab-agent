@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { lazy, useState } from 'react';
 import type { ThreadItem } from './api';
 import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings, Workflow, Calendar } from 'lucide-react';
-import { SettingsModal } from './components/SettingsModal';
+import { LazyBoundary } from './components/LazyBoundary';
+
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })),
+);
 
 interface ThreadListProps {
   threads: ThreadItem[];
@@ -284,7 +288,11 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      {isSettingsOpen && (
+        <LazyBoundary title="Errore nelle impostazioni" fallback={null}>
+          <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+        </LazyBoundary>
+      )}
     </div>
   );
 };

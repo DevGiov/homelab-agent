@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, useState, useEffect } from 'react';
 import { ThreadList } from './ThreadList';
 import { Chat } from './Chat';
 import { ToolLog } from './ToolLog';
@@ -6,9 +6,15 @@ import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
-import { AutomationsView } from './components/automations/AutomationsView';
-import { CalendarView } from './components/calendar/CalendarView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LazyBoundary } from './components/LazyBoundary';
+
+const AutomationsView = lazy(() =>
+  import('./components/automations/AutomationsView').then((m) => ({ default: m.AutomationsView })),
+);
+const CalendarView = lazy(() =>
+  import('./components/calendar/CalendarView').then((m) => ({ default: m.CalendarView })),
+);
 
 function MainLayout() {
   const {
@@ -189,13 +195,17 @@ function MainLayout() {
           </div>
         </>
       ) : currentView === 'automations' ? (
-        <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+        <LazyBoundary title="Errore nella vista automazioni">
+          <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+        </LazyBoundary>
       ) : (
-        <CalendarView
-          initialEventUid={targetEventUid}
-          onClearInitialEvent={() => setTargetEventUid(null)}
-          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-        />
+        <LazyBoundary title="Errore nella vista calendario">
+          <CalendarView
+            initialEventUid={targetEventUid}
+            onClearInitialEvent={() => setTargetEventUid(null)}
+            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          />
+        </LazyBoundary>
       )}
     </div>
   );

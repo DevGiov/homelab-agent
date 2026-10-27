@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { lazy, useState } from 'react';
 import {
   Wrench,
   Activity,
@@ -23,7 +23,11 @@ import type {
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { ApprovalsPanel } from './components/ApprovalsPanel';
-import { KnowledgePanel } from './components/KnowledgePanel';
+import { LazyBoundary } from './components/LazyBoundary';
+
+const KnowledgePanel = lazy(() =>
+  import('./components/KnowledgePanel').then((m) => ({ default: m.KnowledgePanel })),
+);
 
 type PanelTab = 'diagnostics' | 'knowledge';
 
@@ -163,7 +167,9 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
           {tab === 'knowledge' ? (
             /* Knowledge Base panel */
-            <KnowledgePanel />
+            <LazyBoundary title="Errore nel pannello Knowledge">
+              <KnowledgePanel />
+            </LazyBoundary>
           ) : (
             <>
               {/* Message Selector */}

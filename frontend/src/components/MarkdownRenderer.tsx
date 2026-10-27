@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import 'highlight.js/styles/github-dark.css';
 import { Copy, Check, ExternalLink, Calendar } from 'lucide-react';
-import { AutomationProposalCard } from './automations/AutomationProposalCard';
 import { ErrorBoundary } from './ErrorBoundary';
+import type { RehypePlugins } from './highlightPlugins';
+
+const AutomationProposalCard = lazy(() =>
+  import('./automations/AutomationProposalCard').then((m) => ({ default: m.AutomationProposalCard })),
+);
+
+let loadedHighlight: RehypePlugins | null = null;
+let highlightRequest: Promise<RehypePlugins> | null = null;
+
+/** Carica highlight.js solo quando il contenuto ha un blocco di codice; finché non arriva il codice resta senza colori. */
+function useHighlightPlugins(content: string): RehypePlugins | undefined {
+  const [plugins, setPlugins] = useState(loadedHighlight);
+  const needed = content.includes('```') || content.includes('~~~');
+
+  useEffect(() => {
+    if (!needed || plugins) return;
+    let active = true;
+    highlightRequest ??= import('./highlightPlugins').then((m) => (loadedHighlight = m.highlightPlugins));
+    highlightRequest.then((p) => active && setPlugins(p)).catch((err) => console.warn('highlight.js non caricato:', err));
+    return () => {
+      active = false;
+    };
+  }, [needed, plugins]);
+
+  return plugins ?? undefined;
+}
 
 interface MarkdownRendererProps {
   content: string;
@@ -13,11 +36,12 @@ interface MarkdownRendererProps {
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
+  const rehypePlugins = useHighlightPlugins(content);
   return (
     <div className={`markdown-body space-y-2 text-fg ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
+        rehypePlugins={rehypePlugins}
         components={{
           // Styled headings
           h1: ({ children }) => (
@@ -155,16 +179,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               Boolean(className?.includes('automation_proposal') || className?.includes('automation-proposal'));
 
             if (isAutomationProposal) {
+              const rawBlock = (
+                <CodeBlock language="json" rawCode={rawText}>
+                  {children}
+                </CodeBlock>
+              );
               return (
-                <ErrorBoundary
-                  title="Errore anteprima automazione"
-                  fallback={
-                    <CodeBlock language="json" rawCode={rawText}>
-                      {children}
-                    </CodeBlock>
-                  }
-                >
-                  <AutomationProposalCard rawJson={rawText} />
+                <ErrorBoundary title="Errore anteprima automazione" fallback={rawBlock}>
+                  <Suspense fallback={rawBlock}>
+                    <AutomationProposalCard rawJson={rawText} />
+                  </Suspense>
                 </ErrorBoundary>
               );
             }

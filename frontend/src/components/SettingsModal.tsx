@@ -46,14 +46,12 @@ import {
 import { useTheme } from '../theme/useTheme';
 
 interface SettingsModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onProviderChanged?: () => void;
 }
 
 type SettingsTab = 'general' | 'appearance' | 'memory' | 'security';
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onProviderChanged }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setLocalApiKey] = useState(getApiKey());
   const [saved, setSaved] = useState(false);
@@ -144,12 +142,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     setTimeout(() => setSecurityMsg(null), 3000);
   };
 
+  // Il modale è montato solo quando è aperto: lo stato iniziale è già fresco, qui si caricano i dati remoti
   useEffect(() => {
-    if (!isOpen) return;
-
-    setLocalApiKey(getApiKey());
-    setSecurityMode((localStorage.getItem('homelab_security_mode') as SecurityMode) || 'normal');
-    setError(null);
     setLoadingProviders(true);
 
     getProviders()
@@ -181,7 +175,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       .finally(() => setLoadingProviders(false));
 
     fetchMemories();
-  }, [isOpen, fetchMemories]);
+  }, [fetchMemories]);
 
   const handleProviderChange = (newProvider: string) => {
     setSelectedProvider(newProvider);
@@ -210,9 +204,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
 
       if (selectedProvider) {
         await setDefaultProvider(selectedProvider, selectedModel || undefined);
-        if (onProviderChanged) {
-          onProviderChanged();
-        }
       }
 
       setSaved(true);
@@ -270,8 +261,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       setTimeout(() => setMemoryMsg(null), 5000);
     }
   };
-
-  if (!isOpen) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
