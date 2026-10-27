@@ -27,7 +27,7 @@ import {
   toggleArtifactPreserve,
   deleteArtifact,
   type AutomationArtifact,
-} from '../../api';
+} from '../../api/artifacts';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 
 interface ArtifactsViewProps {

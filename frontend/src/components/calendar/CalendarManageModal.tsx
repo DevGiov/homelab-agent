@@ -12,8 +12,9 @@ import {
   Edit2,
   Save,
 } from 'lucide-react';
-import type { CalendarItem } from '../../api/calendarApi';
-import { calendarApi } from '../../api/calendarApi';
+import type { CalendarItem } from '../../api/calendar';
+import { calendarApi } from '../../api/calendar';
+import { formatApiError } from '../../utils/error';
 
 interface CalendarManageModalProps {
   isOpen: boolean;
@@ -95,7 +96,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({
       onCalendarsUpdated();
       setActiveTab('list');
     } catch (err: any) {
-      showMsg('error', err.response?.data?.detail || err.message || 'Errore durante la creazione.');
+      showMsg('error', formatApiError(err, 'Errore durante la creazione.'));
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +126,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({
       onCalendarsUpdated();
       setActiveTab('list');
     } catch (err: any) {
-      showMsg('error', err.response?.data?.detail || err.message || 'Errore durante l\'importazione del feed.');
+      showMsg('error', formatApiError(err, 'Errore durante l\'importazione del feed.'));
     } finally {
       setIsLoading(false);
     }
@@ -154,7 +155,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({
       onCalendarsUpdated();
       setActiveTab('list');
     } catch (err: any) {
-      showMsg('error', err.response?.data?.detail || err.message || 'Errore durante l\'importazione del file.');
+      showMsg('error', formatApiError(err, 'Errore durante l\'importazione del file.'));
     } finally {
       setIsLoading(false);
     }
@@ -180,7 +181,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({
       showMsg('success', 'Calendario aggiornato con successo.');
       onCalendarsUpdated();
     } catch (err: any) {
-      showMsg('error', err.response?.data?.detail || 'Errore salvataggio calendario.');
+      showMsg('error', formatApiError(err, 'Errore salvataggio calendario.'));
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +203,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({
       showMsg('success', `Calendario '${cal.name}' eliminato.`);
       onCalendarsUpdated();
     } catch (err: any) {
-      showMsg('error', err.response?.data?.detail || 'Errore eliminazione.');
+      showMsg('error', formatApiError(err, 'Errore eliminazione.'));
     } finally {
       setIsLoading(false);
     }

@@ -30,7 +30,9 @@ import {
   Shield,
   ShieldCheck,
 } from 'lucide-react';
-import { type FormattedMessage, type AgentMode, type SecurityMode, getProviders, getProviderModelsWithDetails, isImageFile, optimizeAndConvertImage, type ModelDetail } from './api';
+import type { FormattedMessage, AgentMode, SecurityMode } from './api/chat';
+import { getProviders, getProviderModelsWithDetails, type ModelDetail } from './api/providers';
+import { isImageFile, optimizeAndConvertImage } from './api/uploads';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { InlineApprovalCard } from './components/InlineApprovalCard';

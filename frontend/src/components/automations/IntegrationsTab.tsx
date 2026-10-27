@@ -19,7 +19,8 @@ import {
   deleteIntegration,
   type ServiceIntegration,
   type IntegrationTestResult,
-} from '../../api';
+} from '../../api/integrations';
+import { formatApiError } from '../../utils/error';
 
 interface IntegrationsTabProps {
   onFeedback: (type: 'success' | 'error', text: string) => void;
@@ -114,7 +115,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
       onFeedback('success', 'Credenziali Email salvate con successo!');
       await loadIntegrations();
     } catch (err: any) {
-      onFeedback('error', `Errore salvataggio email: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore salvataggio email: ${formatApiError(err)}`);
     } finally {
       setIsSavingEmail(false);
     }
@@ -138,7 +139,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
       onFeedback('success', 'Token GitHub salvato con successo!');
       await loadIntegrations();
     } catch (err: any) {
-      onFeedback('error', `Errore salvataggio GitHub: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore salvataggio GitHub: ${formatApiError(err)}`);
     } finally {
       setIsSavingGithub(false);
     }
@@ -162,7 +163,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
       onFeedback('success', 'Integrazione Home Assistant salvata!');
       await loadIntegrations();
     } catch (err: any) {
-      onFeedback('error', `Errore salvataggio Home Assistant: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore salvataggio Home Assistant: ${formatApiError(err)}`);
     } finally {
       setIsSavingHass(false);
     }
@@ -180,7 +181,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
       }
       await loadIntegrations();
     } catch (err: any) {
-      onFeedback('error', `Errore durante il test: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore durante il test: ${formatApiError(err)}`);
     } finally {
       setTestingId(null);
     }
@@ -193,7 +194,7 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({ onFeedback }) 
       onFeedback('success', `Integrazione "${id}" rimossa.`);
       await loadIntegrations();
     } catch (err: any) {
-      onFeedback('error', `Errore eliminazione: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore eliminazione: ${formatApiError(err)}`);
     }
   };
 

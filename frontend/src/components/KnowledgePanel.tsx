@@ -1,17 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, Upload, Trash2, Search, FileText, RefreshCw, Loader2, Brain, Plus } from 'lucide-react';
+import { listKbDocuments, uploadKbDocument, deleteKbDocument, type KbDocument } from '../api/kb';
 import {
-  listKbDocuments,
-  uploadKbDocument,
-  deleteKbDocument,
   getMemories,
   addMemory,
   deleteMemory,
   searchMemories,
-  type KbDocument,
   type MemoryItem,
   type MemorySearchResult,
-} from '../api';
+} from '../api/memory';
+import { formatApiError } from '../utils/error';
 
 type Tab = 'facts' | 'docs' | 'search';
 
@@ -69,7 +67,7 @@ export const KnowledgePanel: React.FC = () => {
       setUploadMsg(`Documento caricato: ${res.chunks_indexed} chunk indicizzati.`);
       await refresh();
     } catch (e: any) {
-      setUploadMsg(`Errore: ${e?.response?.data?.detail || e.message}`);
+      setUploadMsg(`Errore: ${formatApiError(e)}`);
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadMsg(null), 5000);

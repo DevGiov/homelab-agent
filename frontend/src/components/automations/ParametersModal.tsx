@@ -12,15 +12,16 @@ import {
   Key,
   Code2,
 } from 'lucide-react';
+import { triggerAutomationRun } from '../../api/automationRuns';
 import {
   type AutomationSummary,
   getAutomation,
   createOrUpdateAutomation,
-  triggerAutomationRun,
   introspectAutomationParameters,
   type IntrospectionResult,
   type IntrospectedParameter,
-} from '../../api';
+} from '../../api/automations';
+import { formatApiError } from '../../utils/error';
 
 interface ParametersModalProps {
   automation: AutomationSummary | null;
@@ -174,7 +175,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
       onSuccess();
       onClose();
     } catch (err: any) {
-      onFeedback('error', `Errore salvataggio: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore salvataggio: ${formatApiError(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -192,7 +193,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
       onSuccess();
       onClose();
     } catch (err: any) {
-      onFeedback('error', `Errore avvio run: ${err?.response?.data?.detail || err.message}`);
+      onFeedback('error', `Errore avvio run: ${formatApiError(err)}`);
     } finally {
       setIsSaving(false);
     }

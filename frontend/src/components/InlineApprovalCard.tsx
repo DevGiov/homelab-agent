@@ -11,11 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import {
-  resolveApproval,
-  type ApprovalAction,
-  type ResolveApprovalResponse,
-} from '../api';
+import { resolveApproval, type ApprovalAction, type ResolveApprovalResponse } from '../api/approvals';
+import { formatApiError } from '../utils/error';
 
 export interface InlineApprovalCardProps {
   requestId: string;
@@ -63,7 +60,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
       }
       onResolved?.(action, res);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Errore durante la risoluzione';
+      const msg = formatApiError(err, 'Errore durante la risoluzione');
       setErrorMsg(msg);
     } finally {
       setIsLoading(false);

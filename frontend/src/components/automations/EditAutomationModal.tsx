@@ -14,7 +14,7 @@ import {
   AlertCircle,
   Settings,
 } from 'lucide-react';
-import { updateAutomation } from '../../api';
+import { updateAutomation } from '../../api/automations';
 import { formatApiError } from '../../utils/error';
 
 interface StepDef {

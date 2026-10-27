@@ -5,9 +5,6 @@ import {
   stopChatStream,
   pauseChatStream,
   resumeChatStream,
-  getThreadDetails,
-  saveMessageVersions,
-  switchMessageVersion,
   type FormattedMessage,
   type MessageVersion,
   type AgentMode,
@@ -17,8 +14,10 @@ import {
   type WebPrefetchData,
   type StreamMetrics,
   type SecurityMode,
-} from '../api';
+} from '../api/chat';
+import { getThreadDetails, saveMessageVersions, switchMessageVersion } from '../api/threads';
 import { adaptChatResponseToMessage, adaptLettaMessagesToMessages } from '../utils/messageAdapter';
+import { formatApiError } from '../utils/error';
 
 function extractMessageVersion(msg: FormattedMessage): MessageVersion {
   return {
@@ -415,7 +414,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           return;
         }
         console.error('API call failed:', err);
-        const errMsg = err.response?.data?.detail || err.message || 'Failed to send message to agent';
+        const errMsg = formatApiError(err, 'Failed to send message to agent');
         setChatError(`API Error: ${errMsg}`);
 
         const errorMsgItem: FormattedMessage = {

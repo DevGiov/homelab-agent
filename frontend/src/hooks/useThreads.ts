@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { checkHealth } from '../api/system';
 import {
   listThreads,
-  checkHealth,
   deleteThread as deleteThreadApi,
   deleteAllThreads as deleteAllThreadsApi,
   type ThreadItem,
-} from '../api';
+} from '../api/threads';
 
 const LOCAL_STORAGE_KEY = 'main_agent_current_thread';
 

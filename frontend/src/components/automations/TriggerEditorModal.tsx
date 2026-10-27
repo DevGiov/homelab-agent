@@ -12,7 +12,12 @@ import {
   X,
   Code
 } from 'lucide-react';
-import { updateAutomationTriggers, regenerateWebhookToken, type AutomationSummary } from '../../api';
+import {
+  updateAutomationTriggers,
+  regenerateWebhookToken,
+  type AutomationSummary,
+} from '../../api/automations';
+import { formatApiError } from '../../utils/error';
 
 interface TriggerEditorModalProps {
   automation: AutomationSummary;
@@ -147,7 +152,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({
       setWebhookToken(res.webhook_token);
       setWebhookEnabled(true);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || 'Errore durante la rigenerazione del token.');
+      setError(formatApiError(err, 'Errore durante la rigenerazione del token.'));
     } finally {
       setIsRegenerating(false);
     }
@@ -195,7 +200,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || 'Errore durante il salvataggio dei trigger.');
+      setError(formatApiError(err, 'Errore durante il salvataggio dei trigger.'));
     } finally {
       setSaving(false);
     }

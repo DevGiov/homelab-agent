@@ -33,38 +33,41 @@ import {
   Menu,
 } from 'lucide-react';
 import {
-  fetchAutomations,
   fetchAutomationRuns,
   fetchAutomationApprovals,
-  fetchAutomationTemplates,
-  fetchScheduledJobs,
   triggerAutomationRun,
-  createOrUpdateAutomation,
-  deleteAutomation,
   resolveAutomationApproval,
   deleteAutomationApproval,
   clearExpiredAutomationApprovals,
   getAutomationRunDetails,
-  getAutomation,
   deleteAutomationRun,
   bulkDeleteAutomationRuns,
   toggleAutomationRunFavorite,
   toggleAutomationRunPreserve,
   pauseAutomationRun,
   resumeAutomationRun,
-  toggleAutomationEnabled,
-  type AutomationSummary,
   type AutomationRunSummary,
   type AutomationApprovalItem,
   type AutomationRunDetails,
+} from '../../api/automationRuns';
+import {
+  fetchAutomations,
+  fetchAutomationTemplates,
+  fetchScheduledJobs,
+  createOrUpdateAutomation,
+  deleteAutomation,
+  getAutomation,
+  toggleAutomationEnabled,
+  type AutomationSummary,
   type ScheduledJobInfo,
-} from '../../api';
+} from '../../api/automations';
 import { RunInspectorModal } from './RunInspectorModal';
 import { IntegrationsTab } from './IntegrationsTab';
 import { ParametersModal } from './ParametersModal';
 import { ArtifactsView } from './ArtifactsView';
 import { EditAutomationModal } from './EditAutomationModal';
 import { TriggerEditorModal } from './TriggerEditorModal';
+import { formatApiError } from '../../utils/error';
 
 interface AutomationsViewProps {
   onOpenMobileSidebar?: () => void;
@@ -119,7 +122,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       );
       showFeedback('success', `Automazione '${auto.name}' ${res.enabled ? 'attivata' : 'disattivata'}.`);
     } catch (err: any) {
-      showFeedback('error', err?.response?.data?.detail || "Errore durante l'aggiornamento dello stato.");
+      showFeedback('error', formatApiError(err, "Errore durante l'aggiornamento dello stato."));
     } finally {
       setTogglingId(null);
     }
@@ -221,7 +224,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       );
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore avvio run: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore avvio run: ${formatApiError(err)}`);
     }
   };
 
@@ -232,7 +235,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       showFeedback('success', `Automazione "${autoId}" eliminata.`);
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore eliminazione: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore eliminazione: ${formatApiError(err)}`);
     }
   };
 
@@ -245,7 +248,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       );
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore risoluzione: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore risoluzione: ${formatApiError(err)}`);
     }
   };
 
@@ -256,7 +259,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       showFeedback('success', 'Richiesta di approvazione eliminata.');
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore eliminazione: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore eliminazione: ${formatApiError(err)}`);
     }
   };
 
@@ -266,7 +269,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       showFeedback('success', `Rimosse ${res.cleared_count} approvazioni scadute.`);
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore pulizia scadute: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore pulizia scadute: ${formatApiError(err)}`);
     }
   };
 
@@ -277,7 +280,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       setActiveTab('automations');
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore installazione template: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore installazione template: ${formatApiError(err)}`);
     }
   };
 
@@ -287,7 +290,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       setSelectedRun(details);
       setIsInspectorOpen(true);
     } catch (err: any) {
-      showFeedback('error', `Impossibile caricare dettaglio run: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Impossibile caricare dettaglio run: ${formatApiError(err)}`);
     }
   };
 
@@ -299,7 +302,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       );
       showFeedback('success', !currentVal ? 'Aggiunto ai preferiti.' : 'Rimosso dai preferiti.');
     } catch (err: any) {
-      showFeedback('error', `Errore toggle preferito: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore toggle preferito: ${formatApiError(err)}`);
     }
   };
 
@@ -314,7 +317,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
         !currentVal ? 'Esecuzione preservata da auto-cleanup!' : 'Protezione rimossa.'
       );
     } catch (err: any) {
-      showFeedback('error', `Errore toggle preserva: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore toggle preserva: ${formatApiError(err)}`);
     }
   };
 
@@ -329,7 +332,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       setRuns((prev) => prev.filter((r) => r.run_id !== runId));
       showFeedback('success', `Run ${runId} eliminata.`);
     } catch (err: any) {
-      showFeedback('error', `Errore eliminazione run: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore eliminazione run: ${formatApiError(err)}`);
     }
   };
 
@@ -380,7 +383,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
     } catch (err: any) {
       showFeedback(
         'error',
-        `Errore durante l'eliminazione: ${err?.response?.data?.detail || err.message}`
+        `Errore durante l'eliminazione: ${formatApiError(err)}`
       );
     } finally {
       setIsDeletingBatch(false);
@@ -393,7 +396,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       showFeedback('success', `Richiesta di pausa inviata per la run ${runId}.`);
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore pausa run: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore pausa run: ${formatApiError(err)}`);
     }
   };
 
@@ -403,7 +406,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       showFeedback('success', `Run ${runId} ripresa con successo.`);
       loadData();
     } catch (err: any) {
-      showFeedback('error', `Errore ripresa run: ${err?.response?.data?.detail || err.message}`);
+      showFeedback('error', `Errore ripresa run: ${formatApiError(err)}`);
     }
   };
 

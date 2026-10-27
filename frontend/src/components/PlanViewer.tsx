@@ -1,6 +1,6 @@
 import React from 'react';
 import { ListChecks, Play, GitBranch, CheckCircle2, Clock, XCircle, RotateCcw } from 'lucide-react';
-import type { PlanStructure, PlanNode } from '../api';
+import type { PlanStructure, PlanNode } from '../api/chat';
 
 interface PlanViewerProps {
   planSteps?: string[];

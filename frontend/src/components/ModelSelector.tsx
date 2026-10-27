@@ -9,7 +9,7 @@ import {
   Loader2,
   Cpu,
 } from 'lucide-react';
-import { type ModelDetail, loadModel } from '../api';
+import { type ModelDetail, loadModel } from '../api/providers';
 
 const FAVORITES_STORAGE_KEY = 'homelab_favorite_models';
 

@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { http } from './http';
 
 export interface CalendarItem {
   id: string;
@@ -62,8 +62,7 @@ export interface AvailabilityResult {
 export const calendarApi = {
   // --- Calendari ---
   async getCalendars(): Promise<CalendarItem[]> {
-    const res = await api.get<CalendarItem[]>('/calendar/calendars');
-    return res.data;
+    return http.get<CalendarItem[]>('/calendar/calendars');
   },
 
   async createCalendar(data: {
@@ -74,20 +73,18 @@ export const calendarApi = {
     provider?: string;
     external_feed_url?: string;
   }): Promise<CalendarItem> {
-    const res = await api.post<CalendarItem>('/calendar/calendars', data);
-    return res.data;
+    return http.post<CalendarItem>('/calendar/calendars', data);
   },
 
   async updateCalendar(
     calendarId: string,
     data: Partial<CalendarItem> & { provider?: string; external_feed_url?: string }
   ): Promise<CalendarItem> {
-    const res = await api.put<CalendarItem>(`/calendar/calendars/${calendarId}`, data);
-    return res.data;
+    return http.put<CalendarItem>(`/calendar/calendars/${calendarId}`, data);
   },
 
   async deleteCalendar(calendarId: string): Promise<void> {
-    await api.delete(`/calendar/calendars/${calendarId}`);
+    await http.delete(`/calendar/calendars/${calendarId}`);
   },
 
   // --- Eventi ---
@@ -97,20 +94,15 @@ export const calendarApi = {
     end_date?: string;
     query?: string;
   }): Promise<CalendarEventItem[]> {
-    const res = await api.get<CalendarEventItem[]>('/calendar/events', { params });
-    return res.data;
+    return http.get<CalendarEventItem[]>('/calendar/events', params);
   },
 
   async getUpcomingEvents(days = 7): Promise<{ days: number; count: number; events: CalendarEventItem[] }> {
-    const res = await api.get<{ days: number; count: number; events: CalendarEventItem[] }>('/calendar/events/upcoming', {
-      params: { days },
-    });
-    return res.data;
+    return http.get<{ days: number; count: number; events: CalendarEventItem[] }>('/calendar/events/upcoming', { days });
   },
 
   async getEvent(eventId: string): Promise<CalendarEventItem> {
-    const res = await api.get<CalendarEventItem>(`/calendar/events/${eventId}`);
-    return res.data;
+    return http.get<CalendarEventItem>(`/calendar/events/${eventId}`);
   },
 
   async createEvent(data: {
@@ -127,23 +119,21 @@ export const calendarApi = {
     color?: string;
     status?: string;
   }): Promise<{ status: string; duplicate?: boolean; event: CalendarEventItem; message?: string }> {
-    const res = await api.post<{ status: string; duplicate?: boolean; event: CalendarEventItem; message?: string }>(
+    return http.post<{ status: string; duplicate?: boolean; event: CalendarEventItem; message?: string }>(
       '/calendar/events',
       data
     );
-    return res.data;
   },
 
   async updateEvent(
     eventId: string,
     data: Partial<CalendarEventItem> & { duration?: string }
   ): Promise<{ status: string; event: CalendarEventItem }> {
-    const res = await api.put<{ status: string; event: CalendarEventItem }>(`/calendar/events/${eventId}`, data);
-    return res.data;
+    return http.put<{ status: string; event: CalendarEventItem }>(`/calendar/events/${eventId}`, data);
   },
 
   async deleteEvent(eventId: string): Promise<void> {
-    await api.delete(`/calendar/events/${eventId}`);
+    await http.delete(`/calendar/events/${eventId}`);
   },
 
   // --- Disponibilità & Sincronizzazione ---
@@ -153,13 +143,11 @@ export const calendarApi = {
     end_time?: string;
     calendar_id?: string;
   }): Promise<AvailabilityResult> {
-    const res = await api.get<AvailabilityResult>('/calendar/availability', { params });
-    return res.data;
+    return http.get<AvailabilityResult>('/calendar/availability', params);
   },
 
   async syncCalendars(): Promise<{ status: string; result: any }> {
-    const res = await api.post<{ status: string; result: any }>('/calendar/sync');
-    return res.data;
+    return http.post<{ status: string; result: any }>('/calendar/sync');
   },
 
   async importIcsUrl(data: {
@@ -167,11 +155,10 @@ export const calendarApi = {
     name?: string;
     color?: string;
   }): Promise<{ status: string; calendar: CalendarItem; synced_count: number }> {
-    const res = await api.post<{ status: string; calendar: CalendarItem; synced_count: number }>(
+    return http.post<{ status: string; calendar: CalendarItem; synced_count: number }>(
       '/calendar/import/url',
       data
     );
-    return res.data;
   },
 
   async importIcsFile(
@@ -186,14 +173,10 @@ export const calendarApi = {
     if (calendarName) formData.append('calendar_name', calendarName);
     if (color) formData.append('color', color);
 
-    const res = await api.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
+    return http.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
       '/calendar/import/file',
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
+      formData
     );
-    return res.data;
   },
 
   async importIcsRaw(data: {
@@ -202,11 +185,10 @@ export const calendarApi = {
     calendar_name?: string;
     color?: string;
   }): Promise<{ status: string; calendar: CalendarItem; imported_count: number }> {
-    const res = await api.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
+    return http.post<{ status: string; calendar: CalendarItem; imported_count: number }>(
       '/calendar/import/ics',
       data
     );
-    return res.data;
   },
 };
 

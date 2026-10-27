@@ -19,7 +19,7 @@ import type {
   RollbackAction,
   WebPrefetchData,
   FormattedMessage,
-} from './api';
+} from './api/chat';
 import { PlanViewer } from './components/PlanViewer';
 import { ExecutionTraceViewer } from './components/ExecutionTraceViewer';
 import { ApprovalsPanel } from './components/ApprovalsPanel';

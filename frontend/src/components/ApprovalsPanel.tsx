@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldAlert, ShieldCheck, Check, X, Clock, RefreshCw, MessageSquare, Terminal } from 'lucide-react';
-import { listApprovals, resolveApproval, type ApprovalItem, type ApprovalAction } from '../api';
+import { listApprovals, resolveApproval, type ApprovalItem, type ApprovalAction } from '../api/approvals';
 
 interface ApprovalsPanelProps {
   /** threadId per filtrare le richieste (opzionale: vuoto = tutte) */

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, Calendar as CalIcon, Clock, MapPin, Tag, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { CalendarItem, CalendarEventItem } from '../../api/calendarApi';
-import { calendarApi } from '../../api/calendarApi';
+import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
+import { calendarApi } from '../../api/calendar';
+import { formatApiError } from '../../utils/error';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -170,7 +171,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Errore durante il salvataggio dell\'evento');
+      setError(formatApiError(err, 'Errore durante il salvataggio dell\'evento'));
     } finally {
       setIsSaving(false);
     }
@@ -187,7 +188,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       onSave();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Errore durante l\'eliminazione');
+      setError(formatApiError(err, 'Errore durante l\'eliminazione'));
     } finally {
       setIsDeleting(false);
     }

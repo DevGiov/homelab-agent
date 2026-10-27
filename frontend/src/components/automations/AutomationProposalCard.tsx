@@ -14,7 +14,8 @@ import {
   ChevronUp,
   Layers,
 } from 'lucide-react';
-import { createOrUpdateAutomation, triggerAutomationRun } from '../../api';
+import { triggerAutomationRun } from '../../api/automationRuns';
+import { createOrUpdateAutomation } from '../../api/automations';
 import { formatApiError } from '../../utils/error';
 
 interface AutomationProposalCardProps {

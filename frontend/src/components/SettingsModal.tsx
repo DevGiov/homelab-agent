@@ -26,24 +26,17 @@ import {
   Zap,
 } from 'lucide-react';
 import {
-  getApiKey,
-  setApiKey,
-  getProviders,
-  getProviderModels,
-  setDefaultProvider,
-  getMemories,
-  addMemory,
-  deleteMemory,
-  clearAllMemory,
   listGrantedPermissions,
   revokePermission,
   revokeThreadPermissions,
-  type ProviderInfo,
-  type MemoryItem,
   type PermissionsListResponse,
-  type SecurityMode,
-} from '../api';
+} from '../api/approvals';
+import type { SecurityMode } from '../api/chat';
+import { getApiKey, setApiKey } from '../api/http';
+import { getMemories, addMemory, deleteMemory, clearAllMemory, type MemoryItem } from '../api/memory';
+import { getProviders, getProviderModels, setDefaultProvider, type ProviderInfo } from '../api/providers';
 import { useTheme } from '../theme/useTheme';
+import { formatApiError } from '../utils/error';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -213,7 +206,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       }, 800);
     } catch (err: any) {
       console.error('Errore salvataggio impostazioni:', err);
-      setError(err?.response?.data?.detail || err?.message || 'Errore salvataggio impostazioni');
+      setError(formatApiError(err, 'Errore salvataggio impostazioni'));
     } finally {
       setSaving(false);
     }
@@ -230,7 +223,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setMemoryMsg('Fatto aggiunto con successo');
       await fetchMemories();
     } catch (err: any) {
-      setMemoryMsg(`Errore aggiunta fatto: ${err?.response?.data?.detail || err.message}`);
+      setMemoryMsg(`Errore aggiunta fatto: ${formatApiError(err)}`);
     } finally {
       setIsAddingFact(false);
       setTimeout(() => setMemoryMsg(null), 4000);
@@ -255,7 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setShowClearConfirm(false);
       await fetchMemories();
     } catch (err: any) {
-      setMemoryMsg(`Errore cancellazione memoria: ${err?.response?.data?.detail || err.message}`);
+      setMemoryMsg(`Errore cancellazione memoria: ${formatApiError(err)}`);
     } finally {
       setIsClearingMemory(false);
       setTimeout(() => setMemoryMsg(null), 5000);

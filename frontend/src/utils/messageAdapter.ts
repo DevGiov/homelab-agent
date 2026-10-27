@@ -1,4 +1,5 @@
-import type { ChatResponse, LettaMessage, FormattedMessage, AgentMode } from '../api';
+import type { ChatResponse, FormattedMessage, AgentMode } from '../api/chat';
+import type { LettaMessage } from '../api/threads';
 
 /**
  * Converts a raw ChatResponse into a normalized FormattedMessage for the UI.

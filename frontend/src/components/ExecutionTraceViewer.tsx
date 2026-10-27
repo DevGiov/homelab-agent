@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, ShieldAlert, ChevronDown, ChevronUp, RotateCcw, Brain, Wrench } from 'lucide-react';
-import type { ExecutionTraceItem, RollbackAction } from '../api';
+import type { ExecutionTraceItem, RollbackAction } from '../api/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ExecutionTraceViewerProps {

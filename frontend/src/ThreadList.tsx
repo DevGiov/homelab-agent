@@ -1,6 +1,18 @@
 import React, { lazy, useState } from 'react';
-import type { ThreadItem } from './api';
-import { MessageSquare, Plus, Search, RefreshCw, Cpu, X, Trash2, AlertTriangle, Settings, Workflow, Calendar } from 'lucide-react';
+import type { ThreadItem } from './api/threads';
+import {
+  MessageSquare,
+  Plus,
+  Search,
+  RefreshCw,
+  Cpu,
+  X,
+  Trash2,
+  AlertTriangle,
+  Settings,
+  Workflow,
+  Calendar,
+} from 'lucide-react';
 import { LazyBoundary } from './components/LazyBoundary';
 
 const SettingsModal = lazy(() =>

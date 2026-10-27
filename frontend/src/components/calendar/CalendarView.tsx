@@ -16,8 +16,8 @@ import {
   Settings,
   X,
 } from 'lucide-react';
-import type { CalendarItem, CalendarEventItem } from '../../api/calendarApi';
-import { calendarApi } from '../../api/calendarApi';
+import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
+import { calendarApi } from '../../api/calendar';
 import { EventModal } from './EventModal';
 import { CalendarManageModal } from './CalendarManageModal';
 

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { AutomationRunDetails, StepRun } from '../../api';
+import type { AutomationRunDetails, StepRun } from '../../api/automationRuns';
 
 interface RunInspectorModalProps {
   run: AutomationRunDetails | null;
