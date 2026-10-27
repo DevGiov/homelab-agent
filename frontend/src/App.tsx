@@ -1,6 +1,6 @@
 import { lazy, useState, useEffect } from 'react';
 import { ThreadList } from './ThreadList';
-import { Chat } from './Chat';
+import { Chat } from './components/chat/Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';

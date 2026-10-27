@@ -5,6 +5,8 @@ export type AgentMode = 'chat' | 'ask' | 'act' | 'plan';
 
 export type SecurityMode = 'safest' | 'normal' | 'dangerous';
 
+export type WebSearchMode = 'auto' | 'on' | 'off';
+
 export interface WebPrefetchSource {
   title: string;
   url: string;
@@ -32,7 +34,7 @@ export interface ChatRequest {
   execute?: boolean;
   model?: string;
   incognito?: boolean;
-  web_search?: 'auto' | 'on' | 'off' | boolean;
+  web_search?: WebSearchMode;
   images?: string[];
   security_mode?: SecurityMode;
 }
@@ -148,16 +150,66 @@ export interface FormattedMessage extends MessageVersion {
   versionIndex?: number;
 }
 
-export async function sendStreamMessage(
-  req: ChatRequest,
-  onReasoningDelta?: (delta: string) => void,
-  onContentDelta?: (delta: string) => void,
-  onFinalResponse?: (response: ChatResponse) => void,
-  onError?: (error: string) => void,
-  onRetrievalEvent?: (event: string, data: any) => void,
-  onMetrics?: (metrics: StreamMetrics) => void,
-  signal?: AbortSignal
-): Promise<void> {
+/** Stato accumulato del turno, inviato all'aggancio a uno stream già avviato. */
+export interface StreamSnapshot {
+  status?: string;
+  mode?: string;
+  tool_used?: string;
+  reasoning_content?: string;
+  content?: string;
+  execution_trace?: ExecutionTraceItem[];
+  plan_steps?: string[];
+  plan_structure?: PlanStructure;
+  is_paused?: boolean;
+  metrics?: StreamMetrics;
+}
+
+export interface StreamHandlers {
+  onReasoning?: (delta: string) => void;
+  onContent?: (delta: string) => void;
+  onFinal?: (response: ChatResponse) => void;
+  onRetrieval?: (event: string, data: any) => void;
+  onMetrics?: (metrics: StreamMetrics) => void;
+  onSync?: (snapshot: StreamSnapshot) => void;
+}
+
+async function consumeStream(response: Response, handlers: StreamHandlers): Promise<void> {
+  if (!response.ok) throw await errorFromResponse(response);
+  if (!response.body) throw new Error('ReadableStream non supportato da questo browser.');
+
+  for await (const event of readSseEvents(response.body)) {
+    switch (event.type) {
+      case 'sync':
+        handlers.onSync?.(event);
+        break;
+      case 'reasoning':
+        handlers.onReasoning?.(event.delta);
+        break;
+      case 'content':
+        handlers.onContent?.(event.delta);
+        break;
+      case 'retrieval':
+        handlers.onRetrieval?.(event.event, event.data);
+        break;
+      case 'metrics':
+        handlers.onMetrics?.(event.metrics);
+        break;
+      case 'final':
+        handlers.onFinal?.(event.response);
+        break;
+      case 'error':
+        throw new Error(event.error || 'Errore durante la generazione');
+    }
+  }
+}
+
+const isAbort = (err: unknown) => err instanceof DOMException && err.name === 'AbortError';
+
+/**
+ * Avvia un turno in streaming. La promise fallisce su errore HTTP, di rete o evento `error`
+ * del backend; un abort tramite `signal` la chiude senza errore.
+ */
+export async function sendStreamMessage(req: ChatRequest, handlers: StreamHandlers, signal?: AbortSignal): Promise<void> {
   try {
     const response = await fetch(apiUrl('/invoke_stream'), {
       method: 'POST',
@@ -165,75 +217,22 @@ export async function sendStreamMessage(
       body: JSON.stringify(req),
       signal,
     });
-    if (!response.ok) throw await errorFromResponse(response);
-    if (!response.body) throw new Error('ReadableStream non supportato da questo browser.');
-
-    for await (const data of readSseEvents(response.body)) {
-      if (data.type === 'sync') {
-        if (data.reasoning_content) onReasoningDelta?.(data.reasoning_content);
-        if (data.content) onContentDelta?.(data.content);
-        if (data.metrics) onMetrics?.(data.metrics);
-      } else if (data.type === 'reasoning') {
-        onReasoningDelta?.(data.delta);
-      } else if (data.type === 'content') {
-        onContentDelta?.(data.delta);
-      } else if (data.type === 'retrieval') {
-        onRetrievalEvent?.(data.event, data.data);
-      } else if (data.type === 'metrics') {
-        onMetrics?.(data.metrics);
-      } else if (data.type === 'final') {
-        onFinalResponse?.(data.response);
-      } else if (data.type === 'error') {
-        onError?.(data.error);
-      }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    onError?.(err.message || 'Errore dello stream');
-    throw err;
+    await consumeStream(response, handlers);
+  } catch (err) {
+    if (!isAbort(err)) throw err;
   }
 }
 
-/** Si riaggancia allo stream di un turno ancora in corso (es. dopo un reload della pagina). */
-export async function attachToThreadStream(
-  threadId: string,
-  onReasoningDelta?: (delta: string) => void,
-  onContentDelta?: (delta: string) => void,
-  onFinalResponse?: (response: ChatResponse) => void,
-  onError?: (error: string) => void,
-  onRetrievalEvent?: (event: string, data: any) => void,
-  onMetrics?: (metrics: StreamMetrics) => void,
-  onSync?: (snapshot: any) => void,
-  signal?: AbortSignal
-): Promise<void> {
+/** Si riaggancia allo stream di un turno ancora in corso (es. dopo un reload della pagina); stesso contratto di `sendStreamMessage`. */
+export async function attachToThreadStream(threadId: string, handlers: StreamHandlers, signal?: AbortSignal): Promise<void> {
   try {
     const response = await fetch(apiUrl(`/threads/${encodeURIComponent(threadId)}/stream`), {
       headers: authHeaders(),
       signal,
     });
-    if (!response.ok) throw await errorFromResponse(response);
-    if (!response.body) throw new Error('ReadableStream non supportato da questo browser.');
-
-    for await (const data of readSseEvents(response.body)) {
-      if (data.type === 'sync') {
-        onSync?.(data);
-      } else if (data.type === 'reasoning') {
-        onReasoningDelta?.(data.delta);
-      } else if (data.type === 'content') {
-        onContentDelta?.(data.delta);
-      } else if (data.type === 'retrieval') {
-        onRetrievalEvent?.(data.event, data.data);
-      } else if (data.type === 'metrics') {
-        onMetrics?.(data.metrics);
-      } else if (data.type === 'final') {
-        onFinalResponse?.(data.response);
-      } else if (data.type === 'error') {
-        onError?.(data.error);
-      }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    onError?.(err.message || 'Errore nel riaggancio allo stream');
+    await consumeStream(response, handlers);
+  } catch (err) {
+    if (!isAbort(err)) throw err;
   }
 }
 

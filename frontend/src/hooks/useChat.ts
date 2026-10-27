@@ -5,50 +5,48 @@ import {
   stopChatStream,
   pauseChatStream,
   resumeChatStream,
+  type AgentMode,
+  type ChatRequest,
   type FormattedMessage,
   type MessageVersion,
-  type AgentMode,
-  type ExecutionTraceItem,
-  type PlanStructure,
-  type RollbackAction,
-  type WebPrefetchData,
-  type StreamMetrics,
   type SecurityMode,
+  type StreamHandlers,
+  type WebSearchMode,
 } from '../api/chat';
 import { getThreadDetails, saveMessageVersions, switchMessageVersion } from '../api/threads';
-import { adaptChatResponseToMessage, adaptLettaMessagesToMessages } from '../utils/messageAdapter';
 import { formatApiError } from '../utils/error';
+import { adaptLettaMessagesToMessages } from '../utils/messageAdapter';
+import {
+  applySnapshot,
+  diagnosticsOf,
+  extractMessageVersion,
+  finalizeMessage,
+  lastAssistant,
+  mirrorToVersion,
+  nowTime,
+  webPrefetchFromEvent,
+  type ChatDiagnostics,
+} from '../utils/chatMessages';
 
-function extractMessageVersion(msg: FormattedMessage): MessageVersion {
-  return {
-    id: msg.id,
-    content: msg.content,
-    timestamp: msg.timestamp,
-    mode: msg.mode,
-    tool_used: msg.tool_used,
-    reasoning: msg.reasoning,
-    plan_steps: msg.plan_steps,
-    plan_structure: msg.plan_structure,
-    execution_trace: msg.execution_trace,
-    rollback_trace: msg.rollback_trace,
-    reasoning_content: msg.reasoning_content,
-    web_prefetch: msg.web_prefetch,
-    metrics: msg.metrics,
-    isError: msg.isError,
-    model: msg.model,
-    reasoningBudget: msg.reasoningBudget,
-    images: msg.images,
-    approval_required: msg.approval_required,
-    request_id: msg.request_id,
-    approval_prompt: msg.approval_prompt,
-    command_preview: msg.command_preview,
-    command_prefix: msg.command_prefix,
-    risk_reason: msg.risk_reason,
-    approval_resolved: msg.approval_resolved,
-    approval_action: msg.approval_action,
-    security_mode: msg.security_mode,
-  };
+export interface SendOptions {
+  mode?: AgentMode;
+  execute: boolean;
+  reasoningBudget?: number;
+  model?: string;
+  incognito?: boolean;
+  webSearch?: WebSearchMode;
+  images?: string[];
+  securityMode?: SecurityMode;
 }
+
+export interface PromptEdit {
+  content: string;
+  mode?: AgentMode;
+  model?: string;
+  reasoningBudget?: number;
+}
+
+type MessageUpdate = (fn: (msg: FormattedMessage) => FormattedMessage) => void;
 
 export function useChat(currentThreadId: string | null, onThreadCreated?: (id: string) => void) {
   const [threadMessagesMap, setThreadMessagesMap] = useState<Record<string, FormattedMessage[]>>({});
@@ -56,199 +54,100 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [isLoadingChat, setIsLoadingChat] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [chatError, setChatError] = useState<string | null>(null);
-
-  // Active diagnostics panel state
-  const [activeTool, setActiveTool] = useState<string | undefined>(undefined);
-  const [activePlan, setActivePlan] = useState<string[] | undefined>(undefined);
-  const [activePlanStructure, setActivePlanStructure] = useState<PlanStructure | undefined>(undefined);
-  const [activeExecutionTrace, setActiveExecutionTrace] = useState<ExecutionTraceItem[] | undefined>(undefined);
-  const [activeRollbackTrace, setActiveRollbackTrace] = useState<RollbackAction[] | undefined>(undefined);
-  const [activeMode, setActiveMode] = useState<string | undefined>(undefined);
-  const [activeWebPrefetch, setActiveWebPrefetch] = useState<WebPrefetchData | undefined>(undefined);
+  const [diagnostics, setDiagnostics] = useState<ChatDiagnostics>({});
 
   const isSendingRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
 
-  // Load history for a thread
-  const loadThreadHistory = useCallback(async (threadId: string) => {
-    if (isSendingRef.current && activeThreadIdRef.current === threadId) return;
-    setIsLoadingChat(true);
-    let isActive = false;
-    try {
-      const details = await getThreadDetails(threadId);
-      if (details) {
-        setCurrentThreadTitle(details.title || null);
-        isActive = Boolean(details.is_active);
-        let parsedMsgs: FormattedMessage[] = [];
-        if (details.messages && details.messages.length > 0) {
-          parsedMsgs = details.messages;
-        } else if (details.letta_messages && details.letta_messages.length > 0) {
-          parsedMsgs = adaptLettaMessagesToMessages(details.letta_messages);
-        }
-
-        setThreadMessagesMap((prev) => ({
-          ...prev,
-          [threadId]: parsedMsgs,
-        }));
-
-        // Update diagnostic panel from last assistant message
-        const lastAssistant = [...parsedMsgs].reverse().find((m) => m.sender === 'assistant');
-        if (lastAssistant) {
-          setActiveMode(lastAssistant.mode);
-          setActiveTool(lastAssistant.tool_used);
-          setActivePlan(lastAssistant.plan_steps);
-          setActivePlanStructure(lastAssistant.plan_structure);
-          setActiveExecutionTrace(lastAssistant.execution_trace);
-          setActiveRollbackTrace(lastAssistant.rollback_trace);
-          setActiveWebPrefetch(lastAssistant.web_prefetch);
-        } else {
-          setActiveMode(undefined);
-          setActiveTool(undefined);
-          setActivePlan(undefined);
-          setActivePlanStructure(undefined);
-          setActiveExecutionTrace(undefined);
-          setActiveRollbackTrace(undefined);
-          setActiveWebPrefetch(undefined);
-        }
-
-        // Se l'esecuzione è attiva in background su questo thread, ci agganciamo allo streaming live
-        if (isActive) {
-          isSendingRef.current = true;
-          setIsPaused(Boolean(details.is_paused));
-          activeThreadIdRef.current = threadId;
-
-          const runningMsg = [...parsedMsgs].reverse().find((m) => m.sender === 'assistant');
-          const assistantMsgId = runningMsg ? runningMsg.id : `ast_live_${threadId}`;
-
-          const abortController = new AbortController();
-          abortControllerRef.current = abortController;
-
-          attachToThreadStream(
-            threadId,
-            (reasoningDelta) => {
-              setThreadMessagesMap((prev) => {
-                const msgs = prev[threadId] || [];
-                return {
-                  ...prev,
-                  [threadId]: msgs.map((m) =>
-                    m.id === assistantMsgId
-                      ? { ...m, reasoning_content: (m.reasoning_content || '') + reasoningDelta }
-                      : m
-                  ),
-                };
-              });
-            },
-            (contentDelta) => {
-              setThreadMessagesMap((prev) => {
-                const msgs = prev[threadId] || [];
-                return {
-                  ...prev,
-                  [threadId]: msgs.map((m) =>
-                    m.id === assistantMsgId
-                      ? { ...m, content: (m.content || '') + contentDelta }
-                      : m
-                  ),
-                };
-              });
-            },
-            (finalResponse) => {
-              const assistantMsg = adaptChatResponseToMessage(finalResponse);
-              assistantMsg.id = assistantMsgId;
-              if (!assistantMsg.metrics && finalResponse.metrics) {
-                assistantMsg.metrics = finalResponse.metrics;
-              }
-              setThreadMessagesMap((prev) => {
-                const msgs = prev[threadId] || [];
-                return {
-                  ...prev,
-                  [threadId]: msgs.map((m) => (m.id === assistantMsgId ? assistantMsg : m)),
-                };
-              });
-              setActiveTool(finalResponse.tool_used);
-              setActivePlan(finalResponse.plan_steps);
-              setActivePlanStructure(finalResponse.plan_structure);
-              setActiveExecutionTrace(finalResponse.execution_trace);
-              setActiveRollbackTrace(finalResponse.rollback_trace);
-              setActiveMode(finalResponse.mode);
-              setActiveWebPrefetch(finalResponse.web_prefetch);
-              setIsLoadingChat(false);
-              isSendingRef.current = false;
-              setIsPaused(false);
-            },
-            (err) => {
-              console.error('Error in attached thread stream:', err);
-              setIsLoadingChat(false);
-              isSendingRef.current = false;
-              setIsPaused(false);
-            },
-            (retrievalEvent, retrievalData) => {
-              if (retrievalEvent === 'web_prefetch.started') {
-                setActiveWebPrefetch({
-                  query: retrievalData.query || '',
-                  success: true,
-                  sources: [],
-                });
-              } else if (retrievalEvent === 'web_prefetch.completed') {
-                setActiveWebPrefetch((prev) => ({
-                  ...(prev || { query: '', success: true }),
-                  provider_used: retrievalData.provider,
-                  latency_ms: retrievalData.latency_ms,
-                }));
-              }
-            },
-            (metricsData) => {
-              setThreadMessagesMap((prev) => {
-                const msgs = prev[threadId] || [];
-                return {
-                  ...prev,
-                  [threadId]: msgs.map((m) =>
-                    m.id === assistantMsgId ? { ...m, metrics: metricsData } : m
-                  ),
-                };
-              });
-            },
-            (snapshot) => {
-              setThreadMessagesMap((prev) => {
-                const msgs = prev[threadId] || [];
-                return {
-                  ...prev,
-                  [threadId]: msgs.map((m) =>
-                    m.id === assistantMsgId
-                      ? {
-                          ...m,
-                          reasoning_content: snapshot.reasoning_content || m.reasoning_content || '',
-                          content: snapshot.content || m.content || '',
-                          mode: snapshot.mode || m.mode,
-                          tool_used: snapshot.tool_used || m.tool_used,
-                          plan_steps: snapshot.plan_steps || m.plan_steps,
-                          plan_structure: snapshot.plan_structure || m.plan_structure,
-                          execution_trace: snapshot.execution_trace || m.execution_trace,
-                          metrics: snapshot.metrics || m.metrics,
-                        }
-                      : m
-                  ),
-                };
-              });
-              if (snapshot.is_paused !== undefined) {
-                setIsPaused(Boolean(snapshot.is_paused));
-              }
-            },
-            abortController.signal
-          ).finally(() => {
-            setIsLoadingChat(false);
-            isSendingRef.current = false;
-          });
-        }
-      }
-    } catch (err) {
-      console.warn(`Could not load history for thread ${threadId}:`, err);
-    } finally {
-      if (!isActive) {
-        setIsLoadingChat(false);
-      }
-    }
+  const updateThread = useCallback((threadId: string, fn: (msgs: FormattedMessage[]) => FormattedMessage[]) => {
+    setThreadMessagesMap((prev) => ({ ...prev, [threadId]: fn(prev[threadId] || []) }));
   }, []);
+
+  const messageUpdater = useCallback(
+    (threadId: string, msgId: string): MessageUpdate =>
+      (fn) => updateThread(threadId, (msgs) => msgs.map((m) => (m.id === msgId ? fn(m) : m))),
+    [updateThread]
+  );
+
+  /** Handler comuni per i delta in streaming del messaggio dell'assistente aggiornato da `update`. */
+  const liveHandlers = useCallback(
+    (update: MessageUpdate, query: string): StreamHandlers => ({
+      onReasoning: (delta) => update((m) => ({ ...m, reasoning_content: (m.reasoning_content || '') + delta })),
+      onContent: (delta) => update((m) => ({ ...m, content: (m.content || '') + delta })),
+      onMetrics: (metrics) => update((m) => ({ ...m, metrics })),
+      onSync: (snapshot) => {
+        update((m) => applySnapshot(m, snapshot));
+        if (snapshot.is_paused !== undefined) setIsPaused(Boolean(snapshot.is_paused));
+      },
+      onRetrieval: (event, data) =>
+        setDiagnostics((d) => ({ ...d, activeWebPrefetch: webPrefetchFromEvent(d.activeWebPrefetch, event, data, query) })),
+    }),
+    []
+  );
+
+  const startStream = useCallback(() => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    isSendingRef.current = true;
+    setIsLoadingChat(true);
+    return controller.signal;
+  }, []);
+
+  const endStream = useCallback(() => {
+    setIsLoadingChat(false);
+    setIsPaused(false);
+    isSendingRef.current = false;
+    abortControllerRef.current = null;
+  }, []);
+
+  const loadThreadHistory = useCallback(
+    async (threadId: string) => {
+      if (isSendingRef.current && activeThreadIdRef.current === threadId) return;
+      setIsLoadingChat(true);
+      let details;
+      try {
+        details = await getThreadDetails(threadId);
+      } catch (err) {
+        console.warn(`Storico del thread ${threadId} non caricato:`, err);
+        setIsLoadingChat(false);
+        return;
+      }
+
+      const messages = details.messages?.length
+        ? details.messages
+        : adaptLettaMessagesToMessages(details.letta_messages || []);
+      setCurrentThreadTitle(details.title || null);
+      updateThread(threadId, () => messages);
+      setDiagnostics(diagnosticsOf(lastAssistant(messages)));
+
+      if (!details.is_active) {
+        setIsLoadingChat(false);
+        return;
+      }
+
+      // Turno ancora in esecuzione in background: ci si riaggancia allo stream live
+      activeThreadIdRef.current = threadId;
+      setIsPaused(Boolean(details.is_paused));
+      const assistantMsgId = lastAssistant(messages)?.id ?? `ast_live_${threadId}`;
+      const update = messageUpdater(threadId, assistantMsgId);
+      const signal = startStream();
+      attachToThreadStream(
+        threadId,
+        {
+          ...liveHandlers(update, ''),
+          onFinal: (response) => {
+            update((m) => finalizeMessage(response, m.id, m.reasoning_content));
+            setDiagnostics(diagnosticsOf(response));
+          },
+        },
+        signal
+      )
+        .catch((err) => console.error('Errore nello stream riagganciato:', err))
+        .finally(endStream);
+    },
+    [updateThread, messageUpdater, liveHandlers, startStream, endStream]
+  );
 
   useEffect(() => {
     if (currentThreadId && !isSendingRef.current) {
@@ -257,325 +156,149 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   }, [currentThreadId, loadThreadHistory]);
 
   const handleSendMessage = useCallback(
-    async (
-      input: string,
-      mode: AgentMode | undefined,
-      execute: boolean,
-      reasoningBudget?: number,
-      model?: string,
-      incognito?: boolean,
-      webSearch?: 'auto' | 'on' | 'off' | boolean,
-      images?: string[],
-      securityMode?: SecurityMode
-    ) => {
+    async (input: string, options: SendOptions) => {
       setChatError(null);
-      isSendingRef.current = true;
       setIsPaused(false);
 
-      const targetThreadId = currentThreadId || `thread_${Date.now()}`;
-      activeThreadIdRef.current = targetThreadId;
-      if (!currentThreadId && onThreadCreated) {
-        onThreadCreated(targetThreadId);
-      }
+      const threadId = currentThreadId || `thread_${Date.now()}`;
+      activeThreadIdRef.current = threadId;
+      if (!currentThreadId) onThreadCreated?.(threadId);
 
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const userMsg: FormattedMessage = {
-        id: `user_${Date.now()}`,
-        sender: 'user',
-        content: input,
-        images: images && images.length > 0 ? images : undefined,
-        timestamp,
-        security_mode: securityMode,
-      };
-
-      setThreadMessagesMap((prev) => ({
-        ...prev,
-        [targetThreadId]: [...(prev[targetThreadId] || []), userMsg],
-      }));
-
-      setIsLoadingChat(true);
-
+      const images = options.images?.length ? options.images : undefined;
+      const timestamp = nowTime();
       const assistantMsgId = `ast_${Date.now()}`;
-      const placeholderMsg: FormattedMessage = {
-        id: assistantMsgId,
-        sender: 'assistant',
-        content: '',
-        reasoning_content: '',
-        timestamp,
+      updateThread(threadId, (msgs) => [
+        ...msgs,
+        { id: `user_${Date.now()}`, sender: 'user', content: input, images, timestamp, security_mode: options.securityMode },
+        { id: assistantMsgId, sender: 'assistant', content: '', reasoning_content: '', timestamp },
+      ]);
+
+      const request: ChatRequest = {
+        input,
+        thread_id: threadId,
+        force_mode: options.mode,
+        execute: options.execute,
+        reasoning_budget: options.reasoningBudget,
+        model: options.model,
+        incognito: options.incognito,
+        web_search: options.webSearch,
+        images,
+        security_mode: options.securityMode,
       };
-
-      setThreadMessagesMap((prev) => ({
-        ...prev,
-        [targetThreadId]: [...(prev[targetThreadId] || []), placeholderMsg],
-      }));
-
+      const update = messageUpdater(threadId, assistantMsgId);
+      const signal = startStream();
       try {
         await sendStreamMessage(
+          request,
           {
-            input,
-            thread_id: targetThreadId,
-            force_mode: mode,
-            execute,
-            reasoning_budget: reasoningBudget,
-            model,
-            incognito,
-            web_search: webSearch,
-            images: images && images.length > 0 ? images : undefined,
-            security_mode: securityMode,
+            ...liveHandlers(update, input),
+            onFinal: (response) => {
+              update((m) => finalizeMessage(response, m.id, m.reasoning_content));
+              setDiagnostics(diagnosticsOf(response));
+            },
           },
-          (reasoningDelta) => {
-            setThreadMessagesMap((prev) => {
-              const msgs = prev[targetThreadId] || [];
-              return {
-                ...prev,
-                [targetThreadId]: msgs.map((m) =>
-                  m.id === assistantMsgId ? { ...m, reasoning_content: (m.reasoning_content || '') + reasoningDelta } : m
-                ),
-              };
-            });
-          },
-          (contentDelta) => {
-            setThreadMessagesMap((prev) => {
-              const msgs = prev[targetThreadId] || [];
-              return {
-                ...prev,
-                [targetThreadId]: msgs.map((m) =>
-                  m.id === assistantMsgId ? { ...m, content: m.content + contentDelta } : m
-                ),
-              };
-            });
-          },
-          (finalResponse) => {
-            const assistantMsg = adaptChatResponseToMessage(finalResponse);
-            assistantMsg.id = assistantMsgId; // preserve id
-            if (!assistantMsg.metrics && finalResponse.metrics) {
-              assistantMsg.metrics = finalResponse.metrics;
-            }
-            const finalThreadId = finalResponse.thread_id || targetThreadId;
-
-            setThreadMessagesMap((prev) => {
-              const msgs = prev[targetThreadId] || [];
-              const updatedMsgs = msgs.map((m) => (m.id === assistantMsgId ? assistantMsg : m));
-              
-              if (finalThreadId !== targetThreadId) {
-                // If thread ID changed (e.g. newly created), move messages
-                const { [targetThreadId]: _, ...rest } = prev;
-                return { ...rest, [finalThreadId]: updatedMsgs };
-              }
-              return { ...prev, [finalThreadId]: updatedMsgs };
-            });
-
-            // Update Diagnostics
-            setActiveTool(finalResponse.tool_used);
-            setActivePlan(finalResponse.plan_steps);
-            setActivePlanStructure(finalResponse.plan_structure);
-            setActiveExecutionTrace(finalResponse.execution_trace);
-            setActiveRollbackTrace(finalResponse.rollback_trace);
-            setActiveMode(finalResponse.mode);
-            setActiveWebPrefetch(finalResponse.web_prefetch);
-          },
-          (errorStr) => {
-            throw new Error(errorStr);
-          },
-          (retrievalEvent, retrievalData) => {
-            if (retrievalEvent === 'web_prefetch.started') {
-              setActiveWebPrefetch({
-                query: retrievalData.query || input,
-                success: true,
-                sources: [],
-              });
-            } else if (retrievalEvent === 'web_prefetch.completed') {
-              setActiveWebPrefetch((prev) => ({
-                ...(prev || { query: input, success: true }),
-                provider_used: retrievalData.provider,
-                latency_ms: retrievalData.latency_ms,
-              }));
-            }
-          },
-          (metricsData: StreamMetrics) => {
-            setThreadMessagesMap((prev) => {
-              const msgs = prev[targetThreadId] || [];
-              return {
-                ...prev,
-                [targetThreadId]: msgs.map((m) =>
-                  m.id === assistantMsgId ? { ...m, metrics: metricsData } : m
-                ),
-              };
-            });
-          },
-          abortController.signal
+          signal
         );
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log('Chat execution aborted by user');
-          return;
-        }
-        console.error('API call failed:', err);
-        const errMsg = formatApiError(err, 'Failed to send message to agent');
+      } catch (err) {
+        console.error('Invio del messaggio fallito:', err);
+        const errMsg = formatApiError(err, "Invio del messaggio all'agente non riuscito");
         setChatError(`API Error: ${errMsg}`);
-
-        const errorMsgItem: FormattedMessage = {
-          id: `err_${Date.now()}`,
-          sender: 'assistant',
-          content: `Error: ${errMsg}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isError: true,
-        };
-
-        setThreadMessagesMap((prev) => {
-          const msgs = prev[targetThreadId] || [];
-          const filtered = msgs.filter((m) => m.id !== assistantMsgId);
-          return {
-            ...prev,
-            [targetThreadId]: [...filtered, errorMsgItem],
-          };
-        });
+        updateThread(threadId, (msgs) => [
+          ...msgs.filter((m) => m.id !== assistantMsgId),
+          { id: `err_${Date.now()}`, sender: 'assistant', content: `Error: ${errMsg}`, timestamp: nowTime(), isError: true },
+        ]);
       } finally {
-        setIsLoadingChat(false);
-        setIsPaused(false);
-        isSendingRef.current = false;
-        abortControllerRef.current = null;
+        endStream();
       }
     },
-    [currentThreadId, onThreadCreated]
+    [currentThreadId, onThreadCreated, updateThread, messageUpdater, liveHandlers, startStream, endStream]
+  );
+
+  const withActiveThread = useCallback(
+    async (action: (threadId: string) => Promise<unknown>, label: string) => {
+      const threadId = activeThreadIdRef.current || currentThreadId;
+      if (!threadId) return false;
+      try {
+        await action(threadId);
+        return true;
+      } catch (err) {
+        console.warn(`${label} non riuscito:`, err);
+        return false;
+      }
+    },
+    [currentThreadId]
   );
 
   const handleStop = useCallback(async () => {
-    const threadId = activeThreadIdRef.current || currentThreadId;
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    if (threadId) {
-      try {
-        await stopChatStream(threadId);
-      } catch (e) {
-        console.warn('Error sending stop signal to backend:', e);
-      }
-    }
-    setIsPaused(false);
-    setIsLoadingChat(false);
-    isSendingRef.current = false;
-  }, [currentThreadId]);
+    abortControllerRef.current?.abort();
+    await withActiveThread(stopChatStream, 'Stop');
+    endStream();
+  }, [withActiveThread, endStream]);
 
   const handlePause = useCallback(async () => {
-    const threadId = activeThreadIdRef.current || currentThreadId;
-    if (threadId) {
-      try {
-        await pauseChatStream(threadId);
-        setIsPaused(true);
-      } catch (e) {
-        console.warn('Error pausing stream:', e);
-      }
-    }
-  }, [currentThreadId]);
+    if (await withActiveThread(pauseChatStream, 'Pausa')) setIsPaused(true);
+  }, [withActiveThread]);
 
   const handleResume = useCallback(async () => {
-    const threadId = activeThreadIdRef.current || currentThreadId;
-    if (threadId) {
-      try {
-        await resumeChatStream(threadId);
-        setIsPaused(false);
-      } catch (e) {
-        console.warn('Error resuming stream:', e);
-      }
-    }
-  }, [currentThreadId]);
+    if (await withActiveThread(resumeChatStream, 'Ripresa')) setIsPaused(false);
+  }, [withActiveThread]);
 
-  const handleSwitchVersion = useCallback((messageId: string, targetIndex: number) => {
-    if (!currentThreadId) return;
-    setThreadMessagesMap((prev) => {
-      const msgs = prev[currentThreadId] || [];
+  const handleSwitchVersion = useCallback(
+    (messageId: string, targetIndex: number) => {
+      if (!currentThreadId) return;
+      const msgs = threadMessagesMap[currentThreadId] || [];
       const updated = msgs.map((m) => {
-        if (m.id !== messageId || !m.versions || !m.versions[targetIndex]) return m;
-        const targetVer = m.versions[targetIndex];
-        return {
-          ...m,
-          ...targetVer,
-          versionIndex: targetIndex,
-          versions: m.versions,
-        };
+        const target = m.versions?.[targetIndex];
+        return m.id === messageId && target ? { ...m, ...target, versionIndex: targetIndex, versions: m.versions } : m;
       });
-
-      const lastAssistant = [...updated].reverse().find((m) => m.sender === 'assistant');
-      if (lastAssistant && lastAssistant.id === messageId) {
-        setActiveMode(lastAssistant.mode);
-        setActiveTool(lastAssistant.tool_used);
-        setActivePlan(lastAssistant.plan_steps);
-        setActivePlanStructure(lastAssistant.plan_structure);
-        setActiveExecutionTrace(lastAssistant.execution_trace);
-        setActiveRollbackTrace(lastAssistant.rollback_trace);
-        setActiveWebPrefetch(lastAssistant.web_prefetch);
-      }
-
-      return {
-        ...prev,
-        [currentThreadId]: updated,
-      };
-    });
-    switchMessageVersion(currentThreadId, messageId, targetIndex);
-  }, [currentThreadId]);
+      updateThread(currentThreadId, () => updated);
+      const last = lastAssistant(updated);
+      if (last?.id === messageId) setDiagnostics(diagnosticsOf(last));
+      switchMessageVersion(currentThreadId, messageId, targetIndex);
+    },
+    [currentThreadId, threadMessagesMap, updateThread]
+  );
 
   const handleRegenerateMessage = useCallback(
     async (assistantMsgId: string) => {
       if (!currentThreadId || isLoadingChat) return;
-      const msgs = threadMessagesMap[currentThreadId] || [];
+      const threadId = currentThreadId;
+      const msgs = threadMessagesMap[threadId] || [];
       const astIndex = msgs.findIndex((m) => m.id === assistantMsgId);
       if (astIndex === -1) return;
-
       const astMsg = msgs[astIndex];
       const userMsg = msgs.slice(0, astIndex).reverse().find((m) => m.sender === 'user');
       if (!userMsg) return;
 
-      const currentVerList: MessageVersion[] =
-        astMsg.versions && astMsg.versions.length > 0
-          ? [...astMsg.versions]
-          : [extractMessageVersion(astMsg)];
-
-      const newVersionSlot: MessageVersion = {
-        id: `ast_regen_${Date.now()}`,
+      // La rigenerazione diventa una nuova versione nel carosello del messaggio
+      const versions: MessageVersion[] = [
+        ...(astMsg.versions?.length ? astMsg.versions : [extractMessageVersion(astMsg)]),
+        { id: `ast_regen_${Date.now()}`, content: '', reasoning_content: '', timestamp: nowTime(), mode: astMsg.mode },
+      ];
+      const versionIndex = versions.length - 1;
+      const update = messageUpdater(threadId, assistantMsgId);
+      update((m) => ({
+        ...m,
         content: '',
         reasoning_content: '',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        mode: astMsg.mode,
-      };
-
-      const updatedVersions = [...currentVerList, newVersionSlot];
-      const newVersionIndex = updatedVersions.length - 1;
-
-      setThreadMessagesMap((prev) => ({
-        ...prev,
-        [currentThreadId]: (prev[currentThreadId] || []).map((m) =>
-          m.id === assistantMsgId
-            ? {
-                ...m,
-                content: '',
-                reasoning_content: '',
-                execution_trace: undefined,
-                plan_steps: undefined,
-                plan_structure: undefined,
-                metrics: undefined,
-                isError: false,
-                versionIndex: newVersionIndex,
-                versions: updatedVersions,
-              }
-            : m
-        ),
+        execution_trace: undefined,
+        plan_steps: undefined,
+        plan_structure: undefined,
+        metrics: undefined,
+        isError: false,
+        versionIndex,
+        versions,
       }));
+      const updateWithVersion: MessageUpdate = (fn) => update((m) => mirrorToVersion(fn(m), versionIndex));
+      const live = liveHandlers(updateWithVersion, userMsg.content);
+      let streamedReasoning = '';
 
-      setIsLoadingChat(true);
-      isSendingRef.current = true;
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
+      const signal = startStream();
       try {
         await sendStreamMessage(
           {
             input: userMsg.content,
-            thread_id: currentThreadId,
+            thread_id: threadId,
             force_mode: (userMsg.mode as AgentMode) || undefined,
             execute: true,
             reasoning_budget: userMsg.reasoningBudget,
@@ -583,219 +306,118 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             images: userMsg.images,
             security_mode: userMsg.security_mode,
           },
-          (reasoningDelta) => {
-            setThreadMessagesMap((prev) => {
-              const currentList = prev[currentThreadId] || [];
-              return {
-                ...prev,
-                [currentThreadId]: currentList.map((m) => {
-                  if (m.id !== assistantMsgId) return m;
-                  const newReasoning = (m.reasoning_content || '') + reasoningDelta;
-                  const vers = m.versions ? [...m.versions] : [];
-                  if (vers[newVersionIndex]) {
-                    vers[newVersionIndex] = { ...vers[newVersionIndex], reasoning_content: newReasoning };
-                  }
-                  return { ...m, reasoning_content: newReasoning, versions: vers };
-                }),
-              };
-            });
+          {
+            ...live,
+            onReasoning: (delta) => {
+              streamedReasoning += delta;
+              live.onReasoning?.(delta);
+            },
+            onFinal: (response) => {
+              if (response.thread_title) setCurrentThreadTitle(response.thread_title);
+              const final = finalizeMessage(response, assistantMsgId, streamedReasoning);
+              const finalVersions = versions.map((v, idx) => (idx === versionIndex ? extractMessageVersion(final) : v));
+              update((m) => ({ ...m, ...final, versions: finalVersions, versionIndex }));
+              saveMessageVersions(threadId, assistantMsgId, finalVersions, versionIndex);
+              setDiagnostics(diagnosticsOf(response));
+            },
           },
-          (contentDelta) => {
-            setThreadMessagesMap((prev) => {
-              const currentList = prev[currentThreadId] || [];
-              return {
-                ...prev,
-                [currentThreadId]: currentList.map((m) => {
-                  if (m.id !== assistantMsgId) return m;
-                  const newContent = m.content + contentDelta;
-                  const vers = m.versions ? [...m.versions] : [];
-                  if (vers[newVersionIndex]) {
-                    vers[newVersionIndex] = { ...vers[newVersionIndex], content: newContent };
-                  }
-                  return { ...m, content: newContent, versions: vers };
-                }),
-              };
-            });
-          },
-          (finalResponse) => {
-            const assistantMsg = adaptChatResponseToMessage(finalResponse);
-            assistantMsg.id = assistantMsgId;
-            if (!assistantMsg.metrics && finalResponse.metrics) {
-              assistantMsg.metrics = finalResponse.metrics;
-            }
-            if (finalResponse.thread_title) {
-              setCurrentThreadTitle(finalResponse.thread_title);
-            }
-            setThreadMessagesMap((prev) => {
-              const currentList = prev[currentThreadId] || [];
-              const finalVersions = (currentList.find((m) => m.id === assistantMsgId)?.versions || updatedVersions).map(
-                (v, idx) => (idx === newVersionIndex ? extractMessageVersion(assistantMsg) : v)
-              );
-              saveMessageVersions(currentThreadId, assistantMsgId, finalVersions, newVersionIndex);
-
-              return {
-                ...prev,
-                [currentThreadId]: currentList.map((m) =>
-                  m.id === assistantMsgId
-                    ? {
-                        ...m,
-                        ...assistantMsg,
-                        versions: finalVersions,
-                        versionIndex: newVersionIndex,
-                      }
-                    : m
-                ),
-              };
-            });
-            setActiveTool(finalResponse.tool_used);
-            setActivePlan(finalResponse.plan_steps);
-            setActivePlanStructure(finalResponse.plan_structure);
-            setActiveExecutionTrace(finalResponse.execution_trace);
-            setActiveRollbackTrace(finalResponse.rollback_trace);
-            setActiveMode(finalResponse.mode);
-            setActiveWebPrefetch(finalResponse.web_prefetch);
-          },
-          (errorStr) => {
-            console.error('Error during regeneration:', errorStr);
-            setChatError(errorStr);
-          },
-          undefined,
-          undefined,
-          abortController.signal
+          signal
         );
-      } catch (err: any) {
-        console.error('Failed to regenerate message:', err);
-        const errMsg = err?.message || 'Errore durante la rigenerazione';
+      } catch (err) {
+        console.error('Rigenerazione fallita:', err);
+        const errMsg = formatApiError(err, 'Errore durante la rigenerazione');
         setChatError(errMsg);
-        setThreadMessagesMap((prev) => {
-          const currentList = prev[currentThreadId] || [];
-          return {
-            ...prev,
-            [currentThreadId]: currentList.map((m) =>
-              m.id === assistantMsgId
-                ? {
-                    ...m,
-                    content: `[Errore: ${errMsg}]`,
-                    isError: true,
-                  }
-                : m
-            ),
-          };
-        });
+        update((m) => ({ ...m, content: `[Errore: ${errMsg}]`, isError: true }));
       } finally {
-        setIsLoadingChat(false);
-        isSendingRef.current = false;
+        endStream();
       }
     },
-    [currentThreadId, isLoadingChat, threadMessagesMap]
+    [currentThreadId, isLoadingChat, threadMessagesMap, messageUpdater, liveHandlers, startStream, endStream]
   );
 
   const handleEditPrompt = useCallback(
-    async (
-      userMsgId: string,
-      newContent: string,
-      mode?: AgentMode,
-      model?: string,
-      reasoningBudget?: number
-    ) => {
+    async (userMsgId: string, edit: PromptEdit) => {
       if (!currentThreadId || isLoadingChat) return;
       const msgs = threadMessagesMap[currentThreadId] || [];
       const userIndex = msgs.findIndex((m) => m.id === userMsgId);
       if (userIndex === -1) return;
-
       const userMsg = msgs[userIndex];
-      const currentPromptVers: MessageVersion[] =
-        userMsg.versions && userMsg.versions.length > 0
-          ? [...userMsg.versions]
-          : [extractMessageVersion(userMsg)];
 
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const newPromptVersion: MessageVersion = {
-        id: `user_edit_${Date.now()}`,
-        content: newContent,
-        timestamp,
+      // Il prompt modificato diventa una nuova versione del messaggio utente
+      const timestamp = nowTime();
+      const { content, mode, model, reasoningBudget } = edit;
+      const versions: MessageVersion[] = [
+        ...(userMsg.versions?.length ? userMsg.versions : [extractMessageVersion(userMsg)]),
+        { id: `user_edit_${Date.now()}`, content, timestamp, mode, model, reasoningBudget, images: userMsg.images },
+      ];
+      const versionIndex = versions.length - 1;
+      messageUpdater(currentThreadId, userMsgId)((m) => ({
+        ...m,
+        content,
         mode,
         model,
         reasoningBudget,
-        images: userMsg.images,
-      };
-      const updatedPromptVersions = [...currentPromptVers, newPromptVersion];
-      const newPromptVersionIndex = updatedPromptVersions.length - 1;
-
-      setThreadMessagesMap((prev) => ({
-        ...prev,
-        [currentThreadId]: (prev[currentThreadId] || []).map((m) =>
-          m.id === userMsgId
-            ? {
-                ...m,
-                content: newContent,
-                mode,
-                model,
-                reasoningBudget,
-                timestamp,
-                versions: updatedPromptVersions,
-                versionIndex: newPromptVersionIndex,
-              }
-            : m
-        ),
+        timestamp,
+        versions,
+        versionIndex,
       }));
-      saveMessageVersions(currentThreadId, userMsgId, updatedPromptVersions, newPromptVersionIndex);
+      saveMessageVersions(currentThreadId, userMsgId, versions, versionIndex);
 
       const nextMsg = msgs[userIndex + 1];
-      if (nextMsg && nextMsg.sender === 'assistant') {
+      if (nextMsg?.sender === 'assistant') {
         await handleRegenerateMessage(nextMsg.id);
       } else {
-        await handleSendMessage(newContent, mode, true, reasoningBudget, model, undefined, undefined, userMsg.images, userMsg.security_mode);
+        await handleSendMessage(content, {
+          mode,
+          execute: true,
+          reasoningBudget,
+          model,
+          images: userMsg.images,
+          securityMode: userMsg.security_mode,
+        });
       }
     },
-    [currentThreadId, isLoadingChat, threadMessagesMap, handleRegenerateMessage, handleSendMessage]
+    [currentThreadId, isLoadingChat, threadMessagesMap, messageUpdater, handleRegenerateMessage, handleSendMessage]
   );
 
   const handleApprovalResolved = useCallback(
     async (action: string, res?: any) => {
       if (!currentThreadId) return;
 
-      // Aggiornamento ottimistico immediato dello stato React se res include la risposta
-      if (res && res.response) {
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const newAssistantMsg: FormattedMessage = {
-          id: `ast_res_${Date.now()}`,
-          sender: 'assistant',
-          content: res.response,
-          timestamp,
-          mode: 'act',
-          tool_used: res.tool_name,
-          execution_trace: res.execution_trace || [
-            {
-              step_id: 1,
-              tool_name: res.tool_name || 'tool',
-              args: res.arguments,
-              result: res.result,
-              reasoning: `Tool approvato ed eseguito (${action})`,
-            },
-          ],
-        };
-
-        setThreadMessagesMap((prev) => {
-          const existing = prev[currentThreadId] || [];
-          return {
-            ...prev,
-            [currentThreadId]: [...existing, newAssistantMsg],
-          };
-        });
-
-        if (res.tool_name) setActiveTool(res.tool_name);
-        if (res.execution_trace) setActiveExecutionTrace(res.execution_trace);
+      // Aggiornamento ottimistico se la risoluzione restituisce già la risposta del tool
+      if (res?.response) {
+        const executionTrace = res.execution_trace || [
+          {
+            step_id: 1,
+            tool_name: res.tool_name || 'tool',
+            args: res.arguments,
+            result: res.result,
+            reasoning: `Tool approvato ed eseguito (${action})`,
+          },
+        ];
+        updateThread(currentThreadId, (msgs) => [
+          ...msgs,
+          {
+            id: `ast_res_${Date.now()}`,
+            sender: 'assistant',
+            content: res.response,
+            timestamp: nowTime(),
+            mode: 'act',
+            tool_used: res.tool_name,
+            execution_trace: executionTrace,
+          },
+        ]);
+        setDiagnostics((d) => ({
+          ...d,
+          activeTool: res.tool_name || d.activeTool,
+          activeExecutionTrace: res.execution_trace || d.activeExecutionTrace,
+        }));
       }
 
-      // Sincronizzazione completa con backend SQLite
-      try {
-        await loadThreadHistory(currentThreadId);
-      } catch (err) {
-        console.warn('Could not reload thread history after approval:', err);
-      }
+      // Sincronizzazione completa con lo stato salvato dal backend
+      await loadThreadHistory(currentThreadId);
     },
-    [currentThreadId, loadThreadHistory]
+    [currentThreadId, updateThread, loadThreadHistory]
   );
 
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];
@@ -816,14 +438,6 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     handleResume,
     loadThreadHistory,
     handleApprovalResolved,
-    diagnostics: {
-      activeTool,
-      activePlan,
-      activePlanStructure,
-      activeExecutionTrace,
-      activeRollbackTrace,
-      activeMode,
-      activeWebPrefetch,
-    },
+    diagnostics,
   };
 }
