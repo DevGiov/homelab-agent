@@ -1,20 +1,16 @@
-"""Guardrail di sicurezza per tool ad alto rischio e Human-in-the-Loop approval workflow.
+"""Policy di sicurezza dei tool: classificazione del rischio, analisi dei comandi shell e decisione.
 
-Classifica i tool in base al rischio, blocca comandi malevoli/distruttivi,
-si integra con il Permission Engine e gestisce le richieste di approvazione interattive.
+`enforce_guardrails` decide, prima di ogni esecuzione, se un tool è bloccato, eseguibile o da approvare
+secondo la modalità di sicurezza; le richieste di approvazione sono gestite da `approvals`.
 """
 
-import contextvars
 import logging
 import re
 import shlex
-import threading
-import time
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.automations.db import approvals as approvals_db
 from app.security import permissions
+from app.security.approvals import approval_response, create_approval_request
 
 logger = logging.getLogger("guardrails")
 
@@ -111,16 +107,6 @@ SAFE_SUBCOMMAND_PREFIXES = [
     (r"^git\s+(status|log|diff|branch|show|rev-parse)\b", "git read"),
     (r"^ip\s+(addr|a|link|route|r)\s*(show)?\b", "ip inspect"),
 ]
-
-# Tool ad alto rischio / distruttivi che richiedono SEMPRE approvazione a meno che non pre-approvati
-HIGH_RISK_TOOLS = {
-    "exec_host_command", "stop_container", "rollback_lxc_snapshot",
-    "delete_pihole_dns_record", "delete_npm_proxy_host", "release_ip",
-    "run_agy_bootstrap", "create_service", "create_lxc_from_template",
-    "exec_lxc_command", "start_container", "resize_lxc_disk", "update_lxc_resources",
-    "allocate_ip", "add_pihole_dns_record", "create_npm_proxy_host",
-    "calendar_delete_event", "calendar_delete_calendar",
-}
 
 TOOL_CATEGORIES = {
     "list_containers": "proxmox.read", "get_container_status": "proxmox.read",
@@ -257,14 +243,6 @@ def analyze_shell_command_nature(command: str) -> Tuple[str, str, Optional[str]]
     return "safe_read", prefix, None
 
 
-def check_shell_command(command: str) -> Tuple[bool, Optional[str]]:
-    """Retrocompatibilità: verifica se il comando è consentito o bloccato categoricamente."""
-    level, reason = analyze_command_safety(command)
-    if level in ("blocked", "suspicious"):
-        return False, f"Comando bloccato dal guardrail: {reason}"
-    return True, None
-
-
 def classify_tool(tool_name: str, args: Optional[Dict[str, Any]] = None) -> str:
     """
     Classifica il rischio di un tool:
@@ -302,303 +280,6 @@ def enrich_catalog_with_metadata(tools: List[Dict[str, Any]]) -> List[Dict[str, 
     for t in tools:
         t["metadata"] = get_tool_metadata(t.get("name", ""))
     return tools
-
-
-# --- Approval Workflow Interattivo & Memoria Richieste ---
-
-class ApprovalRequest:
-    __slots__ = (
-        "request_id", "tool_name", "arguments", "thread_id", "mode",
-        "created_at", "status", "resolved_by", "command_preview",
-        "risk_reason", "command_prefix", "task"
-    )
-
-    def __init__(
-        self,
-        request_id: str,
-        tool_name: str,
-        arguments: Dict[str, Any],
-        thread_id: Optional[str],
-        mode: Optional[str],
-        command_preview: Optional[str] = None,
-        risk_reason: Optional[str] = None,
-        command_prefix: Optional[str] = None,
-        task: Optional[str] = None
-    ):
-        self.request_id = request_id
-        self.tool_name = tool_name
-        self.arguments = arguments
-        self.thread_id = thread_id
-        self.mode = mode
-        self.created_at = time.time()
-        self.status = "pending"  # pending | approved | denied | expired
-        self.resolved_by: Optional[str] = None
-        self.command_preview = command_preview
-        self.risk_reason = risk_reason
-        self.command_prefix = command_prefix
-        self.task = task
-
-
-_APPROVALS: Dict[str, ApprovalRequest] = {}
-_approval_lock = threading.Lock()
-APPROVAL_TTL_SECONDS = 300  # 5 minuti di validità
-
-
-def _next_request_id() -> str:
-    import uuid
-    return f"apr_{uuid.uuid4().hex[:12]}"
-
-
-def create_approval_request(
-    tool_name: str,
-    arguments: Dict[str, Any],
-    thread_id: Optional[str] = None,
-    mode: Optional[str] = None,
-    risk_reason: Optional[str] = None,
-    task: Optional[str] = None,
-    command_preview: Optional[str] = None,
-    command_prefix: Optional[str] = None,
-) -> ApprovalRequest:
-    """Crea e registra una nuova richiesta di approvazione interattiva."""
-    cmd_preview = command_preview or arguments.get("command") or arguments.get("cmd") or None
-    cmd_prefix = command_prefix or permissions.extract_command_prefix(arguments)
-
-    req = ApprovalRequest(
-        _next_request_id(),
-        tool_name,
-        arguments,
-        thread_id,
-        mode,
-        command_preview=str(cmd_preview) if cmd_preview else None,
-        risk_reason=risk_reason,
-        command_prefix=cmd_prefix,
-        task=task
-    )
-
-    with _approval_lock:
-        now = time.time()
-        expired = [k for k, v in _APPROVALS.items()
-                   if v.status == "pending" and now - v.created_at > APPROVAL_TTL_SECONDS]
-        for k in expired:
-            _APPROVALS[k].status = "expired"
-        _APPROVALS[req.request_id] = req
-
-    # Sincronizzazione persistente su automations.db
-    try:
-        approvals_db.create_automation_approval({
-            "request_id": req.request_id,
-            "run_id": thread_id or "chat_session",
-            "tool_name": tool_name,
-            "arguments": arguments,
-            "command_preview": req.command_preview,
-            "command_prefix": req.command_prefix,
-            "risk_reason": risk_reason,
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "expires_at": datetime.fromtimestamp(now + APPROVAL_TTL_SECONDS, tz=timezone.utc).isoformat()
-        })
-    except Exception as e:
-        logger.debug(f"Salvataggio approval su DB automazioni non eseguito: {e}")
-
-    logger.info(f"Approval request creata: {req.request_id} per tool '{tool_name}' ({risk_reason})")
-    return req
-
-
-
-# --- Approvazioni emerse a runtime (il bisogno di conferma si scopre durante l'esecuzione) ---
-
-# Esecuzione del codice Python fuori dalla sandbox Firecracker, nel container backend
-LOCAL_CODE_FALLBACK = "local-fallback"
-
-_approved_capability: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("approved_capability", default=None)
-
-
-class ApprovalRequired(Exception):
-    """Sollevata da un registry quando un'esecuzione richiede una capability non ancora approvata.
-
-    La capability viene registrata come `command_prefix` della richiesta: così le scelte
-    "per questa chat" / "sempre" diventano permessi granulari distinti dall'approvazione del tool.
-    """
-
-    def __init__(self, capability: str, reason: str, preview: Optional[str] = None):
-        super().__init__(reason)
-        self.capability = capability
-        self.reason = reason
-        self.preview = preview
-
-
-def is_capability_approved(capability: str) -> bool:
-    """True solo dentro un'esecuzione esplicitamente autorizzata per questa capability (non impostabile dall'LLM)."""
-    return _approved_capability.get() == capability
-
-
-def run_with_approved_capability(capability: Optional[str], fn, *args, **kwargs):
-    token = _approved_capability.set(capability)
-    try:
-        return fn(*args, **kwargs)
-    finally:
-        _approved_capability.reset(token)
-
-
-def request_runtime_approval(
-    tool_name: str,
-    args: Dict[str, Any],
-    exc: ApprovalRequired,
-    *,
-    thread_id: Optional[str] = None,
-    mode: Optional[str] = None,
-    task: Optional[str] = None,
-) -> Dict[str, Any]:
-    req = create_approval_request(
-        tool_name, args, thread_id=thread_id, mode=mode, risk_reason=exc.reason, task=task,
-        command_preview=exc.preview, command_prefix=exc.capability,
-    )
-    return {
-        "approval_required": True,
-        "request_id": req.request_id,
-        "tool_name": tool_name,
-        "arguments": args,
-        "command_preview": req.command_preview,
-        "command_prefix": req.command_prefix,
-        "risk_reason": exc.reason,
-        "message": f"{exc.reason}. Serve la tua autorizzazione esplicita. ID richiesta: '{req.request_id}'.",
-    }
-
-
-def resolve_approval(
-    request_id: str,
-    action: Optional[str] = None,
-    resolved_by: str = "user",
-    approved: Optional[bool] = None
-) -> Optional[ApprovalRequest]:
-    """
-    Approva o nega una richiesta pendente applicando lo scope desiderato:
-    - 'deny' / False: rifiuta l'azione
-    - 'approve' / True: approva solo per questa singola volta (one-time)
-    - 'approve_thread': approva per tutta la chat corrente (session-scope)
-    - 'approve_always': approva in modo persistente nel database (global-scope)
-    """
-    if action is None:
-        if approved is False:
-            action = "deny"
-        else:
-            action = "approve"
-
-    with _approval_lock:
-        req = _APPROVALS.get(request_id)
-        if not req:
-            # Fallback a recupero da DB se riavviato
-            try:
-                db_appr = approvals_db.get_automation_approval(request_id)
-                if db_appr and db_appr.get("status") == "pending":
-                    req = ApprovalRequest(
-                        request_id=db_appr["request_id"],
-                        tool_name=db_appr["tool_name"],
-                        arguments=db_appr["arguments"],
-                        thread_id=db_appr["run_id"] if db_appr["run_id"] != "chat_session" else None,
-                        mode=None,
-                        command_preview=db_appr.get("command_preview"),
-                        risk_reason=db_appr.get("risk_reason"),
-                        command_prefix=db_appr.get("command_prefix")
-                    )
-                    req.status = "pending"
-                    _APPROVALS[request_id] = req
-            except Exception as e:
-                logger.debug(f"Recupero fallback approval da DB non riuscito: {e}")
-
-        if not req or req.status != "pending":
-            return None
-        if time.time() - req.created_at > APPROVAL_TTL_SECONDS:
-            req.status = "expired"
-            try:
-                approvals_db.resolve_automation_approval(request_id, "expired", resolved_by=resolved_by)
-            except Exception:
-                pass
-            return req
-
-        normalized_action = str(action).lower().strip()
-        if normalized_action in ("deny", "false", "refuse"):
-            req.status = "denied"
-            req.resolved_by = resolved_by
-            try:
-                approvals_db.resolve_automation_approval(request_id, "deny", resolved_by=resolved_by)
-            except Exception:
-                pass
-            logger.info(f"Approval {request_id}: NEGATA da {resolved_by}")
-            return req
-
-        # Azioni di approvazione
-        req.status = "approved"
-        req.resolved_by = resolved_by
-        try:
-            approvals_db.resolve_automation_approval(request_id, "approve", resolved_by=resolved_by)
-        except Exception:
-            pass
-
-        if normalized_action == "approve_thread" and req.thread_id:
-            permissions.grant_permission(req.tool_name, "thread", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
-            logger.info(f"Approval {request_id}: APPROVATA per l'intero thread '{req.thread_id}'")
-        elif normalized_action in ("approve_always", "always"):
-            permissions.grant_permission(req.tool_name, "always", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
-            logger.info(f"Approval {request_id}: APPROVATA SEMPRE (persistente)")
-        else:
-            logger.info(f"Approval {request_id}: APPROVATA (singola esecuzione)")
-
-        return req
-
-
-def get_pending_approvals(thread_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Elenca le richieste pendenti includendo dettagli sul comando e sul motivo di sicurezza."""
-    with _approval_lock:
-        now = time.time()
-        result = []
-        seen_ids = set()
-        for req in _APPROVALS.values():
-            if req.status != "pending":
-                continue
-            if now - req.created_at > APPROVAL_TTL_SECONDS:
-                req.status = "expired"
-                continue
-            if thread_id and req.thread_id != thread_id:
-                continue
-            seen_ids.add(req.request_id)
-            result.append({
-                "request_id": req.request_id,
-                "tool_name": req.tool_name,
-                "arguments": req.arguments,
-                "thread_id": req.thread_id,
-                "mode": req.mode,
-                "command_preview": req.command_preview,
-                "risk_reason": req.risk_reason,
-                "command_prefix": req.command_prefix,
-                "age_seconds": int(now - req.created_at),
-            })
-
-        # Integrazione record persistenti da DB per richieste sopravvissute al restart
-        try:
-            db_pending = approvals_db.list_pending_approvals()
-            for d in db_pending:
-                rid = d.get("request_id")
-                if rid and rid not in seen_ids:
-                    t_id = d.get("run_id")
-                    if thread_id and t_id != thread_id:
-                        continue
-                    seen_ids.add(rid)
-                    result.append({
-                        "request_id": rid,
-                        "tool_name": d.get("tool_name"),
-                        "arguments": d.get("arguments", {}),
-                        "thread_id": t_id if t_id != "chat_session" else None,
-                        "mode": None,
-                        "command_preview": d.get("command_preview"),
-                        "risk_reason": d.get("risk_reason"),
-                        "command_prefix": d.get("command_prefix"),
-                        "age_seconds": 0,
-                    })
-        except Exception:
-            pass
-
-        return result
 
 
 def enforce_guardrails(
@@ -660,20 +341,8 @@ def enforce_guardrails(
 
         reason = f"Modalità Massima Sicurezza (Safest): conferma esplicita richiesta per '{tool_name}'"
         req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
-        return {
-            "approval_required": True,
-            "request_id": req.request_id,
-            "tool_name": tool_name,
-            "arguments": args,
-            "command_preview": req.command_preview,
-            "command_prefix": req.command_prefix,
-            "risk_reason": reason,
-            "security_mode": "safest",
-            "message": (
-                f"Modalità Safest attiva: il tool '{tool_name}' richiede la tua autorizzazione esplicita. "
-                f"ID richiesta: '{req.request_id}'."
-            ),
-        }
+        return approval_response(req, f"Modalità Safest attiva: il tool '{tool_name}' richiede la tua autorizzazione esplicita.",
+                                 security_mode="safest")
 
     # 4. MODALITÀ NORMAL (Bilanciata / Predefinita)
     # A. Tool di sola lettura (VIEW) -> Esecuzione trasparente senza interruzione
@@ -694,20 +363,8 @@ def enforce_guardrails(
 
             reason = f"Esecuzione comando di sola lettura/diagnostica ({effective_prefix}): {str(raw_cmd)[:120]}"
             req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
-            return {
-                "approval_required": True,
-                "request_id": req.request_id,
-                "tool_name": tool_name,
-                "arguments": args,
-                "command_preview": req.command_preview,
-                "command_prefix": effective_prefix,
-                "risk_reason": reason,
-                "security_mode": "normal",
-                "message": (
-                    f"Il comando di lettura '{effective_prefix}' richiede conferma. "
-                    f"ID richiesta: '{req.request_id}'."
-                ),
-            }
+            return approval_response(req, f"Il comando di lettura '{effective_prefix}' richiede conferma.",
+                                     security_mode="normal", command_prefix=effective_prefix)
 
         # B.2: Comando Mutating-Write (rm, mkdir, touch, mv, chmod, systemctl restart, apt, ecc.)
         else:
@@ -718,20 +375,8 @@ def enforce_guardrails(
 
             reason = f"Esecuzione comando shell modificante ({effective_prefix}): {str(raw_cmd)[:120]}"
             req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
-            return {
-                "approval_required": True,
-                "request_id": req.request_id,
-                "tool_name": tool_name,
-                "arguments": args,
-                "command_preview": req.command_preview,
-                "command_prefix": effective_prefix,
-                "risk_reason": reason,
-                "security_mode": "normal",
-                "message": (
-                    f"Il comando shell modificante '{effective_prefix}' richiede autorizzazione esplicita. "
-                    f"ID richiesta: '{req.request_id}'."
-                ),
-            }
+            return approval_response(req, f"Il comando shell modificante '{effective_prefix}' richiede autorizzazione esplicita.",
+                                     security_mode="normal", command_prefix=effective_prefix)
 
     # C. Altri tool di mutazione infrastrutturale (create_lxc, stop_container, allocate_ip, ecc.)
     if permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id):
@@ -754,17 +399,5 @@ def enforce_guardrails(
         reason = f"Modifica dello stato dell'infrastruttura tramite {clean_name}"
 
     req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
-    return {
-        "approval_required": True,
-        "request_id": req.request_id,
-        "tool_name": tool_name,
-        "arguments": args,
-        "command_preview": req.command_preview,
-        "command_prefix": req.command_prefix,
-        "risk_reason": reason,
-        "security_mode": "normal",
-        "message": (
-            f"Il tool '{tool_name}' richiede conferma esplicita per ragioni di sicurezza ({reason}). "
-            f"ID richiesta: '{req.request_id}'."
-        ),
-    }
+    return approval_response(req, f"Il tool '{tool_name}' richiede conferma esplicita per ragioni di sicurezza ({reason}).",
+                             security_mode="normal")

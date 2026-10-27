@@ -185,7 +185,7 @@ def is_tool_preapproved(tool_name: str, args: Dict[str, Any], thread_id: Optiona
         if is_tool_level_approved(tool_name, thread_id):
             raw_cmd = args.get("command") or args.get("cmd") or ""
             try:
-                from app.security.guardrails import analyze_shell_command_nature
+                from app.security.policy import analyze_shell_command_nature
                 nature, _, _ = analyze_shell_command_nature(str(raw_cmd))
                 if nature == "safe_read":
                     return True

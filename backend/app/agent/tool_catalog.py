@@ -92,7 +92,7 @@ def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
     if tools:
         for t in tools:
             t["rollback_info"] = get_rollback_info(t.get("name", ""))
-        from app.security.guardrails import enrich_catalog_with_metadata
+        from app.security.policy import enrich_catalog_with_metadata
         tools = enrich_catalog_with_metadata(tools)
         _catalog_cache["data"] = tools
         _catalog_cache["timestamp"] = now
@@ -107,7 +107,7 @@ def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
 
 def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
     """Formatta il catalogo dinamico in modo compatto per il prompt LLM con tag [VIEW] ed [EXECUTE]."""
-    from app.security.guardrails import is_view_tool
+    from app.security.policy import is_view_tool
     lines = []
     for t in tools:
         name = t.get("name", "")

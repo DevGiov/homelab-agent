@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 from app.registry.base import BaseToolRegistry
 from app.registry.firecracker_sandbox import FirecrackerSandbox
-from app.security import guardrails
+from app.security import approvals
 
 logger = logging.getLogger("code_exec_registry")
 
@@ -48,9 +48,9 @@ class CodeExecRegistry(BaseToolRegistry):
 
         # Sandbox non utilizzabile: l'esecuzione nel container backend (accesso a /data, .env, rete)
         # avviene solo con un'approvazione esplicita per questa capability
-        if not guardrails.is_capability_approved(guardrails.LOCAL_CODE_FALLBACK):
-            raise guardrails.ApprovalRequired(
-                guardrails.LOCAL_CODE_FALLBACK,
+        if not approvals.is_capability_approved(approvals.LOCAL_CODE_FALLBACK):
+            raise approvals.ApprovalRequired(
+                approvals.LOCAL_CODE_FALLBACK,
                 f"Sandbox Firecracker non disponibile ({res.get('error')}): il codice verrebbe eseguito "
                 f"senza isolamento nel container del backend",
                 preview=code,

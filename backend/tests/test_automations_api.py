@@ -123,7 +123,7 @@ class TestAutomationsAPI(unittest.TestCase):
         }, db_path=self.db_path)
 
         # Risolvi tramite endpoint delle automazioni
-        with patch("app.security.guardrails.resolve_approval") as mock_resolve:
+        with patch("app.security.approvals.resolve_approval") as mock_resolve:
             mock_resolve.return_value = MagicMock(status="approved")
             res_resolve = self.client.post(
                 "/v1/automations/runs/t_safest/approvals/apr_test_chat_1/resolve",
@@ -195,8 +195,8 @@ class TestAutomationsAPI(unittest.TestCase):
 
     def test_resolve_approval_create_automation_from_template(self):
         """Verifica che la risoluzione di un'approvazione per create_automation_from_template crei l'automazione senza errore di registry."""
-        from app.security import guardrails
-        req = guardrails.ApprovalRequest(
+        from app.security import approvals
+        req = approvals.ApprovalRequest(
             request_id="apr_test_tpl_create",
             tool_name="create_automation_from_template",
             arguments={
@@ -208,7 +208,7 @@ class TestAutomationsAPI(unittest.TestCase):
             thread_id="thread_test_create",
             mode="plan"
         )
-        guardrails._APPROVALS[req.request_id] = req
+        approvals._APPROVALS[req.request_id] = req
 
         res = self.client.post(
             f"/v1/approvals/{req.request_id}/resolve",

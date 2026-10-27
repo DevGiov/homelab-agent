@@ -13,8 +13,7 @@ from app.registry.memory import MemoryRegistry
 from app.registry.metamcp import MetaMCPRegistry
 from app.registry.vision import VisionRegistry
 from app.registry.web_search import WebSearchRegistry
-from app.security import audit_log, guardrails, permissions
-from app.security.guardrails import _APPROVALS
+from app.security import approvals, audit_log, permissions, policy
 
 logger = logging.getLogger("registry_manager")
 
@@ -53,7 +52,7 @@ class ToolRegistryManager:
                      thread_id: Optional[str] = None, mode: Optional[str] = None,
                      security_mode: str = "normal", task: Optional[str] = None,
                      automation_id: Optional[str] = None, run_id: Optional[str] = None,
-                     step_run_id: Optional[str] = None, approved_request: Optional[guardrails.ApprovalRequest] = None) -> Any:
+                     step_run_id: Optional[str] = None, approved_request: Optional[approvals.ApprovalRequest] = None) -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit.
 
         `approved_request`: richiesta già approvata dall'utente. Salta la conferma preventiva (resta il
@@ -71,7 +70,7 @@ class ToolRegistryManager:
             if tool_name in tool_names:
                 # --- Guardrail + Approval workflow (Fase 3.2) ---
                 guard_mode = "dangerous" if approved_request else security_mode
-                guard = guardrails.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=guard_mode, task=task)
+                guard = policy.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=guard_mode, task=task)
                 if guard is not None:
                     if guard.get("blocked"):
                         audit_log.log_tool_call(
@@ -93,13 +92,13 @@ class ToolRegistryManager:
                 logger.info(f"Esecuzione tool '{tool_name}' tramite registry '{reg_name}'")
                 approved_capability = approved_request.command_prefix if approved_request else None
                 try:
-                    result = guardrails.run_with_approved_capability(approved_capability, reg.execute_tool, tool_name, args)
-                except guardrails.ApprovalRequired as needed:
+                    result = approvals.run_with_approved_capability(approved_capability, reg.execute_tool, tool_name, args)
+                except approvals.ApprovalRequired as needed:
                     if self._capability_preapproved(tool_name, needed.capability, thread_id, security_mode, approved_request):
                         logger.info(f"Capability '{needed.capability}' per '{tool_name}' già autorizzata: esecuzione")
-                        result = guardrails.run_with_approved_capability(needed.capability, reg.execute_tool, tool_name, args)
+                        result = approvals.run_with_approved_capability(needed.capability, reg.execute_tool, tool_name, args)
                     else:
-                        guard = guardrails.request_runtime_approval(
+                        guard = approvals.request_runtime_approval(
                             tool_name, args, needed, thread_id=thread_id, mode=mode, task=task
                         )
                         audit_log.log_tool_call(
@@ -127,7 +126,7 @@ class ToolRegistryManager:
 
     @staticmethod
     def _capability_preapproved(tool_name: str, capability: str, thread_id: Optional[str],
-                                security_mode: str, approved_request: Optional[guardrails.ApprovalRequest]) -> bool:
+                                security_mode: str, approved_request: Optional[approvals.ApprovalRequest]) -> bool:
         # Un'approvazione emessa per l'esecuzione normale del tool non vale per la capability runtime
         if approved_request is None and (security_mode or "").lower() in ("dangerous", "bypass-dangerous", "bypass"):
             return True
@@ -135,7 +134,7 @@ class ToolRegistryManager:
 
     def execute_approved_tool(self, request_id: str) -> Dict[str, Any]:
         """Esegue un tool dopo approvazione utente (Fase 3.2)."""
-        req = _APPROVALS.get(request_id) if hasattr(guardrails, "_APPROVALS") else None
+        req = approvals.get_approval_request(request_id)
         if req is None:
             return {"error": f"Richiesta di approvazione '{request_id}' non trovata."}
         if req.status == "denied":

@@ -72,10 +72,10 @@ class TestModesAndRegistries(unittest.TestCase):
 
     def test_execute_approved_tool_includes_automations_and_email(self):
         """Verifica che execute_approved_tool cerchi su tutti i registry registrati (inclusi automations ed email)."""
-        from app.security import guardrails
+        from app.security import approvals
         mgr = get_registry_manager()
 
-        req = guardrails.ApprovalRequest(
+        req = approvals.ApprovalRequest(
             request_id="apr_test_automations_reg",
             tool_name="list_automation_templates",
             arguments={},
@@ -83,7 +83,7 @@ class TestModesAndRegistries(unittest.TestCase):
             mode="plan"
         )
         req.status = "approved"
-        guardrails._APPROVALS[req.request_id] = req
+        approvals._APPROVALS[req.request_id] = req
 
         res = mgr.execute_approved_tool(req.request_id)
         self.assertIsInstance(res, list)

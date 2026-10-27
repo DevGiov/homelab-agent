@@ -27,7 +27,7 @@ from app.core.text_utils import clean_synthesis_content
 from app.llm.providers import LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
-from app.security import guardrails
+from app.security import policy
 
 logger = logging.getLogger("agent_loop")
 
@@ -357,7 +357,7 @@ class AgentLoop:
     def _run_parallel(self, step_id: int, selection: ToolSelection) -> bool:
         """Esegue in parallelo le chiamate read-only proposte; False se non ce ne sono almeno due."""
         calls = [c for c in (selection.parallel_calls or [])
-                 if isinstance(c, dict) and c.get("tool_name") and guardrails.classify_tool(c["tool_name"]) == "safe"]
+                 if isinstance(c, dict) and c.get("tool_name") and policy.classify_tool(c["tool_name"]) == "safe"]
         if len(selection.parallel_calls or []) <= 1 or len(calls) <= 1:
             return False
 
@@ -433,7 +433,7 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
-        if guardrails.classify_tool(tool_name) == "safe":
+        if policy.classify_tool(tool_name) == "safe":
             self.call_cache[cache_key] = res
         return res, False
 

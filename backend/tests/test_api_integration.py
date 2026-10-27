@@ -76,11 +76,11 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
     def test_approvals_flow(self):
-        from app.security import guardrails
-        guardrails._APPROVALS.clear()
+        from app.security import approvals, policy
+        approvals._APPROVALS.clear()
 
         # Crea una richiesta pendente direttamente (simula agent loop)
-        res = guardrails.enforce_guardrails("stop_container", {"vmid": 999}, thread_id="t_api_test")
+        res = policy.enforce_guardrails("stop_container", {"vmid": 999}, thread_id="t_api_test")
         rid = res["request_id"]
 
         # Lista
@@ -106,13 +106,13 @@ class TestApiEndpoints(unittest.TestCase):
         from unittest.mock import patch
 
         from app.memory import thread_store
-        from app.security import guardrails
+        from app.security import approvals
         t_id = "t_synth_unit_test"
         # Inizializza messaggio utente nel thread
         thread_store.save_user_message(t_id, "Elenca i file nella cartella /opt")
 
         # Crea richiesta di approvazione associata al task
-        req = guardrails.create_approval_request(
+        req = approvals.create_approval_request(
             tool_name="exec_lxc_command",
             arguments={"vmid": 125, "command": "ls /opt"},
             thread_id=t_id,
@@ -249,8 +249,8 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
     def test_approval_breaks_loop(self):
         """Override temporaneo del registry metamcp con un fake contenente stop_container."""
-        from app.security import guardrails
-        guardrails._APPROVALS.clear()
+        from app.security import approvals
+        approvals._APPROVALS.clear()
 
         from app.registry.manager import get_registry_manager
         mgr = get_registry_manager()
@@ -295,7 +295,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         self.assertGreaterEqual(len(approval_steps), 1)
         rid = approval_steps[0].get("request_id")
         self.assertIsNotNone(rid)
-        pending_ids = [p["request_id"] for p in guardrails.get_pending_approvals()]
+        pending_ids = [p["request_id"] for p in approvals.get_pending_approvals()]
         self.assertIn(rid, pending_ids)
 
 

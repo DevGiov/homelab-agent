@@ -6,7 +6,7 @@ import pytest
 
 from app.registry.firecracker_sandbox import FirecrackerSandbox
 from app.registry.manager import get_registry_manager
-from app.security import guardrails, permissions
+from app.security import approvals, permissions
 
 TOOL = "python_interpreter"
 
@@ -34,7 +34,7 @@ def _run(code: str, thread_id: str, security_mode: str = "normal", extra_args=No
 
 
 def _approve(request_id: str, action: str = "approve"):
-    assert guardrails.resolve_approval(request_id, action=action).status == "approved"
+    assert approvals.resolve_approval(request_id, action=action).status == "approved"
     return get_registry_manager().execute_approved_tool(request_id)
 
 
@@ -46,7 +46,7 @@ def test_sandbox_down_requires_local_fallback_approval(sandbox_down, thread_id, 
     res = _run(_code_writing(marker), thread_id)
 
     assert res["approval_required"] is True
-    assert res["command_prefix"] == guardrails.LOCAL_CODE_FALLBACK
+    assert res["command_prefix"] == approvals.LOCAL_CODE_FALLBACK
     assert "Sandbox Firecracker non disponibile" in res["risk_reason"]
     assert res["command_preview"] == _code_writing(marker)
     assert not marker.exists()
@@ -76,7 +76,7 @@ def test_sandbox_approval_does_not_unlock_local_execution(sandbox_down, thread_i
     result = _approve(pending["request_id"])
 
     assert result["approval_required"] is True
-    assert result["command_prefix"] == guardrails.LOCAL_CODE_FALLBACK
+    assert result["command_prefix"] == approvals.LOCAL_CODE_FALLBACK
     assert not marker.exists()
 
 
@@ -104,7 +104,7 @@ def test_local_fallback_grant_is_scoped_to_its_thread(sandbox_down, thread_id, t
         permissions.revoke_thread_permissions(other_thread)
 
     assert res["approval_required"] is True
-    assert res["command_prefix"] == guardrails.LOCAL_CODE_FALLBACK
+    assert res["command_prefix"] == approvals.LOCAL_CODE_FALLBACK
 
 
 def test_llm_cannot_self_approve_with_arguments(sandbox_down, thread_id, tmp_path):
@@ -113,7 +113,7 @@ def test_llm_cannot_self_approve_with_arguments(sandbox_down, thread_id, tmp_pat
 
     res = _run(
         _code_writing(marker), thread_id,
-        extra_args={"confirm": True, "approved": True, "capability": guardrails.LOCAL_CODE_FALLBACK},
+        extra_args={"confirm": True, "approved": True, "capability": approvals.LOCAL_CODE_FALLBACK},
     )
 
     assert res["approval_required"] is True
@@ -156,7 +156,7 @@ def test_resolve_endpoint_surfaces_local_fallback_as_new_approval(sandbox_down, 
 
     step = first["execution_trace"][0]
     assert step["approval_required"] is True
-    assert step["command_prefix"] == guardrails.LOCAL_CODE_FALLBACK
+    assert step["command_prefix"] == approvals.LOCAL_CODE_FALLBACK
     assert not marker.exists()
 
     with patch("app.api.routes.approvals.call_llm", return_value={"content": "Codice eseguito fuori sandbox."}):

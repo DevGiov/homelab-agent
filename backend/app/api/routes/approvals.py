@@ -24,8 +24,8 @@ router = APIRouter(tags=["approvals"])
 @router.get("/v1/approvals", dependencies=[Depends(verify_api_key)])
 async def list_approvals(thread_id: Optional[str] = None):
     """Elenca le richieste di approvazione tool pendenti."""
-    from app.security import guardrails
-    return {"pending": guardrails.get_pending_approvals(thread_id=thread_id)}
+    from app.security import approvals
+    return {"pending": approvals.get_pending_approvals(thread_id=thread_id)}
 
 @router.post("/v1/approvals/{request_id}/resolve", dependencies=[Depends(verify_api_key)])
 async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRequest):
@@ -37,10 +37,10 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
     - 'approve_always': autorizza in modo permanente (tabella tool_permissions)
     """
     from app.registry.manager import get_registry_manager
-    from app.security import guardrails
+    from app.security import approvals
 
     action = req_body.action.lower().strip()
-    req = guardrails.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
+    req = approvals.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
     if req is None:
         raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
     if req.status == "expired":

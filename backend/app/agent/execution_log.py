@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from app.agent import llm_calls
 from app.agent.tool_catalog import get_rollback_info, get_tool_catalog
 from app.mcp.client import get_mcp_client
-from app.security import guardrails
+from app.security import policy
 
 logger = logging.getLogger("graph")
 
@@ -253,7 +253,7 @@ def execute_plan(
         execution_log.append(log_entry)
 
         # Verifica guardrail di sicurezza e autorizzazioni
-        guard = guardrails.enforce_guardrails(
+        guard = policy.enforce_guardrails(
             tool_name,
             resolved_args,
             thread_id=thread_id,
