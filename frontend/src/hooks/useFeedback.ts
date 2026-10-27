@@ -16,5 +16,10 @@ export function useFeedback() {
     timer.current = setTimeout(() => setFeedback(null), 4000);
   }, []);
 
-  return { feedback, notify };
+  const clear = useCallback(() => {
+    clearTimeout(timer.current);
+    setFeedback(null);
+  }, []);
+
+  return { feedback, notify, clear };
 }

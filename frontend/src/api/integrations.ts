@@ -1,5 +1,11 @@
 import { http } from './http';
 
+/**
+ * Valore con cui il backend maschera i segreti salvati. Rimandato invariato in un salvataggio,
+ * il backend conserva il segreto esistente invece di sovrascriverlo.
+ */
+export const MASKED_SECRET = '••••••••';
+
 export interface ServiceIntegration {
   id: string;
   service_type: 'email' | 'github' | 'home_assistant' | 'generic_secret' | string;

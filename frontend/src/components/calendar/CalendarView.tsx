@@ -5,7 +5,7 @@ import { useCalendarData } from '../../hooks/useCalendarData';
 import { useCalendarNavigation } from '../../hooks/useCalendarNavigation';
 import { groupByDate, toMonthKey } from '../../utils/calendarDates';
 import { AgendaView } from './AgendaView';
-import { CalendarManageModal } from './CalendarManageModal';
+import { CalendarManageModal } from './manage/CalendarManageModal';
 import { CalendarSidebar } from './CalendarSidebar';
 import { CalendarToolbar } from './CalendarToolbar';
 import { EventModal } from './EventModal';
@@ -144,12 +144,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
         defaultDate={editor?.date}
       />
 
-      <CalendarManageModal
-        isOpen={isManageOpen}
-        onClose={() => setIsManageOpen(false)}
-        calendars={data.calendars}
-        onCalendarsUpdated={data.reload}
-      />
+      {isManageOpen && (
+        <CalendarManageModal calendars={data.calendars} onClose={() => setIsManageOpen(false)} onCalendarsUpdated={data.reload} />
+      )}
     </div>
   );
 };

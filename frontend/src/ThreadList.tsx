@@ -16,7 +16,7 @@ import {
 import { LazyBoundary } from './components/LazyBoundary';
 
 const SettingsModal = lazy(() =>
-  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })),
+  import('./components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal })),
 );
 
 interface ThreadListProps {

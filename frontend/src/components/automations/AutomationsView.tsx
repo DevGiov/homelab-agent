@@ -8,16 +8,16 @@ import { useRunActions } from '../../hooks/useRunActions';
 import { formatApiError } from '../../utils/error';
 import { FeedbackToast } from '../FeedbackToast';
 import { ApprovalsTab } from './ApprovalsTab';
-import { ArtifactsView } from './ArtifactsView';
+import { ArtifactsView } from './artifacts/ArtifactsView';
 import { AutomationCard, type AutomationActions } from './AutomationCard';
 import { AutomationsHeader } from './AutomationsHeader';
-import { EditAutomationModal } from './EditAutomationModal';
-import { IntegrationsTab } from './IntegrationsTab';
+import { EditAutomationModal } from './edit/EditAutomationModal';
+import { IntegrationsTab } from './integrations/IntegrationsTab';
 import { ParametersModal } from './ParametersModal';
 import { RunInspectorModal } from './RunInspectorModal';
 import { RunsTab } from './RunsTab';
 import { TemplatesTab } from './TemplatesTab';
-import { TriggerEditorModal } from './TriggerEditorModal';
+import { TriggerEditorModal } from './triggers/TriggerEditorModal';
 
 type Tab = 'automations' | 'artifacts' | 'runs' | 'approvals' | 'templates' | 'integrations';
 
@@ -224,7 +224,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           automation={editTarget}
           onClose={() => setEditTarget(null)}
           onSuccess={data.reload}
-          onFeedback={(type, msg) => notify(type === 'error' ? 'error' : 'success', msg)}
+          onFeedback={notify}
         />
       )}
 
