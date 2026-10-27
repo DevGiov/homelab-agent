@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, WithJsonSchema, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
 try:
@@ -15,7 +15,12 @@ class ToolSelection(BaseModel):
     """Output strutturato che l'LLM deve produrre per selezionare un tool o rispondere."""
     tool_needed: bool = Field(description="True se serve chiamare un tool, False se si può rispondere direttamente o se l'azione è completata")
     tool_name: Optional[str] = Field(default=None, description="Nome esatto del tool dal catalogo, o null se tool_needed=False")
-    arguments: Dict[str, Any] = Field(default_factory=dict, description="Argomenti per il tool, secondo il suo schema")
+    # Nello schema anche null: è come i modelli esprimono "nessun argomento", e con la grammatica che vieta null
+    # LFM2.5 inventava chiavi fittizie ({"niente": null}) che poi fallivano la validazione
+    arguments: Annotated[Dict[str, Any], WithJsonSchema({
+        "anyOf": [{"type": "object"}, {"type": "null"}],
+        "description": "Argomenti per il tool, secondo il suo schema (null se non ne ha)",
+    })] = Field(default_factory=dict)
     parallel_calls: Optional[List[Dict[str, Any]]] = Field(
         default=None,
         description="Fase 3.3: lista di {tool_name, arguments} per chiamate read-only indipendenti da eseguire in parallelo. Usare SOLO per tool di sola lettura."

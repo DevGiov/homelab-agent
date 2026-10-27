@@ -187,6 +187,7 @@ def test_structured_call_constrains_output_to_the_full_schema():
         call_llm_structured("prompt", "sys", ToolSelection)
     schema = provider.chat.call_args.kwargs["json_schema"]
     assert "raw_thinking" not in schema["properties"]
+    assert {"type": "null"} in schema["properties"]["arguments"]["anyOf"]
     assert schema["required"] == list(schema["properties"])
 
 
