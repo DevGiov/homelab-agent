@@ -27,7 +27,7 @@ env/
 *.sqlite
 *.sqlite3
 checkpoints.db*
-memory/
+/memory/
 
 # Logs
 *.log
