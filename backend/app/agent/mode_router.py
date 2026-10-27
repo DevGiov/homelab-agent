@@ -5,15 +5,9 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-import requests
+from app.llm.providers import get_provider
 
-from app.core import config
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("router")
-
-LLAMA_CPP_URL = config.LLAMA_CPP_URL.rstrip('/')
-DEFAULT_MODEL = config.DEFAULT_MODEL
 
 _capabilities_cache: Dict[str, Any] = {"summary": "", "timestamp": 0}
 CAPABILITIES_CACHE_TTL = 180  # 3 minuti di cache TTL per MetaMCP tools
@@ -186,10 +180,8 @@ def route_turn(
         mode = "ask" if not force_mode else force_mode.lower()
         return RouteDecision(mode=mode, web_search_needed=False, reasoning="Deterministic conceptual query")
 
-    # 5. Modello attivo & Capabilities dinamiche
-    from app.llm import providers
+    # 5. Classificazione via LLM con le capabilities dinamiche
     capabilities_str = get_dynamic_capabilities_summary()
-    effective_model = model or providers.get_active_model_name() or DEFAULT_MODEL
 
     extra_instructions = []
     if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
@@ -239,83 +231,42 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     context_parts.append(f"User Request: '{user_input}'")
     user_prompt = "\n\n".join(context_parts)
 
-    url = f"{LLAMA_CPP_URL}/chat/completions"
-    payload = {
-        "model": effective_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.0,
-        "max_tokens": 120,
-        "chat_template_kwargs": {"enable_thinking": False},
-        "response_format": {"type": "json_object"}
-    }
+    parsed = _ask_router_model(system_prompt, user_prompt, model)
+    if parsed is not None:
+        mode = str(parsed.get("mode", "")).lower().strip()
+        if mode not in ["chat", "ask", "act", "plan"]:
+            mode = "act" if previous_mode == "act" else "chat"
 
-    try:
-        from app.llm.providers import get_provider
-        get_provider().ensure_model_loaded(effective_model)
-    except Exception as e:
-        logger.warning(f"[Router] ensure_model_loaded check failed: {e}")
+        web_search_needed = bool(parsed.get("web_search_needed", False))
+        web_search_query = parsed.get("web_search_query")
+        if web_search_query and isinstance(web_search_query, str):
+            web_search_query = web_search_query.strip()
+            if web_search_query.lower() in ["null", "none", ""]:
+                web_search_query = None
 
-    try:
-        res = requests.post(url, json=payload, timeout=60)
-        if res.status_code == 200:
-            msg_obj = res.json()["choices"][0]["message"]
-            raw_content = (msg_obj.get("content") or "").strip()
-            # Pulisci eventuali tag think o markdown
-            clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-            clean_json = re.sub(r'```(?:json)?', '', clean_content).strip()
+        # Overrides
+        if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
+            mode = force_mode.lower()
+        if explicit_plan and not force_mode:
+            mode = "plan"
 
-            parsed = {}
-            try:
-                json_match = re.search(r'\{.*\}', clean_json, flags=re.DOTALL)
-                if json_match:
-                    parsed = json.loads(json_match.group(0))
-                else:
-                    parsed = json.loads(clean_json)
-            except Exception:
-                mode_match = re.search(r'\b(chat|ask|act|plan)\b', clean_content.lower())
-                if mode_match:
-                    parsed = {"mode": mode_match.group(1), "web_search_needed": (mode_match.group(1) == "ask")}
+        if web_search_override is False or web_search_override == "off":
+            web_search_needed = False
+        elif web_search_override is True or web_search_override == "on":
+            web_search_needed = True
+            if not web_search_query:
+                web_search_query = user_input
 
-            mode = str(parsed.get("mode", "")).lower().strip()
-            if mode not in ["chat", "ask", "act", "plan"]:
-                mode = "act" if previous_mode == "act" else "chat"
+        decision = RouteDecision(
+            mode=mode,
+            web_search_needed=web_search_needed,
+            web_search_query=web_search_query,
+            reasoning=parsed.get("reasoning")
+        )
+        logger.info(f"Model router decision: mode={decision.mode}, web_search={decision.web_search_needed}, query='{decision.web_search_query}' (reason: {decision.reasoning}) for '{user_input[:50]}'")
+        return decision
 
-            web_search_needed = bool(parsed.get("web_search_needed", False))
-            web_search_query = parsed.get("web_search_query")
-            if web_search_query and isinstance(web_search_query, str):
-                web_search_query = web_search_query.strip()
-                if web_search_query.lower() in ["null", "none", ""]:
-                    web_search_query = None
-
-            # Overrides
-            if force_mode and force_mode.lower() in ["chat", "ask", "act", "plan"]:
-                mode = force_mode.lower()
-            if explicit_plan and not force_mode:
-                mode = "plan"
-
-            if web_search_override is False or web_search_override == "off":
-                web_search_needed = False
-            elif web_search_override is True or web_search_override == "on":
-                web_search_needed = True
-                if not web_search_query:
-                    web_search_query = user_input
-
-            decision = RouteDecision(
-                mode=mode,
-                web_search_needed=web_search_needed,
-                web_search_query=web_search_query,
-                reasoning=parsed.get("reasoning")
-            )
-            logger.info(f"Model router decision: mode={decision.mode}, web_search={decision.web_search_needed}, query='{decision.web_search_query}' (reason: {decision.reasoning}) for '{user_input[:50]}'")
-            return decision
-
-    except Exception as e:
-        logger.warning(f"Chiamata LLM router fallita o timeout ({e}). Applicazione fallback semantico resiliente.")
-
-    # 5. Fallback semantico resiliente (se llama.cpp offline/timeout)
+    # 6. Fallback semantico resiliente (LLM offline, timeout o risposta vuota)
     # Parole intere: "ct"/"vm" come sottostringhe catturerebbero "project", "select", ...
     local_infra = re.search(r"\b(container|ct|lxc|vm|proxmox|evento|calendario|automazione)\b", input_lower) is not None
     fallback_mode = "chat"
@@ -345,23 +296,29 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     )
 
 
-def classify_mode(
-    user_input: str,
-    force_mode: Optional[str] = None,
-    model: Optional[str] = None,
-    has_images: bool = False,
-    conversation_context: Optional[str] = None,
-    previous_mode: Optional[str] = None,
-    last_tool_used: Optional[str] = None,
-) -> str:
-    """Wrapper di retrocompatibilità che restituisce solo la stringa della modalità."""
-    decision = route_turn(
-        user_input=user_input,
-        previous_mode=previous_mode,
-        last_tool_used=last_tool_used,
-        conversation_context=conversation_context,
-        force_mode=force_mode,
+def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Classificazione via provider LLM attivo (JSON mode, senza thinking). None se il modello non risponde."""
+    res = get_provider().chat(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         model=model,
-        has_images=has_images
+        max_tokens=120,
+        temperature=0.0,
+        reasoning_budget=0,
+        json_mode=True,
     )
-    return decision.mode
+    raw_content = (res.get("content") or "").strip()
+    if not raw_content:
+        logger.warning("Router LLM senza risposta (offline, timeout o output vuoto): uso il fallback deterministico")
+        return None
+
+    # Pulisci eventuali tag think o markdown
+    clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+    clean_json = re.sub(r'```(?:json)?', '', clean_content).strip()
+    try:
+        json_match = re.search(r'\{.*\}', clean_json, flags=re.DOTALL)
+        return json.loads(json_match.group(0) if json_match else clean_json)
+    except Exception:
+        mode_match = re.search(r'\b(chat|ask|act|plan)\b', clean_content.lower())
+        if mode_match:
+            return {"mode": mode_match.group(1), "web_search_needed": (mode_match.group(1) == "ask")}
+        return {}

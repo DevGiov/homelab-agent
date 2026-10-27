@@ -26,7 +26,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-20](#iss-20) | Fallback del router: "ct"/"vm" cercati come sottostringhe | S3 | backend/router | ✅ Risolto (`0021414`) |
 | [ISS-21](#iss-21) | Risoluzione template non deterministica (template sbagliato creato) | S1 | backend/automations | ✅ Risolto (`0021414`) |
 | [ISS-22](#iss-22) | Modello di embedding scaricato a runtime da HuggingFace | S2 | deploy | ✅ Risolto (`16eae3a`) |
-| [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | Aperto |
+| [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | ✅ Risolto in B8 |
+| [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | Aperto |
 
 ---
 
@@ -200,7 +201,16 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - fastembed scaricava ~240 MB al primo uso dopo ogni ricreazione del container: la memoria semantica dipendeva dalla raggiungibilità di HuggingFace. Ora il modello è incluso nell'immagine (`FASTEMBED_CACHE_PATH=/opt/fastembed`); un test verifica che Dockerfile e `vector_store.EMBEDDING_MODEL` coincidano.
 
 ## ISS-23
-**Il router chiama l'LLM con `requests` diretto, scavalcando i provider** — S3 · Aperto
+**Il router chiama l'LLM con `requests` diretto, scavalcando i provider** — S3 · ✅ Risolto in B8
 
 - `route_turn` ([router.py](../../backend/app/agent/mode_router.py)) costruisce il payload e chiama `config.LLAMA_CPP_URL` con `requests.post`, ignorando il provider attivo (Ollama, provider di default scelto in UI) e le sue opzioni. Usa il provider solo per `ensure_model_loaded`.
 - Da allineare in Fase B: il router deve passare da `providers.get_provider().chat(...)`.
+- **Fix (B8, 2026-10-27)**: `route_turn` chiama `get_provider().chat(..., reasoning_budget=0, json_mode=True)`. `json_mode` è nuovo nell'interfaccia dei provider (`response_format` per llama.cpp, `format: json` per Ollama). Il router segue il provider e il modello attivi; il caricamento del modello lo gestisce il provider. Una risposta vuota (LLM offline o timeout) porta al fallback deterministico. Prima una risposta vuota sarebbe diventata "chat" senza passare dal fallback. Rimossi anche `classify_mode` (wrapper di retrocompatibilità) e il doppione di `is_purely_visual_request` in `web_prefetch`.
+
+## ISS-24
+**Letta non in esecuzione su CT 102** — S2 · Aperto (rilevato il 2026-10-27, da indagare)
+
+- `/v1/status` risponde `degraded`: `http://192.168.1.177:8083` non risponde. CT 102 (`memory-services`) è acceso, ma nessun processo ascolta su 8083 e non gira nessun container Docker.
+- Impatto: [letta_client.py](../../backend/app/memory/letta_client.py) fallisce in modo silenzioso. La cronologia ripiega sulla trascrizione JSONL ([transcript.py](../../backend/app/memory/transcript.py)), ma la memoria archivistica Letta (fatti salienti, summary incrementali) non viene salvata e `commit_memory` non scrive nulla. Il recall semantico cross-thread usa sqlite-vec e non ne risente.
+- Da decidere: ripristinare Letta su CT 102 oppure toglierlo e affidare summary e fatti a sqlite-vec, eliminando una dipendenza esterna.
+

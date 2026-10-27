@@ -37,8 +37,12 @@ class LLMProvider(ABC):
         temperature: float = 0.3,
         reasoning_budget: int = -1,
         stream_callback: Optional[StreamCallback] = None,
+        json_mode: bool = False,
     ) -> Dict[str, str]:
-        """Esegue una chat completion. Ritorna {'content', 'reasoning_content'}."""
+        """Esegue una chat completion. Ritorna {'content', 'reasoning_content'}; contenuto vuoto se il modello non risponde.
+
+        json_mode chiede al server un output JSON valido (response_format / format=json).
+        """
         ...
 
     @abstractmethod
@@ -112,7 +116,7 @@ class OpenAICompatProvider(LLMProvider):
         self.name = name
         self.timeout = timeout
 
-    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, stream) -> dict:
+    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, stream, json_mode=False) -> dict:
         effective_model = model or self.default_model
         enable_thinking = (reasoning_budget != 0) and _supports_reasoning(effective_model)
         payload = {
@@ -136,6 +140,8 @@ class OpenAICompatProvider(LLMProvider):
                 payload["reasoning_budget_tokens"] = reasoning_budget
         else:
             payload["chat_template_kwargs"] = {"enable_thinking": False}
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
         if stream:
             payload["stream"] = True
             payload["stream_options"] = {"include_usage": True}
@@ -200,12 +206,12 @@ class OpenAICompatProvider(LLMProvider):
         return False
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None) -> Dict[str, Any]:
+             reasoning_budget=-1, stream_callback=None, json_mode=False) -> Dict[str, Any]:
         effective_model = model or self.default_model
         self.ensure_model_loaded(effective_model)
 
         url = f"{self.base_url}/chat/completions"
-        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, stream=bool(stream_callback))
+        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, stream=bool(stream_callback), json_mode=json_mode)
 
         sess = current_session_var.get()
         if sess and sess.is_stopped():
@@ -419,7 +425,7 @@ class OllamaProvider(LLMProvider):
         self.timeout = timeout
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None) -> Dict[str, str]:
+             reasoning_budget=-1, stream_callback=None, json_mode=False) -> Dict[str, str]:
         url = f"{self.base_url}/api/chat"
         # Convert multimodal OpenAI blocks to Ollama format if necessary
         ollama_messages = []
@@ -449,6 +455,8 @@ class OllamaProvider(LLMProvider):
             "stream": bool(stream_callback),
             "options": {"num_predict": max_tokens, "temperature": temperature},
         }
+        if json_mode:
+            payload["format"] = "json"
         try:
             if stream_callback:
                 content_acc, reasoning_acc = "", ""

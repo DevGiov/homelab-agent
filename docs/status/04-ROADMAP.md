@@ -31,7 +31,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | B2 | ~~Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato~~ ✅ 2026-10-27 (in più: `state.py`, `llm_calls.py`, `memory/transcript.py`) | ISS-09 |
 | B3 | ~~Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts)~~ ✅ 2026-10-27 (in più: `breaker_states`, `integrations`; rimossi la migrazione `_ensure_v2_columns` e gli alias `*_automation`) | ISS-09 |
 | B4 | ~~Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione~~ ✅ 2026-10-27 (Streamable HTTP; rimossi anche il fallback OpenAPI del catalogo e `METAMCP_URL_HTTP`) | ISS-10 |
-| B8 | Router via provider astratto invece di `requests` diretto | ISS-23 |
+| B8 | ~~Router via provider astratto invece di `requests` diretto~~ ✅ 2026-10-27 (`json_mode` nei provider; rimossi `classify_mode` e il doppione di `is_purely_visual_request`) | ISS-23 |
 | B9 | ~~Decisione e fix sul fallback non isolato della sandbox codice~~ ✅ 2026-10-26 (fallback previa approvazione) | ISS-18 |
 | B5 | `config.py` solo Pydantic Settings, eliminate le costanti di retrocompatibilità | ISS-10 |
 | B6 | Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry | ISS-03 |

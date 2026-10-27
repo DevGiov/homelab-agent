@@ -222,23 +222,23 @@ class TestMetaMCPPrefixAndRouter(unittest.TestCase):
         """Infrastructure and confirmation queries must be classified as mode=act."""
         from app.agent import mode_router as router
         # Container information queries
-        m1 = router.classify_mode("Dammi informazioni sul container immich")
-        self.assertEqual(m1, "act")
+        m1 = router.route_turn("Dammi informazioni sul container immich")
+        self.assertEqual(m1.mode, "act")
 
         # Container list query
-        m2 = router.classify_mode("Mostrami i container attivi")
-        self.assertEqual(m2, "act")
+        m2 = router.route_turn("Mostrami i container attivi")
+        self.assertEqual(m2.mode, "act")
 
         # Cloning query
-        m3 = router.classify_mode("Clona il template base e nominalo test")
-        self.assertEqual(m3, "act")
+        m3 = router.route_turn("Clona il template base e nominalo test")
+        self.assertEqual(m3.mode, "act")
 
         # Confirmation turn with previous context
-        m4 = router.classify_mode(
+        m4 = router.route_turn(
             "Procedi con base",
             conversation_context="Assistant: Vuoi procedere con il template base per il nuovo container LXC?"
         )
-        self.assertEqual(m4, "act")
+        self.assertEqual(m4.mode, "act")
 
 
 class TestSecurityModesAndContentAwareGuardrails(unittest.TestCase):

@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from app.agent.stream_session import StreamSession
-from app.llm.providers import OpenAICompatProvider
+from app.llm.providers import OllamaProvider, OpenAICompatProvider
 from app.memory import thread_store
 
 
@@ -168,3 +168,24 @@ def test_ensure_model_loaded_waits_until_model_is_loaded():
          patch.object(provider, "load_model", return_value={"status": "ok", "detail": {}}), \
          patch("app.llm.providers.time.sleep"):
         assert provider.ensure_model_loaded("m1", timeout=180.0) is True
+
+
+def test_json_mode_requests_json_output_from_each_provider():
+    reply = MagicMock(status_code=200)
+    reply.json.return_value = {"choices": [{"message": {"content": "{}"}}], "message": {"content": "{}"}}
+
+    openai = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+    with patch.object(openai, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.post", return_value=reply) as post:
+        openai.chat([{"role": "user", "content": "hi"}], json_mode=True)
+    assert post.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}
+
+    ollama = OllamaProvider("http://localhost:11434", default_model="m")
+    with patch("httpx.Client.post", return_value=reply) as post:
+        ollama.chat([{"role": "user", "content": "hi"}], json_mode=True)
+    assert post.call_args.kwargs["json"]["format"] == "json"
+
+    with patch.object(openai, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.post", return_value=reply) as post:
+        openai.chat([{"role": "user", "content": "hi"}])
+    assert "response_format" not in post.call_args.kwargs["json"]

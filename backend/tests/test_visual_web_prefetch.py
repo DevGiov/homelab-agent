@@ -3,11 +3,8 @@
 import unittest
 from unittest.mock import patch
 
-from app.agent.nodes.web_prefetch import (
-    formulate_visual_search_query,
-    is_purely_visual_request,
-    web_prefetch_node,
-)
+from app.agent.mode_router import is_purely_visual_request
+from app.agent.nodes.web_prefetch import formulate_visual_search_query, web_prefetch_node
 
 
 class TestVisualWebPrefetch(unittest.TestCase):

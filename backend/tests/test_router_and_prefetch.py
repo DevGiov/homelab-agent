@@ -64,20 +64,13 @@ class TestRouterAndPrefetch(unittest.TestCase):
         ]
         # Con chiamata LLM mockata che rispetta la continuity
         mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": json.dumps({
-                        "mode": "act",
-                        "web_search_needed": False,
-                        "web_search_query": None,
-                        "reasoning": "Follow up in active action thread"
-                    })
-                }
-            }]
-        }
-        with patch("requests.post", return_value=mock_response):
+        mock_response.chat.return_value = {"content": json.dumps({
+            "mode": "act",
+            "web_search_needed": False,
+            "web_search_query": None,
+            "reasoning": "Follow up in active action thread"
+        })}
+        with patch("app.agent.mode_router.get_provider", return_value=mock_response):
             for q in follow_ups:
                 decision = route_turn(
                     user_input=q,
@@ -91,15 +84,8 @@ class TestRouterAndPrefetch(unittest.TestCase):
         """Verifica la resilienza del parser a tag think, markdown fences e risposte complesse."""
         # 1. Risposta con tag <think> e json fence
         mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "<think>Let's ponder: this is external question.</think>\n```json\n{\"mode\": \"ask\", \"web_search_needed\": true, \"web_search_query\": \"DLSS 5 features and release\", \"reasoning\": \"Hardware release inquiry\"}\n```"
-                }
-            }]
-        }
-        with patch("requests.post", return_value=mock_response):
+        mock_response.chat.return_value = {"content": "<think>Let's ponder: this is external question.</think>\n```json\n{\"mode\": \"ask\", \"web_search_needed\": true, \"web_search_query\": \"DLSS 5 features and release\", \"reasoning\": \"Hardware release inquiry\"}\n```"}
+        with patch("app.agent.mode_router.get_provider", return_value=mock_response):
             decision = route_turn("Parlami del DLSS 5")
             self.assertEqual(decision.mode, "ask")
             self.assertTrue(decision.web_search_needed)
@@ -107,15 +93,8 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
         # 2. Risposta raw non-JSON con think tag (fallback parsing resiliente)
         mock_raw = MagicMock()
-        mock_raw.status_code = 200
-        mock_raw.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "<think>Thinking about options: chat, ask, act, plan.</think> act"
-                }
-            }]
-        }
-        with patch("requests.post", return_value=mock_raw):
+        mock_raw.chat.return_value = {"content": "<think>Thinking about options: chat, ask, act, plan.</think> act"}
+        with patch("app.agent.mode_router.get_provider", return_value=mock_raw):
             decision = route_turn("qualcosa di anomalo 123")
             self.assertEqual(decision.mode, "act")
 
@@ -130,7 +109,8 @@ class TestRouterAndPrefetch(unittest.TestCase):
             ("cerca un container immich aggiornato", None, "act", False),
             ("crea un piano per migrare il database", None, "plan", False),
         ]
-        with patch("app.agent.mode_router.requests.post", side_effect=ConnectionError("LLM offline")):
+        with patch("app.agent.mode_router.get_provider") as get_provider:
+            get_provider.return_value.chat.return_value = {"content": "", "reasoning_content": ""}
             for query, previous_mode, expected_mode, expected_web in cases:
                 decision = route_turn(query, previous_mode=previous_mode)
                 self.assertEqual(decision.mode, expected_mode, f"mode per '{query}'")
@@ -159,20 +139,13 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
         # 3. External questions with mocked model -> True
         mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": json.dumps({
-                        "mode": "ask",
-                        "web_search_needed": True,
-                        "web_search_query": "Claude 3.7 vs GPT-5 benchmarks",
-                        "reasoning": "Comparison of external models"
-                    })
-                }
-            }]
-        }
-        with patch("requests.post", return_value=mock_response):
+        mock_response.chat.return_value = {"content": json.dumps({
+            "mode": "ask",
+            "web_search_needed": True,
+            "web_search_query": "Claude 3.7 vs GPT-5 benchmarks",
+            "reasoning": "Comparison of external models"
+        })}
+        with patch("app.agent.mode_router.get_provider", return_value=mock_response):
             self.assertTrue(should_prefetch_web("Confronta Claude e GPT-5"))
 
     def test_web_prefetch_node_modes(self):
@@ -237,30 +210,28 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
     def test_route_turn_fast_shortcut_when_force_mode_and_web_off(self):
         """Verifica che force_mode con web_search='off' ritorni istantaneamente senza chiamare l'LLM."""
-        with patch("requests.post") as mock_post:
+        with patch("app.agent.mode_router.get_provider") as get_provider:
             decision = route_turn("Spiegami la fisica quantistica", force_mode="chat", web_search_override="off")
             self.assertEqual(decision.mode, "chat")
             self.assertFalse(decision.web_search_needed)
             self.assertIsNone(decision.web_search_query)
-            mock_post.assert_not_called()
 
             decision_act = route_turn("Qualunque cosa", force_mode="act", web_search_override=False)
             self.assertEqual(decision_act.mode, "act")
             self.assertFalse(decision_act.web_search_needed)
-            mock_post.assert_not_called()
+            get_provider.assert_not_called()
 
     def test_route_turn_passes_selected_model(self):
         """Verifica che route_turn invii il modello specificato alla chiamata LLM."""
-        mock_res = MagicMock()
-        mock_res.status_code = 200
-        mock_res.json.return_value = {
-            "choices": [{"message": {"content": json.dumps({"mode": "ask", "web_search_needed": True, "web_search_query": "test query"})}}]
-        }
-        with patch("requests.post", return_value=mock_res) as mock_post:
+        provider = MagicMock()
+        provider.chat.return_value = {"content": json.dumps({"mode": "ask", "web_search_needed": True, "web_search_query": "test query"})}
+        with patch("app.agent.mode_router.get_provider", return_value=provider):
             route_turn("Spiegami il rendering raster", model="Gemma-4-26B-Q3")
-            mock_post.assert_called_once()
-            called_payload = mock_post.call_args[1]["json"]
-            self.assertEqual(called_payload["model"], "Gemma-4-26B-Q3")
+        provider.chat.assert_called_once()
+        kwargs = provider.chat.call_args.kwargs
+        self.assertEqual(kwargs["model"], "Gemma-4-26B-Q3")
+        self.assertTrue(kwargs["json_mode"])
+        self.assertEqual(kwargs["reasoning_budget"], 0)
 
     def test_title_generation_uses_specified_model(self):
         """Verifica che generate_and_save_title passi il modello selezionato a provider.chat."""

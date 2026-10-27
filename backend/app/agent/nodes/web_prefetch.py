@@ -9,32 +9,6 @@ from app.agent.state import AgentState
 logger = logging.getLogger("graph")
 
 
-def is_purely_visual_request(task: str) -> bool:
-    """Rileva se una richiesta con immagini è puramente percettiva/descrittiva senza intento di ricerca esterna."""
-    if not task or not task.strip():
-        return True
-    task_lower = task.lower().strip()
-
-    # Se ci sono parole chiave che richiedono informazioni esterne, prezzi o dati attuali
-    external_keywords = [
-        "cerca", "search", "trova", "prezzo", "prezzi", "costo", "costi", "quanto costa",
-        "dove comprare", "comprare", "acquistare", "vendita", "negozi", "store",
-        "notizie", "news", "recensioni", "review", "scheda tecnica", "specifiche",
-        "manuale", "firmware", "driver", "pinout", "compatibile", "compatibilità",
-        "disponibilità", "mercato", "aggiornamenti", "online", "internet", "web", "google"
-    ]
-    if any(kw in task_lower for kw in external_keywords):
-        return False
-
-    # Se invece chiede solo di descrivere o guardare l'immagine
-    visual_keywords = [
-        "cosa vedi", "descrivi", "cosa c'è", "spiega l'immagine", "guarda questa",
-        "analizza l'immagine", "analizza e descrivi", "cosa rappresenta", "leggi il testo",
-        "trascrivi", "chi c'è", "che colore", "dov'è"
-    ]
-    return any(kw in task_lower for kw in visual_keywords)
-
-
 def formulate_visual_search_query(task: str, images: List[str], model: Optional[str] = None) -> str:
     """
     Executes a fast and silent vision micro-pass (without SSE streaming) to extract
@@ -114,7 +88,7 @@ def web_prefetch_node(state: AgentState) -> AgentState:
 
     # Mode evaluation: 'on' | True -> always prefetch (unless purely visual)
     elif web_search_val is True or web_search_val == "on":
-        if images and len(images) > 0 and is_purely_visual_request(task):
+        if images and len(images) > 0 and router.is_purely_visual_request(task):
             logger.info(f"Purely visual request: skipping web prefetch [ON] for '{task}'")
             return state
         effective_query = route_decision.get("web_search_query") or task
