@@ -305,11 +305,11 @@ class TestAgentLoopWebSearchGuard(unittest.TestCase):
         )
 
         self.assertEqual(res["final_response"], "Risposta finale basata sui dati.")
-        second_call_sys_prompt = mock_structured.call_args_list[1][1]["system_prompt"]
-        self.assertIn(GUARD_OPEN, second_call_sys_prompt)
-        self.assertIn(GUARD_CLOSE, second_call_sys_prompt)
-        self.assertNotIn(f"Hostile search data {GUARD_CLOSE}", second_call_sys_prompt)
-        self.assertIn("<<<_END_UNTRUSTED_DATA>>>", second_call_sys_prompt)
+        second_call_prompt = mock_structured.call_args_list[1][1]["prompt"]
+        self.assertIn(GUARD_OPEN, second_call_prompt)
+        self.assertIn(GUARD_CLOSE, second_call_prompt)
+        self.assertNotIn(f"Hostile search data {GUARD_CLOSE}", second_call_prompt)
+        self.assertIn("<<<_END_UNTRUSTED_DATA>>>", second_call_prompt)
 
 
 if __name__ == "__main__":

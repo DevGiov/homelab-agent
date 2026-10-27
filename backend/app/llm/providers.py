@@ -20,6 +20,17 @@ logger = logging.getLogger("providers")
 
 StreamCallback = Callable[[Dict[str, str]], None]
 
+# Tentativi di connessione: si ritenta solo se la richiesta non ha raggiunto il server
+CONNECT_ATTEMPTS = 2
+
+
+class LLMUnavailableError(RuntimeError):
+    """Il server LLM non ha completato la richiesta (timeout, errore HTTP, connessione)."""
+
+
+def _failed(reason: str) -> Dict[str, Any]:
+    return {"content": "", "reasoning_content": "", "metrics": {}, "error": reason}
+
 
 class LLMProvider(ABC):
     """Interfaccia base per i provider LLM OpenAI-compatible."""
@@ -39,7 +50,8 @@ class LLMProvider(ABC):
         stream_callback: Optional[StreamCallback] = None,
         json_mode: bool = False,
     ) -> Dict[str, str]:
-        """Esegue una chat completion. Ritorna {'content', 'reasoning_content'}; contenuto vuoto se il modello non risponde.
+        """Esegue una chat completion. Ritorna {'content', 'reasoning_content', 'metrics'}; se la richiesta fallisce
+        il contenuto è vuoto e 'error' ne riporta il motivo.
 
         json_mode chiede al server un output JSON valido (response_format / format=json).
         """
@@ -116,7 +128,7 @@ class OpenAICompatProvider(LLMProvider):
         self.name = name
         self.timeout = timeout
 
-    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, stream, json_mode=False) -> dict:
+    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, json_mode=False) -> dict:
         effective_model = model or self.default_model
         enable_thinking = (reasoning_budget != 0) and _supports_reasoning(effective_model)
         payload = {
@@ -144,9 +156,9 @@ class OpenAICompatProvider(LLMProvider):
                 payload["reasoning_budget_tokens"] = 0
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
-        if stream:
-            payload["stream"] = True
-            payload["stream_options"] = {"include_usage": True}
+        payload["stream"] = True
+        payload["stream_options"] = {"include_usage": True}
+        payload["return_progress"] = True
         return payload
 
     def load_model(self, model: str) -> Dict[str, Any]:
@@ -209,141 +221,118 @@ class OpenAICompatProvider(LLMProvider):
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
              reasoning_budget=-1, stream_callback=None, json_mode=False) -> Dict[str, Any]:
+        """Chat completion sempre in streaming, con l'avanzamento dell'elaborazione del prompt.
+
+        llama.cpp invia un chunk per ogni batch del prompt: un prompt lungo non fa scattare il timeout di lettura,
+        e se il client si disconnette il server lo vede al batch successivo e libera lo slot.
+        """
         effective_model = model or self.default_model
         self.ensure_model_loaded(effective_model)
-
-        url = f"{self.base_url}/chat/completions"
-        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, stream=bool(stream_callback), json_mode=json_mode)
+        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, json_mode=json_mode)
 
         sess = current_session_var.get()
         if sess and sess.is_stopped():
             return {"content": "", "reasoning_content": "", "metrics": {}}
 
         start_t = time.time()
-        max_retries = 2
-        for attempt in range(1, max_retries + 1):
+        for attempt in range(1, CONNECT_ATTEMPTS + 1):
             try:
-                if stream_callback:
-                    with httpx.Client(timeout=self.timeout) as client:
-                        with client.stream("POST", url, json=payload) as res:
-                            if res.status_code != 200:
-                                logger.warning(f"[{self.name}] LLM status {res.status_code}")
-                                break
-                            content_acc, reasoning_acc = "", ""
-                            raw_usage = None
-                            timings = None
-                            first_token_time = None
-                            for line in res.iter_lines():
-                                if sess:
-                                    if sess.is_stopped():
-                                        logger.info(f"[{self.name}] LLM stream interrotto da session stop")
-                                        break
-                                    sess.pause_event.wait(timeout=300)
-                                    if sess.is_stopped():
-                                        break
-                                if not line.startswith("data: ") or line == "data: [DONE]":
-                                    continue
-                                try:
-                                    chunk = json.loads(line[6:])
-                                    if "usage" in chunk and chunk["usage"]:
-                                        raw_usage = chunk["usage"]
-                                    if "timings" in chunk and chunk["timings"]:
-                                        timings = chunk["timings"]
-                                    choices = chunk.get("choices")
-                                    if choices and len(choices) > 0:
-                                        delta = choices[0].get("delta", {})
-                                        r_part = delta.get("reasoning_content")
-                                        if r_part:
-                                            if first_token_time is None:
-                                                first_token_time = time.time()
-                                            reasoning_acc += r_part
-                                            stream_callback({"type": "reasoning", "delta": r_part})
-                                        c_part = delta.get("content")
-                                        if c_part:
-                                            if first_token_time is None:
-                                                first_token_time = time.time()
-                                            content_acc += c_part
-                                            stream_callback({"type": "content", "delta": c_part})
-                                except Exception as e:
-                                    logger.warning(f"[{self.name}] SSE parse error: {e}")
-
-                            duration_s = round(time.time() - start_t, 2)
-                            if timings and timings.get("predicted_per_second"):
-                                tok_per_s = round(float(timings["predicted_per_second"]), 1)
-                                c_tok = timings.get("predicted_n", 0)
-                                p_tok = timings.get("prompt_n", 0) + timings.get("cache_n", 0)
-                                tot_tok = p_tok + c_tok
-                            else:
-                                if raw_usage:
-                                    p_tok = raw_usage.get("prompt_tokens", 0)
-                                    c_tok = raw_usage.get("completion_tokens", 0)
-                                    tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
-                                else:
-                                    c_tok = max(1, len(content_acc + reasoning_acc) // 4) if (content_acc or reasoning_acc) else 0
-                                    p_tok = 0
-                                    tot_tok = c_tok
-                                gen_duration = (time.time() - first_token_time) if first_token_time else duration_s
-                                tok_per_s = round(c_tok / max(gen_duration, 0.001), 1)
-
-                            metrics = {
-                                "prompt_tokens": p_tok,
-                                "completion_tokens": c_tok,
-                                "total_tokens": tot_tok,
-                                "duration_s": duration_s,
-                                "tok_per_s": tok_per_s,
-                            }
-                            # Streaming metrics: emit delta to stream_callback.
-                            # StreamSession.put() will record the delta and broadcast cumulative metrics to subscribers.
-                            stream_callback({"type": "metrics", "metrics": metrics})
-                            return {"content": content_acc.strip(), "reasoning_content": reasoning_acc.strip(), "metrics": metrics}
-                else:
-                    with httpx.Client(timeout=self.timeout) as client:
-                        res = client.post(url, json=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        msg_obj = data["choices"][0]["message"]
-                        content = msg_obj.get("content") or ""
-                        reasoning = msg_obj.get("reasoning_content") or msg_obj.get("thinking") or msg_obj.get("reasoning") or ""
-                        if not reasoning:
-                            content, extracted = _extract_think_blocks(content)
-                            reasoning = extracted
-                        raw_usage = data.get("usage")
-                        timings = data.get("timings")
-                        duration_s = round(time.time() - start_t, 2)
-                        if timings and timings.get("predicted_per_second"):
-                            tok_per_s = round(float(timings["predicted_per_second"]), 1)
-                            c_tok = timings.get("predicted_n", 0)
-                            p_tok = timings.get("prompt_n", 0) + timings.get("cache_n", 0)
-                            tot_tok = p_tok + c_tok
-                        else:
-                            if raw_usage:
-                                p_tok = raw_usage.get("prompt_tokens", 0)
-                                c_tok = raw_usage.get("completion_tokens", 0)
-                                tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
-                            else:
-                                c_tok = max(1, len(content + reasoning) // 4) if (content or reasoning) else 0
-                                p_tok = 0
-                                tot_tok = c_tok
-                            tok_per_s = round(c_tok / max(duration_s, 0.001), 1)
-
-                        metrics = {
-                            "prompt_tokens": p_tok,
-                            "completion_tokens": c_tok,
-                            "total_tokens": tot_tok,
-                            "duration_s": duration_s,
-                            "tok_per_s": tok_per_s,
-                        }
-                        if sess:
-                            sess.record_metrics(metrics)
-                        return {"content": content.strip(), "reasoning_content": reasoning.strip(), "metrics": metrics}
-                    logger.warning(f"[{self.name}] LLM status {res.status_code}: {res.text[:300]}")
-                    break
-            except (httpx.TimeoutException, httpx.ConnectError) as e:
-                logger.warning(f"[{self.name}] LLM attempt {attempt}/{max_retries} failed: {e}")
+                with httpx.Client(timeout=self.timeout) as client:
+                    with client.stream("POST", f"{self.base_url}/chat/completions", json=payload) as res:
+                        if res.status_code != 200:
+                            res.read()
+                            logger.warning(f"[{self.name}] LLM status {res.status_code}: {res.text[:300]}")
+                            return _failed(f"HTTP {res.status_code}")
+                        return self._consume_stream(res, stream_callback, sess, start_t)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                # La richiesta non è arrivata al server: ritentare non duplica lavoro
+                logger.warning(f"[{self.name}] connessione LLM fallita ({attempt}/{CONNECT_ATTEMPTS}): {e}")
+            except httpx.TimeoutException as e:
+                # Il server ha la richiesta ma non risponde: un retry si accoderebbe dietro quella abbandonata
+                logger.warning(f"[{self.name}] timeout LLM, nessun retry: {e!r}")
+                return _failed("timeout")
             except Exception as e:
                 logger.warning(f"[{self.name}] LLM call failed unexpectedly: {e}")
-                break
-        return {"content": "", "reasoning_content": "", "metrics": {}}
+                return _failed(str(e))
+        return _failed("connessione fallita")
+
+    def _consume_stream(self, res, stream_callback: Optional[StreamCallback], sess, start_t: float) -> Dict[str, Any]:
+        content_acc, reasoning_acc = "", ""
+        raw_usage = None
+        timings = None
+        first_token_time = None
+        for line in res.iter_lines():
+            if sess:
+                if sess.is_stopped():
+                    logger.info(f"[{self.name}] LLM stream interrotto da session stop")
+                    break
+                sess.pause_event.wait(timeout=300)
+                if sess.is_stopped():
+                    break
+            if not line.startswith("data: ") or line == "data: [DONE]":
+                continue
+            try:
+                chunk = json.loads(line[6:])
+                if chunk.get("usage"):
+                    raw_usage = chunk["usage"]
+                if chunk.get("timings"):
+                    timings = chunk["timings"]
+                choices = chunk.get("choices")
+                if choices:
+                    delta = choices[0].get("delta", {})
+                    r_part = delta.get("reasoning_content")
+                    if r_part:
+                        if first_token_time is None:
+                            first_token_time = time.time()
+                        reasoning_acc += r_part
+                        if stream_callback:
+                            stream_callback({"type": "reasoning", "delta": r_part})
+                    c_part = delta.get("content")
+                    if c_part:
+                        if first_token_time is None:
+                            first_token_time = time.time()
+                        content_acc += c_part
+                        if stream_callback:
+                            stream_callback({"type": "content", "delta": c_part})
+            except Exception as e:
+                logger.warning(f"[{self.name}] SSE parse error: {e}")
+
+        if not reasoning_acc:
+            content_acc, reasoning_acc = _extract_think_blocks(content_acc)
+
+        duration_s = round(time.time() - start_t, 2)
+        if timings and timings.get("predicted_per_second"):
+            tok_per_s = round(float(timings["predicted_per_second"]), 1)
+            c_tok = timings.get("predicted_n", 0)
+            p_tok = timings.get("prompt_n", 0) + timings.get("cache_n", 0)
+            tot_tok = p_tok + c_tok
+            logger.info(f"[{self.name}] prompt {timings.get('prompt_n', 0)} token elaborati + {timings.get('cache_n', 0)} "
+                        f"dalla cache ({round(timings.get('prompt_ms', 0) / 1000, 1)} s), {c_tok} generati in {duration_s} s")
+        else:
+            if raw_usage:
+                p_tok = raw_usage.get("prompt_tokens", 0)
+                c_tok = raw_usage.get("completion_tokens", 0)
+                tot_tok = raw_usage.get("total_tokens", p_tok + c_tok)
+            else:
+                c_tok = max(1, len(content_acc + reasoning_acc) // 4) if (content_acc or reasoning_acc) else 0
+                p_tok = 0
+                tot_tok = c_tok
+            gen_duration = (time.time() - first_token_time) if first_token_time else duration_s
+            tok_per_s = round(c_tok / max(gen_duration, 0.001), 1)
+
+        metrics = {
+            "prompt_tokens": p_tok,
+            "completion_tokens": c_tok,
+            "total_tokens": tot_tok,
+            "duration_s": duration_s,
+            "tok_per_s": tok_per_s,
+        }
+        # Con la callback le metriche passano dalla StreamSession, che le accumula e le inoltra ai subscriber
+        if stream_callback:
+            stream_callback({"type": "metrics", "metrics": metrics})
+        elif sess:
+            sess.record_metrics(metrics)
+        return {"content": content_acc.strip(), "reasoning_content": reasoning_acc.strip(), "metrics": metrics}
 
     def health(self) -> bool:
         try:

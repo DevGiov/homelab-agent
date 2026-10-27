@@ -90,7 +90,6 @@ class TestSamplingPayload(unittest.TestCase):
             max_tokens=100,
             temperature=0.7,
             reasoning_budget=-1,
-            stream=False
         )
         self.assertIn("repeat_penalty", payload)
         self.assertEqual(payload["repeat_penalty"], 1.10)

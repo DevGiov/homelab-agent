@@ -1,30 +1,43 @@
-"""Prompt dell'agent loop: istruzioni di sistema, selezione dei tool, sintesi e risposta diretta."""
+"""Prompt dell'agent loop: istruzioni di sistema, selezione dei tool, sintesi e risposta diretta.
+
+I system prompt sono statici per modalità (niente orario, memoria o risultati dei tool): llama.cpp riusa così
+la parte già elaborata da una chiamata all'altra. Ciò che cambia sta nel messaggio utente, con lo storico dei
+tool in coda, così ogni passo di selezione estende il prompt del precedente.
+"""
 from datetime import datetime
 from typing import Optional
 
 from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
 
 
-def _now() -> str:
-    return datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
+def current_time() -> str:
+    """Data e ora del turno, al minuto: calcolata una volta e ripetuta identica in tutte le chiamate del turno."""
+    return datetime.now().strftime('%A %d %B %Y, %H:%M')
 
 
-def no_tools_system_prompt(mode: str, memory_context: Optional[str]) -> str:
+def _turn_context(now: str, memory_context: Optional[str]) -> str:
+    return f"Current System Date and Time: {now}\n\nConversational memory context:\n{memory_context or ''}"
+
+
+def no_tools_system_prompt(mode: str) -> str:
     """Modalità senza tool (o catalogo vuoto): risposta diretta in italiano."""
-    now_str = _now()
     return (
-        f"Data e Ora Corrente del Sistema: {now_str}\n"
         f"Sei l'Agente AI per la gestione dell'Homelab (modalità: {mode.upper()}). Rispondi in modo naturale e completo in italiano.\n"
-        f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        f"Contesto memoria:\n{memory_context or ''}"
+        f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 
 
+def no_tools_prompt(task: str, now: str, memory_context: Optional[str], prefetch_block: str) -> str:
+    parts = [f"Data e Ora Corrente del Sistema: {now}", f"Contesto memoria:\n{memory_context or ''}"]
+    if prefetch_block:
+        parts.append(prefetch_block)
+    parts.append(f"Richiesta utente: '{task}'")
+    return "\n\n".join(parts)
+
+
 def base_system_prompt(mode: str) -> str:
-    """Identità dell'agente, lingua e specifica delle automazioni: comune a selezione, sintesi e risposta diretta."""
-    now_str = _now()
+    """Identità dell'agente, lingua e specifica delle automazioni: prefisso comune a selezione, sintesi e risposta diretta."""
     return (
-        f"Current System Date and Time: {now_str}\n"
         f"You are the Homelab AI Management Agent (mode: {mode.upper()}).\n"
         "You have access to the connected MCP ecosystem, infrastructure tools, visual analysis, web search, code execution, and the integrated Homelab Automations & Loops engine.\n"
         "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
@@ -65,14 +78,15 @@ def base_system_prompt(mode: str) -> str:
     )
 
 
-def tool_selection_system_prompt(
-    base: str,
-    catalog: str,
+def tool_selection_prompt(
+    task: str,
+    now: str,
     memory_context: Optional[str],
     prefetch_block: str,
     image_count: int,
-    observations: str,
+    history: str,
 ) -> str:
+    """Contesto del turno e storico dei tool, in coda perché cresce a ogni passo."""
     prefetch_guidance = ""
     if prefetch_block:
         prefetch_guidance = (
@@ -91,12 +105,18 @@ def tool_selection_system_prompt(
             "you can perceive it directly: set `tool_needed=false` and provide your thorough, detailed, and accurate answer in `final_answer`.\n"
             "Only invoke tools if external actions on Homelab/MCP resources, additional web searches, or code execution are needed.\n"
         )
-    return base + (
-        f"Catalog of available tools for this mode:\n{catalog}\n\n"
-        f"Conversational memory context:\n{memory_context or ''}\n\n"
+    return (
+        f"{_turn_context(now, memory_context)}\n"
         f"{prefetch_guidance}"
-        f"{vision_guidance}"
-        f"History of actions executed in this turn:\n{observations}\n\n"
+        f"{vision_guidance}\n"
+        f"User request: '{task}'\n\n"
+        f"History of actions executed in this turn:\n{history}"
+    )
+
+
+def tool_selection_system_prompt(mode: str, catalog: str) -> str:
+    return base_system_prompt(mode) + (
+        f"Catalog of available tools for this mode:\n{catalog}\n\n"
         "CORE TOOL SELECTION RULES:\n"
         "1. DISTINCTION BETWEEN VIEW vs EXECUTE TOOLS:\n"
         "   - `[VIEW]`: Purely informational, read-only diagnostic tools (e.g. `get_container_status`, `list_containers`, `list_templates`, `list_automation_templates`, `list_automations`, `get_automation_details`, `web_search`). These run automatically without interrupting the flow.\n"
@@ -121,16 +141,17 @@ def tool_selection_system_prompt(
     )
 
 
-def tool_synthesis_system_prompt(base: str) -> str:
-    return base + (
+def tool_synthesis_system_prompt(mode: str) -> str:
+    return base_system_prompt(mode) + (
         "You are in the final synthesis stage after executing tool actions.\n"
         "Your task is to synthesize the information obtained from the tools into a fluent, thorough, and structured response in the language used by the user in their prompt.\n"
         "Present the data clearly and in natural prose (no raw JSON dump): this is the final response for the user."
     )
 
 
-def tool_synthesis_prompt(task: str, obs_text: str) -> str:
+def tool_synthesis_prompt(task: str, now: str, obs_text: str) -> str:
     return (
+        f"Current System Date and Time: {now}\n\n"
         f"User task: '{task}'\n\n"
         f"History of actions and tool results:\n{obs_text}\n\n"
         "Provide a final, comprehensive, structured response to the user in the language used in their prompt. "
@@ -139,8 +160,8 @@ def tool_synthesis_prompt(task: str, obs_text: str) -> str:
     )
 
 
-def direct_answer_system_prompt(base: str) -> str:
-    return base + (
+def direct_answer_system_prompt(mode: str) -> str:
+    return base_system_prompt(mode) + (
         "You are in direct dialogue mode with the user.\n"
         "Respond in a natural, comprehensive, clear, and helpful manner in the language used by the user in their prompt.\n"
         "If web context is present, use it to provide an accurate, up-to-date response.\n"
@@ -149,44 +170,38 @@ def direct_answer_system_prompt(base: str) -> str:
     )
 
 
-def direct_answer_prompt(task: str, memory_context: Optional[str], prefetch_block: str) -> str:
-    parts = [prefetch_block] if prefetch_block else []
+def direct_answer_prompt(task: str, now: str, memory_context: Optional[str], prefetch_block: str) -> str:
+    parts = [_turn_context(now, memory_context)]
+    if prefetch_block:
+        parts.append(prefetch_block)
     parts.append(
         f"Respond completely, clearly, and thoroughly in the language used by the user in their prompt.\n"
-        f"User request: '{task}'\n"
-        f"Memory context:\n{memory_context or ''}"
+        f"User request: '{task}'"
     )
     return "\n\n".join(parts)
 
 
-def plain_answer_system_prompt(base: str) -> str:
+def plain_answer_system_prompt(mode: str) -> str:
     """Risposta senza selezione dei tool (chiamante senza output strutturato, es. step agentici)."""
-    return base + "Respond naturally, completely, clearly, and thoroughly in the language used by the user in their prompt. If the request concerns recent events or unverified data, state it transparently instead of inventing facts."
+    return base_system_prompt(mode) + "Respond naturally, completely, clearly, and thoroughly in the language used by the user in their prompt. If the request concerns recent events or unverified data, state it transparently instead of inventing facts."
 
 
-def plain_answer_prompt(task: str, memory_context: Optional[str]) -> str:
-    return f"Request: '{task}'\nMemory context:\n{memory_context or ''}"
-
-
-def no_tools_prompt(task: str, prefetch_block: str) -> str:
-    parts = [prefetch_block] if prefetch_block else []
-    parts.append(f"Richiesta utente: '{task}'")
-    return "\n\n".join(parts)
+def plain_answer_prompt(task: str, now: str, memory_context: Optional[str]) -> str:
+    return f"{_turn_context(now, memory_context)}\n\nRequest: '{task}'"
 
 
 def final_synthesis_system_prompt() -> str:
     """Sintesi dopo aver esaurito i passi del loop: prompt ridotto, senza catalogo né specifica automazioni."""
-    now_str = _now()
     return (
-        f"Current System Date and Time: {now_str}\n"
         "You are the Proxmox VE Homelab AI Agent.\n"
         "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their prompt (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
         f"{UNTRUSTED_CONTEXT_POLICY}"
     )
 
 
-def final_synthesis_prompt(task: str, obs_text: str) -> str:
+def final_synthesis_prompt(task: str, now: str, obs_text: str) -> str:
     return (
+        f"Current System Date and Time: {now}\n\n"
         f"User task: '{task}'\n\n"
         f"History of executed actions:\n{obs_text}\n\n"
         "Provide a final, comprehensive, structured response in the language used by the user in their prompt. "

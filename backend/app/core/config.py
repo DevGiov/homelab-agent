@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     data_dir: str = Field(default=str(BACKEND_DIR.parent / "data"), alias="DATA_DIR")
     enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
+    # Caratteri di ogni risultato di tool ripetuti nei passi di selezione; la sintesi finale li riceve interi
+    agent_observation_limit: int = Field(default=4000, alias="AGENT_OBSERVATION_LIMIT")
 
     # --- Ricerca web ---
     searxng_url: str = Field(default="http://192.168.1.161:8080", alias="SEARXNG_URL")

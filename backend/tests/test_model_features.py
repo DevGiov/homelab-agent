@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 from app.agent.stream_session import StreamSession
 from app.core.config import settings
 from app.llm.providers import OllamaProvider, OpenAICompatProvider
@@ -75,27 +77,59 @@ def test_openai_compat_list_models_with_details():
         assert m2["is_loading"] is False
 
 
-def test_openai_compat_chat_timings_non_stream():
-    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="Gemma-4-26B-Q3")
-    fake_post_response = MagicMock()
-    fake_post_response.status_code = 200
-    fake_post_response.json.return_value = {
-        "choices": [{"message": {"role": "assistant", "content": "Hello world"}}],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-        "timings": {
-            "predicted_per_second": 58.7,
-            "predicted_n": 20,
-            "prompt_n": 10,
-        }
-    }
+def _sse(lines, status_code=200):
+    """Contesto di `httpx.Client.stream` che restituisce le righe SSE date."""
+    response = MagicMock(status_code=status_code, text="")
+    response.iter_lines.return_value = lines
+    ctx = MagicMock()
+    ctx.__enter__.return_value = response
+    return ctx
 
-    with patch.object(provider, "ensure_model_loaded", return_value=True):
-        with patch("httpx.Client.post", return_value=fake_post_response):
-            res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=None)
-            assert res["content"] == "Hello world"
-            assert res["metrics"]["tok_per_s"] == 58.7
-            assert res["metrics"]["completion_tokens"] == 20
-            assert res["metrics"]["prompt_tokens"] == 10
+
+def test_openai_compat_chat_without_callback_still_streams():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="Gemma-4-26B-Q3")
+    lines = [
+        'data: {"choices":[],"prompt_progress":{"total":10,"cache":0,"processed":10,"time_ms":5}}',
+        'data: {"choices":[{"delta":{"content":"Hello world"}}]}',
+        'data: {"choices":[],"timings":{"predicted_per_second":58.7,"predicted_n":20,"prompt_n":10}}',
+        'data: [DONE]',
+    ]
+    with patch.object(provider, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.stream", return_value=_sse(lines)) as stream:
+        res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=None)
+    assert res["content"] == "Hello world"
+    assert res["metrics"]["tok_per_s"] == 58.7
+    assert res["metrics"]["prompt_tokens"] == 10
+    payload = stream.call_args.kwargs["json"]
+    assert payload["stream"] is True and payload["return_progress"] is True
+
+
+def test_read_timeout_is_not_retried():
+    # Il server sta ancora elaborando: un retry si accoderebbe dietro la richiesta abbandonata
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+    with patch.object(provider, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.stream", side_effect=httpx.ReadTimeout("read timed out")) as stream:
+        res = provider.chat([{"role": "user", "content": "hi"}])
+    assert stream.call_count == 1
+    assert res["content"] == "" and res["error"] == "timeout"
+
+
+def test_connect_error_is_retried():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+    lines = ['data: {"choices":[{"delta":{"content":"ok"}}]}', 'data: [DONE]']
+    with patch.object(provider, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.stream", side_effect=[httpx.ConnectError("refused"), _sse(lines)]) as stream:
+        res = provider.chat([{"role": "user", "content": "hi"}])
+    assert stream.call_count == 2
+    assert res["content"] == "ok" and "error" not in res
+
+
+def test_http_error_is_reported():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+    with patch.object(provider, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.stream", return_value=_sse([], status_code=503)):
+        res = provider.chat([{"role": "user", "content": "hi"}])
+    assert res["error"] == "HTTP 503"
 
 
 def test_openai_compat_chat_timings_stream():
@@ -171,33 +205,25 @@ def test_ensure_model_loaded_waits_until_model_is_loaded():
 
 
 def test_json_mode_requests_json_output_from_each_provider():
-    reply = MagicMock(status_code=200)
-    reply.json.return_value = {"choices": [{"message": {"content": "{}"}}], "message": {"content": "{}"}}
-
     openai = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
-    with patch.object(openai, "ensure_model_loaded", return_value=True), \
-         patch("httpx.Client.post", return_value=reply) as post:
-        openai.chat([{"role": "user", "content": "hi"}], json_mode=True)
-    assert post.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}
+    assert openai._build_payload([], None, 10, 0.0, -1, json_mode=True)["response_format"] == {"type": "json_object"}
+    assert "response_format" not in openai._build_payload([], None, 10, 0.0, -1)
 
+    reply = MagicMock(status_code=200)
+    reply.json.return_value = {"message": {"content": "{}"}}
     ollama = OllamaProvider("http://localhost:11434", default_model="m")
     with patch("httpx.Client.post", return_value=reply) as post:
         ollama.chat([{"role": "user", "content": "hi"}], json_mode=True)
     assert post.call_args.kwargs["json"]["format"] == "json"
-
-    with patch.object(openai, "ensure_model_loaded", return_value=True), \
-         patch("httpx.Client.post", return_value=reply) as post:
-        openai.chat([{"role": "user", "content": "hi"}])
-    assert "response_format" not in post.call_args.kwargs["json"]
 
 
 def test_zero_reasoning_budget_disables_thinking_server_side():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="LFM2.5-24B-A2B-HugeCtx")
     msgs = [{"role": "user", "content": "hi"}]
 
-    no_think = provider._build_payload(msgs, None, 120, 0.0, 0, stream=False)
+    no_think = provider._build_payload(msgs, None, 120, 0.0, 0)
     assert no_think["chat_template_kwargs"] == {"enable_thinking": False}
     assert no_think["reasoning_budget_tokens"] == 0
 
-    default = provider._build_payload(msgs, None, 120, 0.0, -1, stream=False)
+    default = provider._build_payload(msgs, None, 120, 0.0, -1)
     assert "reasoning_budget_tokens" not in default

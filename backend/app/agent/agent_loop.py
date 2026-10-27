@@ -4,6 +4,9 @@
 chiamate, anti-loop, ragionamenti accumulati) e ogni fase è un metodo. I testi dei prompt stanno in
 `agent_prompts.py`.
 
+Ogni risultato di tool è tenuto due volte: intero per la sintesi finale e accorciato a AGENT_OBSERVATION_LIMIT
+nello storico che i passi di selezione rileggono, così un elenco lungo non fa crescere ogni prompt successivo.
+
 Funzioni LLM attese dal chiamante:
 - `call_llm_fn(prompt, system_prompt=..., reasoning_budget=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
 - `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., images=...)` -> ToolSelection
@@ -21,6 +24,7 @@ from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_cat
 from app.agent.tool_schemas import ToolSelection, validate_tool_args
 from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
+from app.llm.providers import LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
 from app.security import guardrails
@@ -77,12 +81,15 @@ def _query_jaccard_similarity(q1: str, q2: str) -> float:
     return len(tokens1 & tokens2) / len(tokens1 | tokens2)
 
 
-def _as_observation_text(tool_name: str, res: Any) -> str:
-    """Risultato serializzato per lo storico; quello della ricerca web è racchiuso tra delimitatori non fidati."""
-    res_str = json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
+def _serialize(res: Any) -> str:
+    return json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
+
+
+def _guarded(tool_name: str, text: str) -> str:
+    """Il risultato della ricerca web va racchiuso tra delimitatori di contenuto non fidato."""
     if tool_name == "web_search":
-        return f"{GUARD_OPEN}\n{escape_guard_delimiters(res_str)}\n{GUARD_CLOSE}"
-    return res_str
+        return f"{GUARD_OPEN}\n{escape_guard_delimiters(text)}\n{GUARD_CLOSE}"
+    return text
 
 
 def _content(res: Any) -> Tuple[str, str]:
@@ -113,6 +120,7 @@ class AgentLoop:
         self.thread_id = thread_id
         self.images = images
         self.security_mode = security_mode
+        self.now = prompts.current_time()
 
         self.policy = get_mode_policy(mode)
         self.manager = get_registry_manager()
@@ -126,7 +134,10 @@ class AgentLoop:
             )
 
         self.execution_trace: List[Dict[str, Any]] = []
+        # Risultati interi per la sintesi e la loro versione accorciata per i passi di selezione
         self.observations: List[str] = []
+        self.history: List[str] = []
+        self.history_truncated = False
         self.reasonings: List[Tuple[str, str]] = []
         # Risultati dei tool read-only già eseguiti nel turno, conteggio delle chiamate per l'anti-loop
         self.call_cache: Dict[str, Any] = {}
@@ -152,9 +163,28 @@ class AgentLoop:
             text = text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
         return text
 
+    def _note(self, text: str):
+        """Annotazione senza risultato di tool (validazione fallita, loop interrotto): uguale nei due storici."""
+        self.observations.append(text)
+        self.history.append(text)
+
+    def _observe(self, header: str, tool_name: str, res: Any) -> str:
+        full = _serialize(res)
+        self.observations.append(f"{header} -> {_guarded(tool_name, full)}")
+        limit = settings.agent_observation_limit
+        short = full
+        if len(full) > limit:
+            self.history_truncated = True
+            short = (f"{full[:limit]}\n... [result truncated to {limit} of {len(full)} characters: the full result will be "
+                     "used for the final answer, do not call the tool again to read the rest]")
+        self.history.append(f"{header} -> {_guarded(tool_name, short)}")
+        return full
+
     def _ask_llm(self, prompt: str, system_prompt: str, reasoning_budget: int, phase: str) -> str:
         """Chiamata testuale; il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
         res = self.call_llm_fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget, reasoning_phase=phase)
+        if isinstance(res, dict) and res.get("error"):
+            raise LLMUnavailableError(res["error"])
         content, reasoning = _content(res)
         if reasoning:
             self.reasonings.append((phase, reasoning))
@@ -182,15 +212,22 @@ class AgentLoop:
         if not self.call_llm_structured_fn:
             return self._plain_answer()
 
-        catalog = format_catalog_for_prompt(self.available_tools)
+        try:
+            return self._react()
+        except LLMUnavailableError as e:
+            # Nessun altro tentativo: il server è occupato o fermo e una nuova richiesta si accoderebbe
+            logger.error(f"Agent loop interrotto: il modello non ha completato la richiesta ({e})")
+            return self._result(f"Il modello non ha completato la richiesta ({e}). Riprova tra poco o scegli un modello più leggero.")
+
+    def _react(self) -> Dict[str, Any]:
+        system_prompt = prompts.tool_selection_system_prompt(self.mode, format_catalog_for_prompt(self.available_tools))
         for step_id in range(1, self.policy.max_tool_calls + 1):
             if self._session_stopped():
                 break
 
-            base = prompts.base_system_prompt(self.mode)
-            selection = self._select_tool(step_id, base, catalog)
+            selection = self._select_tool(step_id, system_prompt)
             if not selection or (not selection.tool_needed and not selection.parallel_calls) or not selection.tool_name:
-                return self._final_answer(selection, base)
+                return self._final_answer(selection)
 
             if self._run_parallel(step_id, selection):
                 continue
@@ -214,8 +251,8 @@ class AgentLoop:
         """Modalità senza tool (es. chat) o catalogo vuoto: una sola chiamata LLM."""
         if self.call_llm_fn:
             res = self.call_llm_fn(
-                prompts.no_tools_prompt(self.task, self.prefetch_block),
-                system_prompt=prompts.no_tools_system_prompt(self.mode, self.memory_context),
+                prompts.no_tools_prompt(self.task, self.now, self.memory_context, self.prefetch_block),
+                system_prompt=prompts.no_tools_system_prompt(self.mode),
                 reasoning_budget=self.policy.reasoning_budget,
                 reasoning_phase=None,
             )
@@ -229,8 +266,8 @@ class AgentLoop:
         if not self.call_llm_fn:
             return self._result("Richiesta completata.")
         res = self.call_llm_fn(
-            prompts.plain_answer_prompt(self.task, self.memory_context),
-            system_prompt=prompts.plain_answer_system_prompt(prompts.base_system_prompt(self.mode)),
+            prompts.plain_answer_prompt(self.task, self.now, self.memory_context),
+            system_prompt=prompts.plain_answer_system_prompt(self.mode),
             reasoning_budget=self.policy.reasoning_budget,
             reasoning_phase="Elaborazione Risposta Finale",
         )
@@ -251,14 +288,12 @@ class AgentLoop:
         sess.pause_event.wait(timeout=SESSION_PAUSE_TIMEOUT_SECONDS)
         return sess.is_stopped()
 
-    def _select_tool(self, step_id: int, base: str, catalog: str) -> Optional[ToolSelection]:
-        observations = "\n".join(self.observations) if self.observations else "Nessuna azione eseguita finora."
-        system_prompt = prompts.tool_selection_system_prompt(
-            base, catalog, self.memory_context, self.prefetch_block, len(self.images or []), observations,
-        )
+    def _select_tool(self, step_id: int, system_prompt: str) -> Optional[ToolSelection]:
+        history = "\n".join(self.history) if self.history else "Nessuna azione eseguita finora."
         budget = self.policy.reasoning_budget
         selection = self.call_llm_structured_fn(
-            prompt=self.task,
+            prompt=prompts.tool_selection_prompt(self.task, self.now, self.memory_context, self.prefetch_block,
+                                                 len(self.images or []), history),
             system_prompt=system_prompt,
             schema_cls=ToolSelection,
             max_tokens=SELECTION_MAX_TOKENS,
@@ -272,9 +307,14 @@ class AgentLoop:
             self.reasonings.append((f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool", reasoning))
         return selection
 
-    def _final_answer(self, selection: Optional[ToolSelection], base: str) -> Dict[str, Any]:
-        """Il modello non chiede altri tool: risposta esplicita, sintesi delle osservazioni o risposta diretta."""
-        if selection and selection.final_answer and len(selection.final_answer.strip()) > 10:
+    def _final_answer(self, selection: Optional[ToolSelection]) -> Dict[str, Any]:
+        """Il modello non chiede altri tool: risposta esplicita, sintesi delle osservazioni o risposta diretta.
+
+        Se lo storico di selezione era accorciato, la risposta del modello si basa su dati parziali: si passa
+        sempre dalla sintesi sui risultati interi.
+        """
+        if (selection and selection.final_answer and len(selection.final_answer.strip()) > 10
+                and not self.history_truncated):
             final = selection.final_answer.strip()
             # La risposta arriva già completa: la si rimanda alla UI a parole come se fosse in streaming
             q = stream_queue.get()
@@ -288,16 +328,16 @@ class AgentLoop:
 
         if self.observations:
             answer = self._ask_llm(
-                prompts.tool_synthesis_prompt(self.task, self._observation_text()),
-                prompts.tool_synthesis_system_prompt(base),
+                prompts.tool_synthesis_prompt(self.task, self.now, self._observation_text()),
+                prompts.tool_synthesis_system_prompt(self.mode),
                 self._synthesis_budget(),
                 "Sintesi Risultati Tool",
             )
             return self._result(answer or "The model processed the information but did not produce a text response. Please retry or adjust mode.")
 
         answer = self._ask_llm(
-            prompts.direct_answer_prompt(self.task, self.memory_context, self.prefetch_block),
-            prompts.direct_answer_system_prompt(base),
+            prompts.direct_answer_prompt(self.task, self.now, self.memory_context, self.prefetch_block),
+            prompts.direct_answer_system_prompt(self.mode),
             self.policy.reasoning_budget,
             "Elaborazione Risposta Finale",
         )
@@ -330,7 +370,7 @@ class AgentLoop:
                 self.search_queries.append(str(arguments.get("query", "")).strip())
             sig = _normalize_call_signature(tool_name, arguments)
             self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
-            self.observations.append(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')}) -> {_as_observation_text(tool_name, res)}")
+            self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res)
         return True
 
     def _arguments_valid(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
@@ -340,7 +380,7 @@ class AgentLoop:
         logger.warning(f"Step {step_id}: errore validazione argomenti per '{tool_name}': {error}")
         self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments,
                                      "reasoning": reasoning, "error": f"Validazione fallita: {error}"})
-        self.observations.append(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {error}")
+        self._note(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {error}")
         return False
 
     def _is_repetition(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
@@ -362,7 +402,7 @@ class AgentLoop:
 
         if repeated:
             logger.warning(f"Step {step_id}: Rilevata ripetizione per '{tool_name}'. Interruzione loop ReAct per prevenire cicli infiniti.")
-            self.observations.append(f"Step {step_id}: [LOOP INTERROTTO] L'azione '{tool_name}' è già stata eseguita in precedenza. Si procede alla sintesi finale.")
+            self._note(f"Step {step_id}: [LOOP INTERROTTO] L'azione '{tool_name}' è già stata eseguita in precedenza. Si procede alla sintesi finale.")
             self.execution_trace.append({
                 "step_id": step_id, "tool_name": tool_name, "args": arguments, "reasoning": reasoning,
                 "result": {"warning": "Chiamata duplicata bloccata. Interruzione loop ReAct per convergenza rapida."},
@@ -407,19 +447,18 @@ class AgentLoop:
                 "approval_required": True, "approval_prompt": message, **approval}
 
     def _record(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Any, reasoning: Optional[str], cached: bool):
-        observation = _as_observation_text(tool_name, res)
-        logger.info(f"Step {step_id}: Risultato tool '{tool_name}': {observation[:200]}...")
+        observation = self._observe(f"Step {step_id}: {tool_name}({arguments})", tool_name, res)
+        logger.info(f"Step {step_id}: Risultato tool '{tool_name}' ({len(observation)} caratteri): {observation[:200]}...")
         self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
                                      "reasoning": reasoning, "cached": cached,
                                      "error": res.get("error") if isinstance(res, dict) else None})
-        self.observations.append(f"Step {step_id}: {tool_name}({arguments}) -> {observation}")
 
     def _synthesize_after_loop(self) -> Dict[str, Any]:
         """Passi esauriti, anti-loop o stop: sintesi di quanto osservato."""
         if not (self.observations and self.call_llm_fn):
             return self._result("Richiesta completata.")
         answer = self._ask_llm(
-            prompts.final_synthesis_prompt(self.task, self._observation_text()),
+            prompts.final_synthesis_prompt(self.task, self.now, self._observation_text()),
             prompts.final_synthesis_system_prompt(),
             self._synthesis_budget(),
             "Sintesi Risultati Finali",

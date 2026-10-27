@@ -9,7 +9,7 @@ from app.agent.stream_session import current_session_var
 from app.core import image_utils
 from app.core.config import settings
 from app.core.text_utils import strip_thinking
-from app.llm.providers import get_provider, is_vision_model
+from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
 
 logger = logging.getLogger("graph")
 
@@ -138,6 +138,7 @@ def call_llm_structured(
     Effettua parsing + validazione con retry mirato ed iniezione dell'errore.
     Isola lo stream del content JSON per non farlo comparire nella chat principale.
     Include il supporto a immagini multimodali (es. per selezione tool basata su immagini).
+    Solleva LLMUnavailableError se il server non completa la richiesta: si ritenta solo un output non valido.
     """
     json_schema = schema_cls.model_json_schema()
     schema_prompt = (
@@ -182,6 +183,9 @@ def call_llm_structured(
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
             continue
+        if raw_res.get("error"):
+            # Timeout o errore del server: un nuovo tentativo ripartirebbe da zero sullo stesso server occupato
+            raise LLMUnavailableError(raw_res["error"])
 
         raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
         if not raw:

@@ -140,6 +140,7 @@ section "📦 Storage"
 
 ask DATA_DIR "DATA_DIR (database, memoria, artefatti)" "$(read_existing DATA_DIR "/data")"
 ask TRUNCATION_LIMIT "TRUNCATION_LIMIT (max token contesto)" "$(read_existing TRUNCATION_LIMIT "40000")"
+ask AGENT_OBSERVATION_LIMIT "AGENT_OBSERVATION_LIMIT (caratteri per risultato nei passi di selezione)" "$(read_existing AGENT_OBSERVATION_LIMIT "4000")"
 
 # ── SearXNG ──
 
@@ -188,6 +189,7 @@ LETTA_API_KEY=${LETTA_API_KEY}
 # --- Storage ---
 DATA_DIR=${DATA_DIR}
 TRUNCATION_LIMIT=${TRUNCATION_LIMIT}
+AGENT_OBSERVATION_LIMIT=${AGENT_OBSERVATION_LIMIT}
 
 # --- SearXNG ---
 SEARXNG_URL=${SEARXNG_URL}
