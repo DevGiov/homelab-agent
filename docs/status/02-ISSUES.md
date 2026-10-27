@@ -29,6 +29,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | ✅ Risolto in B8 |
 | [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | Aperto |
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
+| [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | Aperto |
 
 ---
 
@@ -230,3 +231,15 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Effetto collaterale trovato**: anche i turni in incognito scrivono checkpoint LangGraph. La lista dei thread univa checkpoint e messaggi, quindi un thread incognito compariva nella sidebar e `backfill_from_state_history` ne salvava i turni nello store, annullando l'incognito. L'ordinamento confrontava inoltre i `rowid` di due tabelle diverse.
 - **Fix (B10, 2026-10-27)**: rimosse le due funzioni di recupero (`thread_store` da 707 a 430 righe). La lista dei thread parte da `thread_messages`, la fonte di verità, con il conteggio dei checkpoint in `LEFT JOIN`; l'apertura di un thread legge solo lo store. `verify_api_key` esiste solo in [deps.py](../../backend/app/api/deps.py) con `secrets.compare_digest`, usata anche dai router di calendario e automazioni. Unificato `parse_natural_duration` in `calendar/db.py`; rimosso l'alias `SAFE_TOOLS`. Test: `test_threads_api.py`, `test_auth.py`.
 - **Resta aperto**: i checkpoint LangGraph dei turni incogniti restano nel DB (il grafo ha sempre il checkpointer). Da valutare se usare un thread effimero o cancellarli a fine turno.
+
+## ISS-26
+**Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite** — S2
+
+- **Evidenza (prova live B12, 2026-10-27, LFM2.5-24B-A2B-HugeCtx)**: "elenca i container LXC" in act. Passo 1: prompt di 7.928 token, 77 s di prompt eval (~100 token/s). `list_containers` restituisce il JSON completo di ~50 container; il passo 2 ha un prompt di ~17.000 token, elaborato a velocità decrescente (da ~400 a 57 token/s) finché il provider va in timeout, ritenta da capo e llama.cpp continua a elaborare la richiesta abbandonata. Il turno non si chiude in 10 minuti.
+- **Cause lato backend**:
+  - [agent_prompts.py](../../backend/app/agent/agent_prompts.py) apre ogni system prompt con data e ora al secondo: il prefisso cambia a ogni chiamata e la prompt cache di llama.cpp non viene mai riusata, quindi ogni passo rielabora da zero catalogo, regole e storico.
+  - Le osservazioni (storico dei tool) stanno a metà del system prompt di selezione, prima delle regole: anche con un prefisso stabile, tutto ciò che segue va rielaborato.
+  - I risultati dei tool entrano interi nel prompt di selezione; `TRUNCATION_LIMIT` (40.000 caratteri) vale solo per la sintesi finale.
+  - Il retry del provider dopo un timeout di lettura riparte dall'inizio mentre il server sta ancora elaborando la richiesta precedente.
+- **Causa lato infra (CT 100)**: preset `LFM2.5-24B-A2B-HugeCtx` con KV cache `turbo2` e quantizzazione IQ3_XXS su V100: l'elaborazione dei prompt rallenta molto al crescere del contesto. Da confrontare con il profilo `Balanced` (Q3_K_XL) o con una KV cache `q8_0`.
+- **Proposta**: parte statica del prompt (identità, catalogo, regole) in testa e senza orario al secondo; parte variabile (memoria, prefetch, osservazioni, data) in coda; limite per osservazione nel prompt di selezione (risultato completo nella traccia); nessun retry automatico dopo un timeout di lettura.
