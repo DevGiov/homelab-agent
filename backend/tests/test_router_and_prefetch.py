@@ -248,3 +248,14 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_router_reads_fields_from_truncated_json():
+    """Con max_tokens esaurito il JSON resta aperto: mode e web_search_needed vanno comunque letti dalle chiavi."""
+    truncated = '{"mode":"act","web_search_needed":false,"web_search_query":null,"reasoning":"The user asks to create an event, this is a local calendar'
+    provider = MagicMock()
+    provider.chat.return_value = {"content": truncated}
+    with patch("app.agent.mode_router.get_provider", return_value=provider):
+        decision = route_turn("Crea un evento domani alle 10 per il dentista")
+    assert decision.mode == "act"
+    assert decision.web_search_needed is False

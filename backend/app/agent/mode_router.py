@@ -218,7 +218,7 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
   "mode": "chat" | "ask" | "act" | "plan",
   "web_search_needed": true | false,
   "web_search_query": "concise query" | null,
-  "reasoning": "brief explanation"
+  "reasoning": "one short sentence, at most 15 words"
 }}"""
 
     context_parts = []
@@ -301,7 +301,7 @@ def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]
     res = get_provider().chat(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         model=model,
-        max_tokens=120,
+        max_tokens=256,
         temperature=0.0,
         reasoning_budget=0,
         json_mode=True,
@@ -318,7 +318,22 @@ def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]
         json_match = re.search(r'\{.*\}', clean_json, flags=re.DOTALL)
         return json.loads(json_match.group(0) if json_match else clean_json)
     except Exception:
-        mode_match = re.search(r'\b(chat|ask|act|plan)\b', clean_content.lower())
-        if mode_match:
-            return {"mode": mode_match.group(1), "web_search_needed": (mode_match.group(1) == "ask")}
-        return {}
+        return _salvage_router_fields(clean_content)
+
+
+def _salvage_router_fields(text: str) -> Dict[str, Any]:
+    """Recupera mode e web_search_needed da un JSON troncato (max_tokens) o da testo libero."""
+    lower = text.lower()
+    mode_key = re.search(r'"mode"\s*:\s*"(chat|ask|act|plan)"', lower)
+    if mode_key:
+        salvaged: Dict[str, Any] = {"mode": mode_key.group(1)}
+        web_key = re.search(r'"web_search_needed"\s*:\s*(true|false)', lower)
+        salvaged["web_search_needed"] = web_key.group(1) == "true" if web_key else mode_key.group(1) == "ask"
+        query_key = re.search(r'"web_search_query"\s*:\s*"([^"]+)"', text)
+        if query_key:
+            salvaged["web_search_query"] = query_key.group(1)
+        return salvaged
+    mode_word = re.search(r'\b(chat|ask|act|plan)\b', lower)
+    if mode_word:
+        return {"mode": mode_word.group(1), "web_search_needed": mode_word.group(1) == "ask"}
+    return {}
