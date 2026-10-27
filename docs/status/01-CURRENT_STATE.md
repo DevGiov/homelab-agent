@@ -34,9 +34,9 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 | Area | Moduli principali | Note |
 | :--- | :--- | :--- |
 | API REST/SSE | [api.py](../../backend/app/api/) (~40 route) | Chat, thread, stream, approvazioni, KB, audit, modelli |
-| Automazioni | [automations/](../../backend/app/automations/) (~44 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
+| Automazioni | [automations/](../../backend/app/automations/) ([routes/](../../backend/app/automations/routes/), 41 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
 | Calendario | [calendar_db.py](../../backend/app/calendar/db.py), [calendar_router.py](../../backend/app/calendar/router.py) (~15 route), [calendar_sync.py](../../backend/app/calendar/sync.py) | Import ICS/Google |
-| Sicurezza | [guardrails.py](../../backend/app/security/guardrails.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
+| Sicurezza | [policy.py](../../backend/app/security/policy.py), [approvals.py](../../backend/app/security/approvals.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
 | Memoria | [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [letta_client.py](../../backend/app/memory/letta_client.py), [thread_store.py](../../backend/app/memory/thread_store.py) | sqlite-vec, BM25+RRF, persistenza thread |
 | Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
 | LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |

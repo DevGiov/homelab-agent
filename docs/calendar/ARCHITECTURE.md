@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph Data_Layer [Data & Storage]
         DB[(calendar.db\nSQLite WAL)]
-        Guard[guardrails.py\nSafe View / High Risk Delete]
+        Guard[security/policy.py\nSafe View / High Risk Delete]
     end
 
     subgraph Sync_Layer [Sync & Integrations]

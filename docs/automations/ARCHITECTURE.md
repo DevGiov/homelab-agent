@@ -51,7 +51,7 @@ graph TD
     end
 
     subgraph Governance ["Governance, Security & Audit"]
-        Guardrails["guardrails.py (Tier 1/2/3)"]
+        Guardrails["security/policy.py + approvals.py (Tier 1/2/3)"]
         ApprovalStore["Persistent Approvals (automations.db)"]
         Permissions["permissions.py (Scope & Identity)"]
         AuditLog["audit_log.py (Esteso con Run/Step ID)"]
@@ -70,7 +70,7 @@ graph TD
 ```
 
 ### Componenti Esistenti Coinvolti
-- **[backend/guardrails.py](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/backend/guardrails.py)**: Fornisce la classificazione a 3 Tier (`CRITICAL_BLOCKED_PATTERNS`, `SUSPICIOUS_HIGH_RISK_PATTERNS`, `VIEW_TOOLS`). Viene integrato con lo storage persistente delle approvazioni su DB invece dell'effimero `_APPROVALS` in memoria RAM.
+- **[backend/app/security/policy.py](../../backend/app/security/policy.py)** e **[approvals.py](../../backend/app/security/approvals.py)**: la policy fornisce la classificazione a 3 Tier (`CRITICAL_BLOCKED_PATTERNS`, `SUSPICIOUS_HIGH_RISK_PATTERNS`, `VIEW_TOOLS`); le approvazioni sono specchiate su DB, così sopravvivono al riavvio.
 - **[backend/registry/manager.py](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/backend/registry/manager.py)**: Dispatcher unificato di tutti i tool (`metamcp`, `web`, `code`, `memory`, `vision`). Gli step deterministici invocano direttamente i registry.
 - **[backend/agent_loop.py](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/backend/agent_loop.py)**: Loop ReAct per gli step agentici, configurato con policy restrittive perimetrate sull'automazione.
 - **[backend/audit_log.py](file:///home/deggio/Desktop/coding/progetti/homelab/homelab-agent/backend/audit_log.py)**: Registro persistente di ogni chiamata tool, arricchito con `run_id`, `step_run_id` e `automation_id`.
