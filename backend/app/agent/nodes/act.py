@@ -4,6 +4,8 @@ from app.agent.execution_log import execute_plan
 from app.agent.mode_policy import get_mode_policy
 from app.agent.state import AgentState
 
+PLAN_EXECUTION_KEYWORDS = ("esegui il piano", "esegui piano", "avvia esecuzione", "esecuzione piano")
+
 
 def execute_plan_node(state: AgentState) -> AgentState:
     """Esegue il plan_structure del turno come Saga (vedi execution_log); senza piano ricade sull'agent loop di act."""
@@ -20,39 +22,17 @@ def execute_plan_node(state: AgentState) -> AgentState:
 
 
 def act_graph_node(state: AgentState) -> AgentState:
-    """Subgraph for single tool or plan execution."""
+    """Subgraph for single tool or plan execution.
+
+    Con un piano strutturato nel thread e una richiesta di esecuzione esegue il piano;
+    altrimenti la richiesta passa all'agent loop, che agisce solo tramite tool reali e guardrail.
+    """
     task = state.get("task", "")
     task_lower = task.lower()
 
     if state.get("plan_structure") or state.get("plan", {}).get("plan_structure"):
-        if state.get("execute") or any(kw in task_lower for kw in ["esegui il piano", "esegui piano", "avvia esecuzione", "esecuzione piano"]):
+        if state.get("execute") or any(kw in task_lower for kw in PLAN_EXECUTION_KEYWORDS):
             return execute_plan_node(state)
-
-    if any(kw in task_lower for kw in ["esegui il piano", "esegui piano", "avvia esecuzione", "esecuzione piano"]):
-        plan_summary = task.split(":", 1)[1].strip() if ":" in task else task
-        steps = [s.strip() for s in plan_summary.split(";") if s.strip()]
-
-        exec_lines = [
-            f"🚀 **Avvio esecuzione del piano**: *'{task}'*\n",
-            "### Esito Esecuzione Passaggi:\n"
-        ]
-
-        if steps:
-            for idx, step in enumerate(steps, 1):
-                exec_lines.append(f"{idx}. ✅ `{step}` — *Eseguito con successo*")
-        else:
-            exec_lines.extend([
-                "1. ✅ `Verifica disponibilità risorse e allocazione VMID` — *Completato*",
-                "2. ✅ `Assegnazione indirizzo IP statico da IPAM` — *Completato*",
-                "3. ✅ `Configurazione record DNS su Pi-hole` — *Completato*",
-                "4. ✅ `Configurazione Host Proxy su Nginx Proxy Manager` — *Completato*",
-                "5. ✅ `Avvio e bootstrap del servizio` — *Completato*"
-            ])
-
-        exec_lines.append("\n🎉 **Tutti i passaggi del piano sono stati eseguiti con successo!**")
-        ans = "\n".join(exec_lines)
-        plan = {"mode": "act", "tool_needed": False, "direct_answer": ans}
-        return {"plan": plan}
 
     policy = get_mode_policy("act")
     budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
