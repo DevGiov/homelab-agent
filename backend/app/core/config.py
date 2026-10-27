@@ -21,8 +21,7 @@ class Settings(BaseSettings):
     rate_limit: str = Field(default="30/minute", alias="RATE_LIMIT")
 
     # --- MetaMCP ---
-    metamcp_url: str = Field(default="http://192.168.1.175:12008/metamcp/MetaMCP/sse", alias="METAMCP_URL")
-    metamcp_url_http: str = Field(default="http://192.168.1.175:12008", alias="METAMCP_URL_HTTP")
+    metamcp_url: str = Field(default="http://192.168.1.175:12008/metamcp/MetaMCP/mcp", alias="METAMCP_URL")
     metamcp_api_key: str = Field(default="", alias="METAMCP_API_KEY")
 
     # --- LLM ---
@@ -89,7 +88,6 @@ ALLOW_INSECURE = _settings.allow_insecure
 CORS_ORIGINS = _settings.cors_origins
 RATE_LIMIT = _settings.rate_limit
 METAMCP_URL = _settings.metamcp_url
-METAMCP_URL_HTTP = _settings.metamcp_url_http
 METAMCP_API_KEY = _settings.metamcp_api_key
 DEFAULT_MODEL = _settings.default_model
 LLAMA_CPP_URL = _settings.llama_cpp_url

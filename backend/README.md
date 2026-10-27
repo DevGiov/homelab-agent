@@ -21,7 +21,7 @@ flowchart LR
     AL --> REG[ToolRegistryManager]
 
     subgraph Registries
-        MM[metamcp] --> SDK[mcp/sdk_client<br/>SDK ufficiale MCP]
+        MM[metamcp] --> SDK[mcp/client<br/>SDK ufficiale MCP, Streamable HTTP]
         WS[web] --> SX[SearXNG / DDG + SSRF guard]
         CE[code] --> FC[Firecracker sandbox]
         ME[memory] --> LT[Letta hybrid retrieval]
@@ -84,7 +84,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/registry/` | Registry dei tool: `metamcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
 | `app/automations/` | Definizioni, run, scheduler, runner, code runner, template, loop; `db/` è il database SQLite con un modulo per aggregato (`definitions`, `runs`, `approvals`, `artifacts`, `breaker_states`, `integrations`) più `connection.py` e `schema.py` |
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
-| `app/mcp/` | `sdk_client.py` (SDK ufficiale MCP), `client.py` (client legacy, da rimuovere in B4) |
+| `app/mcp/` | `client.py`: client sincrono sull'SDK MCP ufficiale (Streamable HTTP), una sessione condivisa per processo con retry e reset (`get_mcp_client()`) |
 | `app/integrations/` | Integrazioni di servizio per le automazioni |
 | `app/core/` | `config.py` (Pydantic Settings, fail-fast sicurezza, `BACKEND_DIR`), `text_utils.py`, `image_utils.py` |
 | `sdk/` | SDK pubblico per gli script delle automazioni (`@workflow`, `@step`, `AutomationContext`): resta fuori da `app/` perché lo importano gli script utente |

@@ -2,10 +2,7 @@ import logging
 import time
 from typing import Any, Dict, List
 
-import requests
-
-from app.core import config
-from app.mcp.client import MetaMCPClient
+from app.mcp.client import get_mcp_client
 
 logger = logging.getLogger("tool_catalog")
 
@@ -84,41 +81,13 @@ def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
 
     tools: List[Dict[str, Any]] = []
 
-    # 1. Recupero dinamico via MetaMCPClient (Streamable HTTP / SSE protocol)
     try:
-        mcp = MetaMCPClient(config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
-        raw_tools = mcp.list_tools()
-        if raw_tools and isinstance(raw_tools, list):
-            for t in raw_tools:
-                if isinstance(t, dict):
-                    name = t.get("name", "")
-                    desc = t.get("description", "")
-                    params = t.get("inputSchema") or t.get("parameters") or {"type": "object", "properties": {}}
-                    if name:
-                        tools.append({
-                            "name": name,
-                            "description": desc,
-                            "parameters": params
-                        })
-            if tools:
-                logger.info(f"Scoperti dinamicamente {len(tools)} tool da MetaMCP via protocollo MCP")
+        for t in get_mcp_client().list_tools():
+            if t["name"]:
+                tools.append({"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]})
+        logger.info(f"Scoperti {len(tools)} tool da MetaMCP")
     except Exception as e:
-        logger.warning(f"Discovery dinamica MCP tools fallita: {e}")
-
-    # 2. Fallback OpenAPI se list_tools non ha restituito tool
-    if not tools:
-        base_http = getattr(config, "METAMCP_URL_HTTP", "http://192.168.1.175:12008").rstrip('/')
-        url = f"{base_http}/api/openapi.json"
-        headers = {"Authorization": f"Bearer {config.METAMCP_API_KEY}"} if config.METAMCP_API_KEY else {}
-        try:
-            res = requests.get(url, headers=headers, timeout=5)
-            if res.status_code == 200:
-                openapi = res.json()
-                tools = _parse_openapi_to_tools(openapi)
-                if tools:
-                    logger.info(f"Scoperti dinamicamente {len(tools)} tool da MetaMCP via OpenAPI")
-        except Exception as e:
-            logger.debug(f"Impossibile recuperare OpenAPI da MetaMCP ({e})")
+        logger.warning(f"Discovery dei tool MCP fallita: {e}")
 
     if tools:
         for t in tools:
@@ -134,25 +103,6 @@ def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
     for t in cached:
         t["rollback_info"] = get_rollback_info(t.get("name", ""))
     return cached
-
-
-def _parse_openapi_to_tools(openapi: dict) -> List[Dict[str, Any]]:
-    """Estrae {name, description, parameters} da uno schema OpenAPI."""
-    tools = []
-    paths = openapi.get("paths", {})
-    for path, methods in paths.items():
-        if isinstance(methods, dict):
-            for spec in methods.values():
-                if isinstance(spec, dict):
-                    name = spec.get("operationId") or path.strip("/").replace("/", "_")
-                    description = spec.get("summary") or spec.get("description") or ""
-                    params_schema = spec.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})
-                    tools.append({
-                        "name": name,
-                        "description": description,
-                        "parameters": params_schema
-                    })
-    return tools
 
 
 def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:

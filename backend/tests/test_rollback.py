@@ -69,7 +69,8 @@ def _run_plan(security_mode: str):
         return {"status": "success"}
 
     thread_id = f"test_rollback_{security_mode}_{time.time_ns()}"
-    with patch("app.agent.execution_log.client.call_tool", side_effect=mock_call_tool):
+    with patch("app.agent.execution_log.get_mcp_client") as get_client:
+        get_client.return_value.call_tool.side_effect = mock_call_tool
         build_graph().invoke(_plan_state(thread_id, security_mode), config={"configurable": {"thread_id": thread_id}})
     return forward_calls, rollback_calls
 

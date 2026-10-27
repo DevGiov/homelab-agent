@@ -71,7 +71,7 @@ jsonschema>=4.26.0
 xxhash==3.8.1
 zstandard==0.25.0
 slowapi==0.1.9
-mcp>=1.28
+mcp>=2.3,<3
 fastembed>=0.7
 pypdf>=6
 Pillow>=10.0.0

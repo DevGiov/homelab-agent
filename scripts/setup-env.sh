@@ -118,7 +118,6 @@ ask RATE_LIMIT "RATE_LIMIT" "$(read_existing RATE_LIMIT "30/minute")"
 section "🔧 MetaMCP"
 
 ask METAMCP_URL "METAMCP_URL (endpoint streamable-http)" "$(read_existing METAMCP_URL "http://metamcp.example.local:12008/metamcp/MetaMCP/mcp")"
-ask METAMCP_URL_HTTP "METAMCP_URL_HTTP (base URL HTTP)" "$(read_existing METAMCP_URL_HTTP "http://metamcp.example.local:12008")"
 ask METAMCP_API_KEY "METAMCP_API_KEY" "$(read_existing METAMCP_API_KEY "")" true
 
 # ── LLM ──
@@ -176,7 +175,6 @@ RATE_LIMIT=${RATE_LIMIT}
 
 # --- MetaMCP ---
 METAMCP_URL=${METAMCP_URL}
-METAMCP_URL_HTTP=${METAMCP_URL_HTTP}
 METAMCP_API_KEY=${METAMCP_API_KEY}
 
 # --- LLM ---

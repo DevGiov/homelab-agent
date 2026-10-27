@@ -6,13 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from app.agent import llm_calls
 from app.agent.tool_catalog import get_rollback_info, get_tool_catalog
-from app.core import config
-from app.mcp.client import MetaMCPClient
+from app.mcp.client import get_mcp_client
 from app.security import guardrails
 
 logger = logging.getLogger("graph")
-
-client = MetaMCPClient(base_url=config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
 
 
 def extract_output_var(result: Any, output_var: str, step_id: int) -> Any:
@@ -162,7 +159,7 @@ def execute_rollback_for_step(log: ExecutionLog, tools_catalog: list[dict]) -> b
     logger.info(f"Rollback step {step_id}: `{rollback_tool}` con args {rollback_args}")
 
     try:
-        rollback_result = client.call_tool(rollback_tool, rollback_args)
+        rollback_result = get_mcp_client().call_tool(rollback_tool, rollback_args)
         if isinstance(rollback_result, dict) and "error" in rollback_result:
             log.rollback_executed = False
             log.rollback_error = rollback_result["error"]
@@ -279,7 +276,7 @@ def execute_plan(
                 break
 
         try:
-            result = client.call_tool(tool_name, resolved_args)
+            result = get_mcp_client().call_tool(tool_name, resolved_args)
             log_entry.result = result
             log_entry.timestamp_end = datetime.now(UTC)
             logger.info(f"Step {step_id} completato: {result}")

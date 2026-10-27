@@ -1,6 +1,7 @@
 """Health, stato dei servizi e audit log."""
 import asyncio
 from typing import Optional
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends
 
@@ -22,6 +23,10 @@ async def status():
 
     from app.llm.providers import list_providers
 
+    def _origin(url: str) -> str:
+        parts = urlsplit(url)
+        return f"{parts.scheme}://{parts.netloc}"
+
     async def _ping(name: str, url: str, headers: dict = None):
         try:
             async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
@@ -33,7 +38,7 @@ async def status():
     letta_headers = {"Authorization": f"Bearer {config.LETTA_API_KEY}"} if config.LETTA_API_KEY else {}
     results = await asyncio.gather(
         _ping("llamacpp", f"{config.LLAMA_CPP_URL.rstrip('/')}/models"),
-        _ping("metamcp", config.METAMCP_URL_HTTP),
+        _ping("metamcp", _origin(config.METAMCP_URL)),
         _ping("letta", f"{config.LETTA_URL.rstrip('/')}/v1/agents/", headers=letta_headers),
         return_exceptions=True,
     )
