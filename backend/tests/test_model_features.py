@@ -208,6 +208,9 @@ def test_json_mode_requests_json_output_from_each_provider():
     openai = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
     assert openai._build_payload([], None, 10, 0.0, -1, json_mode=True)["response_format"] == {"type": "json_object"}
     assert "response_format" not in openai._build_payload([], None, 10, 0.0, -1)
+    schema = {"type": "object", "properties": {"a": {"type": "string"}}}
+    constrained = openai._build_payload([], None, 10, 0.0, -1, json_schema=schema)["response_format"]
+    assert constrained == {"type": "json_schema", "json_schema": {"name": "response", "schema": schema}}
 
     reply = MagicMock(status_code=200)
     reply.json.return_value = {"message": {"content": "{}"}}

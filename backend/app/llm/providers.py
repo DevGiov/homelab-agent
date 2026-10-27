@@ -49,11 +49,13 @@ class LLMProvider(ABC):
         reasoning_budget: int = -1,
         stream_callback: Optional[StreamCallback] = None,
         json_mode: bool = False,
+        json_schema: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, str]:
         """Esegue una chat completion. Ritorna {'content', 'reasoning_content', 'metrics'}; se la richiesta fallisce
         il contenuto è vuoto e 'error' ne riporta il motivo.
 
-        json_mode chiede al server un output JSON valido (response_format / format=json).
+        json_mode chiede al server un output JSON valido (response_format / format=json); json_schema lo vincola a
+        uno schema: il server genera solo un oggetto conforme e si ferma quando lo chiude.
         """
         ...
 
@@ -128,7 +130,7 @@ class OpenAICompatProvider(LLMProvider):
         self.name = name
         self.timeout = timeout
 
-    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, json_mode=False) -> dict:
+    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, json_mode=False, json_schema=None) -> dict:
         effective_model = model or self.default_model
         enable_thinking = (reasoning_budget != 0) and _supports_reasoning(effective_model)
         payload = {
@@ -154,7 +156,9 @@ class OpenAICompatProvider(LLMProvider):
             if reasoning_budget == 0:
                 # Alcuni template (es. LFM2.5) ragionano comunque: solo il budget a 0 spegne il thinking lato server
                 payload["reasoning_budget_tokens"] = 0
-        if json_mode:
+        if json_schema:
+            payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "response", "schema": json_schema}}
+        elif json_mode:
             payload["response_format"] = {"type": "json_object"}
         payload["stream"] = True
         payload["stream_options"] = {"include_usage": True}
@@ -220,7 +224,7 @@ class OpenAICompatProvider(LLMProvider):
         return False
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None, json_mode=False) -> Dict[str, Any]:
+             reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
         """Chat completion sempre in streaming, con l'avanzamento dell'elaborazione del prompt.
 
         llama.cpp invia un chunk per ogni batch del prompt: un prompt lungo non fa scattare il timeout di lettura,
@@ -228,7 +232,8 @@ class OpenAICompatProvider(LLMProvider):
         """
         effective_model = model or self.default_model
         self.ensure_model_loaded(effective_model)
-        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, json_mode=json_mode)
+        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, json_mode=json_mode,
+                                      json_schema=json_schema)
 
         sess = current_session_var.get()
         if sess and sess.is_stopped():
@@ -416,7 +421,7 @@ class OllamaProvider(LLMProvider):
         self.timeout = timeout
 
     def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None, json_mode=False) -> Dict[str, str]:
+             reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, str]:
         url = f"{self.base_url}/api/chat"
         # Convert multimodal OpenAI blocks to Ollama format if necessary
         ollama_messages = []
@@ -446,7 +451,9 @@ class OllamaProvider(LLMProvider):
             "stream": bool(stream_callback),
             "options": {"num_predict": max_tokens, "temperature": temperature},
         }
-        if json_mode:
+        if json_schema:
+            payload["format"] = json_schema
+        elif json_mode:
             payload["format"] = "json"
         try:
             if stream_callback:

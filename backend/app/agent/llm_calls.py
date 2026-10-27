@@ -27,6 +27,7 @@ def call_llm(
     stream_mode: str = "all",  # "all" | "reasoning_only" | "content_only" | "none"
     reasoning_phase: Optional[str] = None,
     images: Optional[List[str]] = None,
+    json_schema: Optional[dict] = None,
 ) -> dict:
     messages = []
 
@@ -119,7 +120,14 @@ def call_llm(
         temperature=temperature,
         reasoning_budget=reasoning_budget,
         stream_callback=stream_callback,
+        json_schema=json_schema,
     )
+
+
+def _grammar_schema(schema_cls: Any) -> dict:
+    """Schema per la grammatica del server: con tutti i campi obbligatori il modello non può chiudere l'oggetto dopo il primo."""
+    schema = schema_cls.model_json_schema()
+    return {**schema, "required": list(schema.get("properties", {}))}
 
 def call_llm_structured(
     prompt: str,
@@ -179,6 +187,7 @@ def call_llm_structured(
             stream_mode="reasoning_only",
             reasoning_phase=reasoning_phase,
             images=images,
+            json_schema=_grammar_schema(schema_cls),
         )
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
@@ -202,8 +211,9 @@ def call_llm_structured(
         clean = re.sub(r'```$', '', clean).strip()
 
         try:
-            json_match = re.search(r'\{.*\}', clean, flags=re.DOTALL)
-            parsed = json.loads(json_match.group(0)) if json_match else json.loads(clean)
+            # Solo il primo oggetto: un modello senza grammatica può continuare a scrivere dopo averlo chiuso
+            start = clean.find("{")
+            parsed, _ = json.JSONDecoder().raw_decode(clean[start:] if start >= 0 else clean)
             validated = schema_cls.model_validate(parsed)
             if hasattr(validated, "raw_thinking"):
                 validated.raw_thinking = raw_res.get("reasoning_content", "") if isinstance(raw_res, dict) else ""

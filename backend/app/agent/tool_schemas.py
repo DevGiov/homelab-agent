@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 try:
     import jsonschema
@@ -22,7 +23,8 @@ class ToolSelection(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidenza nella scelta, da 0 a 1")
     reasoning: str = Field(default="", description="Motivazione o spiegazione interna della decisione (Chain of Thought)")
     final_answer: Optional[str] = Field(default=None, description="Risposta finale formattata ed esplicita per l'utente, da compilare specialmente quando tool_needed=False")
-    raw_thinking: Optional[str] = Field(default=None, description="Thinking nativo catturato durante la chiamata LLM")
+    # Compilato dal backend con il thinking nativo della chiamata: fuori dallo schema mostrato e imposto al modello
+    raw_thinking: SkipJsonSchema[Optional[str]] = None
 
     @field_validator("arguments", "reasoning", mode="before")
     @classmethod

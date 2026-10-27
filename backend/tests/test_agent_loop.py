@@ -175,3 +175,22 @@ def test_structured_call_does_not_retry_a_failed_request():
     with patch("app.agent.llm_calls.get_provider", return_value=provider), pytest.raises(LLMUnavailableError):
         call_llm_structured("prompt", "sys", ToolSelection, max_retries=3)
     assert provider.chat.call_count == 1
+
+
+def test_structured_call_constrains_output_to_the_full_schema():
+    provider = MagicMock()
+    provider.chat.return_value = {"content": '{"tool_needed": false, "final_answer": "ok"}', "reasoning_content": ""}
+    with patch("app.agent.llm_calls.get_provider", return_value=provider):
+        call_llm_structured("prompt", "sys", ToolSelection)
+    schema = provider.chat.call_args.kwargs["json_schema"]
+    assert "raw_thinking" not in schema["properties"]
+    assert schema["required"] == list(schema["properties"])
+
+
+def test_structured_call_reads_only_the_first_json_object():
+    # LFM2.5 senza grammatica chiudeva il JSON e continuava a scrivere fino a max_tokens
+    provider = MagicMock()
+    provider.chat.return_value = {"content": '{"tool_needed": true, "tool_name": "list_containers"}\n{"tool_needed": false}', "reasoning_content": ""}
+    with patch("app.agent.llm_calls.get_provider", return_value=provider):
+        selection = call_llm_structured("prompt", "sys", ToolSelection, max_retries=1)
+    assert selection.tool_name == "list_containers"
