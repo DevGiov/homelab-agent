@@ -34,7 +34,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | B8 | ~~Router via provider astratto invece di `requests` diretto~~ ✅ 2026-10-27 (`json_mode` nei provider; rimossi `classify_mode` e il doppione di `is_purely_visual_request`) | ISS-23 |
 | B9 | ~~Decisione e fix sul fallback non isolato della sandbox codice~~ ✅ 2026-10-26 (fallback previa approvazione) | ISS-18 |
 | B5 | ~~`config.py` solo Pydantic Settings, eliminate le costanti di retrocompatibilità~~ ✅ 2026-10-27 (anche SearXNG e lingue di ricerca nelle settings) | ISS-10 |
-| B6 | Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry | ISS-03 |
+| B6 | ~~Startup unico (lifespan FastAPI): init di tutti gli schemi DB, scheduler, registry~~ ✅ 2026-10-27 (`app/startup.py`; nessuna inizializzazione all'import) | ISS-03 |
 | B7 | Database in una directory dati unica (`DATA_DIR`), niente `.db` nella radice del codice | ISS-09 |
 
 **Uscita**: nessun file sopra le ~600 righe nel backend; Dockerfile e compose aggiornati; test verdi dopo ogni spostamento.

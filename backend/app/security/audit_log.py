@@ -15,8 +15,8 @@ def _get_conn():
 
 
 def init_audit_db():
+    conn = _get_conn()
     try:
-        conn = _get_conn()
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,27 +34,12 @@ def init_audit_db():
                 step_run_id TEXT
             )
         """)
-        # Migrazione schema dinamica se la tabella esisteva già senza le colonne automazione
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(audit_log)")
-        existing_cols = {row[1] for row in cursor.fetchall()}
-        if "automation_id" not in existing_cols:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN automation_id TEXT")
-        if "run_id" not in existing_cols:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN run_id TEXT")
-        if "step_run_id" not in existing_cols:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN step_run_id TEXT")
-
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_thread ON audit_log(thread_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_auto ON audit_log(automation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_run ON audit_log(run_id)")
         conn.commit()
+    finally:
         conn.close()
-    except Exception as e:
-        logger.error(f"Errore inizializzazione audit_log: {e}")
-
-
-init_audit_db()
 
 
 def log_tool_call(

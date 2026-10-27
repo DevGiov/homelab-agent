@@ -33,8 +33,8 @@ def _get_conn():
 
 def init_permissions_db():
     """Inizializza la tabella SQLite per i permessi persistenti (ALWAYS)."""
+    conn = _get_conn()
     try:
-        conn = _get_conn()
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tool_permissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,12 +47,8 @@ def init_permissions_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_perm_tool ON tool_permissions(tool_name)")
         conn.commit()
+    finally:
         conn.close()
-    except Exception as e:
-        logger.error(f"Errore inizializzazione tool_permissions: {e}")
-
-
-init_permissions_db()
 
 
 def extract_command_prefix(args: Dict[str, Any]) -> Optional[str]:

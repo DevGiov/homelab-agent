@@ -59,8 +59,8 @@ def _get_conn() -> sqlite3.Connection:
 
 def init_vector_db():
     """Crea le tabelle vettoriali se non esistono."""
+    conn = _get_conn()
     try:
-        conn = _get_conn()
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vec_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,22 +71,14 @@ def init_vector_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        try:
-            conn.execute(f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS vec_memory_idx USING vec0(
-                    embedding float[{EMBED_DIM}] distance_metric=cosine
-                )
-            """)
-        except Exception as e:
-            logger.warning(f"Creazione tabella vec0: {e}")
+        conn.execute(f"""
+            CREATE VIRTUAL TABLE IF NOT EXISTS vec_memory_idx USING vec0(
+                embedding float[{EMBED_DIM}] distance_metric=cosine
+            )
+        """)
         conn.commit()
+    finally:
         conn.close()
-        logger.info("Vector store inizializzato")
-    except Exception as e:
-        logger.error(f"Errore init vector store: {e}")
-
-
-init_vector_db()
 
 
 def add_memory(

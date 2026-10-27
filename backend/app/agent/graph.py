@@ -1,6 +1,6 @@
 """Grafo LangGraph dell'agente: intake → memoria → routing → prefetch web → sottografo di modalità → risposta."""
-import logging
 import sqlite3
+from functools import lru_cache
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
@@ -18,12 +18,11 @@ from app.agent.nodes.web_prefetch import web_prefetch_node
 from app.agent.state import AgentState
 from app.core.config import settings
 
-logging.basicConfig(level=logging.INFO)
 
-conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
-checkpointer = SqliteSaver(conn)
-# Crea subito lo schema (checkpoints/writes): le query su thread non devono dipendere dalla prima esecuzione del grafo
-checkpointer.setup()
+@lru_cache(maxsize=1)
+def get_checkpointer() -> SqliteSaver:
+    """Checkpointer condiviso; lo schema (checkpoints/writes) lo crea app.startup.init_databases."""
+    return SqliteSaver(sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False))
 
 
 def route_to_subgraph(state: AgentState) -> str:
@@ -74,4 +73,4 @@ def build_graph():
     workflow.add_edge("respond", "commit_memory")
     workflow.add_edge("commit_memory", END)
 
-    return workflow.compile(checkpointer=checkpointer)
+    return workflow.compile(checkpointer=get_checkpointer())

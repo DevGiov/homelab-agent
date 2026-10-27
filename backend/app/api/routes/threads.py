@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.agent.stream_session import (
     get_session,
 )
-from app.api.agent_runner import app_graph
+from app.api.agent_runner import get_app_graph
 from app.api.deps import verify_api_key
 from app.api.schemas import (
     SaveVersionsDataRequest,
@@ -28,7 +28,6 @@ router = APIRouter(tags=["threads"])
 @router.get("/v1/threads", response_model=List[ThreadSummary], dependencies=[Depends(verify_api_key)])
 async def list_threads():
     try:
-        thread_store.init_db()
         conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
         cursor.execute("""
@@ -60,7 +59,7 @@ async def list_threads():
 
             # Se non c'è last_message, tenta backfill da LangGraph per popolare lo store
             if last_msg is None and count > 0:
-                backfilled = thread_store.backfill_from_state_history(tid, app_graph)
+                backfilled = thread_store.backfill_from_state_history(tid, get_app_graph())
                 if backfilled:
                     last_msg = thread_store.get_last_message(tid)
 
@@ -108,9 +107,9 @@ async def get_thread(thread_id: str):
 
         # 2. Se vuoto ma il thread ha checkpoint, ricostruisci da LangGraph state history
         if not stored_messages and count > 0:
-            stored_messages = thread_store.backfill_from_state_history(thread_id, app_graph)
+            stored_messages = thread_store.backfill_from_state_history(thread_id, get_app_graph())
         elif stored_messages and count > 0 and any(m.get("sender") == "assistant" and not m.get("web_prefetch") for m in stored_messages):
-            stored_messages = thread_store.repair_missing_web_prefetch(thread_id, app_graph)
+            stored_messages = thread_store.repair_missing_web_prefetch(thread_id, get_app_graph())
 
         # 3. Controlla se c'è una sessione attiva per questo thread
         sess = get_session(thread_id)

@@ -1,5 +1,6 @@
 import argparse
 
+from app import startup
 from app.agent.graph import build_graph
 
 
@@ -19,6 +20,8 @@ def main():
         print(f"Modalità forzata via CLI: {args.force_mode}")
     print()
 
+    startup.configure_logging()
+    startup.init_databases()
     app = build_graph()
     initial_state = {
         "task": args.task,

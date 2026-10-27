@@ -55,6 +55,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 - **Evidenza**: `test_stream_api.py` (2 test) riceve `500 != 200`. Riprodotto: in un DB di test pulito `sqlite_master` è vuoto e la query in [api.py:743](../../backend/app/api/) fa `SELECT ... FROM checkpoints`.
 - **Causa**: la tabella `checkpoints` viene creata da `SqliteSaver` in modo lazy, solo alla prima esecuzione del grafo. `thread_store.init_db()` crea le sue tabelle, non quelle di LangGraph.
 - **Impatto**: dopo un reset del database (operazione prevista in dev da AGENTS.md), la lista dei thread va in errore finché non parte la prima chat. La UI resta senza sidebar.
+- **Consolidamento (B6, 2026-10-27)**: tutti gli schemi (checkpoint LangGraph, thread, audit, permessi, memoria vettoriale, automazioni, calendario) li crea [startup.py](../../backend/app/startup.py) `init_databases()`, chiamata dal lifespan, dalla CLI e dal `conftest` dei test. Nessun modulo crea tabelle o connessioni all'import; un errore di inizializzazione blocca l'avvio invece di essere solo loggato. Checkpointer, grafo compilato e registry dei tool sono creati alla prima richiesta (`get_checkpointer`, `get_app_graph`, `get_registry_manager`). Rimosse le migrazioni di colonne di `thread_messages` e `audit_log`, già applicate al DB di produzione, e le chiamate a `thread_store.init_db()` ripetute a ogni salvataggio.
 
 ## ISS-04
 **Suite di test che non termina** — S2

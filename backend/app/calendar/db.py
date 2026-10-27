@@ -725,9 +725,3 @@ def find_free_slots(
 
     return free_slots
 
-
-# Inizializza automaticamente lo schema al caricamento
-try:
-    init_calendar_db()
-except Exception:
-    pass

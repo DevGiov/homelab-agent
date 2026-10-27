@@ -14,10 +14,9 @@ def _get_conn():
 
 def init_db():
     """Inizializza le tabelle thread_metadata e thread_messages nel database SQLite."""
+    conn = _get_conn()
     try:
-        conn = _get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS thread_metadata (
                 thread_id TEXT PRIMARY KEY,
                 title TEXT,
@@ -25,7 +24,7 @@ def init_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cursor.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS thread_messages (
                 thread_id TEXT NOT NULL,
                 message_id TEXT NOT NULL,
@@ -52,29 +51,8 @@ def init_db():
             )
         """)
         conn.commit()
-
-        # Migrazione colonne se la tabella esisteva già
-        for col_def in [
-            "reasoning_content TEXT",
-            "versions_json TEXT",
-            "version_index INTEGER DEFAULT 0",
-            "images_json TEXT",
-            "metrics_json TEXT",
-            "web_prefetch_json TEXT",
-            "model TEXT",
-        ]:
-            try:
-                cursor.execute(f"ALTER TABLE thread_messages ADD COLUMN {col_def}")
-                conn.commit()
-            except Exception:
-                pass
-
+    finally:
         conn.close()
-    except Exception as e:
-        logger.error(f"Errore inizializzazione thread_store SQLite: {e}")
-
-# Inizializza al caricamento del modulo
-init_db()
 
 
 def get_thread_title(thread_id: str) -> Optional[str]:
@@ -161,7 +139,6 @@ def save_user_message(
         return ""
     if not user_input and not images:
         return ""
-    init_db()
     conn = _get_conn()
     cursor = conn.cursor()
     now_time = time.time()
@@ -195,7 +172,6 @@ def save_assistant_message(
     """Salva o aggiorna la risposta dell'assistente in SQLite con tutti i campi strutturati e versioni."""
     if not thread_id:
         return ""
-    init_db()
     conn = _get_conn()
     cursor = conn.cursor()
     now_time = time.time()
@@ -329,7 +305,6 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
     if not thread_id:
         return []
 
-    init_db()
     conn = _get_conn()
     cursor = conn.cursor()
 
@@ -565,7 +540,6 @@ def backfill_from_state_history(thread_id: str, app_graph) -> List[Dict[str, Any
         return []
 
     # Salva nello store SQLite con timestamp sintetici sequenziali
-    init_db()
     conn = _get_conn()
     cursor = conn.cursor()
     all_messages = []

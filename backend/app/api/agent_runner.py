@@ -6,6 +6,7 @@ import logging
 import queue
 import threading
 import time
+from functools import lru_cache
 from typing import List, Optional, Union
 
 from fastapi import HTTPException, Request
@@ -29,7 +30,11 @@ from app.memory import thread_store
 
 logger = logging.getLogger("api")
 
-app_graph = build_graph()
+
+@lru_cache(maxsize=1)
+def get_app_graph():
+    """Grafo compilato condiviso dalle richieste API."""
+    return build_graph()
 
 
 def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
@@ -73,7 +78,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
     sess = create_session(effective_thread_id, task=task, mode=force_mode)
     current_session_var.set(sess)
     try:
-        final_state = app_graph.invoke(initial_state, config=cfg)
+        final_state = get_app_graph().invoke(initial_state, config=cfg)
 
         mode = final_state.get("mode", force_mode or "plan")
         response_text = final_state.get("final_response", "")
@@ -186,7 +191,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
             stream_reasoning_phase_count.set(0)
             current_session_var.set(sess)
             try:
-                final_state = app_graph.invoke(initial_state, config=cfg)
+                final_state = get_app_graph().invoke(initial_state, config=cfg)
                 mode = final_state.get("mode", force_mode or "plan")
                 response_text = final_state.get("final_response", "")
                 plan_dict = final_state.get("plan", {})

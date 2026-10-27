@@ -68,3 +68,10 @@ def _block_external_network(request, monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", _guarded_connect)
     monkeypatch.setattr(socket.socket, "connect_ex", _guarded_connect_ex)
     yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _init_databases():
+    """Schemi dei DB di test creati come all'avvio del servizio (i TestClient non eseguono il lifespan)."""
+    from app import startup
+    startup.init_databases()

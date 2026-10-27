@@ -1,6 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from app.registry.automations_tool import AutomationRegistry
@@ -161,7 +162,6 @@ class ToolRegistryManager:
             ]
             return [f.result() for f in futures]
 
-_global_manager = ToolRegistryManager()
-
+@lru_cache(maxsize=1)
 def get_registry_manager() -> ToolRegistryManager:
-    return _global_manager
+    return ToolRegistryManager()

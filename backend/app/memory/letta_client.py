@@ -8,7 +8,6 @@ import httpx
 
 from app.core.config import settings
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("letta_client")
 
 LETTA_URL = settings.letta_url.rstrip('/')
