@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Radice del backend (contiene app/, sdk/ e .env)
@@ -51,10 +51,17 @@ class Settings(BaseSettings):
         default=str(Path("/data/artifacts") if Path("/data").exists() and os.access("/data", os.W_OK) else BACKEND_DIR / "data" / "artifacts"),
         alias="ARTIFACTS_DIR",
     )
-    # Vuoto = directory "memory" accanto al DB dei checkpoint
+    # Vuoto = directory "memory" accanto al DB dei checkpoint (risolta in _resolve_memory_dir)
     memory_dir: str = Field(default="", alias="MEMORY_DIR")
     enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
+
+    # --- Ricerca web ---
+    searxng_url: str = Field(default="http://192.168.1.161:8080", alias="SEARXNG_URL")
+    # Engine abilitati sull'istanza SearXNG (categoria general/web)
+    searxng_engines: str = Field(default="google,bing,duckduckgo,brave,startpage", alias="SEARXNG_ENGINES")
+    search_primary_lang: str = Field(default="en", alias="SEARCH_PRIMARY_LANG")
+    search_fallback_lang: str = Field(default="it", alias="SEARCH_FALLBACK_LANG")
 
     # --- Firecracker ---
     firecracker_api_url: str = Field(default="http://192.168.1.69:8080", alias="FIRECRACKER_API_URL")
@@ -69,6 +76,12 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
+    @model_validator(mode="after")
+    def _resolve_memory_dir(self):
+        if not self.memory_dir:
+            self.memory_dir = str(Path(self.checkpoint_db_path).parent / "memory")
+        return self
+
     def validate_security(self) -> None:
         """Fail-fast se l'API è esposta senza chiave e senza ALLOW_INSECURE."""
         if not self.api_secret_key.strip() and not self.allow_insecure:
@@ -77,33 +90,4 @@ class Settings(BaseSettings):
                 "Imposta API_SECRET_KEY in backend/.env oppure ALLOW_INSECURE=1 per ambienti di sviluppo."
             )
 
-_settings = Settings()
-
-def get_settings() -> Settings:
-    return _settings
-
-# Compatibilità con il codice esistente che importa config.XXX
-API_SECRET_KEY = _settings.api_secret_key
-ALLOW_INSECURE = _settings.allow_insecure
-CORS_ORIGINS = _settings.cors_origins
-RATE_LIMIT = _settings.rate_limit
-METAMCP_URL = _settings.metamcp_url
-METAMCP_API_KEY = _settings.metamcp_api_key
-DEFAULT_MODEL = _settings.default_model
-LLAMA_CPP_URL = _settings.llama_cpp_url
-OLLAMA_URL = _settings.ollama_url
-LETTA_URL = _settings.letta_url
-LETTA_API_KEY = _settings.letta_api_key
-CHECKPOINT_DB_PATH = _settings.checkpoint_db_path
-AUTOMATIONS_DB_PATH = _settings.automations_db_path
-CALENDAR_DB_PATH = _settings.calendar_db_path
-ARTIFACTS_DIR = _settings.artifacts_dir
-MEMORY_DIR = _settings.memory_dir or str(Path(_settings.checkpoint_db_path).parent / "memory")
-ENABLE_AUTOMATION_SCHEDULER = _settings.enable_automation_scheduler
-TRUNCATION_LIMIT = _settings.truncation_limit
-FIRECRACKER_API_URL = _settings.firecracker_api_url
-FIRECRACKER_LOG_URL = _settings.firecracker_log_url
-FIRECRACKER_KERNEL_PATH = _settings.firecracker_kernel_path
-FIRECRACKER_ROOTFS_PATH = _settings.firecracker_rootfs_path
-
-
+settings = Settings()

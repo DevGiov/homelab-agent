@@ -10,11 +10,11 @@ Handles:
 from __future__ import annotations
 
 import logging
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional
 
+from app.core.config import settings
 from app.registry.search_content import (
     extract_key_points,
     fetch_webpage_content,
@@ -41,8 +41,6 @@ _MAX_TOTAL_CONTENT_CHARS = 8000
 _MAX_WORKERS = 4
 _MIN_SATISFACTORY_RESULTS = 3
 
-_PRIMARY_LANG = os.environ.get("SEARCH_PRIMARY_LANG", "en")
-_FALLBACK_LANG = os.environ.get("SEARCH_FALLBACK_LANG", "it")
 
 
 def deduplicate_by_url(results: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -69,46 +67,47 @@ def search_with_fallback(
     """
     accumulated: List[Dict[str, str]] = []
     provider_used = "None"
+    primary_lang, fallback_lang = settings.search_primary_lang, settings.search_fallback_lang
 
     # 1. Primary SearXNG
     if event_callback:
-        event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({_PRIMARY_LANG})", "query": query})
-    logger.info(f"Trying SearXNG ({_PRIMARY_LANG}) for: {query}")
-    results = search_searxng_api(query, count=count, time_filter=time_filter, language=_PRIMARY_LANG)
+        event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({primary_lang})", "query": query})
+    logger.info(f"Trying SearXNG ({primary_lang}) for: {query}")
+    results = search_searxng_api(query, count=count, time_filter=time_filter, language=primary_lang)
     if results:
         relevant = filter_irrelevant_results(query, results)
         if len(relevant) >= _MIN_SATISFACTORY_RESULTS:
-            return relevant, f"SearXNG ({_PRIMARY_LANG})"
+            return relevant, f"SearXNG ({primary_lang})"
         accumulated.extend(relevant)
-        provider_used = f"SearXNG ({_PRIMARY_LANG})"
+        provider_used = f"SearXNG ({primary_lang})"
 
     # 1b. If query had restrictive quotes and gave < MIN results, retry unquoted
     unquoted_q = " ".join(query.replace('"', ' ').replace("'", ' ').split())
     if unquoted_q != query and len(accumulated) < _MIN_SATISFACTORY_RESULTS:
-        logger.info(f"Retrying SearXNG ({_PRIMARY_LANG}) without restrictive quotes: {unquoted_q}")
-        unquoted_results = search_searxng_api(unquoted_q, count=count, time_filter=time_filter, language=_PRIMARY_LANG)
+        logger.info(f"Retrying SearXNG ({primary_lang}) without restrictive quotes: {unquoted_q}")
+        unquoted_results = search_searxng_api(unquoted_q, count=count, time_filter=time_filter, language=primary_lang)
         if unquoted_results:
             relevant = filter_irrelevant_results(unquoted_q, unquoted_results)
             accumulated.extend(relevant)
             accumulated = deduplicate_by_url(accumulated)
             if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
-                return accumulated, f"SearXNG ({_PRIMARY_LANG} unquoted)"
-            provider_used = f"SearXNG ({_PRIMARY_LANG} unquoted)"
+                return accumulated, f"SearXNG ({primary_lang} unquoted)"
+            provider_used = f"SearXNG ({primary_lang} unquoted)"
 
     # 2. Retry SearXNG fallback language
-    if _FALLBACK_LANG and _FALLBACK_LANG != _PRIMARY_LANG:
+    if fallback_lang and fallback_lang != primary_lang:
         time.sleep(0.2)
         if event_callback:
-            event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({_FALLBACK_LANG})", "query": query})
-        logger.info(f"Trying SearXNG ({_FALLBACK_LANG}) for: {query}")
-        results = search_searxng_api(query, count=count, time_filter=time_filter, language=_FALLBACK_LANG)
+            event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({fallback_lang})", "query": query})
+        logger.info(f"Trying SearXNG ({fallback_lang}) for: {query}")
+        results = search_searxng_api(query, count=count, time_filter=time_filter, language=fallback_lang)
         if results:
             relevant = filter_irrelevant_results(query, results)
             accumulated.extend(relevant)
             accumulated = deduplicate_by_url(accumulated)
             if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
-                return accumulated, f"SearXNG ({_FALLBACK_LANG})"
-            provider_used = f"SearXNG ({_PRIMARY_LANG}+{_FALLBACK_LANG})"
+                return accumulated, f"SearXNG ({fallback_lang})"
+            provider_used = f"SearXNG ({primary_lang}+{fallback_lang})"
 
     # 3. Fallback DDGS library
     if event_callback:

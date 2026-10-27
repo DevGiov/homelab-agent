@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from app.api.main import api
 from app.automations.db import definitions as definitions_db
 from app.automations.db import schema as schema_db
-from app.core import config
+from app.core.config import settings
 
 
 class TestAutomationsTriggersV2(unittest.TestCase):
@@ -23,10 +23,10 @@ class TestAutomationsTriggersV2(unittest.TestCase):
     def setUpClass(cls):
         cls.test_dir = tempfile.mkdtemp()
         cls.db_path = os.path.join(cls.test_dir, "test_triggers_v2.db")
-        config.AUTOMATIONS_DB_PATH = cls.db_path
+        settings.automations_db_path = cls.db_path
         schema_db.init_automations_db(cls.db_path)
         cls.client = TestClient(api)
-        cls.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
+        cls.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
 
     @classmethod
     def tearDownClass(cls):

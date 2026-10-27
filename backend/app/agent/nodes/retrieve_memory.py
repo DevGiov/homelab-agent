@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from app.agent import llm_calls
 from app.agent.state import AgentState
-from app.core import config
+from app.core.config import settings
 from app.memory import letta_client, transcript
 
 logger = logging.getLogger("graph")
@@ -71,7 +71,7 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
 
     if needs_compaction:
         summary_key = f"summary_1_30_{thread_id}"
-        summary_file = os.path.join(config.MEMORY_DIR, f"summary_{thread_id}.txt")
+        summary_file = os.path.join(settings.memory_dir, f"summary_{thread_id}.txt")
 
         if agent_id:
             summary = letta_client.get_archival_memory(agent_id, key=summary_key)
@@ -99,7 +99,7 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
                     if agent_id:
                         letta_client.save_archival_memory(agent_id, key=summary_key, value=summary)
                     try:
-                        os.makedirs(config.MEMORY_DIR, exist_ok=True)
+                        os.makedirs(settings.memory_dir, exist_ok=True)
                         with open(summary_file, "w", encoding="utf-8") as sf:
                             sf.write(summary)
                     except Exception as e:

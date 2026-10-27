@@ -21,14 +21,14 @@ from typing import Any, Dict, List, Optional
 from cryptography.fernet import Fernet
 
 from app.automations.db import integrations as integrations_db
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("integrations.manager")
 
 
 def _get_fernet() -> Fernet:
     """Deriva una chiave Fernet a 32 byte univoca basata su API_SECRET_KEY."""
-    raw_seed = (config.API_SECRET_KEY.strip() or "homelab-default-integration-secret-salt").encode("utf-8")
+    raw_seed = (settings.api_secret_key.strip() or "homelab-default-integration-secret-salt").encode("utf-8")
     digest = hashlib.sha256(raw_seed).digest()
     fernet_key = base64.urlsafe_b64encode(digest)
     return Fernet(fernet_key)
@@ -346,5 +346,5 @@ _integration_manager: Optional[IntegrationManager] = None
 def get_integration_manager(db_path: Optional[str] = None) -> IntegrationManager:
     global _integration_manager
     if _integration_manager is None or db_path is not None:
-        _integration_manager = IntegrationManager(db_path=db_path or config.AUTOMATIONS_DB_PATH)
+        _integration_manager = IntegrationManager(db_path=db_path or settings.automations_db_path)
     return _integration_manager

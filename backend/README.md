@@ -86,7 +86,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
 | `app/mcp/` | `client.py`: client sincrono sull'SDK MCP ufficiale (Streamable HTTP), una sessione condivisa per processo con retry e reset (`get_mcp_client()`) |
 | `app/integrations/` | Integrazioni di servizio per le automazioni |
-| `app/core/` | `config.py` (Pydantic Settings, fail-fast sicurezza, `BACKEND_DIR`), `text_utils.py`, `image_utils.py` |
+| `app/core/` | `config.py` (istanza `settings` di Pydantic Settings, fail-fast sicurezza, `BACKEND_DIR`), `text_utils.py`, `image_utils.py` |
 | `sdk/` | SDK pubblico per gli script delle automazioni (`@workflow`, `@step`, `AutomationContext`): resta fuori da `app/` perché lo importano gli script utente |
 
 ## Installazione

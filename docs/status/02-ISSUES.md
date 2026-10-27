@@ -13,7 +13,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | ✅ Risolto (`b20e63b`) |
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | ✅ Risolto (A4) |
 | [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
-| [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | In corso (MCP risolto in B4, resta B5) |
+| [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | ✅ Risolto (B4, B5) |
 | [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | Aperto |
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
 | [ISS-13](#iss-13) | `dev` non mergiato in `main` (100 commit) | S3 | processo | ✅ Risolto (A5, `v0.9.0`) |
@@ -107,12 +107,13 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 - **Avanzamento (B3, 2026-10-27)**: `automations/db.py` (1316 righe) diviso nel pacchetto `app/automations/db/` (il modulo più grande, `runs.py`, ~420 righe); i chiamanti importano i moduli per aggregato. Sopra le ~600 righe restano `automations/runner.py` (995), `automations/router.py` (808), `agent_loop.py` (605) e `automations/models.py` (602).
 
 ## ISS-10
-**Fallback MCP legacy e shim di retrocompatibilità** — S3
+**Fallback MCP legacy e shim di retrocompatibilità** — S3 · ✅ Risolto in B4 e B5
 
 - [registry/metamcp.py:25](../../backend/app/registry/metamcp.py): l'SDK MCP ufficiale è primario, ma resta il fallback al client custom [mcp_client.py](../../backend/app/mcp/client.py) (316 righe).
 - [config.py](../../backend/app/core/config.py) mantiene costanti "per retrocompatibilità" oltre a Pydantic Settings.
 - Contrario al principio "No Legacy Code" di [AGENTS.md](../../AGENTS.md).
 - **Avanzamento (B4, 2026-10-27)**: client legacy e wrapper SSE sostituiti da un unico [client.py](../../backend/app/mcp/client.py) sull'SDK `mcp` 2.x in Streamable HTTP, condiviso da registry, catalogo ed esecuzione dei piani. La sessione vive in un solo task asyncio (prima veniva aperta e chiusa in task diversi). `call_tool` ritenta solo su sessione già aperta e mai dopo un timeout: prima un timeout dell'SDK faceva rieseguire il tool al client legacy. Un risultato `isError` diventa `{"error": ...}`, quindi audit e piani vedono i tool falliti. Rimossi il fallback OpenAPI del catalogo e `METAMCP_URL_HTTP`. Restano le costanti di retrocompatibilità di `config.py` (B5).
+- **Fix (B5, 2026-10-27)**: [config.py](../../backend/app/core/config.py) espone solo l'istanza `settings` (più `BACKEND_DIR`); i moduli leggono `settings.<campo>` al momento dell'uso e i test sovrascrivono gli attributi di `settings`. `memory_dir` vuota viene risolta da un validator accanto al DB dei checkpoint. `SEARXNG_URL`, `SEARXNG_ENGINES`, `SEARCH_PRIMARY_LANG` e `SEARCH_FALLBACK_LANG` non sono più letti con `os.environ` ma passano dalle settings. Rimossi i riferimenti a chiavi mai definite (`OLLAMA_MODEL`, `LLAMA_CPP_API_KEY`).
 
 ## ISS-11
 **Bundle frontend unico da 947 kB** — S3

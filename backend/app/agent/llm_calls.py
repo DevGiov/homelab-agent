@@ -6,7 +6,8 @@ import re
 from typing import Any, List, Optional
 
 from app.agent.stream_session import current_session_var
-from app.core import config, image_utils
+from app.core import image_utils
+from app.core.config import settings
 from app.core.text_utils import strip_thinking
 from app.llm.providers import get_provider, is_vision_model
 
@@ -31,7 +32,7 @@ def call_llm(
 
     # Capability detection based on effective model
     provider = get_provider()
-    effective_model = model or getattr(provider, "default_model", "") or config.DEFAULT_MODEL
+    effective_model = model or getattr(provider, "default_model", "") or settings.default_model
     model_name_lower = effective_model.lower()
     supports_reasoning = any(x in model_name_lower for x in ["qwen", "deepseek", "r1", "o1", "o3", "mistral", "think", "reason"])
 

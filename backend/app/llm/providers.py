@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 import httpx
 
 from app.agent.stream_session import current_session_var
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("providers")
 
@@ -125,14 +125,13 @@ class OpenAICompatProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-        settings = config.get_settings()
-        if getattr(settings, "llm_repeat_penalty", None) and settings.llm_repeat_penalty != 1.0:
+        if settings.llm_repeat_penalty and settings.llm_repeat_penalty != 1.0:
             payload["repeat_penalty"] = settings.llm_repeat_penalty
-        if getattr(settings, "llm_presence_penalty", None) and settings.llm_presence_penalty != 0.0:
+        if settings.llm_presence_penalty and settings.llm_presence_penalty != 0.0:
             payload["presence_penalty"] = settings.llm_presence_penalty
-        if getattr(settings, "llm_frequency_penalty", None) and settings.llm_frequency_penalty != 0.0:
+        if settings.llm_frequency_penalty and settings.llm_frequency_penalty != 0.0:
             payload["frequency_penalty"] = settings.llm_frequency_penalty
-        if getattr(settings, "llm_top_p", None) and settings.llm_top_p != 1.0:
+        if settings.llm_top_p and settings.llm_top_p != 1.0:
             payload["top_p"] = settings.llm_top_p
         if enable_thinking:
             payload["chat_template_kwargs"] = {"enable_thinking": True}
@@ -528,13 +527,10 @@ _ACTIVE_PROVIDER_NAME: str = "llamacpp"
 
 def _register_default_providers():
     _PROVIDERS["llamacpp"] = OpenAICompatProvider(
-        config.LLAMA_CPP_URL, config.DEFAULT_MODEL, name="llamacpp"
+        settings.llama_cpp_url, settings.default_model, name="llamacpp"
     )
-    ollama_url = getattr(config, "OLLAMA_URL", "")
-    if ollama_url:
-        _PROVIDERS["ollama"] = OllamaProvider(
-            ollama_url, getattr(config, "OLLAMA_MODEL", config.DEFAULT_MODEL)
-        )
+    if settings.ollama_url:
+        _PROVIDERS["ollama"] = OllamaProvider(settings.ollama_url, settings.default_model)
 
 
 _register_default_providers()

@@ -26,7 +26,7 @@ from app.automations.models import (
     TriggerType,
     WorkflowStepDefinition,
 )
-from app.core import config
+from app.core.config import settings
 from app.registry.manager import get_registry_manager
 
 logger = logging.getLogger("automations.runner")
@@ -693,7 +693,7 @@ class AutomationRunner:
             if self.db_path:
                 artifacts_base = os.path.join(os.path.dirname(self.db_path), "artifacts")
             else:
-                artifacts_base = getattr(config, "ARTIFACTS_DIR", "/data/artifacts")
+                artifacts_base = settings.artifacts_dir
             artifacts_dir = os.path.join(artifacts_base, run.run_id)
             ctx_payload = {
                 "automation_id": auto_def.id,

@@ -13,7 +13,7 @@ from app.automations.db import definitions as definitions_db
 from app.automations.db import runs as runs_db
 from app.automations.db import schema as schema_db
 from app.automations.scheduler import AutomationScheduler
-from app.core import config
+from app.core.config import settings
 
 
 def _make_definition(auto_id: str, retention_days=None) -> dict:
@@ -111,17 +111,17 @@ class TestBulkDeleteRunsAPI(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "retention_api.db")
-        self._orig_db_path = config.AUTOMATIONS_DB_PATH
-        config.AUTOMATIONS_DB_PATH = self.db_path
+        self._orig_db_path = settings.automations_db_path
+        settings.automations_db_path = self.db_path
         schema_db.init_automations_db(self.db_path)
         definitions_db.save_definition(_make_definition("auto_a"), db_path=self.db_path)
         _make_run(self.db_path, "run_old", "auto_a", age_days=30)
         _make_run(self.db_path, "run_new", "auto_a", age_days=1)
         self.client = TestClient(api)
-        self.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
+        self.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
 
     def tearDown(self):
-        config.AUTOMATIONS_DB_PATH = self._orig_db_path
+        settings.automations_db_path = self._orig_db_path
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_delete_runs_with_older_than_days(self):

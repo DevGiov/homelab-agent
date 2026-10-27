@@ -89,8 +89,8 @@ class TestStreamControls(unittest.TestCase):
         remove_session("thread_stop_test")
 
     def test_api_endpoints_stop_pause_resume(self):
-        from app.core import config
-        headers = {"X-API-Key": config.get_settings().api_secret_key} if config.get_settings().api_secret_key else {}
+        from app.core.config import settings
+        headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
         client = TestClient(app, headers=headers)
 
         # Register a test session

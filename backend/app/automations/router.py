@@ -30,7 +30,7 @@ from app.automations.models import (
     TriggerType,
 )
 from app.automations.runner import AutomationRunner
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("automations.router")
 
@@ -38,7 +38,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
-    expected_key = config.API_SECRET_KEY.strip()
+    expected_key = settings.api_secret_key.strip()
     if expected_key:
         if not x_api_key or x_api_key != expected_key:
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")
@@ -50,7 +50,7 @@ webhook_router = APIRouter(prefix="/v1/automations", tags=["Automations Webhooks
 
 
 def get_runner() -> AutomationRunner:
-    return AutomationRunner(db_path=config.AUTOMATIONS_DB_PATH)
+    return AutomationRunner(db_path=settings.automations_db_path)
 
 
 # --- 0. Webhook Trigger Esterno (Token Auth - Unauthenticated API Key) ---
@@ -65,7 +65,7 @@ async def handle_automation_webhook(
     """Trigger token-based per eventi esterni (Home Assistant, GitHub, Grafana, curl).
     Il token presente nel path funge da credenziale di autenticazione univoca.
     """
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
 
@@ -76,8 +76,8 @@ async def handle_automation_webhook(
     for trg in d.get("triggers", []):
         if isinstance(trg, dict) and trg.get("type") == "webhook" and trg.get("webhook_token"):
             valid_tokens.add(trg["webhook_token"])
-    if config.API_SECRET_KEY:
-        valid_tokens.add(config.API_SECRET_KEY.strip())
+    if settings.api_secret_key:
+        valid_tokens.add(settings.api_secret_key.strip())
 
     if token not in valid_tokens:
         raise HTTPException(status_code=401, detail="Token webhook non valido o non autorizzato.")
@@ -162,7 +162,7 @@ async def list_scheduled_jobs():
 async def list_service_integrations(service_type: Optional[str] = Query(default=None)):
     """Elenca le integrazioni configurate (con credenziali mascherate)."""
     from app.integrations.manager import get_integration_manager
-    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    mgr = get_integration_manager(db_path=settings.automations_db_path)
     return mgr.list_integrations(service_type=service_type, decrypt=False)
 
 
@@ -170,7 +170,7 @@ async def list_service_integrations(service_type: Optional[str] = Query(default=
 async def get_service_integration(integration_id: str):
     """Dettaglio di un'integrazione configurata."""
     from app.integrations.manager import get_integration_manager
-    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    mgr = get_integration_manager(db_path=settings.automations_db_path)
     item = mgr.get_integration(integration_id, decrypt=False)
     if not item:
         raise HTTPException(status_code=404, detail=f"Integrazione '{integration_id}' non trovata.")
@@ -181,7 +181,7 @@ async def get_service_integration(integration_id: str):
 async def save_service_integration(data: Dict[str, Any]):
     """Salva o aggiorna un'integrazione (con cifratura dei campi sensibili)."""
     from app.integrations.manager import get_integration_manager
-    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    mgr = get_integration_manager(db_path=settings.automations_db_path)
     try:
         saved = mgr.save_integration(data)
         return saved
@@ -193,7 +193,7 @@ async def save_service_integration(data: Dict[str, Any]):
 async def test_service_integration(integration_id: str):
     """Esegue un test di connettività in tempo reale per l'integrazione."""
     from app.integrations.manager import get_integration_manager
-    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    mgr = get_integration_manager(db_path=settings.automations_db_path)
     res = mgr.test_connection(integration_id)
     return res
 
@@ -202,7 +202,7 @@ async def test_service_integration(integration_id: str):
 async def delete_service_integration(integration_id: str):
     """Elimina un'integrazione."""
     from app.integrations.manager import get_integration_manager
-    mgr = get_integration_manager(db_path=config.AUTOMATIONS_DB_PATH)
+    mgr = get_integration_manager(db_path=settings.automations_db_path)
     deleted = mgr.delete_integration(integration_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Integrazione '{integration_id}' non trovata.")
@@ -218,7 +218,7 @@ async def list_runs(
     limit: int = Query(default=50, ge=1, le=200),
 ):
     """Elenca le run storiche."""
-    runs = runs_db.list_runs(automation_id=automation_id, status=status, limit=limit, db_path=config.AUTOMATIONS_DB_PATH)
+    runs = runs_db.list_runs(automation_id=automation_id, status=status, limit=limit, db_path=settings.automations_db_path)
     summaries = []
     for r in runs:
         summaries.append(
@@ -263,7 +263,7 @@ async def bulk_delete_runs(
         automation_id=automation_id,
         failed_only=failed_only,
         older_than_days=older_than_days,
-        db_path=config.AUTOMATIONS_DB_PATH,
+        db_path=settings.automations_db_path,
     )
     return {"deleted_count": deleted_count}
 
@@ -276,7 +276,7 @@ async def bulk_delete_runs_batch(req: BulkDeleteRunsRequest):
         automation_id=req.automation_id,
         failed_only=req.failed_only,
         older_than_days=req.older_than_days,
-        db_path=config.AUTOMATIONS_DB_PATH,
+        db_path=settings.automations_db_path,
     )
     return {"deleted_count": deleted_count}
 
@@ -284,7 +284,7 @@ async def bulk_delete_runs_batch(req: BulkDeleteRunsRequest):
 @router.get("/runs/{run_id}", response_model=AutomationRun)
 async def get_run_details(run_id: str):
     """Dettaglio di una singola run, step completati e artefatti."""
-    r = runs_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    r = runs_db.get_run(run_id, db_path=settings.automations_db_path)
     if not r:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
     return AutomationRun(**r)
@@ -293,7 +293,7 @@ async def get_run_details(run_id: str):
 @router.delete("/runs/{run_id}")
 async def delete_run(run_id: str):
     """Elimina definitivamente una singola run e i relativi file di log/artefatto se non preservata."""
-    deleted = runs_db.delete_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    deleted = runs_db.delete_run(run_id, db_path=settings.automations_db_path)
     if not deleted:
         raise HTTPException(
             status_code=400,
@@ -305,7 +305,7 @@ async def delete_run(run_id: str):
 @router.patch("/runs/{run_id}/favorite")
 async def toggle_run_favorite(run_id: str):
     """Imposta o rimuove il contrassegno preferito (Star) per la run."""
-    new_val = runs_db.toggle_run_favorite(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    new_val = runs_db.toggle_run_favorite(run_id, db_path=settings.automations_db_path)
     if new_val is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
     return {"run_id": run_id, "is_favorite": new_val}
@@ -314,7 +314,7 @@ async def toggle_run_favorite(run_id: str):
 @router.patch("/runs/{run_id}/preserve")
 async def toggle_run_preserve(run_id: str):
     """Imposta o rimuove la protezione da pulizia automatica (Lock/Preserve) per la run."""
-    new_val = runs_db.toggle_run_preserve(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    new_val = runs_db.toggle_run_preserve(run_id, db_path=settings.automations_db_path)
     if new_val is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
     return {"run_id": run_id, "is_preserved": new_val}
@@ -342,7 +342,7 @@ async def resume_run(
         if sync:
             return runner.resume_paused_run(run_id)
         else:
-            run_dict = runs_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+            run_dict = runs_db.get_run(run_id, db_path=settings.automations_db_path)
             if not run_dict:
                 raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
             if run_dict["status"] != RunStatus.PAUSED.value:
@@ -350,7 +350,7 @@ async def resume_run(
                     status_code=400,
                     detail=f"La run '{run_id}' non è in pausa (stato attuale: {run_dict['status']}).",
                 )
-            runs_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=config.AUTOMATIONS_DB_PATH)
+            runs_db.update_run_status(run_id, RunStatus.RUNNING.value, db_path=settings.automations_db_path)
             background_tasks.add_task(runner.execute_run, run_id)
             return {"resumed": True, "run_id": run_id, "status": RunStatus.RUNNING.value}
     except ValueError as e:
@@ -360,10 +360,10 @@ async def resume_run(
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(run_id: str):
     """Annulla forzatamente una run."""
-    r = runs_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    r = runs_db.get_run(run_id, db_path=settings.automations_db_path)
     if not r:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' non trovata.")
-    runs_db.update_run_status(run_id, RunStatus.CANCELLED.value, error_message="Annullata dall'utente.", db_path=config.AUTOMATIONS_DB_PATH)
+    runs_db.update_run_status(run_id, RunStatus.CANCELLED.value, error_message="Annullata dall'utente.", db_path=settings.automations_db_path)
     return {"cancelled": True, "run_id": run_id}
 
 
@@ -372,7 +372,7 @@ async def cancel_run(run_id: str):
 @router.get("/approvals")
 async def list_approvals(run_id: Optional[str] = Query(default=None)):
     """Elenca le approvazioni in sospeso per le automazioni."""
-    return approvals_db.list_pending_approvals(run_id=run_id, db_path=config.AUTOMATIONS_DB_PATH)
+    return approvals_db.list_pending_approvals(run_id=run_id, db_path=settings.automations_db_path)
 
 
 @router.post("/runs/{run_id}/approvals/{approval_id}/resolve")
@@ -387,7 +387,7 @@ async def resolve_approval(
     runner = get_runner()
     try:
         # Verifica se si tratta di una vera run di automazione o di una richiesta originata da chat/guardrails
-        run_dict = runs_db.get_run(run_id, db_path=config.AUTOMATIONS_DB_PATH)
+        run_dict = runs_db.get_run(run_id, db_path=settings.automations_db_path)
         if not run_dict:
             # Risoluzione per approvazioni di sessione Chat (guardrails)
             from app.registry.manager import get_registry_manager
@@ -395,7 +395,7 @@ async def resolve_approval(
 
             # 1. Aggiorna DB automazioni
             approvals_db.resolve_automation_approval(
-                approval_id, body.action, resolved_by=body.resolved_by, db_path=config.AUTOMATIONS_DB_PATH
+                approval_id, body.action, resolved_by=body.resolved_by, db_path=settings.automations_db_path
             )
 
             # 2. Risolvi in guardrails memory/permissions
@@ -428,7 +428,7 @@ async def resolve_approval(
             )
             return {"status": resumed_run.status.value, "run": resumed_run}
         else:
-            resolved = approvals_db.resolve_automation_approval(approval_id, body.action, resolved_by=body.resolved_by, db_path=config.AUTOMATIONS_DB_PATH)
+            resolved = approvals_db.resolve_automation_approval(approval_id, body.action, resolved_by=body.resolved_by, db_path=settings.automations_db_path)
             if not resolved:
                 raise HTTPException(status_code=404, detail="Approvazione non trovata o già risolta.")
             if body.action.lower() in ("approve", "approved", "true"):
@@ -441,7 +441,7 @@ async def resolve_approval(
 @router.delete("/approvals/{approval_id}")
 async def delete_approval(approval_id: str):
     """Elimina definitivamente un'approvazione dal database."""
-    deleted = approvals_db.delete_automation_approval(approval_id, db_path=config.AUTOMATIONS_DB_PATH)
+    deleted = approvals_db.delete_automation_approval(approval_id, db_path=settings.automations_db_path)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Richiesta di approvazione '{approval_id}' non trovata.")
     return {"status": "deleted", "approval_id": approval_id}
@@ -450,7 +450,7 @@ async def delete_approval(approval_id: str):
 @router.post("/approvals/clear-expired")
 async def clear_expired_approvals():
     """Aggiorna lo stato di tutte le approvazioni scadute a 'expired'."""
-    cleared = approvals_db.clear_expired_automation_approvals(db_path=config.AUTOMATIONS_DB_PATH)
+    cleared = approvals_db.clear_expired_automation_approvals(db_path=settings.automations_db_path)
     return {"cleared_count": cleared}
 
 
@@ -471,14 +471,14 @@ async def list_artifacts(
         favorite_only=favorite_only,
         preserved_only=preserved_only,
         limit=limit,
-        db_path=config.AUTOMATIONS_DB_PATH,
+        db_path=settings.automations_db_path,
     )
 
 
 @router.get("/artifacts/{artifact_id}")
 async def get_artifact(artifact_id: str):
     """Metadati dell'artefatto."""
-    art = artifacts_db.get_artifact(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    art = artifacts_db.get_artifact(artifact_id, db_path=settings.automations_db_path)
     if not art:
         raise HTTPException(status_code=404, detail="Artefatto non trovato.")
     return art
@@ -487,7 +487,7 @@ async def get_artifact(artifact_id: str):
 @router.get("/artifacts/{artifact_id}/download")
 async def download_artifact(artifact_id: str):
     """Download del file artefatto."""
-    art = artifacts_db.get_artifact(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    art = artifacts_db.get_artifact(artifact_id, db_path=settings.automations_db_path)
     if not art:
         raise HTTPException(status_code=404, detail="Artefatto non trovato.")
     uri = art["storage_uri"]
@@ -499,7 +499,7 @@ async def download_artifact(artifact_id: str):
 @router.patch("/artifacts/{artifact_id}/favorite")
 async def toggle_artifact_favorite(artifact_id: str):
     """Imposta o rimuove il contrassegno preferito (Star) per l'artefatto."""
-    new_val = artifacts_db.toggle_artifact_favorite(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    new_val = artifacts_db.toggle_artifact_favorite(artifact_id, db_path=settings.automations_db_path)
     if new_val is None:
         raise HTTPException(status_code=404, detail=f"Artefatto '{artifact_id}' non trovato.")
     return {"artifact_id": artifact_id, "is_favorite": new_val}
@@ -508,7 +508,7 @@ async def toggle_artifact_favorite(artifact_id: str):
 @router.patch("/artifacts/{artifact_id}/preserve")
 async def toggle_artifact_preserve(artifact_id: str):
     """Imposta o rimuove la protezione da cancellazione (Lock/Preserve) per l'artefatto."""
-    new_val = artifacts_db.toggle_artifact_preserve(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    new_val = artifacts_db.toggle_artifact_preserve(artifact_id, db_path=settings.automations_db_path)
     if new_val is None:
         raise HTTPException(status_code=404, detail=f"Artefatto '{artifact_id}' non trovato.")
     return {"artifact_id": artifact_id, "is_preserved": new_val}
@@ -517,7 +517,7 @@ async def toggle_artifact_preserve(artifact_id: str):
 @router.delete("/artifacts/{artifact_id}")
 async def delete_artifact(artifact_id: str):
     """Elimina definitivamente un artefatto e il relativo file su disco."""
-    deleted = artifacts_db.delete_artifact(artifact_id, db_path=config.AUTOMATIONS_DB_PATH)
+    deleted = artifacts_db.delete_artifact(artifact_id, db_path=settings.automations_db_path)
     if not deleted:
         raise HTTPException(
             status_code=400,
@@ -531,7 +531,7 @@ async def delete_artifact(artifact_id: str):
 @router.get("", response_model=List[AutomationSummary])
 async def list_automations(enabled_only: bool = Query(default=False)):
     """Elenca le automazioni registrate."""
-    defs = definitions_db.list_definitions(enabled_only=enabled_only, db_path=config.AUTOMATIONS_DB_PATH)
+    defs = definitions_db.list_definitions(enabled_only=enabled_only, db_path=settings.automations_db_path)
     summaries = []
     for d in defs:
         wh_url = None
@@ -567,7 +567,7 @@ async def list_automations(enabled_only: bool = Query(default=False)):
 @router.post("", response_model=AutomationDefinition, status_code=201)
 async def create_or_update_automation(automation: AutomationDefinition):
     """Crea o aggiorna una definizione di automazione."""
-    saved = definitions_db.save_definition(automation.model_dump(), db_path=config.AUTOMATIONS_DB_PATH)
+    saved = definitions_db.save_definition(automation.model_dump(), db_path=settings.automations_db_path)
     logger.info(f"Automazione '{automation.id}' registrata.")
     try:
         from app.automations.scheduler import get_scheduler
@@ -582,7 +582,7 @@ async def create_or_update_automation(automation: AutomationDefinition):
 @router.get("/{auto_id}", response_model=AutomationDefinition)
 async def get_automation(auto_id: str):
     """Dettaglio completo di un'automazione."""
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
     return AutomationDefinition(**d)
@@ -593,7 +593,7 @@ async def update_automation(auto_id: str, automation: AutomationDefinition):
     """Aggiorna la definizione di un'automazione."""
     if auto_id != automation.id:
         raise HTTPException(status_code=400, detail="ID del path non coincide con ID del corpo.")
-    saved = definitions_db.save_definition(automation.model_dump(), db_path=config.AUTOMATIONS_DB_PATH)
+    saved = definitions_db.save_definition(automation.model_dump(), db_path=settings.automations_db_path)
     try:
         from app.automations.scheduler import get_scheduler
         sched = get_scheduler()
@@ -607,7 +607,7 @@ async def update_automation(auto_id: str, automation: AutomationDefinition):
 @router.delete("/{auto_id}")
 async def delete_automation(auto_id: str):
     """Elimina un'automazione e le relative schedulazioni."""
-    deleted = definitions_db.delete_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    deleted = definitions_db.delete_definition(auto_id, db_path=settings.automations_db_path)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
     try:
@@ -623,7 +623,7 @@ async def delete_automation(auto_id: str):
 @router.get("/{auto_id}/latest-artifact")
 async def get_latest_artifact_for_automation(auto_id: str):
     """Restituisce il metadato dell'ultimo artefatto generato per l'automazione indicata."""
-    art = artifacts_db.get_latest_artifact_for_automation(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    art = artifacts_db.get_latest_artifact_for_automation(auto_id, db_path=settings.automations_db_path)
     if not art:
         raise HTTPException(status_code=404, detail=f"Nessun artefatto trovato per l'automazione '{auto_id}'.")
     return art
@@ -632,7 +632,7 @@ async def get_latest_artifact_for_automation(auto_id: str):
 @router.get("/{auto_id}/introspect-parameters")
 async def introspect_parameters(auto_id: str):
     """Introspezione automatica dei parametri e segreti richiesti dal workflow dell'automazione."""
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
     from app.automations.introspection import introspect_automation_parameters
@@ -643,7 +643,7 @@ async def introspect_parameters(auto_id: str):
 async def get_circuit_breaker_status(auto_id: str):
     """Restituisce lo stato diagnostico del circuit breaker per l'automazione."""
     from app.automations.circuit_breaker import get_circuit_breaker
-    cb = get_circuit_breaker(db_path=config.AUTOMATIONS_DB_PATH)
+    cb = get_circuit_breaker(db_path=settings.automations_db_path)
     return cb.get_status(auto_id)
 
 
@@ -651,7 +651,7 @@ async def get_circuit_breaker_status(auto_id: str):
 async def reset_circuit_breaker(auto_id: str):
     """Reimposta manualmente il circuit breaker a CLOSED."""
     from app.automations.circuit_breaker import get_circuit_breaker
-    cb = get_circuit_breaker(db_path=config.AUTOMATIONS_DB_PATH)
+    cb = get_circuit_breaker(db_path=settings.automations_db_path)
     cb.reset(auto_id)
     return {"status": "reset", "automation_id": auto_id, "state": "CLOSED"}
 
@@ -662,7 +662,7 @@ async def toggle_automation_enabled(
     payload: Optional[Dict[str, Any]] = Body(default=None),
 ):
     """Attiva o disattiva un'automazione (switch toggle sulla card). Sincronizza immediatamente APScheduler."""
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
 
@@ -673,7 +673,7 @@ async def toggle_automation_enabled(
         new_enabled = not current_enabled
 
     d["enabled"] = new_enabled
-    definitions_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+    definitions_db.save_definition(d, db_path=settings.automations_db_path)
 
     try:
         from app.automations.scheduler import get_scheduler
@@ -692,7 +692,7 @@ async def update_automation_triggers(
     triggers: List[Dict[str, Any]] = Body(...),
 ):
     """Aggiorna i trigger (schedulazione temporale o webhook) di un'automazione direttamente dalla UI."""
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
 
@@ -729,7 +729,7 @@ async def update_automation_triggers(
         clean_triggers.append(t)
 
     d["triggers"] = clean_triggers
-    saved = definitions_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+    saved = definitions_db.save_definition(d, db_path=settings.automations_db_path)
 
     try:
         from app.automations.scheduler import get_scheduler
@@ -745,7 +745,7 @@ async def update_automation_triggers(
 @router.post("/{auto_id}/webhook-regenerate")
 async def regenerate_webhook_token(auto_id: str):
     """Genera un nuovo token segreto per il trigger webhook dell'automazione."""
-    d = definitions_db.get_definition(auto_id, db_path=config.AUTOMATIONS_DB_PATH)
+    d = definitions_db.get_definition(auto_id, db_path=settings.automations_db_path)
     if not d:
         raise HTTPException(status_code=404, detail=f"Automazione '{auto_id}' non trovata.")
 
@@ -770,7 +770,7 @@ async def regenerate_webhook_token(auto_id: str):
         })
 
     d["triggers"] = triggers
-    saved = definitions_db.save_definition(d, db_path=config.AUTOMATIONS_DB_PATH)
+    saved = definitions_db.save_definition(d, db_path=settings.automations_db_path)
     return {
         "id": auto_id,
         "webhook_token": new_token,

@@ -5,7 +5,7 @@ import time
 import pytest
 
 from app.agent.graph import build_graph
-from app.core.config import MEMORY_DIR
+from app.core.config import settings
 
 # Valutazione end-to-end contro LLM/MetaMCP reali: esclusa dalla suite di default
 pytestmark = [pytest.mark.live, pytest.mark.timeout(1800)]
@@ -72,7 +72,7 @@ def test_long_conversation():
     assert "alice" in final_resp or "debian" in final_resp or "homelab" in final_resp, "Agent failed to recall facts from message 5/10!"
 
     # 3. Check JSONL file persistence
-    filepath = os.path.join(MEMORY_DIR, f"{thread_id}.jsonl")
+    filepath = os.path.join(settings.memory_dir, f"{thread_id}.jsonl")
     assert os.path.exists(filepath), f"JSONL file memory not found at {filepath}"
 
     with open(filepath, "r", encoding="utf-8") as f:

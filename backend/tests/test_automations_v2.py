@@ -27,16 +27,16 @@ from app.registry.automations_tool import AutomationRegistry
 
 class TestAutomationsV2(unittest.TestCase):
     def setUp(self):
-        from app.core import config
-        self.orig_db_path = config.AUTOMATIONS_DB_PATH
+        from app.core.config import settings
+        self.orig_db_path = settings.automations_db_path
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_automations.db")
-        config.AUTOMATIONS_DB_PATH = self.db_path
+        settings.automations_db_path = self.db_path
         schema_db.init_automations_db(self.db_path)
 
     def tearDown(self):
-        from app.core import config
-        config.AUTOMATIONS_DB_PATH = self.orig_db_path
+        from app.core.config import settings
+        settings.automations_db_path = self.orig_db_path
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_artifacts_crud_and_toggles(self):

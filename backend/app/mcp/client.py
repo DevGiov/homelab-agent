@@ -21,7 +21,7 @@ import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("mcp_client")
 
@@ -164,4 +164,4 @@ def _normalize_result(result: Any) -> Dict[str, Any]:
 @lru_cache(maxsize=1)
 def get_mcp_client() -> MCPClient:
     """Client condiviso verso MetaMCP: una sessione per processo."""
-    return MCPClient(config.METAMCP_URL, api_key=config.METAMCP_API_KEY)
+    return MCPClient(settings.metamcp_url, api_key=settings.metamcp_api_key)

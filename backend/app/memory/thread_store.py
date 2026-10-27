@@ -5,12 +5,12 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("thread_store")
 
 def _get_conn():
-    return sqlite3.connect(config.CHECKPOINT_DB_PATH)
+    return sqlite3.connect(settings.checkpoint_db_path)
 
 def init_db():
     """Inizializza le tabelle thread_metadata e thread_messages nel database SQLite."""

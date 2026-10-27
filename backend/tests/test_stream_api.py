@@ -5,13 +5,13 @@ from fastapi.testclient import TestClient
 
 from app.agent.stream_session import create_session, remove_session
 from app.api.main import api
-from app.core import config
+from app.core.config import settings
 
 
 class TestStreamApi(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(api)
-        self.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
+        self.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
         self.thread_id = f"test_api_thread_{int(time.time()*1000)}"
 
     def tearDown(self):

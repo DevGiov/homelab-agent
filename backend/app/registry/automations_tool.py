@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 from app.automations.db import artifacts as artifacts_db
 from app.automations.db import definitions as definitions_db
 from app.automations.models import AutomationDefinition
-from app.core import config
+from app.core.config import settings
 from app.registry.base import BaseToolRegistry
 
 logger = logging.getLogger("registry.automations")
@@ -378,7 +378,7 @@ class AutomationRegistry(BaseToolRegistry):
                 "mime_type": "text/markdown" if "md" in storage_uri else "text/plain",
                 "storage_uri": storage_uri,
                 "created_at": now_str,
-            }, db_path=config.AUTOMATIONS_DB_PATH)
+            }, db_path=settings.automations_db_path)
         except Exception as ex:
             logger.warning(f"Errore salvataggio metadati artefatto su DB: {ex}")
 
@@ -424,7 +424,7 @@ class AutomationRegistry(BaseToolRegistry):
         return templates
 
     def _list_automations(self, enabled_only: bool = False) -> List[Dict[str, Any]]:
-        autos = definitions_db.list_definitions(enabled_only=enabled_only, db_path=config.AUTOMATIONS_DB_PATH)
+        autos = definitions_db.list_definitions(enabled_only=enabled_only, db_path=settings.automations_db_path)
         result = []
         for a in autos:
             triggers_summary = []
@@ -447,7 +447,7 @@ class AutomationRegistry(BaseToolRegistry):
         if not automation_id:
             return {"error": "automation_id obbligatorio."}
 
-        auto = definitions_db.get_definition(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
+        auto = definitions_db.get_definition(automation_id, db_path=settings.automations_db_path)
         if auto:
             return auto
 
@@ -477,7 +477,7 @@ class AutomationRegistry(BaseToolRegistry):
         # Assegna un ID operativo univoco distinto dal template
         base_id = data.get("id", "auto").replace("tpl-", "auto-").replace("tpl_", "auto_")
         candidate_id = base_id
-        if definitions_db.get_definition(candidate_id, db_path=config.AUTOMATIONS_DB_PATH):
+        if definitions_db.get_definition(candidate_id, db_path=settings.automations_db_path):
             import uuid
             candidate_id = f"{base_id}_{uuid.uuid4().hex[:6]}"
         data["id"] = candidate_id
@@ -489,7 +489,7 @@ class AutomationRegistry(BaseToolRegistry):
 
         try:
             auto_def = AutomationDefinition(**data)
-            saved = definitions_db.save_definition(auto_def.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_def.model_dump(mode="json"), db_path=settings.automations_db_path)
 
             # Sincronizza lo scheduler in background
             try:
@@ -541,7 +541,7 @@ class AutomationRegistry(BaseToolRegistry):
                         )
                     }
 
-            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=settings.automations_db_path)
 
             try:
                 from app.automations.scheduler import get_scheduler
@@ -566,7 +566,7 @@ class AutomationRegistry(BaseToolRegistry):
         if not updates or not isinstance(updates, dict):
             return {"error": "updates deve essere un oggetto JSON con i campi da aggiornare."}
 
-        existing = definitions_db.get_definition(automation_id, db_path=config.AUTOMATIONS_DB_PATH)
+        existing = definitions_db.get_definition(automation_id, db_path=settings.automations_db_path)
         if not existing:
             return {"error": f"Automazione '{automation_id}' non trovata."}
 
@@ -596,7 +596,7 @@ class AutomationRegistry(BaseToolRegistry):
                     )
                 }
 
-            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=config.AUTOMATIONS_DB_PATH)
+            saved = definitions_db.save_definition(auto_obj.model_dump(mode="json"), db_path=settings.automations_db_path)
 
             try:
                 from app.automations.scheduler import get_scheduler

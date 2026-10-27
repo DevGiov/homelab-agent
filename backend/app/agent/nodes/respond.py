@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from app.agent import llm_calls
 from app.agent.monitoring import AgentSpan, log_span
 from app.agent.state import AgentState
-from app.core import config
+from app.core.config import settings
 from app.memory import letta_client, transcript
 
 logger = logging.getLogger("graph")
@@ -157,8 +157,8 @@ def respond_node(state: AgentState) -> AgentState:
                 if agent_id:
                     for fact in facts:
                         letta_client.save_archival_memory(agent_id, fact)
-                os.makedirs(config.MEMORY_DIR, exist_ok=True)
-                facts_file = os.path.join(config.MEMORY_DIR, f"salient_facts_{thread_id}.txt")
+                os.makedirs(settings.memory_dir, exist_ok=True)
+                facts_file = os.path.join(settings.memory_dir, f"salient_facts_{thread_id}.txt")
                 with open(facts_file, "a", encoding="utf-8") as f:
                     for fact in facts:
                         f.write(f"- {fact}\n")

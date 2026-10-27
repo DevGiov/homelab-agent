@@ -18,13 +18,13 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("calendar.db")
 
 
 def get_db_path() -> str:
-    path = getattr(config, "CALENDAR_DB_PATH", "/data/calendar.db")
+    path = settings.calendar_db_path
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     return path
 

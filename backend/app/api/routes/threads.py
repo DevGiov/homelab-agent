@@ -17,7 +17,7 @@ from app.api.schemas import (
     SwitchVersionRequest,
     ThreadSummary,
 )
-from app.core import config
+from app.core.config import settings
 from app.memory import letta_client, thread_store
 
 logger = logging.getLogger("api")
@@ -29,7 +29,7 @@ router = APIRouter(tags=["threads"])
 async def list_threads():
     try:
         thread_store.init_db()
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT thread_id, MAX(cp_count) as checkpoint_count, MAX(last_activity) as sort_key
@@ -97,7 +97,7 @@ async def list_threads():
 @router.get("/v1/threads/{thread_id}", dependencies=[Depends(verify_api_key)])
 async def get_thread(thread_id: str):
     try:
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM checkpoints WHERE thread_id = ?", (thread_id,))
         count = cursor.fetchone()[0]
@@ -201,7 +201,7 @@ async def update_message_versions(thread_id: str, message_id: str, req: SaveVers
 @router.delete("/v1/threads/{thread_id}", dependencies=[Depends(verify_api_key)])
 async def delete_single_thread(thread_id: str):
     try:
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
         deleted_rows = cursor.rowcount
@@ -226,7 +226,7 @@ async def delete_single_thread(thread_id: str):
 @router.delete("/v1/threads", dependencies=[Depends(verify_api_key)])
 async def delete_all_threads():
     try:
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM checkpoints")
         deleted_rows = cursor.rowcount

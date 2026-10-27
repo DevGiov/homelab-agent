@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_api_key
-from app.core import config
+from app.core.config import settings
 from app.security import audit_log
 
 router = APIRouter(tags=["system"])
@@ -35,11 +35,11 @@ async def status():
         except Exception as e:
             return {"name": name, "url": url, "ok": False, "error": str(e)[:120]}
 
-    letta_headers = {"Authorization": f"Bearer {config.LETTA_API_KEY}"} if config.LETTA_API_KEY else {}
+    letta_headers = {"Authorization": f"Bearer {settings.letta_api_key}"} if settings.letta_api_key else {}
     results = await asyncio.gather(
-        _ping("llamacpp", f"{config.LLAMA_CPP_URL.rstrip('/')}/models"),
-        _ping("metamcp", _origin(config.METAMCP_URL)),
-        _ping("letta", f"{config.LETTA_URL.rstrip('/')}/v1/agents/", headers=letta_headers),
+        _ping("llamacpp", f"{settings.llama_cpp_url.rstrip('/')}/models"),
+        _ping("metamcp", _origin(settings.metamcp_url)),
+        _ping("letta", f"{settings.letta_url.rstrip('/')}/v1/agents/", headers=letta_headers),
         return_exceptions=True,
     )
     services = [r for r in results if isinstance(r, dict)]

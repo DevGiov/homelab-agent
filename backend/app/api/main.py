@@ -13,12 +13,12 @@ from app.automations.router import router as automations_router
 from app.automations.router import webhook_router as automations_webhook_router
 from app.calendar.db import init_calendar_db
 from app.calendar.router import router as calendar_router
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("api")
 
 # --- Fase 0.1: fail-fast se l'auth non è configurata ---
-config.get_settings().validate_security()
+settings.validate_security()
 
 
 @asynccontextmanager
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         logger.warning(f"Inizializzazione calendar_db differita/fallita: {_e}")
 
-    if config.ENABLE_AUTOMATION_SCHEDULER:
+    if settings.enable_automation_scheduler:
         try:
             from app.automations.scheduler import get_scheduler
             scheduler = get_scheduler()
@@ -65,7 +65,7 @@ api = FastAPI(
 # --- Fase 0.1: CORS ristretto alle origini configurate ---
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=config.CORS_ORIGINS,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

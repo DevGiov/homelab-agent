@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-from app.core import config
+from app.core.config import BACKEND_DIR
 
 logger = logging.getLogger("automations.code_runner")
 
@@ -121,7 +121,7 @@ class SandboxedCodeRunner:
     """Esegue codice Python in un processo separato a basso privilegio con timeout e controlli."""
 
     def __init__(self, backend_dir: Optional[str] = None):
-        self.backend_dir = backend_dir or str(config.BACKEND_DIR)
+        self.backend_dir = backend_dir or str(BACKEND_DIR)
 
     def run_script(
         self,

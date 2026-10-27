@@ -16,7 +16,7 @@ from app.automations.db import definitions as definitions_db
 from app.automations.db import runs as runs_db
 from app.automations.models import AutomationDefinition, TriggerType
 from app.automations.runner import AutomationRunner
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("automations.scheduler")
 
@@ -25,7 +25,7 @@ class AutomationScheduler:
     """Manager per lo scheduling asincrono di automazioni con trigger cron."""
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or config.AUTOMATIONS_DB_PATH
+        self.db_path = db_path or settings.automations_db_path
         self.scheduler = AsyncIOScheduler()
         self.runner = AutomationRunner(db_path=self.db_path)
         self._is_running = False

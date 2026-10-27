@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from typing import Any, Dict, List, Optional
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("vector_store")
 
@@ -49,7 +49,7 @@ def embed_query(text: str) -> List[float]:
 
 
 def _get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(config.CHECKPOINT_DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
     conn.enable_load_extension(True)
     import sqlite_vec
     sqlite_vec.load(conn)

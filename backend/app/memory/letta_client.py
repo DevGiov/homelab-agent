@@ -6,13 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from app.core import config
+from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("letta_client")
 
-LETTA_URL = config.LETTA_URL.rstrip('/')
-LETTA_API_KEY = config.LETTA_API_KEY
+LETTA_URL = settings.letta_url.rstrip('/')
+LETTA_API_KEY = settings.letta_api_key
 
 HEADERS = {
     "Authorization": f"Bearer {LETTA_API_KEY}",

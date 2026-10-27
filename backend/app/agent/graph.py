@@ -16,11 +16,11 @@ from app.agent.nodes.retrieve_memory import retrieve_memory_node
 from app.agent.nodes.routing import mode_router_node
 from app.agent.nodes.web_prefetch import web_prefetch_node
 from app.agent.state import AgentState
-from app.core import config
+from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
-conn = sqlite3.connect(config.CHECKPOINT_DB_PATH, check_same_thread=False)
+conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
 # Crea subito lo schema (checkpoints/writes): le query su thread non devono dipendere dalla prima esecuzione del grafo
 checkpointer.setup()

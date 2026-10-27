@@ -5,7 +5,8 @@ from typing import Any, Dict, List
 
 import requests
 
-from app.core import config, image_utils
+from app.core import image_utils
+from app.core.config import settings
 from app.registry.base import BaseToolRegistry
 
 logger = logging.getLogger("vision_registry")
@@ -89,14 +90,11 @@ class VisionRegistry(BaseToolRegistry):
             data_url = f"data:image/jpeg;base64,{b64_data}"
 
             # Inoltra all'endpoint multimodale llama.cpp
-            llama_url = f"{config.LLAMA_CPP_URL.rstrip('/')}/chat/completions"
+            llama_url = f"{settings.llama_cpp_url.rstrip('/')}/chat/completions"
             headers = {"Content-Type": "application/json"}
-            api_key = getattr(config, "LLAMA_CPP_API_KEY", "")
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
 
             from app.llm import providers
-            model_to_use = args.get("model") or providers.get_active_model_name() or config.DEFAULT_MODEL
+            model_to_use = args.get("model") or providers.get_active_model_name() or settings.default_model
 
             payload = {
                 "model": model_to_use,

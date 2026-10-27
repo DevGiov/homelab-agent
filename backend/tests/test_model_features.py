@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from app.agent.stream_session import StreamSession
+from app.core.config import settings
 from app.llm.providers import OllamaProvider, OpenAICompatProvider
 from app.memory import thread_store
 
@@ -23,7 +24,7 @@ def test_stream_session_metrics_preserves_tok_per_s():
 def test_thread_store_message_model(tmp_path):
     # In-memory or temp sqlite test
     db_file = str(tmp_path / "test_threads.db")
-    with patch("app.core.config.CHECKPOINT_DB_PATH", db_file):
+    with patch.object(settings, "checkpoint_db_path", db_file):
         thread_store.init_db()
         t_id = "thread_model_test"
         thread_store.save_user_message(t_id, "ciao")

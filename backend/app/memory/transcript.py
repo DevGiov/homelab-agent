@@ -5,7 +5,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any, Dict, List
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("graph")
 
@@ -15,8 +15,8 @@ def append_message(thread_id: str, role: str, content: str):
     if not thread_id or not content:
         return
     try:
-        os.makedirs(config.MEMORY_DIR, exist_ok=True)
-        filepath = os.path.join(config.MEMORY_DIR, f"{thread_id}.jsonl")
+        os.makedirs(settings.memory_dir, exist_ok=True)
+        filepath = os.path.join(settings.memory_dir, f"{thread_id}.jsonl")
         entry = {
             "timestamp": datetime.now(UTC).isoformat(),
             "role": role,
@@ -32,7 +32,7 @@ def read_messages(thread_id: str) -> List[Dict[str, Any]]:
     """Legge i messaggi storici dal file JSONL locale in caso di assenza o fallback di Letta."""
     if not thread_id:
         return []
-    filepath = os.path.join(config.MEMORY_DIR, f"{thread_id}.jsonl")
+    filepath = os.path.join(settings.memory_dir, f"{thread_id}.jsonl")
     if not os.path.exists(filepath):
         return []
     messages = []

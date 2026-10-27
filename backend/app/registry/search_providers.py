@@ -1,9 +1,10 @@
 import logging
-import os
 from typing import Dict, List, Optional
 from urllib.parse import parse_qs, quote, urljoin, urlparse
 
 import requests
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,15 +14,9 @@ _USER_AGENT = (
 )
 _SEARCH_TIMEOUT = 12
 
-# Engines that are actually enabled on our SearXNG instance (general/web category)
-_SEARXNG_ENGINES = os.environ.get(
-    "SEARXNG_ENGINES",
-    "google,bing,duckduckgo,brave,startpage",
-)
-
 def get_searxng_url() -> Optional[str]:
-    """Retrieve SEARXNG_URL from env, defaulting to local IP if not set."""
-    url = os.environ.get("SEARXNG_URL", "http://192.168.1.161:8080")
+    """URL di SearXNG dalle settings; vuoto = provider disabilitato."""
+    url = settings.searxng_url
     return url.rstrip("/") if url else None
 
 def search_searxng_api(
@@ -45,7 +40,7 @@ def search_searxng_api(
     params: Dict[str, str] = {
         "q": query,
         "format": "json",
-        "engines": _SEARXNG_ENGINES,
+        "engines": settings.searxng_engines,
         "categories": "general",
         "safesearch": "0",
     }
@@ -59,7 +54,7 @@ def search_searxng_api(
             params["time_range"] = time_map[time_filter]
 
     try:
-        logger.info(f"SearXNG request: q={query!r}  lang={language}  engines={_SEARXNG_ENGINES}")
+        logger.info(f"SearXNG request: q={query!r}  lang={language}  engines={settings.searxng_engines}")
         res = requests.get(
             f"{url}/search",
             params=params,

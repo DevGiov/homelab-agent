@@ -13,7 +13,7 @@ from app.api.schemas import (
     ProvidersResponse,
     SetDefaultProviderRequest,
 )
-from app.core import config
+from app.core.config import settings
 from app.llm.providers import (
     get_active_model_name,
     get_active_provider_name,
@@ -75,7 +75,7 @@ async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
 async def models_events_endpoint():
     """Proxy SSE verso llama.cpp /models/sse per monitorare lo stato e la percentuale di caricamento in tempo reale."""
     import httpx
-    root_url = re.sub(r'/v1/?$', '', config.LLAMA_CPP_URL.rstrip('/'))
+    root_url = re.sub(r'/v1/?$', '', settings.llama_cpp_url.rstrip('/'))
     url = f"{root_url}/models/sse"
 
     async def sse_stream():

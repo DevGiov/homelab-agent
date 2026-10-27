@@ -11,7 +11,8 @@ from app.api.deps import verify_api_key
 from app.api.schemas import (
     ImageUploadResponse,
 )
-from app.core import config, image_utils
+from app.core import image_utils
+from app.core.config import BACKEND_DIR
 
 router = APIRouter(tags=["uploads"])
 
@@ -21,7 +22,7 @@ router = APIRouter(tags=["uploads"])
 if os.path.exists("/data") and os.access("/data", os.W_OK):
     UPLOAD_DIR = Path("/data/uploads")
 else:
-    UPLOAD_DIR = config.BACKEND_DIR / "data" / "uploads"
+    UPLOAD_DIR = BACKEND_DIR / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/v1/upload", response_model=ImageUploadResponse, dependencies=[Depends(verify_api_key)])

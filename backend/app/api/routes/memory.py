@@ -11,7 +11,7 @@ from app.api.schemas import (
     MemoryItem,
     MemoryListResponse,
 )
-from app.core import config
+from app.core.config import settings
 from app.memory import letta_client
 
 router = APIRouter(tags=["memory"])
@@ -86,7 +86,7 @@ async def clear_all_memory(kind: Optional[str] = None):
         pass
 
     # Rimuovi file locali di summary e fatti salienti
-    mem_dir = config.MEMORY_DIR
+    mem_dir = settings.memory_dir
     if os.path.exists(mem_dir):
         for pattern in ["salient_facts_*.txt", "summary_*.txt"]:
             for fpath in glob.glob(os.path.join(mem_dir, pattern)):

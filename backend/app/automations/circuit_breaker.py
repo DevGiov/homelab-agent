@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional, Tuple
 from app.automations.db import breaker_states as breaker_db
 from app.automations.db import runs as runs_db
 from app.automations.models import Budget
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("automations.circuit_breaker")
 
@@ -35,7 +35,7 @@ class CircuitBreakerManager:
     """Gestisce la sicurezza a runtime e il rate-limiting delle automazioni."""
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or config.AUTOMATIONS_DB_PATH
+        self.db_path = db_path or settings.automations_db_path
         self.default_max_consecutive_failures = 3
         self.default_max_runs_per_hour = 30
         self.default_max_daily_tokens = 100000

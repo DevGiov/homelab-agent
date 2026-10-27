@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("monitoring")
 
-MONITORING_LOG_FILE = Path(config.MEMORY_DIR) / "monitoring_logs.jsonl"
+MONITORING_LOG_FILE = Path(settings.memory_dir) / "monitoring_logs.jsonl"
 
 
 @dataclass

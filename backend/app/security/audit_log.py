@@ -5,13 +5,13 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("audit_log")
 
 
 def _get_conn():
-    return sqlite3.connect(config.CHECKPOINT_DB_PATH)
+    return sqlite3.connect(settings.checkpoint_db_path)
 
 
 def init_audit_db():

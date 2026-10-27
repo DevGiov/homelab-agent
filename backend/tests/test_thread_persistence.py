@@ -3,21 +3,21 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from app.core import config
+from app.core.config import settings
 from app.memory import thread_store
 
 
 class TestThreadPersistence(unittest.TestCase):
     def setUp(self):
         # Usa un db temporaneo per isolare i test
-        self._orig_db = config.CHECKPOINT_DB_PATH
+        self._orig_db = settings.checkpoint_db_path
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.tmp_db = os.path.join(self.tmp_dir.name, "test_checkpoints.db")
-        config.CHECKPOINT_DB_PATH = self.tmp_db
+        settings.checkpoint_db_path = self.tmp_db
         thread_store.init_db()
 
     def tearDown(self):
-        config.CHECKPOINT_DB_PATH = self._orig_db
+        settings.checkpoint_db_path = self._orig_db
         self.tmp_dir.cleanup()
 
     def test_save_user_message_immediate(self):

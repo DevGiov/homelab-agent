@@ -7,16 +7,16 @@ from typing import Any, Dict
 
 import requests
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("firecracker_sandbox")
 
 class FirecrackerSandbox:
     def __init__(self):
-        self.api_url = config.FIRECRACKER_API_URL
-        self.log_url = config.FIRECRACKER_LOG_URL
-        self.kernel_path = config.FIRECRACKER_KERNEL_PATH
-        self.rootfs_path = config.FIRECRACKER_ROOTFS_PATH
+        self.api_url = settings.firecracker_api_url
+        self.log_url = settings.firecracker_log_url
+        self.kernel_path = settings.firecracker_kernel_path
+        self.rootfs_path = settings.firecracker_rootfs_path
 
     def is_available(self) -> bool:
         """Verifica se l'API HTTP di Firecracker è raggiungibile."""

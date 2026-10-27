@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.calendar import db as calendar_db
 from app.calendar import sync as calendar_sync
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("calendar.router")
 
@@ -24,7 +24,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(x_api_key: Optional[str] = Security(api_key_header)):
-    expected_key = config.API_SECRET_KEY.strip()
+    expected_key = settings.api_secret_key.strip()
     if expected_key:
         if not x_api_key or x_api_key != expected_key:
             raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key header")

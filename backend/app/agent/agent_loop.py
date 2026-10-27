@@ -8,7 +8,7 @@ from app.agent.llm_calls import stream_queue
 from app.agent.mode_policy import get_mode_policy
 from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_catalog_response
 from app.agent.tool_schemas import ToolSelection, validate_tool_args
-from app.core import config
+from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
 from app.registry.manager import get_registry_manager
 
@@ -312,8 +312,8 @@ def run_agent_loop(
                     "Present the data clearly and in natural prose (no raw JSON dump): this is the final response for the user."
                 )
                 obs_text = "\n".join(history_observations)
-                if len(obs_text) > config.TRUNCATION_LIMIT:
-                    obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [observations truncated for brevity]"
+                if len(obs_text) > settings.truncation_limit:
+                    obs_text = obs_text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
                 summary_prompt = (
                     f"User task: '{task}'\n\n"
                     f"History of actions and tool results:\n{obs_text}\n\n"
@@ -577,8 +577,8 @@ def run_agent_loop(
             f"{UNTRUSTED_CONTEXT_POLICY}"
         )
         obs_text = "\n".join(history_observations)
-        if len(obs_text) > config.TRUNCATION_LIMIT:
-            obs_text = obs_text[:config.TRUNCATION_LIMIT] + "\n... [observations truncated for brevity]"
+        if len(obs_text) > settings.truncation_limit:
+            obs_text = obs_text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
         summary_prompt = (
             f"User task: '{task}'\n\n"
             f"History of executed actions:\n{obs_text}\n\n"

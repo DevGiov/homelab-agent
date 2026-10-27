@@ -4,13 +4,13 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("automations.db")
 
 
 def get_db_path() -> str:
-    path = config.AUTOMATIONS_DB_PATH
+    path = settings.automations_db_path
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     return path
 

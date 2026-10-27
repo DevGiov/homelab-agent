@@ -30,10 +30,10 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertIn("providers", data)
 
     def test_auth_required_when_key_set(self):
-        from app.core import config
-        original = config.API_SECRET_KEY
+        from app.core.config import settings
+        original = settings.api_secret_key
         try:
-            config.API_SECRET_KEY = "test-secret-123"
+            settings.api_secret_key = "test-secret-123"
             r = self.client.get("/v1/health")  # health è pubblico
             self.assertEqual(r.status_code, 200)
             r = self.client.get("/v1/audit")
@@ -41,7 +41,7 @@ class TestApiEndpoints(unittest.TestCase):
             r2 = self.client.get("/v1/audit", headers={"X-API-Key": "test-secret-123"})
             self.assertEqual(r2.status_code, 200)
         finally:
-            config.API_SECRET_KEY = original
+            settings.api_secret_key = original
 
     def test_audit_endpoint(self):
         r = self.client.get("/v1/audit")

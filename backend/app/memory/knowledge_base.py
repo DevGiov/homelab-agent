@@ -10,12 +10,12 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.core import config
+from app.core.config import settings
 from app.memory import vector_store
 
 logger = logging.getLogger("knowledge_base")
 
-KB_DIR = Path(config.CHECKPOINT_DB_PATH).parent / "knowledge_base"
+KB_DIR = Path(settings.checkpoint_db_path).parent / "knowledge_base"
 
 CHUNK_SIZE = 800       # caratteri per chunk
 CHUNK_OVERLAP = 150    # sovrapposizione tra chunk
@@ -159,7 +159,7 @@ def list_documents() -> List[Dict[str, Any]]:
     import json as _json
     import sqlite3
     try:
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         rows = conn.execute(
             "SELECT metadata_json, COUNT(*) FROM vec_memory WHERE kind='kb' GROUP BY metadata_json"
         ).fetchall()
@@ -191,7 +191,7 @@ def delete_document(filename: str) -> int:
     import json as _json
     import sqlite3
     try:
-        conn = sqlite3.connect(config.CHECKPOINT_DB_PATH)
+        conn = sqlite3.connect(settings.checkpoint_db_path)
         # Necessario per DELETE sulla virtual table vec_memory_idx
         conn.enable_load_extension(True)
         import sqlite_vec

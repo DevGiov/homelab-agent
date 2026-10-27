@@ -21,7 +21,7 @@ from app.automations.models import (
 from app.automations.runner import AutomationRunner
 from app.calendar import db as calendar_db
 from app.calendar import sync as calendar_sync
-from app.core import config
+from app.core.config import settings
 
 
 class TestCalendarSync(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestCalendarAPI(unittest.TestCase):
         self.orig_db_path = calendar_db.get_db_path
         calendar_db.get_db_path = lambda: self.db_path
         self.client = TestClient(api)
-        self.headers = {"X-API-Key": config.API_SECRET_KEY} if config.API_SECRET_KEY else {}
+        self.headers = {"X-API-Key": settings.api_secret_key} if settings.api_secret_key else {}
 
     def tearDown(self):
         calendar_db.get_db_path = self.orig_db_path
@@ -133,8 +133,8 @@ class TestCalendarAutomation(unittest.TestCase):
         self.auto_db_path = os.path.join(self.test_dir, "test_automations.db")
         self.cal_db_path = os.path.join(self.test_dir, "test_cal_auto.db")
 
-        self.original_auto_db = config.AUTOMATIONS_DB_PATH
-        config.AUTOMATIONS_DB_PATH = self.auto_db_path
+        self.original_auto_db = settings.automations_db_path
+        settings.automations_db_path = self.auto_db_path
         init_automations_db(self.auto_db_path)
 
         calendar_db.init_calendar_db(self.cal_db_path)
@@ -143,7 +143,7 @@ class TestCalendarAutomation(unittest.TestCase):
 
     def tearDown(self):
         calendar_db.get_db_path = self.orig_db_path
-        config.AUTOMATIONS_DB_PATH = self.original_auto_db
+        settings.automations_db_path = self.original_auto_db
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_automation_runner_calendar_step(self):

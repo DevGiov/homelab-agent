@@ -14,7 +14,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
-from app.core import config
+from app.core.config import settings
 
 logger = logging.getLogger("permissions")
 
@@ -26,7 +26,7 @@ _session_lock = threading.Lock()
 
 def _get_conn():
     from pathlib import Path
-    db_path = config.CHECKPOINT_DB_PATH
+    db_path = settings.checkpoint_db_path
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     return sqlite3.connect(db_path)
 
