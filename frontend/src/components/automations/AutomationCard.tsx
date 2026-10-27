@@ -241,7 +241,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => actions.run(auto.id, false)}
-              className="px-3 py-1.5 bg-accent/90 hover:bg-accent text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
               title="Lancia esecuzione completa con parametri di default"
             >
               <Play size={12} /> Esegui
