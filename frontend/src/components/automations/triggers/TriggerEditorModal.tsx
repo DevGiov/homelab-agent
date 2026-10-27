@@ -47,27 +47,27 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#121622] border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+      <div className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+            <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">Pianificazione & Trigger</h2>
-              <p className="text-xs text-slate-400">
-                Automazione: <span className="text-indigo-300 font-mono">{automation.name}</span>
+              <h2 className="text-lg font-semibold text-fg flex items-center gap-2">Pianificazione & Trigger</h2>
+              <p className="text-xs text-fg-muted">
+                Automazione: <span className="text-accent font-mono">{automation.name}</span>
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-panel-header transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar text-sm">
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-rose-500 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -90,11 +90,11 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
           />
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/60 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-border bg-panel-header/40 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+            className="px-4 py-2 rounded-xl text-xs font-medium text-fg-muted hover:text-fg hover:bg-panel-header transition"
           >
             Annulla
           </button>
@@ -102,7 +102,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
             type="button"
             onClick={save}
             disabled={saving}
-            className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition disabled:opacity-50"
+            className="px-5 py-2 rounded-xl text-xs font-semibold bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/25 flex items-center gap-2 transition disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
             <span>{saving ? 'Salvataggio...' : 'Salva Modifiche Trigger'}</span>

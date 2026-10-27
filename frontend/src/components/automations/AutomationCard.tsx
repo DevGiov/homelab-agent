@@ -19,6 +19,7 @@ import type { AutomationRunSummary } from '../../api/automationRuns';
 import type { AutomationSummary } from '../../api/automations';
 import { useCopyFeedback } from '../../hooks/useCopyFeedback';
 import type { RunActions } from '../../hooks/useRunActions';
+import { Toggle } from '../Toggle';
 import { AutomationCardDetails } from './AutomationCardDetails';
 
 export interface AutomationActions {
@@ -115,13 +116,14 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
               <span className={`text-[11px] font-semibold transition ${auto.enabled ? 'text-emerald-400' : 'text-fg-muted'}`}>
                 {auto.enabled ? 'Attiva' : 'Inattiva'}
               </span>
-              <label
-                className={`relative inline-flex items-center cursor-pointer ${isToggling ? 'opacity-50 pointer-events-none' : ''}`}
+              <Toggle
+                checked={auto.enabled}
+                onChange={toggleEnabled}
+                activeClass="peer-checked:bg-emerald-500"
+                size="sm"
+                disabled={isToggling}
                 title={auto.enabled ? 'Disattiva automazione e schedulazioni' : 'Attiva automazione e schedulazioni'}
-              >
-                <input type="checkbox" checked={auto.enabled} onChange={toggleEnabled} className="sr-only peer" />
-                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
-              </label>
+              />
             </div>
           </div>
         </div>

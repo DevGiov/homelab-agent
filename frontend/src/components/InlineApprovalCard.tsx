@@ -223,7 +223,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <button
                 onClick={() => handleResolve('approve')}
                 disabled={isLoading}
-                className="flex items-center justify-center gap-2 rounded-lg border border-slate-600/60 bg-slate-700/40 px-3 py-2.5 text-xs font-semibold text-slate-100 hover:bg-slate-700/60 hover:border-slate-500 transition disabled:opacity-50 cursor-pointer shadow-sm"
+                className="flex items-center justify-center gap-2 rounded-lg border border-border bg-panel-header/60 px-3 py-2.5 text-xs font-semibold text-fg hover:bg-panel-header hover:border-accent/40 transition disabled:opacity-50 cursor-pointer shadow-sm"
               >
                 {isLoading && activeAction === 'approve' ? (
                   <Loader2 size={14} className="animate-spin" />
