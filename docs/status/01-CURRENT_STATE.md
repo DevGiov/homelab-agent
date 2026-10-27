@@ -48,11 +48,11 @@ Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.d
 
 ## 3. Frontend (`frontend/`)
 
-**Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · axios · oxlint.
+**Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
 
 - **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Knowledge, Impostazioni (sicurezza, modelli, temi).
-- **Componenti più grandi**: `AutomationsView.tsx` (1385 righe), `api.ts` (1293), `CalendarView.tsx` (1285), `Chat.tsx` (1205), `SettingsModal.tsx` (956), `useChat.ts` (830).
-- **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 291 kB più `react` 190 kB e `api` 60 kB (160 kB gzip in tutto, prima 947 kB in un chunk unico da 262 kB gzip). Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
+- **Componenti più grandi**: `AutomationsView.tsx` (1385 righe), `CalendarView.tsx` (1285), `Chat.tsx` (1205), `SettingsModal.tsx` (956), `useChat.ts` (830).
+- **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
 - **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
 
 ## 4. Deploy (CT 125)
