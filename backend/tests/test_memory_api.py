@@ -71,7 +71,7 @@ class TestMemoryAPI(unittest.TestCase):
 
     def test_incognito_chat_does_not_save_facts(self):
         # Esegui una chat in incognito con mock dell'LLM
-        with patch("app.agent.graph._call_llm") as mock_llm:
+        with patch("app.agent.llm_calls.call_llm") as mock_llm:
             mock_llm.return_value = {
                 "content": "Risposta di test in incognito",
                 "reasoning_content": "Ragionamento isolato"

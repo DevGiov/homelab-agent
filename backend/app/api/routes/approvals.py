@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.agent.graph import _call_llm
+from app.agent.llm_calls import call_llm
 from app.api.deps import verify_api_key
 from app.api.schemas import (
     ResolveApprovalRequest,
@@ -133,7 +133,7 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
 
     synthesized_text = ""
     try:
-        syn_res = _call_llm(
+        syn_res = call_llm(
             summary_prompt,
             system_prompt=summary_system_prompt,
             max_tokens=4096,

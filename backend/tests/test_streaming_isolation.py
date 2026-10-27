@@ -3,7 +3,7 @@ import queue
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.agent.graph import _call_llm, _call_llm_structured, stream_queue, stream_reasoning_phase_count
+from app.agent.llm_calls import call_llm, call_llm_structured, stream_queue, stream_reasoning_phase_count
 from app.agent.tool_schemas import ToolSelection
 
 
@@ -18,7 +18,7 @@ class TestStreamingIsolation(unittest.TestCase):
         stream_queue.set(None)
         stream_reasoning_phase_count.set(0)
 
-    @patch("app.agent.graph.get_provider")
+    @patch("app.agent.llm_calls.get_provider")
     def test_reasoning_only_filters_out_content_events(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -32,7 +32,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        res = _call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
+        res = call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
         self.assertIn("content", res)
 
         events = []
@@ -51,7 +51,7 @@ class TestStreamingIsolation(unittest.TestCase):
         self.assertIn("Sto analizzando se servono tool...", full_reasoning)
         self.assertNotIn("tool_needed", full_reasoning)
 
-    @patch("app.agent.graph.get_provider")
+    @patch("app.agent.llm_calls.get_provider")
     def test_stream_mode_none_suppresses_all_events(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -63,10 +63,10 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        _call_llm("prompt", stream_mode="none")
+        call_llm("prompt", stream_mode="none")
         self.assertTrue(self.q.empty(), "La coda stream deve rimanere completamente vuota")
 
-    @patch("app.agent.graph.get_provider")
+    @patch("app.agent.llm_calls.get_provider")
     def test_structured_output_sets_raw_thinking_and_isolates_content(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -88,7 +88,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        selection = _call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool")
+        selection = call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool")
         self.assertIsNotNone(selection)
         self.assertFalse(selection.tool_needed)
         self.assertEqual(selection.raw_thinking, "pensiero nativo")
@@ -102,7 +102,7 @@ class TestStreamingIsolation(unittest.TestCase):
         self.assertNotIn("content", types, "Nessun JSON grezzo deve essere emesso su content")
         self.assertIn("reasoning", types)
 
-    @patch("app.agent.graph.get_provider")
+    @patch("app.agent.llm_calls.get_provider")
     def test_multi_phase_reasoning_headers(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_get_provider.return_value = mock_provider
@@ -118,10 +118,10 @@ class TestStreamingIsolation(unittest.TestCase):
             return {"content": "step 2", "reasoning_content": "fase 2 thinking"}
 
         mock_provider.chat.side_effect = fake_chat_1
-        _call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
+        call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
 
         mock_provider.chat.side_effect = fake_chat_2
-        _call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta")
+        call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta")
 
         events = []
         while not self.q.empty():

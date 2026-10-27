@@ -181,7 +181,7 @@ class TestWebSearchService(unittest.TestCase):
 
 class TestWebPrefetchGraph(unittest.TestCase):
     @patch("app.registry.web_search_service.execute_search")
-    @patch("app.agent.graph._call_llm")
+    @patch("app.agent.llm_calls.call_llm")
     def test_chat_mode_with_web_prefetch_and_compact_metadata(self, mock_llm, mock_search):
         from app.api.agent_runner import run_agent_flow
 
@@ -230,7 +230,7 @@ class TestWebPrefetchGraph(unittest.TestCase):
         self.assertNotIn("ranked_results", resp.web_prefetch)
 
     @patch("app.registry.web_search_service.execute_search")
-    @patch("app.agent.graph._call_llm")
+    @patch("app.agent.llm_calls.call_llm")
     def test_plan_mode_with_web_prefetch(self, mock_llm, mock_search):
         from app.api.agent_runner import run_agent_flow
 
@@ -266,7 +266,7 @@ class TestWebPrefetchGraph(unittest.TestCase):
     def test_web_prefetch_disabled_does_not_call_search(self, mock_search):
         from app.api.agent_runner import run_agent_flow
 
-        with patch("app.agent.graph._call_llm") as mock_llm:
+        with patch("app.agent.llm_calls.call_llm") as mock_llm:
             mock_llm.return_value = {"content": "Ciao! Come posso aiutarti?"}
             resp = run_agent_flow(
                 task="ciao come stai",

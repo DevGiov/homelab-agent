@@ -102,6 +102,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 - Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
 - La ristrutturazione a pacchetti (Fase 1.5 della vecchia roadmap) era stata rinviata per non rompere CT 112, ora dismesso: il vincolo non esiste più.
 - **Avanzamento (B1, 2026-10-27)**: codice nel pacchetto `app/` con sottopacchetti per dominio e import assoluti; `api.py` diviso in `app/api/routes/` (8 router, il più grande ~240 righe) più `agent_runner.py` e `deps.py`. Restano `graph.py` (B2), `automations/db.py` (B3) e i database nella radice del codice (B7).
+- **Avanzamento (B2, 2026-10-27)**: `graph.py` (1730 righe) diviso in `app/agent/nodes/` (un modulo per nodo, il più grande ~235 righe), `execution_log.py` (Saga/WAL, ~340), `llm_calls.py`, `state.py` e `memory/transcript.py`; `graph.py` resta con la sola costruzione del grafo (~75 righe). Restano `automations/db.py` (B3) e i database nella radice del codice (B7).
 
 ## ISS-10
 **Fallback MCP legacy e shim di retrocompatibilità** — S3

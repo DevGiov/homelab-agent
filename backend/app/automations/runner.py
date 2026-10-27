@@ -950,13 +950,13 @@ class AutomationRunner:
 
             # Invocazione loop agentico controllato
             from app.agent.agent_loop import run_agent_loop
-            from app.agent.graph import _call_llm
+            from app.agent.llm_calls import call_llm
 
             loop_res = run_agent_loop(
                 task=rendered_prompt,
                 mode="act",
                 security_mode=auto_def.permission_policy.security_mode,
-                call_llm_fn=lambda p, system_prompt=None, reasoning_budget=0, model=None, reasoning_phase=None: _call_llm(
+                call_llm_fn=lambda p, system_prompt=None, reasoning_budget=0, model=None, reasoning_phase=None: call_llm(
                     p, system_prompt=system_prompt, max_tokens=2048, reasoning_budget=0, model=model, stream_mode="none"
                 ),
                 call_llm_structured_fn=None,  # Sintesi diretta per prompt deterministico

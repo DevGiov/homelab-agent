@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.agent.llm_calls import stream_queue
 from app.agent.mode_policy import get_mode_policy
 from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_catalog_response
 from app.agent.tool_schemas import ToolSelection, validate_tool_args
@@ -85,7 +86,6 @@ def run_agent_loop(
     policy = get_mode_policy(mode)
     logger.info(f"Avvio agent loop per mode='{mode}' (max_tool_calls={policy.max_tool_calls}, registries={policy.allowed_registries})")
 
-    from app.agent.graph import stream_queue
 
     manager = get_registry_manager()
     available_tools = manager.get_tools_for_mode(policy.allowed_registries)

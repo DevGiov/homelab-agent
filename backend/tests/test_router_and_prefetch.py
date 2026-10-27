@@ -2,8 +2,8 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.agent.graph import should_prefetch_web, web_prefetch_node
 from app.agent.mode_router import get_dynamic_capabilities_summary, route_turn
+from app.agent.nodes.web_prefetch import should_prefetch_web, web_prefetch_node
 from app.api.schemas import ChatRequest
 
 

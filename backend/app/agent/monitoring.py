@@ -1,13 +1,72 @@
 import json
 import logging
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional
 
 from app.core import config
 
-logger = logging.getLogger("analyze_monitoring")
+logger = logging.getLogger("monitoring")
 
 MONITORING_LOG_FILE = Path(config.MEMORY_DIR) / "monitoring_logs.jsonl"
+
+
+@dataclass
+class AgentSpan:
+    """Span di monitoraggio per una sessione agente."""
+    session_id: str
+    thread_id: str
+    task: str
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+    end_time: Optional[datetime] = None
+    llm_latency_ms: float = 0.0
+    tool_calls: List[dict] = field(default_factory=list)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    retrieval_hit_rate: float = 1.0
+    error: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "session_id": self.session_id,
+            "thread_id": self.thread_id,
+            "task": self.task,
+            "start_time": self.start_time.isoformat(),
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "llm_latency_ms": self.llm_latency_ms,
+            "tool_calls": self.tool_calls,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "retrieval_hit_rate": self.retrieval_hit_rate,
+            "error": self.error
+        }
+
+def log_span(span: AgentSpan):
+    """Logga uno span di monitoraggio in formato JSONL."""
+    try:
+        log_path = MONITORING_LOG_FILE
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(span.to_dict()) + "\n")
+        logger.info(f"Span loggato: {span.session_id} (latency={span.llm_latency_ms:.0f}ms, tokens={span.prompt_tokens + span.completion_tokens})")
+        check_anomalies(span)
+    except Exception as e:
+        logger.warning(f"Impossibile scrivere span di monitoraggio: {e}")
+
+def check_anomalies(span: AgentSpan, thresholds: dict = None):
+    """Controlla se lo span supera le soglie di anomalia."""
+    thresholds = thresholds or {
+        "max_latency_ms": 10000.0,
+        "max_tokens": 50000,
+        "max_tool_failure_rate": 0.2
+    }
+    if span.llm_latency_ms > thresholds["max_latency_ms"]:
+        logger.warning(f"⚠️ ALERT: Latency anomaly {span.llm_latency_ms:.0f}ms > {thresholds['max_latency_ms']}ms")
+    total_tokens = span.prompt_tokens + span.completion_tokens
+    if total_tokens > thresholds["max_tokens"]:
+        logger.warning(f"⚠️ ALERT: Token anomaly {total_tokens} > {thresholds['max_tokens']}")
+
 
 def analyze_monitoring_logs(log_file: str = None) -> Dict:
     """Analizza i log di monitoring in formato JSONL e calcola metriche aggregate P50/P90/P99."""

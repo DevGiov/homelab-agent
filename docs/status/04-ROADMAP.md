@@ -28,7 +28,7 @@ Obiettivo: codice navigabile e senza legacy, in modo da poter aggiungere feature
 | # | Attività | Issue |
 | :--- | :--- | :--- |
 | B1 | ~~Backend in pacchetto `app/`: `api/` (router per dominio), `agent/`, `registry/`, `automations/`, `calendar/`, `memory/`, `core/`~~ ✅ 2026-10-27 (in più: `security/`, `llm/`, `mcp/`; `sdk/` resta fuori perché pubblico) | ISS-09 |
-| B2 | Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato | ISS-09 |
+| B2 | ~~Dividere `graph.py` in un modulo per nodo, più `execution_log` (Saga/WAL) separato~~ ✅ 2026-10-27 (in più: `state.py`, `llm_calls.py`, `memory/transcript.py`) | ISS-09 |
 | B3 | Dividere `automations/db.py` per aggregato (definitions, runs, approvals, artifacts) | ISS-09 |
 | B4 | Rimuovere il client MCP legacy: solo SDK ufficiale, con retry e reset di sessione | ISS-10 |
 | B8 | Router via provider astratto invece di `requests` diretto | ISS-23 |

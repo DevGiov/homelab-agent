@@ -222,3 +222,10 @@ def format_dynamic_catalog_response(tools: List[Dict[str, Any]]) -> str:
             lines.append("")
 
     return "\n".join(lines).strip()
+
+
+def format_available_tools_catalog() -> str:
+    """Catalogo dei tool raggiungibili (MetaMCP, web, code, memory) formattato per l'utente."""
+    from app.registry.manager import get_registry_manager
+    all_tools = get_registry_manager().get_tools_for_mode(["metamcp", "web", "code", "memory"])
+    return format_dynamic_catalog_response(all_tools)

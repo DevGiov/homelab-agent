@@ -11,7 +11,8 @@ from typing import List, Optional, Union
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.agent.graph import build_graph, stream_queue, stream_reasoning_phase_count
+from app.agent.graph import build_graph
+from app.agent.llm_calls import stream_queue, stream_reasoning_phase_count
 from app.agent.stream_session import (
     create_session,
     current_session_var,

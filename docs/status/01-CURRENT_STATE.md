@@ -22,6 +22,7 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 ```
 
 - **Modalità**: CHAT (conversazione), ASK (ricerca/consultazione), ACT (tool MCP con self-correction), PLAN (piani multi-step con rollback Saga/WAL).
+- **Codice**: [graph.py](../../backend/app/agent/graph.py) costruisce solo il grafo; ogni nodo sta in [nodes/](../../backend/app/agent/nodes/), l'esecuzione dei piani (Saga/WAL con rollback) in [execution_log.py](../../backend/app/agent/execution_log.py), le chiamate LLM in [llm_calls.py](../../backend/app/agent/llm_calls.py).
 - **Routing**: [router.py](../../backend/app/agent/mode_router.py) usa regole più un LLM di fallback; [mode_policy.py](../../backend/app/agent/mode_policy.py) definisce budget di tool e reasoning per ogni modalità.
 
 ### 2.2 Registry dei tool ([registry/](../../backend/app/registry/))

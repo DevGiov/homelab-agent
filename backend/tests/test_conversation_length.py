@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from app.agent.graph import MEMORY_DIR, build_graph
+from app.agent.graph import build_graph
+from app.core.config import MEMORY_DIR
 
 # Valutazione end-to-end contro LLM/MetaMCP reali: esclusa dalla suite di default
 pytestmark = [pytest.mark.live, pytest.mark.timeout(1800)]
