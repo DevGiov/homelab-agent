@@ -82,6 +82,16 @@ def _query_jaccard_similarity(q1: str, q2: str) -> float:
 
 
 def _serialize(res: Any) -> str:
+    """Risultato compatto per il prompt.
+
+    I tool MCP che restituiscono un array arrivano come {"content": "<JSON indentato>"}: serializzato di nuovo
+    diventerebbe una stringa piena di escape, quasi il doppio dei token e difficile da leggere per i modelli piccoli.
+    """
+    if isinstance(res, dict) and list(res) == ["content"] and isinstance(res["content"], str):
+        try:
+            res = json.loads(res["content"])
+        except ValueError:
+            return res["content"]
     return json.dumps(res, ensure_ascii=False) if isinstance(res, (dict, list)) else str(res)
 
 

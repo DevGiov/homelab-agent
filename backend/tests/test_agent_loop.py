@@ -1,4 +1,5 @@
 """Percorsi dell'agent loop con registry e LLM finti: approvazione, chiamate parallele, validazione, sintesi."""
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -198,3 +199,14 @@ def test_structured_call_reads_only_the_first_json_object():
     with patch("app.agent.llm_calls.get_provider", return_value=provider):
         selection = call_llm_structured("prompt", "sys", ToolSelection, max_retries=1)
     assert selection.tool_name == "list_containers"
+
+
+def test_mcp_json_text_is_compacted_for_the_prompt(manager):
+    containers = json.dumps([{"vmid": 101, "status": "stopped"}], indent=2)
+    manager.execute_tool.return_value = {"content": containers}
+    select = _selections(ToolSelection(tool_needed=True, tool_name="list_containers"), _done())
+
+    res = run_agent_loop("elenca i container", "act", call_llm_fn=_llm(), call_llm_structured_fn=select)
+
+    assert select.call_args.kwargs["prompt"].rstrip().endswith('[{"vmid": 101, "status": "stopped"}]')
+    assert res["execution_trace"][0]["result"] == {"content": containers}
