@@ -189,3 +189,15 @@ def test_json_mode_requests_json_output_from_each_provider():
          patch("httpx.Client.post", return_value=reply) as post:
         openai.chat([{"role": "user", "content": "hi"}])
     assert "response_format" not in post.call_args.kwargs["json"]
+
+
+def test_zero_reasoning_budget_disables_thinking_server_side():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="LFM2.5-24B-A2B-HugeCtx")
+    msgs = [{"role": "user", "content": "hi"}]
+
+    no_think = provider._build_payload(msgs, None, 120, 0.0, 0, stream=False)
+    assert no_think["chat_template_kwargs"] == {"enable_thinking": False}
+    assert no_think["reasoning_budget_tokens"] == 0
+
+    default = provider._build_payload(msgs, None, 120, 0.0, -1, stream=False)
+    assert "reasoning_budget_tokens" not in default

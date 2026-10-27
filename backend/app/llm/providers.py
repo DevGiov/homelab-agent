@@ -140,6 +140,9 @@ class OpenAICompatProvider(LLMProvider):
                 payload["reasoning_budget_tokens"] = reasoning_budget
         else:
             payload["chat_template_kwargs"] = {"enable_thinking": False}
+            if reasoning_budget == 0:
+                # Alcuni template (es. LFM2.5) ragionano comunque: solo il budget a 0 spegne il thinking lato server
+                payload["reasoning_budget_tokens"] = 0
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         if stream:
