@@ -1,0 +1,8 @@
+[
+  {"id": "preference", "task": "Per tutti i miei container preferisco sempre Debian 12", "response": "Ricevuto: userò Debian 12 come distribuzione predefinita per i nuovi container.", "expect_facts": true, "expect_entities": ["Debian"]},
+  {"id": "infrastructure", "task": "Il NAS Synology ha IP 192.168.1.20 e lo uso per i backup di Proxmox", "response": "Annotato: il NAS Synology (192.168.1.20) è la destinazione dei backup di Proxmox.", "expect_facts": true, "expect_entities": ["Synology", "Proxmox"]},
+  {"id": "person-role", "task": "Luca gestisce il progetto Odysseus, coordinati con lui per i deploy", "response": "Va bene, per i deploy di Odysseus mi coordinerò con Luca.", "expect_facts": true, "expect_entities": ["Luca", "Odysseus"]},
+  {"id": "no-chitchat", "task": "Ciao, come va?", "response": "Ciao! Tutto bene, come posso aiutarti oggi?", "expect_facts": false},
+  {"id": "no-general-knowledge", "task": "Cos'è un bigram?", "response": "Un bigram è una sequenza di due parole consecutive in un testo, usata nei modelli linguistici statistici.", "expect_facts": false},
+  {"id": "no-meta-facts", "task": "Aggiungi una call con MITO venerdì alle 15", "response": "Ho aggiunto 'Call con MITO' al calendario per venerdì 30 ottobre dalle 15:00 alle 16:00.", "expect_facts": true, "expect_entities": ["MITO"], "forbid_phrases": ["the user asked", "l'utente ha chiesto", "the assistant", "l'assistente"]}
+]

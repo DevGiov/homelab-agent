@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from app.agent import llm_calls
 from app.agent.mode_policy import get_mode_policy
@@ -9,6 +10,53 @@ from app.agent.nodes.act import execute_plan_node
 from app.agent.state import AgentState
 
 logger = logging.getLogger("graph")
+
+
+def generate_plan_structure(task: str, user_prompt: str, model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Piano strutturato (passi con tool del catalogo, argomenti e dipendenze), o None se il modello non ne produce
+    uno valido: in quel caso il piano resta solo testuale e l'esecuzione passa all'agent loop."""
+    from app.agent.tool_catalog import format_catalog_for_prompt
+    from app.registry.manager import get_registry_manager
+    from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
+
+    tools = get_registry_manager().get_tools_for_mode(get_mode_policy("act").allowed_registries)
+    json_prompt = (
+        f"Generate a structured JSON plan for the following user task: '{task}'.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}\n"
+        "Use ONLY tools from this catalog, with their exact names:\n"
+        f"{format_catalog_for_prompt(tools)}\n\n"
+        "Reply EXCLUSIVELY with valid JSON matching this schema:\n"
+        "{\n"
+        "  \"steps\": [\n"
+        "    {\n"
+        "      \"id\": 1,\n"
+        "      \"description\": \"Step description\",\n"
+        "      \"tool\": \"exact_tool_name\",\n"
+        "      \"args\": {\"param\": \"value\"},\n"
+        "      \"depends_on\": null,\n"
+        "      \"output_var\": \"variable_name\"\n"
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=4096, temperature=0.1, model=model, stream_mode="none")
+    content = res.get("content", "") if isinstance(res, dict) else ""
+    clean = re.sub(r"```(?:json)?", "", content).strip()
+    start = clean.find("{")
+    if start < 0:
+        logger.warning("Piano strutturato assente nella risposta del modello")
+        return None
+    try:
+        # Solo il primo oggetto: il modello può continuare a scrivere dopo averlo chiuso
+        parsed, _ = json.JSONDecoder().raw_decode(clean[start:])
+    except ValueError as e:
+        logger.warning(f"Piano strutturato non valido: {e}")
+        return None
+    steps = parsed.get("steps") if isinstance(parsed, dict) else None
+    if not isinstance(steps, list) or not steps or not all(isinstance(st, dict) and st.get("tool") for st in steps):
+        logger.warning("Piano strutturato senza passi validi")
+        return None
+    return {"steps": steps}
 
 
 def plan_graph_node(state: AgentState) -> AgentState:
@@ -104,102 +152,10 @@ def plan_graph_node(state: AgentState) -> AgentState:
                 if cleaned:
                     plan_steps.append(cleaned)
 
-    # Generate JSON plan_structure via LLM
-    json_prompt = (
-        f"Generate a structured JSON plan for the following user task: '{task}'.\n"
-        f"{UNTRUSTED_CONTEXT_POLICY}\n"
-        "Reply EXCLUSIVELY with valid JSON matching this schema:\n"
-        "{\n"
-        "  \"steps\": [\n"
-        "    {\n"
-        "      \"id\": 1,\n"
-        "      \"description\": \"Step description\",\n"
-        "      \"tool\": \"mcp_tool_name\",\n"
-        "      \"args\": {\"param\": \"value\"},\n"
-        "      \"depends_on\": null,\n"
-        "      \"output_var\": \"variable_name\"\n"
-        "    }\n"
-        "  ]\n"
-        "}"
-    )
-    json_resp_res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=4096, temperature=0.1, model=model, stream_mode="none")
-    json_resp = json_resp_res.get("content", "") if isinstance(json_resp_res, dict) else ""
-    plan_structure = None
-    if json_resp:
-        try:
-            clean_json = re.sub(r'```(?:json)?', '', json_resp).strip()
-            parsed = json.loads(clean_json)
-            if isinstance(parsed, dict) and "steps" in parsed and isinstance(parsed["steps"], list):
-                plan_structure = parsed
-        except Exception as e:
-            logger.warning(f"Failed to parse LLM plan JSON: {e}")
+    plan_structure = generate_plan_structure(task, user_prompt, model=model)
 
-    if not plan_structure:
-        task_lower = task.lower()
-        if any(kw in task_lower for kw in ["lista", "ispeziona", "controlla"]):
-            plan_structure = {
-                "steps": [
-                    {
-                        "id": 1,
-                        "description": "Acquisizione inventario e stato real-time dei container",
-                        "tool": "proxmox-mcp__list_containers",
-                        "args": {},
-                        "depends_on": None,
-                        "output_var": "containers_list"
-                    }
-                ]
-            }
-        else:
-            plan_structure = {
-                "steps": [
-                    {
-                        "id": 1,
-                        "description": "Allocazione IP libero da IPAM",
-                        "tool": "proxmox-mcp__allocate_ip",
-                        "args": {"hostname": "test-service"},
-                        "depends_on": None,
-                        "output_var": "allocated_ip"
-                    },
-                    {
-                        "id": 2,
-                        "description": "Creazione LXC da template base",
-                        "tool": "proxmox-mcp__create_lxc_from_template",
-                        "args": {
-                            "key": "base",
-                            "ip": "{{allocated_ip}}",
-                            "hostname": "test-service"
-                        },
-                        "depends_on": 1,
-                        "output_var": "created_vmid"
-                    },
-                    {
-                        "id": 3,
-                        "description": "Creazione record DNS Pi-hole",
-                        "tool": "proxmox-mcp__add_pihole_dns_record",
-                        "args": {
-                            "domain": "test-service.home.lab",
-                            "target_ip": "{{allocated_ip}}"
-                        },
-                        "depends_on": 1,
-                        "output_var": None
-                    },
-                    {
-                        "id": 4,
-                        "description": "Configurazione Host Proxy Nginx Manager",
-                        "tool": "proxmox-mcp__create_npm_proxy_host",
-                        "args": {
-                            "domain": "test-service.home.lab",
-                            "forward_ip": "{{allocated_ip}}",
-                            "forward_port": 80
-                        },
-                        "depends_on": 2,
-                        "output_var": None
-                    }
-                ]
-            }
-
-    if not plan_steps:
-        plan_steps = [s.get("description", "") for s in plan_structure.get("steps", []) if s.get("description")]
+    if not plan_steps and plan_structure:
+        plan_steps = [s.get("description", "") for s in plan_structure["steps"] if s.get("description")]
 
     formatted_steps_str = "\n".join(f"{i+1}. {step}" for i, step in enumerate(plan_steps))
     formatted_plan = f"Piano multi-step generato per: '{task}'\n\nPassaggi di esecuzione:\n{formatted_steps_str}"

@@ -1,0 +1,16 @@
+[
+  {"id": "act-list-containers", "input": "Mostrami i container attivi", "expected_mode": "act", "expect_web": false},
+  {"id": "act-container-info", "input": "Dammi informazioni sul container immich", "expected_mode": "act", "expect_web": false},
+  {"id": "act-clone-template", "input": "Clona il template base e nominalo test", "expected_mode": "act", "expect_web": false},
+  {"id": "act-confirmation", "input": "Procedi con base", "context": "Assistant: Vuoi procedere con il template base per il nuovo container LXC?", "expected_mode": "act"},
+  {"id": "act-follow-up", "input": "ora eliminalo", "context": "User: crea un record DNS prova.home.lab verso 192.168.1.90\nAssistant: Ho creato il record DNS prova.home.lab -> 192.168.1.90.", "previous_mode": "act", "expected_mode": "act"},
+  {"id": "act-calendar-event", "input": "Aggiungi in calendario una call con Marco giovedì alle 15", "expected_mode": "act", "expect_web": false},
+  {"id": "act-logs", "input": "Leggi gli ultimi log del servizio nginx nel CT 120", "expected_mode": "act", "expect_web": false},
+  {"id": "ask-news", "input": "Quali sono le novità di Proxmox VE 9?", "expected_mode": "ask", "expect_web": true},
+  {"id": "ask-comparison", "input": "Meglio Jellyfin o Plex per un homelab con GPU Intel?", "expected_mode": "ask", "expect_web": true},
+  {"id": "ask-concept", "input": "Spiegami la differenza tra ZFS mirror e RAIDZ1", "expected_mode": "ask"},
+  {"id": "ask-models", "input": "Quali modelli LLM open weight girano bene su 16 GB di VRAM?", "expected_mode": "ask", "expect_web": true},
+  {"id": "chat-smalltalk", "input": "Oggi sono stanco, è stata una giornata lunga", "expected_mode": "chat", "expect_web": false},
+  {"id": "plan-migration", "input": "Progetta la migrazione di tutti i servizi dal vecchio nodo a un nuovo nodo Proxmox con downtime minimo", "expected_mode": "plan"},
+  {"id": "plan-new-service", "input": "Pianifica in più fasi la messa in produzione di un nuovo servizio Nextcloud: container, IP, DNS, proxy e backup", "expected_mode": "plan"}
+]

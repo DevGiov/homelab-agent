@@ -12,7 +12,7 @@ ROOT_ENV       := .env
 
 BACKEND_VENV   := backend/.venv
 
-.PHONY: help setup venv test lint test-container deploy deploy-backend deploy-frontend dev down logs rotate-key clean
+.PHONY: help setup venv test lint test-container eval eval-compare deploy deploy-backend deploy-frontend dev down logs rotate-key clean
 
 # ── Default ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,12 @@ lint: ## Ruff (backend) + oxlint (frontend)
 
 test-container: ## Esegue pytest nel container di test isolato (CT 125)
 	$(COMPOSE_PROD) run --rm --build backend-test $(ARGS)
+
+eval: ## Valuta i modelli nel backend avviato: make eval MODELS=A,B ARGS="--suites routing,tools --repeat 3"
+	$(COMPOSE_PROD) exec backend python -m app.evals run --models $(MODELS) $(ARGS)
+
+eval-compare: ## Tabella Markdown dell'ultimo report di valutazione di ogni modello
+	$(COMPOSE_PROD) exec backend python -m app.evals compare
 
 # ── Deploy produzione ────────────────────────────────────────────────────────
 

@@ -135,7 +135,8 @@ I test stanno in `tests/` (configurazione in `pytest.ini`). Due categorie:
 - **Ermetici** (default): nessun servizio esterno. `tests/conftest.py` reindirizza tutti i dati in una
   directory temporanea e blocca le connessioni verso host non locali, quindi un servizio reale non mockato
   fa fallire il test subito. Timeout di 60 s per test.
-- **`live`**: verificano il comportamento contro LLM, MetaMCP o Firecracker reali. Esclusi di default.
+- **`live`**: verificano infrastruttura reale (la microVM Firecracker). Esclusi di default. Il comportamento dei
+  modelli non si verifica con test pass/fail ma con la valutazione qui sotto.
 
 ```bash
 make venv                              # venv Python 3.12 con requirements-dev.txt
@@ -149,6 +150,31 @@ docker compose -f docker-compose.prod.yml run --rm backend-test -m live
 
 # Lint
 make lint
+```
+
+## Valutazione dei modelli
+
+`app/evals/` misura quanto bene un modello guida l'agente, senza effetti collaterali: nessun tool eseguito, nessun
+fatto salvato. Cinque suite, con i casi in `app/evals/cases/*.json`:
+
+| Suite | Cosa chiama | Superato se |
+| :--- | :--- | :--- |
+| `routing` | `route_turn` | modalità (e, dove indicato, ricerca web) attese |
+| `tools` | prima scelta dell'agent loop in `act` (`AgentLoop.first_selection`) | tool atteso (e argomenti indicati); nessun tool quando non serve; un tool assente dal catalogo salta il caso |
+| `planning` | `generate_plan_structure` | piano valido, solo tool del catalogo, passi richiesti presenti, nessun tool vietato, non troppi passi |
+| `rollback` | `generate_rollback_plan_with_llm` | compensazioni attese citate (nell'ordine, se richiesto) |
+| `memory` | `extract_facts` | fatti con le entità attese; nessun fatto per chiacchiere, nozioni generali o cronaca della conversazione |
+
+Ogni caso può girare più volte (`--repeat`) per misurare la stabilità. Il report di ogni modello (esito,
+durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca l'ultimo report di ogni
+modello in una tabella Markdown. Le chiamate LLM delle valutazioni compaiono nelle metriche con `turn_key`
+`eval:…`, ma non tra i turni.
+
+```bash
+# Nel backend avviato su CT 125: i modelli vanno sempre indicati, e devono stare nella VRAM
+make eval MODELS=LFM2.5-24B-A2B-HugeCtx
+make eval MODELS=LFM2.5-24B-A2B-HugeCtx,Gemma-4-26B-Q3 ARGS="--suites routing,tools --repeat 3"
+make eval-compare
 ```
 
 ## Docker Compose (dev)

@@ -1,0 +1,6 @@
+[
+  {"id": "new-service", "input": "Metti in produzione un nuovo servizio web 'wiki': alloca un IP, crea il container dal template base, aggiungi il record DNS wiki.home.lab e il proxy host", "required_tools": ["proxmox-mcp__allocate_ip", "proxmox-mcp__create_lxc_from_template", "proxmox-mcp__add_pihole_dns_record", "proxmox-mcp__create_npm_proxy_host"], "max_steps": 6},
+  {"id": "safe-upgrade", "input": "Aggiorna i pacchetti del container 120 in sicurezza: fai prima uno snapshot, poi esegui apt upgrade e controlla i log di nginx", "required_tools": ["proxmox-mcp__create_lxc_snapshot", "proxmox-mcp__exec_lxc_command"], "forbidden_tools": ["proxmox-mcp__exec_host_command"], "max_steps": 6},
+  {"id": "inventory", "input": "Fai un inventario: elenca i container, i record DNS e i proxy host configurati", "required_tools": ["proxmox-mcp__list_containers", "proxmox-mcp__list_pihole_dns_records", "proxmox-mcp__list_npm_proxy_hosts"], "max_steps": 5},
+  {"id": "decommission", "input": "Dismetti il servizio prova.home.lab: rimuovi il proxy host, il record DNS e ferma il container 150", "required_tools": ["proxmox-mcp__delete_npm_proxy_host", "proxmox-mcp__delete_pihole_dns_record", "proxmox-mcp__stop_container"], "max_steps": 6}
+]

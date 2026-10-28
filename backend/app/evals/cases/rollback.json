@@ -1,0 +1,24 @@
+[
+  {"id": "service-creation", "task": "Crea il servizio wiki con IP, container e DNS",
+   "steps": [
+     {"tool": "proxmox-mcp__allocate_ip", "args": {"hostname": "wiki"}, "result": {"ip": "192.168.1.150"}},
+     {"tool": "proxmox-mcp__create_lxc_from_template", "args": {"key": "base", "hostname": "wiki", "ip": "192.168.1.150"}, "result": {"vmid": 150}},
+     {"tool": "proxmox-mcp__add_pihole_dns_record", "args": {"domain": "wiki.home.lab", "target_ip": "192.168.1.150"}, "error": "Pi-hole API timeout"}
+   ],
+   "error": "Pi-hole API timeout al passo 3",
+   "expect_mentions": ["stop_container", "release_ip"], "ordered": true},
+  {"id": "proxy-after-dns", "task": "Pubblica docs.home.lab con DNS e proxy",
+   "steps": [
+     {"tool": "proxmox-mcp__add_pihole_dns_record", "args": {"domain": "docs.home.lab", "target_ip": "192.168.1.160"}, "result": {"status": "created"}},
+     {"tool": "proxmox-mcp__create_npm_proxy_host", "args": {"domain": "docs.home.lab", "forward_ip": "192.168.1.160", "forward_port": 80}, "error": "certificate request failed"}
+   ],
+   "error": "Errore del certificato al passo 2",
+   "expect_mentions": ["delete_pihole_dns_record"]},
+  {"id": "ip-only", "task": "Prepara un IP per il nuovo container media",
+   "steps": [
+     {"tool": "proxmox-mcp__allocate_ip", "args": {"hostname": "media"}, "result": {"ip": "192.168.1.171"}},
+     {"tool": "proxmox-mcp__create_lxc_from_template", "args": {"key": "media", "hostname": "media"}, "error": "template 'media' non trovato"}
+   ],
+   "error": "Template inesistente al passo 2",
+   "expect_mentions": ["release_ip", "192.168.1.171"]}
+]

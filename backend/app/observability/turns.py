@@ -54,6 +54,17 @@ def observe_turn(key: str, source: str, stopped: Optional[Callable[[], bool]] = 
         _save_turn(trace)
 
 
+@contextmanager
+def capture_llm_calls(key: str) -> Iterator[TurnTrace]:
+    """Somma le chiamate LLM del blocco come un turno, senza registrarlo tra i turni (per le valutazioni dei modelli)."""
+    trace = TurnTrace(key=key, source="eval")
+    token = _current_turn.set(trace)
+    try:
+        yield trace
+    finally:
+        _current_turn.reset(token)
+
+
 def _save_turn(trace: TurnTrace) -> None:
     try:
         tool_calls, tool_errors = audit_log.count_calls(trace.key, trace.started_at)

@@ -1,0 +1,18 @@
+[
+  {"id": "list-containers-1", "input": "Lista i container attivi", "expected_tool": "proxmox-mcp__list_containers"},
+  {"id": "list-containers-2", "input": "Mostrami tutti i container", "expected_tool": "proxmox-mcp__list_containers"},
+  {"id": "list-containers-3", "input": "Quali container ci sono sul server?", "expected_tool": "proxmox-mcp__list_containers"},
+  {"id": "list-containers-4", "input": "Elenco container in esecuzione", "expected_tool": "proxmox-mcp__list_containers"},
+  {"id": "container-status", "input": "Com'è lo stato del container 125?", "expected_tool": "proxmox-mcp__get_container_status", "expected_args": {"vmid": 125}},
+  {"id": "service-logs", "input": "Fammi vedere i log del servizio nginx nel CT 120", "expected_tool": "proxmox-mcp__get_lxc_service_logs", "expected_args": {"vmid": 120}},
+  {"id": "dns-records", "input": "Quali record DNS locali sono configurati su Pi-hole?", "expected_tool": "proxmox-mcp__list_pihole_dns_records"},
+  {"id": "proxy-hosts", "input": "Elenca i proxy host di Nginx Proxy Manager", "expected_tool": "proxmox-mcp__list_npm_proxy_hosts"},
+  {"id": "storage", "input": "Quanto spazio libero c'è sullo storage local-lvm?", "expected_tool": "proxmox-mcp__get_storage_status"},
+  {"id": "snapshots", "input": "Che snapshot ha il container 137?", "expected_tool": "proxmox-mcp__list_lxc_snapshots", "expected_args": {"vmid": 137}},
+  {"id": "calendar-events", "input": "Che impegni ho in calendario domani?", "expected_tool": "calendar_list_events", "accept_tools": ["calendar_check_availability"]},
+  {"id": "automations", "input": "Quali automazioni sono configurate?", "expected_tool": "list_automations"},
+  {"id": "web-news", "input": "Cerca sul web le ultime notizie su llama.cpp", "expected_tool": "web_search"},
+  {"id": "memory-recall", "input": "Ti ricordi che distribuzione preferisco per i container?", "expected_tool": "recall_memory"},
+  {"id": "no-tool-poem", "input": "Scrivi una poesia sul tramonto nell'homelab", "expected_tool": null},
+  {"id": "no-tool-thanks", "input": "Perfetto, grazie mille per l'aiuto!", "expected_tool": null}
+]

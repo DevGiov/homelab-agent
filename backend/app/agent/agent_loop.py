@@ -230,8 +230,15 @@ class AgentLoop:
             logger.error(f"Agent loop interrotto: il modello non ha completato la richiesta ({e})")
             return self._result(f"Il modello non ha completato la richiesta ({e}). Riprova tra poco o scegli un modello più leggero.")
 
+    def _selection_system_prompt(self) -> str:
+        return prompts.tool_selection_system_prompt(self.mode, format_catalog_for_prompt(self.available_tools))
+
+    def first_selection(self) -> Optional[ToolSelection]:
+        """Prima scelta del modello sul catalogo della modalità, senza eseguire nulla (valutazione dei modelli)."""
+        return self._select_tool(1, self._selection_system_prompt())
+
     def _react(self) -> Dict[str, Any]:
-        system_prompt = prompts.tool_selection_system_prompt(self.mode, format_catalog_for_prompt(self.available_tools))
+        system_prompt = self._selection_system_prompt()
         for step_id in range(1, self.policy.max_tool_calls + 1):
             if self._session_stopped():
                 break

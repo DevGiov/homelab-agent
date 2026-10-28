@@ -2,8 +2,6 @@
 
 import unittest
 
-import pytest
-
 from app.security import approvals, permissions, policy
 
 
@@ -216,29 +214,6 @@ class TestMetaMCPPrefixAndRouter(unittest.TestCase):
         permissions.grant_permission("exec_host_command", "thread", thread_id="t_cross")
         self.assertTrue(permissions.is_tool_preapproved("proxmox-mcp__exec_host_command", args, thread_id="t_cross"))
         self.assertTrue(permissions.is_tool_preapproved("exec_host_command", args, thread_id="t_cross"))
-
-    @pytest.mark.live  # verifica la classificazione dell'LLM reale (il fallback è coperto in test_router_and_prefetch)
-    def test_router_infrastructure_and_confirmation_queries(self):
-        """Infrastructure and confirmation queries must be classified as mode=act."""
-        from app.agent import mode_router as router
-        # Container information queries
-        m1 = router.route_turn("Dammi informazioni sul container immich")
-        self.assertEqual(m1.mode, "act")
-
-        # Container list query
-        m2 = router.route_turn("Mostrami i container attivi")
-        self.assertEqual(m2.mode, "act")
-
-        # Cloning query
-        m3 = router.route_turn("Clona il template base e nominalo test")
-        self.assertEqual(m3.mode, "act")
-
-        # Confirmation turn with previous context
-        m4 = router.route_turn(
-            "Procedi con base",
-            conversation_context="Assistant: Vuoi procedere con il template base per il nuovo container LXC?"
-        )
-        self.assertEqual(m4.mode, "act")
 
 
 class TestSecurityModesAndContentAwareGuardrails(unittest.TestCase):
