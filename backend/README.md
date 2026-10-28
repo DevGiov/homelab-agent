@@ -21,7 +21,7 @@ flowchart LR
     AL --> REG[ToolRegistryManager]
 
     subgraph Registries
-        MM[metamcp] --> SDK[mcp/client<br/>SDK ufficiale MCP, Streamable HTTP]
+        MM[mcp] --> HUB[mcp/hub<br/>un client per server, Streamable HTTP]
         WS[web] --> SX[SearXNG / DDG + SSRF guard]
         CE[code] --> FC[Firecracker sandbox]
         ME[memory] --> LT[Letta hybrid retrieval]
@@ -82,7 +82,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
 | `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `knowledge_base.py`, `letta_client.py`, `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
-| `app/registry/` | Registry dei tool: `metamcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
+| `app/registry/` | Registry dei tool: `mcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
 | `app/automations/` | Definizioni, run, scheduler, `runner.py` (ciclo di vita della run), `steps/` (un gestore per tipo di step), `templating.py` (placeholder e dati tra step), `run_secrets.py`, `routes/` (endpoint REST per dominio: definizioni, run, approvazioni, artefatti, integrazioni, catalogo, webhook), code runner, template, loop; `db/` è il database SQLite con un modulo per aggregato (`definitions`, `runs`, `approvals`, `artifacts`, `breaker_states`, `integrations`) più `connection.py` e `schema.py` |
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
 | `app/mcp/` | `client.py`: client sincrono sull'SDK MCP ufficiale (Streamable HTTP), una sessione condivisa per processo con retry e reset (`get_mcp_client()`) |
@@ -196,6 +196,17 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 | GET/POST | `/v1/kb/documents` | Lista/upload documenti KB |
 | DELETE | `/v1/kb/documents/{filename}` | Elimina documento |
 | GET | `/v1/kb/search` | Ricerca semantica KB |
+| GET/POST/PUT/DELETE | `/v1/mcp/servers[/{id}]` | Server MCP registrati (il predefinito MetaMCP viene dal `.env`) |
+| POST | `/v1/mcp/servers[/{id}]/test` | Prova di connessione, anche prima di salvare |
+| GET/PUT | `/v1/mcp/tools[/{name}]` | Tool MCP con impostazioni: attivo e rischio (`auto`, `view`, `confirm`, `blocked`) |
+| POST | `/v1/mcp/reload` | Ricarica i cataloghi di tutti i server |
+
+## Server MCP
+
+- **Server**: MetaMCP (`METAMCP_URL`, `METAMCP_API_KEY`) è il server predefinito; altri server Streamable HTTP si registrano dalla UI (Impostazioni → Server MCP) e sono salvati in `data/mcp.db`, con il token cifrato (`app/security/secret_box.py`).
+- **Nomi dei tool**: quelli di MetaMCP restano invariati (`proxmox-mcp__…`); quelli dei server aggiunti prendono il prefisso `<id>__`. L'id di un nuovo server non può coincidere con un prefisso già presente nel catalogo.
+- **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
+- **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
 
 ## Sicurezza
 

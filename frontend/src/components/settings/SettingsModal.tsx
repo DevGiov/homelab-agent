@@ -24,7 +24,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
     { id: 'general', label: 'Generale', icon: Cpu },
-    { id: 'appearance', label: 'Aspetto & Temi', icon: Palette },
+    { id: 'appearance', label: 'Aspetto', icon: Palette },
     { id: 'memory', label: `Memoria (${memoryTotal ?? '…'})`, icon: Brain, iconColor: 'text-purple-400' },
     { id: 'security', label: 'Sicurezza', icon: Shield, iconColor: 'text-amber-400' },
     { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },

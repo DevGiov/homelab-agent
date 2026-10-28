@@ -19,7 +19,7 @@ Agente AI autonomo per la gestione dell'infrastruttura Proxmox VE con orchestraz
   - Controlli real-time di pausa, ripresa e interruzione (`/v1/threads/{id}/control`).
   - Tracciamento separato di token di reasoning, token di contenuto e metriche prestazionali (tok/s, latenza).
 - **Architettura Universale a Registry Estendibili**:
-  - Separazione per domini: `metamcp` (infrastruttura Proxmox), `web` (ricerca), `code` (sandbox), `memory` (RAG vettoriale e Letta), `vision` (ispezione immagini).
+  - Separazione per domini: `mcp` (server MCP: MetaMCP e quelli registrati dalla UI), `web` (ricerca), `code` (sandbox), `memory` (RAG vettoriale e Letta), `vision` (ispezione immagini).
   - Nessuna scissione rigida: integrazione trasparente con futuri server MCP.
 - **Motore di Rollback Transazionale (Saga Pattern & WAL)**:
   - Registrazione anticipata su Write-Ahead Log prima dell'esecuzione.

@@ -27,7 +27,7 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 
 ### 2.2 Registry dei tool ([registry/](../../backend/app/registry/))
 
-`metamcp` (Proxmox via MetaMCP), `web` (SearXNG + DDGS, protezione SSRF), `code` (sandbox / Firecracker), `memory` (recall ibrido), `vision`, `email`, `automations`, `calendar`.
+`mcp` (MetaMCP più i server registrati dalla UI, con impostazioni per tool), `web` (SearXNG + DDGS, protezione SSRF), `code` (sandbox / Firecracker), `memory` (recall ibrido), `vision`, `email`, `automations`, `calendar`.
 
 ### 2.3 Sottosistemi
 
