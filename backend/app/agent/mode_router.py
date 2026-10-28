@@ -51,16 +51,16 @@ def get_dynamic_capabilities_summary(force_refresh: bool = False) -> str:
     try:
         from app.registry.manager import get_registry_manager
         manager = get_registry_manager()
-        mcp_tools = manager.get_tools_for_mode(["metamcp"])
+        mcp_tools = manager.get_tools_for_mode(["mcp"])
         if mcp_tools:
-            mcp_lines.append("2. External MCP Tools (dynamically connected to MetaMCP):")
+            mcp_lines.append("2. External MCP Tools (from the registered MCP servers):")
             for t in mcp_tools:
                 t_name = str(t.get("name", "")).replace("proxmox-mcp__", "")
                 t_desc = str(t.get("description", "")).strip().split("\n")[0][:80]
                 if t_name:
                     mcp_lines.append(f"   - {t_name}: {t_desc}")
     except Exception as e:
-        logger.warning(f"Errore recupero dinamico tool MetaMCP per il router: {e}")
+        logger.warning(f"Errore recupero dinamico tool MCP per il router: {e}")
 
     if not mcp_lines:
         mcp_lines = [

@@ -9,13 +9,9 @@ from unittest.mock import MagicMock, patch
 from app.automations.db.schema import init_automations_db
 from app.automations.models import AutomationDefinition
 from app.automations.templating import render_template
-from app.integrations.manager import (
-    IntegrationManager,
-    decrypt_secrets,
-    encrypt_secrets,
-    mask_secrets,
-)
+from app.integrations.manager import IntegrationManager, mask_secrets
 from app.registry.manager import get_registry_manager
+from app.security.secret_box import decrypt_secrets, encrypt_secrets
 
 
 class TestIntegrationsAndParameters(unittest.TestCase):

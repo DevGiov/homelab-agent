@@ -80,6 +80,11 @@ class Settings(BaseSettings):
         return str(Path(self.data_dir) / "calendar.db")
 
     @property
+    def mcp_db_path(self) -> str:
+        """Server MCP registrati dalla UI e impostazioni per tool."""
+        return str(Path(self.data_dir) / "mcp.db")
+
+    @property
     def memory_dir(self) -> str:
         """Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring."""
         return str(Path(self.data_dir) / "memory")

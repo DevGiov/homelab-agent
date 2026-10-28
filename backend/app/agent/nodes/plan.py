@@ -57,7 +57,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
             '  },\n'
             '  "permission_policy": {\n'
             '    "allowed_tools": ["nome_tool"],\n'
-            '    "allowed_registries": ["metamcp", "email", "code"]\n'
+            '    "allowed_registries": ["mcp", "email", "code"]\n'
             '  },\n'
             '  "budget": {\n'
             '    "max_duration_seconds": 120,\n'

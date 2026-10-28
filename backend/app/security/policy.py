@@ -9,6 +9,7 @@ import re
 import shlex
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.mcp.store import tool_setting
 from app.security import permissions
 from app.security.approvals import approval_response, create_approval_request
 
@@ -141,7 +142,10 @@ def normalize_tool_name(tool_name: str) -> str:
 
 
 def is_view_tool(tool_name: str) -> bool:
-    """Verifica se il tool appartiene alla whitelist di sola lettura (VIEW)."""
+    """Tool di sola lettura (VIEW): il rischio scelto nelle impostazioni MCP prevale sulla whitelist per nome."""
+    risk = tool_setting(tool_name).risk
+    if risk != "auto":
+        return risk == "view"
     return normalize_tool_name(tool_name) in VIEW_TOOLS
 
 
@@ -249,12 +253,7 @@ def classify_tool(tool_name: str, args: Optional[Dict[str, Any]] = None) -> str:
     - 'safe' per i tool VIEW (sola lettura / safe)
     - 'risky' per i tool EXECUTE (scrittura, esecuzione shell o mutazione)
     """
-    clean_name = normalize_tool_name(tool_name)
-
-    if clean_name in VIEW_TOOLS:
-        return "safe"
-
-    return "risky"
+    return "safe" if is_view_tool(tool_name) else "risky"
 
 
 def get_tool_metadata(tool_name: str) -> Dict[str, Any]:
@@ -323,6 +322,12 @@ def enforce_guardrails(
                 "tool_name": tool_name,
                 "security_mode": sec_mode
             }
+
+    # 1b. Tool bloccato nelle impostazioni dei server MCP: rifiutato in ogni modalità
+    if tool_setting(tool_name).risk == "blocked":
+        reason = f"Il tool '{tool_name}' è bloccato nelle impostazioni dei server MCP."
+        logger.warning(f"Guardrail BLOCKED [{sec_mode}]: {reason}")
+        return {"blocked": True, "reason": reason, "tool_name": tool_name, "security_mode": sec_mode}
 
     # 2. MODALITÀ DANGEROUS: Bypass approvazioni per tutti i tool (Tier 1 già verificato)
     if sec_mode in ("dangerous", "bypass-dangerous", "bypass"):

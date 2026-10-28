@@ -78,7 +78,7 @@ class Budget(BaseModel):
 class ExecutionPolicy(BaseModel):
     execution_identity: str = Field(default="automation-default-sa", description="Identità/Service Account per permessi")
     allowed_tools: List[str] = Field(default_factory=list, description="Allowlist rigida di tool invocabili")
-    allowed_registries: List[str] = Field(default_factory=lambda: ["metamcp", "web", "code", "memory", "vision", "email", "automations", "calendar"])
+    allowed_registries: List[str] = Field(default_factory=lambda: ["mcp", "web", "code", "memory", "vision", "email", "automations", "calendar"])
     security_mode: str = Field(default="normal", description="safest | normal | dangerous")
     require_approval_for: List[str] = Field(default_factory=list, description="Azioni che forzano l'approval gate")
     target_scopes: Dict[str, List[str]] = Field(
@@ -460,7 +460,7 @@ class AutomationDefinition(BaseModel):
                     norm_tools.add("web_search")
             p_copy["allowed_tools"] = list(norm_tools)
         if "allowed_registries" not in p_copy or not p_copy["allowed_registries"]:
-            p_copy["allowed_registries"] = ["metamcp", "web", "code", "memory", "vision", "email", "automations"]
+            p_copy["allowed_registries"] = ["mcp", "web", "code", "memory", "vision", "email", "automations"]
         d["permission_policy"] = p_copy
 
         # 7. Normalizzazione Notification Policy

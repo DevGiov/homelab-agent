@@ -248,15 +248,15 @@ class TestAgentLoopWithMocks(unittest.TestCase):
         self.assertEqual(cached_steps[0]["tool_name"], "list_containers")
 
     def test_approval_breaks_loop(self):
-        """Override temporaneo del registry metamcp con un fake contenente stop_container."""
+        """Override temporaneo del registry mcp con un fake contenente stop_container."""
         from app.security import approvals
         approvals._APPROVALS.clear()
 
         from app.registry.manager import get_registry_manager
         mgr = get_registry_manager()
 
-        class FakeMetaMCPRegistry:
-            name = "metamcp"
+        class FakeMCPRegistry:
+            name = "mcp"
             def get_tools(self):
                 return [{"name": "stop_container", "description": "fake", "parameters": {"type": "object", "properties": {}}}]
             def execute_tool(self, tool_name, args):
@@ -264,7 +264,7 @@ class TestAgentLoopWithMocks(unittest.TestCase):
 
         orig_registries = dict(mgr._registries)
         orig_tools = mgr.get_tools_for_mode
-        mgr._registries["metamcp"] = FakeMetaMCPRegistry()
+        mgr._registries["mcp"] = FakeMCPRegistry()
         mgr.get_tools_for_mode = lambda regs: [
             {"name": "stop_container", "description": "fake", "parameters": {"type": "object", "properties": {}}}
         ]

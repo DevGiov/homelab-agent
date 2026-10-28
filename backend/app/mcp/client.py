@@ -1,7 +1,7 @@
 """Client MCP sincrono sull'SDK ufficiale (transport Streamable HTTP).
 
 Il grafo e i registry sono sincroni: un event loop dedicato, in un thread daemon, tiene aperta
-una sola sessione MCP per processo. La sessione vive dentro un unico task (`_hold_session`),
+una sessione per server (i client sono gestiti da `app.mcp.hub`). La sessione vive dentro un unico task (`_hold_session`),
 così trasporto e ClientSession vengono aperti e chiusi nello stesso task come richiede anyio.
 
 Retry con reset di sessione:
@@ -14,14 +14,11 @@ import asyncio
 import json
 import logging
 import threading
-from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-
-from app.core.config import settings
 
 logger = logging.getLogger("mcp_client")
 
@@ -102,6 +99,14 @@ class MCPClient:
                 logger.debug(f"Chiusura sessione MCP: {e}")
         self._session = self._close_event = self._holder = None
 
+    def close(self) -> None:
+        """Chiude la sessione e ferma l'event loop del client (server rimosso o riconfigurato)."""
+        with self._lock:
+            self._reset()
+            if self._loop is not None:
+                self._loop.call_soon_threadsafe(self._loop.stop)
+                self._loop = None
+
     # --- API ------------------------------------------------------------------
 
     def list_tools(self) -> List[Dict[str, Any]]:
@@ -159,9 +164,3 @@ def _normalize_result(result: Any) -> Dict[str, Any]:
     if isinstance(structured, dict) and not text:
         return structured
     return {"content": text}
-
-
-@lru_cache(maxsize=1)
-def get_mcp_client() -> MCPClient:
-    """Client condiviso verso MetaMCP: una sessione per processo."""
-    return MCPClient(settings.metamcp_url, api_key=settings.metamcp_api_key)

@@ -1,13 +1,6 @@
-import logging
-import time
 from typing import Any, Dict, List
 
-from app.mcp.client import get_mcp_client
-
-logger = logging.getLogger("tool_catalog")
-
-_catalog_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
-CACHE_TTL_SECONDS = 120  # 2 minuti per rilevare tempestivamente nuovi tool
+from app.mcp.hub import get_mcp_hub
 
 ROLLBACK_DECLARATIONS = {
     "proxmox-mcp__allocate_ip": {
@@ -70,39 +63,16 @@ def get_rollback_info(tool_name: str) -> dict:
 
 
 def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
+    """Tool MCP attivi di tutti i server, con info di rollback e metadata di rischio.
+
+    Ogni entry: {"name", "description", "parameters", "server", "enabled", "risk", "rollback_info", "metadata"}.
     """
-    Recupera il catalogo tool 100% DINAMICO da MetaMCP (Streamable HTTP / SSE / OpenAPI).
-    Mantiene una cache TTL di 2 minuti ed effettua auto-refresh.
-    Ogni entry: {"name": str, "description": str, "parameters": dict, "rollback_info": dict}
-    """
-    now = time.time()
-    if not force_refresh and _catalog_cache["data"] and (now - _catalog_cache["timestamp"] < CACHE_TTL_SECONDS):
-        return _catalog_cache["data"]
+    from app.security.policy import enrich_catalog_with_metadata
 
-    tools: List[Dict[str, Any]] = []
-
-    try:
-        for t in get_mcp_client().list_tools():
-            if t["name"]:
-                tools.append({"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]})
-        logger.info(f"Scoperti {len(tools)} tool da MetaMCP")
-    except Exception as e:
-        logger.warning(f"Discovery dei tool MCP fallita: {e}")
-
-    if tools:
-        for t in tools:
-            t["rollback_info"] = get_rollback_info(t.get("name", ""))
-        from app.security.policy import enrich_catalog_with_metadata
-        tools = enrich_catalog_with_metadata(tools)
-        _catalog_cache["data"] = tools
-        _catalog_cache["timestamp"] = now
-        return tools
-
-    # Resilienza: se MetaMCP è temporaneamente non raggiungibile, usa l'ultimo catalogo valido in cache
-    cached = _catalog_cache["data"] or []
-    for t in cached:
-        t["rollback_info"] = get_rollback_info(t.get("name", ""))
-    return cached
+    tools = get_mcp_hub().tools(force=force_refresh)
+    for t in tools:
+        t["rollback_info"] = get_rollback_info(t["name"])
+    return enrich_catalog_with_metadata(tools)
 
 
 def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
@@ -175,7 +145,7 @@ def format_dynamic_catalog_response(tools: List[Dict[str, Any]]) -> str:
 
 
 def format_available_tools_catalog() -> str:
-    """Catalogo dei tool raggiungibili (MetaMCP, web, code, memory) formattato per l'utente."""
+    """Catalogo dei tool raggiungibili (server MCP, web, code, memory) formattato per l'utente."""
     from app.registry.manager import get_registry_manager
-    all_tools = get_registry_manager().get_tools_for_mode(["metamcp", "web", "code", "memory"])
+    all_tools = get_registry_manager().get_tools_for_mode(["mcp", "web", "code", "memory"])
     return format_dynamic_catalog_response(all_tools)

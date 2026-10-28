@@ -23,7 +23,7 @@ class TestModesAndRegistries(unittest.TestCase):
         self.assertIn("automations", ask_p.allowed_registries)
 
         act_p = get_mode_policy("act")
-        self.assertIn("metamcp", act_p.allowed_registries)
+        self.assertIn("mcp", act_p.allowed_registries)
         self.assertEqual(act_p.max_tool_calls, 10)
 
     def test_registry_manager(self):

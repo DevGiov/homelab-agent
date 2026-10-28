@@ -8,7 +8,7 @@ class BaseToolRegistry(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Nome identificativo del registry (es. 'metamcp', 'web', 'code')."""
+        """Nome identificativo del registry (es. 'mcp', 'web', 'code')."""
         pass
 
     @abstractmethod

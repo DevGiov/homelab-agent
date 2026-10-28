@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Brain, Cpu, Palette, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
+import { Brain, Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { getMemories } from '../../api/memory';
 import { AppearanceTab } from './AppearanceTab';
 import { GeneralTab } from './GeneralTab';
+import { McpTab } from './mcp/McpTab';
 import { MemoryTab } from './MemoryTab';
 import { SecurityTab } from './SecurityTab';
 
-type SettingsTab = 'general' | 'appearance' | 'memory' | 'security';
+type SettingsTab = 'general' | 'appearance' | 'memory' | 'security' | 'mcp';
 
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -26,13 +27,14 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     { id: 'appearance', label: 'Aspetto & Temi', icon: Palette },
     { id: 'memory', label: `Memoria (${memoryTotal ?? '…'})`, icon: Brain, iconColor: 'text-purple-400' },
     { id: 'security', label: 'Sicurezza', icon: Shield, iconColor: 'text-amber-400' },
+    { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },
   ];
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
-      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
             <SettingsIcon size={16} className="text-accent" />
@@ -66,6 +68,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'memory' && <MemoryTab onTotalChange={setMemoryTotal} />}
           {activeTab === 'security' && <SecurityTab />}
+          {activeTab === 'mcp' && <McpTab />}
         </div>
       </div>
     </div>,

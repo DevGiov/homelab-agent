@@ -9,8 +9,8 @@ from app.registry.base import BaseToolRegistry
 from app.registry.calendar_tool import CalendarRegistry
 from app.registry.code_exec import CodeExecRegistry
 from app.registry.email_tool import EmailRegistry
+from app.registry.mcp import MCPRegistry
 from app.registry.memory import MemoryRegistry
-from app.registry.metamcp import MetaMCPRegistry
 from app.registry.vision import VisionRegistry
 from app.registry.web_search import WebSearchRegistry
 from app.security import approvals, audit_log, permissions, policy
@@ -21,7 +21,7 @@ class ToolRegistryManager:
     def __init__(self):
         self._registries: Dict[str, BaseToolRegistry] = {}
         # Registra i registry ufficiali
-        self.register_registry(MetaMCPRegistry())
+        self.register_registry(MCPRegistry())
         self.register_registry(WebSearchRegistry())
         self.register_registry(CodeExecRegistry())
         self.register_registry(MemoryRegistry())
