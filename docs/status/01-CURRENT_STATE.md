@@ -57,6 +57,20 @@ Database SQLite in `DATA_DIR`: `checkpoints.db` (LangGraph, thread, `audit_log`,
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
 - **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
 
+### Valutazione dei modelli (D4)
+
+Base del 2026-10-28 su LFM2.5-24B-A2B-HugeCtx (`make eval`, CT 125). Accuratezza sulle esecuzioni e durata mediana:
+
+| routing | tools | planning | rollback | memory |
+| :--- | :--- | :--- | :--- | :--- |
+| 71% (10/14) · 3 s | 81% (13/16) · 33 s | 12% (1/8) · 44 s | 33% (2/6) · 3 s | 67% (4/6) · 3 s |
+
+Punti deboli emersi: piani strutturati incompleti (manca quasi sempre un passo), argomenti non normalizzati (`vmid: "CT 120"`),
+fatti estratti da chiacchiere e nozioni generali, ragionamento che finisce nella risposta anche con il thinking spento.
+La selezione dei tool è lenta perché il preset HugeCtx elabora i ~7,9k token del catalogo in parte sulla CPU (~100 tok/s
+senza cache). La valutazione ha anche trovato due bug, corretti: piano di rollback sempre vuoto e piano strutturato
+non valido (il thinking esauriva i token).
+
 ## 4. Deploy (CT 125)
 
 | Voce | Stato |
