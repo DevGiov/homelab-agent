@@ -148,13 +148,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
       {/* Selettore della vista principale */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
+        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-[11px]">
           {VIEWS.map(({ id, label, title, icon: Icon }, i) => (
             <button
               key={id}
               onClick={() => onViewChange(id)}
               // Tre viste nella prima riga, due nella seconda
-              className={`${i < 3 ? 'col-span-2' : 'col-span-3'} py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
+              className={`${i < 3 ? 'col-span-2' : 'col-span-3'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
                 currentView === id ? 'bg-accent text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
               }`}
               title={title}

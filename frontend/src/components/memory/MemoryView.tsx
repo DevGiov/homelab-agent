@@ -91,7 +91,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
       <div className="flex-1 min-h-0 flex">
         <aside
-          className={`${showEntities ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-64 shrink-0 border-r border-border p-3 min-h-0 absolute md:static inset-x-0 top-[57px] bottom-0 z-20 bg-background md:bg-transparent`}
+          className={`${showEntities ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-64 shrink-0 border-r border-border p-3 min-h-0 absolute md:static inset-x-0 top-[57px] bottom-0 z-20 bg-panel md:bg-transparent`}
         >
           <EntityPanel
             entities={memory.entities}
