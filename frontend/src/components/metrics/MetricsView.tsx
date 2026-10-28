@@ -59,11 +59,13 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
                 key={w.id}
                 onClick={() => setRange(w)}
                 aria-pressed={w.id === range.id}
+                aria-label={w.label}
                 className={`px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
                   w.id === range.id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel-hover'
                 }`}
               >
-                {w.label}
+                <span className="sm:hidden">{w.short}</span>
+                <span className="hidden sm:inline">{w.label}</span>
               </button>
             ))}
           </div>
@@ -101,7 +103,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
                 formatValue={formatDuration}
               />
               <TimeChart
-                title="Velocità di generazione"
+                title="Velocità di generazione (tok/s)"
                 kind="line"
                 series={[{ key: 'gen', label: 'Generazione', color: 'var(--chart-1)' }]}
                 points={speedPoints}

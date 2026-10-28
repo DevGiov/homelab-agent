@@ -12,16 +12,18 @@ import { formatApiError } from '../utils/error';
 export interface MetricsWindow {
   id: string;
   label: string;
+  /** Etichetta per schermi stretti. */
+  short: string;
   hours: number;
   /** Intervalli dei grafici: 5 min sull'ora, 30 min sul giorno, 3 h sulla settimana, 12 h sul mese. */
   buckets: number;
 }
 
 export const METRICS_WINDOWS: MetricsWindow[] = [
-  { id: '1h', label: '1 ora', hours: 1, buckets: 12 },
-  { id: '24h', label: '24 ore', hours: 24, buckets: 48 },
-  { id: '7d', label: '7 giorni', hours: 24 * 7, buckets: 56 },
-  { id: '30d', label: '30 giorni', hours: 24 * 30, buckets: 60 },
+  { id: '1h', label: '1 ora', short: '1h', hours: 1, buckets: 12 },
+  { id: '24h', label: '24 ore', short: '24h', hours: 24, buckets: 48 },
+  { id: '7d', label: '7 giorni', short: '7g', hours: 24 * 7, buckets: 56 },
+  { id: '30d', label: '30 giorni', short: '30g', hours: 24 * 30, buckets: 60 },
 ];
 
 const REFRESH_MS = 60_000;
