@@ -94,7 +94,7 @@ class Settings(BaseSettings):
 
     @property
     def memory_dir(self) -> str:
-        """Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring."""
+        """Trascrizioni JSONL e riassunti per thread."""
         return str(Path(self.data_dir) / "memory")
 
     @property

@@ -1,11 +1,8 @@
 import json
 import logging
-import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from app.agent.fact_extraction import remember_turn
-from app.agent.monitoring import AgentSpan, log_span
 from app.agent.state import AgentState
 from app.memory import transcript
 
@@ -78,7 +75,7 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
 
 
 def respond_node(state: AgentState) -> AgentState:
-    """Formats final response if not already set, appends assistant message to file system memory, logs monitoring span, and extracts salient facts."""
+    """Formats final response if not already set, appends assistant message to the transcript and saves the facts worth remembering."""
     thread_id = state.get("thread_id") or "default_thread"
     task = state.get("task", "")
     memory_context = state.get("memory_context") or ""
@@ -102,21 +99,7 @@ def respond_node(state: AgentState) -> AgentState:
     if thread_id and formatted and not incognito:
         transcript.append_message(thread_id, "assistant", formatted)
 
-    # 1. Logging dello span di monitoraggio (Task 4.2)
-    session_id = f"sess_{uuid.uuid4().hex[:8]}"
-    span = AgentSpan(
-        session_id=session_id,
-        thread_id=thread_id,
-        task=task,
-        end_time=datetime.now(UTC),
-        llm_latency_ms=state.get("llm_latency_ms", 120.0),
-        prompt_tokens=state.get("prompt_tokens", len(task.split()) + 50),
-        completion_tokens=state.get("completion_tokens", len(formatted.split())),
-        retrieval_hit_rate=1.0
-    )
-    log_span(span)
-
-    # 2. Fatti da ricordare, con le entità che citano (non in incognito)
+    # Fatti da ricordare, con le entità che citano (non in incognito)
     if not incognito:
         try:
             created = remember_turn(task, formatted, memory_context, thread_id, model=state.get("model"))
