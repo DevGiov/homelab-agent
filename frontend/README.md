@@ -54,6 +54,11 @@ Il server Vite espone la porta `5173`, già ammessa nei `CORS_ORIGINS` di defaul
 - `src/hooks/`: stato e logica delle viste (`useChat`, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …).
 - `src/utils/`: funzioni pure (`chatMessages`, `calendarDates`, `messageAdapter`).
 
+### Colori e temi
+
+- I token (`bg`, `panel`, `border`, `fg`, `accent`, `input`, …) sono variabili CSS impostate dal tema e definite in [tailwind.config.js](tailwind.config.js) con `color-mix`, quindi i modificatori di opacità (`bg-accent/15`, `border-border/60`) funzionano. Per superfici e testi usare questi token, non colori fissi come `slate-*` o esadecimali.
+- I colori di stato (`emerald`, `rose`, `amber`, …) si scrivono per i temi scuri (testi 100-400, fondi 900/950, bordi 700-900): il plugin `lightThemeStatusColors` li rende leggibili sui temi chiari (`body` senza `.dark`).
+
 ---
 
 ## 📦 Compilazione & Typecheck
