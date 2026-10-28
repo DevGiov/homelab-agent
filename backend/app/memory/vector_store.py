@@ -16,6 +16,8 @@ logger = logging.getLogger("vector_store")
 # Il Dockerfile pre-scarica questo modello nell'immagine (FASTEMBED_CACHE_PATH): tenerli allineati
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBED_DIM = 384
+# Vicini estratti per ogni risultato richiesto quando la ricerca filtra per tipo o thread
+FILTER_OVERSAMPLING = 20
 
 _embedder = None
 _embedder_lock = threading.Lock()
@@ -131,7 +133,9 @@ def search_memory(
         """
         params: List[Any] = [json.dumps(q_emb), k]
         if kind or thread_id:
-            # Filtro post-distance (sqlite-vec non supporta filtri diretti con MATCH)
+            # Filtro dopo la ricerca (sqlite-vec non filtra dentro MATCH): si prendono più vicini e si tagliano a k,
+            # altrimenti i documenti di un altro tipo occuperebbero tutti i posti
+            params[1] = k * FILTER_OVERSAMPLING
             sql = """
                 SELECT * FROM (
                     SELECT m.id, m.kind, m.thread_id, m.content, m.metadata_json, v.distance
@@ -146,7 +150,8 @@ def search_memory(
         if thread_id:
             sql += " AND thread_id = ?"
             params.append(thread_id)
-        sql += " ORDER BY distance ASC"
+        sql += " ORDER BY distance ASC LIMIT ?"
+        params.append(k)
         rows = conn.execute(sql, params).fetchall()
         conn.close()
         results = []
@@ -164,6 +169,25 @@ def search_memory(
     except Exception as e:
         logger.warning(f"search_memory fallito: {e}")
         return []
+
+
+def update_memory_content(memory_id: int, content: str) -> bool:
+    """Sostituisce il testo di un record e ne ricalcola l'embedding."""
+    content = content.strip()
+    if not content:
+        return False
+    embedding = embed_query(content)
+    conn = _get_conn()
+    try:
+        cur = conn.execute("UPDATE vec_memory SET content = ? WHERE id = ?", (content, memory_id))
+        if cur.rowcount == 0:
+            return False
+        conn.execute("DELETE FROM vec_memory_idx WHERE rowid = ?", (memory_id,))
+        conn.execute("INSERT INTO vec_memory_idx (rowid, embedding) VALUES (?, ?)", (memory_id, json.dumps(embedding)))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def delete_thread_memory(thread_id: str) -> int:

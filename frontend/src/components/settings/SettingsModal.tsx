@@ -1,31 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Brain, Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
-import { getMemories } from '../../api/memory';
+import { Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
 import { GeneralTab } from './GeneralTab';
 import { McpTab } from './mcp/McpTab';
-import { MemoryTab } from './MemoryTab';
 import { SecurityTab } from './SecurityTab';
 
-type SettingsTab = 'general' | 'appearance' | 'memory' | 'security' | 'mcp';
+type SettingsTab = 'general' | 'appearance' | 'security' | 'mcp';
 
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const [memoryTotal, setMemoryTotal] = useState<number | null>(null);
-
-  // Il numero di fatti compare nell'etichetta della scheda anche prima di aprirla
-  useEffect(() => {
-    getMemories('fact', 1)
-      .then((res) => setMemoryTotal(res.total))
-      .catch((err) => console.warn('Errore conteggio memorie:', err));
-  }, []);
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
     { id: 'general', label: 'Generale', icon: Cpu },
     { id: 'appearance', label: 'Aspetto', icon: Palette },
-    { id: 'memory', label: `Memoria (${memoryTotal ?? '…'})`, icon: Brain, iconColor: 'text-purple-400' },
     { id: 'security', label: 'Sicurezza', icon: Shield, iconColor: 'text-amber-400' },
     { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },
   ];
@@ -66,7 +55,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
           {activeTab === 'general' && <GeneralTab onSaved={onClose} />}
           {activeTab === 'appearance' && <AppearanceTab />}
-          {activeTab === 'memory' && <MemoryTab onTotalChange={setMemoryTotal} />}
           {activeTab === 'security' && <SecurityTab />}
           {activeTab === 'mcp' && <McpTab />}
         </div>

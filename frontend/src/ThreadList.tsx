@@ -13,15 +13,17 @@ import {
   Workflow,
   Calendar,
   Activity,
+  Brain,
 } from 'lucide-react';
 import { LazyBoundary } from './components/LazyBoundary';
 
-export type AppView = 'chat' | 'automations' | 'calendar' | 'metrics';
+export type AppView = 'chat' | 'automations' | 'calendar' | 'memory' | 'metrics';
 
 const VIEWS: Array<{ id: AppView; label: string; title: string; icon: typeof MessageSquare }> = [
   { id: 'chat', label: 'Chat', title: "Chat con l'Agente", icon: MessageSquare },
   { id: 'automations', label: 'Automations', title: 'Automazioni e Task Periodici', icon: Workflow },
   { id: 'calendar', label: 'Calendario', title: 'Calendario ed Eventi', icon: Calendar },
+  { id: 'memory', label: 'Memoria', title: "Memoria a lungo termine: fatti ed entità", icon: Brain },
   { id: 'metrics', label: 'Metriche', title: 'Metriche di esecuzione e salute dei servizi', icon: Activity },
 ];
 
@@ -146,12 +148,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
       {/* Selettore della vista principale */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-2 gap-1 text-xs">
-          {VIEWS.map(({ id, label, title, icon: Icon }) => (
+        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
+          {VIEWS.map(({ id, label, title, icon: Icon }, i) => (
             <button
               key={id}
               onClick={() => onViewChange(id)}
-              className={`py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
+              // Tre viste nella prima riga, due nella seconda
+              className={`${i < 3 ? 'col-span-2' : 'col-span-3'} py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
                 currentView === id ? 'bg-accent text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
               }`}
               title={title}

@@ -1,52 +1,104 @@
 import { http } from './http';
 
-export interface MemoryItem {
+export const ENTITY_TYPES = ['person', 'organization', 'place', 'project', 'software', 'infrastructure', 'other'] as const;
+export type EntityType = (typeof ENTITY_TYPES)[number];
+
+export interface EntityRef {
+  name: string;
+  type: EntityType;
+}
+
+export interface FactEntity extends EntityRef {
   id: number;
-  kind: string;
-  thread_id?: string | null;
-  content: string;
-  metadata?: Record<string, any>;
-  created_at?: string | null;
 }
 
-export interface MemoryListResponse {
-  memories: MemoryItem[];
-  total: number;
-}
-
-export interface ClearMemoryResponse {
-  deleted_count: number;
-  letta_cleared: boolean;
-  message: string;
-}
-
-export interface MemorySearchResult {
+export interface Fact {
   id: number;
-  kind: string;
-  thread_id?: string | null;
   content: string;
-  metadata?: Record<string, any>;
-  distance: number;
-  score: number;
+  /** Thread in cui è emerso; null per i fatti aggiunti a mano. */
+  thread_id: string | null;
+  source: 'conversation' | 'manual' | string;
+  created_at: string | null;
+  entities: FactEntity[];
+  /** Somiglianza con la query, solo nei risultati di ricerca. */
+  score?: number;
 }
 
-export function getMemories(kind: string = 'fact', limit: number = 100, offset: number = 0): Promise<MemoryListResponse> {
-  return http.get('/memory', { kind, limit, offset });
+export interface Entity extends FactEntity {
+  fact_count: number;
 }
 
-export function addMemory(content: string, kind: string = 'fact', thread_id?: string): Promise<MemoryItem> {
-  return http.post('/memory', { content, kind, thread_id });
+export interface EntityDetail extends Entity {
+  /** Entità citate negli stessi fatti, con il numero di fatti in comune. */
+  related: Array<FactEntity & { shared: number }>;
 }
 
-export function deleteMemory(memoryId: number): Promise<{ status: string; id: number }> {
-  return http.delete(`/memory/${memoryId}`);
+export interface MemoryStats {
+  facts: number;
+  threads: number;
+  entities: number;
+  /** Fatti mai analizzati per le entità (salvati prima delle entità o a mano senza entità). */
+  facts_without_entities: number;
 }
 
-export function clearAllMemory(kind?: string): Promise<ClearMemoryResponse> {
-  return http.delete('/memory', { kind });
+export interface FactFilters {
+  query?: string;
+  thread_id?: string;
+  entity_id?: number;
+  limit?: number;
+  offset?: number;
 }
 
-export async function searchMemories(query: string, kind?: string, k: number = 5): Promise<MemorySearchResult[]> {
-  const res = await http.get<{ results: MemorySearchResult[] }>('/memory/search', { query, kind, k });
-  return res.results || [];
+export interface FactInput {
+  content: string;
+  entities: EntityRef[];
+}
+
+export function getMemoryStats(): Promise<MemoryStats> {
+  return http.get('/memory/stats');
+}
+
+export function listFacts(filters: FactFilters = {}): Promise<{ facts: Fact[]; total: number }> {
+  return http.get('/memory/facts', { ...filters });
+}
+
+export function createFact(input: FactInput): Promise<Fact> {
+  return http.post('/memory/facts', input);
+}
+
+export function updateFact(id: number, input: FactInput): Promise<Fact> {
+  return http.put(`/memory/facts/${id}`, input);
+}
+
+export function deleteFact(id: number): Promise<void> {
+  return http.delete(`/memory/facts/${id}`);
+}
+
+export function clearFacts(): Promise<{ deleted: number }> {
+  return http.delete('/memory/facts');
+}
+
+export function listEntities(query?: string, type?: EntityType): Promise<Entity[]> {
+  return http.get('/memory/entities', { query, type });
+}
+
+export function getEntity(id: number): Promise<EntityDetail> {
+  return http.get(`/memory/entities/${id}`);
+}
+
+export function updateEntity(id: number, input: EntityRef): Promise<EntityDetail> {
+  return http.put(`/memory/entities/${id}`, input);
+}
+
+export function mergeEntity(id: number, into: number): Promise<EntityDetail> {
+  return http.post(`/memory/entities/${id}/merge`, { into });
+}
+
+export function deleteEntity(id: number): Promise<void> {
+  return http.delete(`/memory/entities/${id}`);
+}
+
+/** Assegna con l'LLM le entità ai fatti mai analizzati. */
+export function extractEntities(): Promise<{ processed: number; tagged: number; remaining: number }> {
+  return http.post('/memory/entities/extract');
 }

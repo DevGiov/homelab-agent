@@ -1,102 +1,132 @@
-"""Memoria vettoriale: fatti salienti e loro gestione."""
-import os
-from typing import Optional
+"""Memoria a lungo termine: fatti, entità che citano e relazioni tra entità (explorer della memoria)."""
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
+from app.agent.fact_extraction import tag_untagged_facts
 from app.api.deps import verify_api_key
-from app.api.schemas import (
-    AddMemoryRequest,
-    ClearMemoryResponse,
-    MemoryItem,
-    MemoryListResponse,
-)
-from app.core.config import settings
-from app.memory import letta_client
+from app.memory import facts
 
-router = APIRouter(tags=["memory"])
+router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(verify_api_key)])
+
+EntityType = Literal["person", "organization", "place", "project", "software", "infrastructure", "other"]
 
 
-# --- Gestione Memoria (Fase 4.3 & Controllo Frontend) ---
-
-@router.get("/v1/memory", response_model=MemoryListResponse, dependencies=[Depends(verify_api_key)])
-async def get_memories(kind: Optional[str] = "fact", limit: int = 100, offset: int = 0):
-    """Restituisce i fatti salienti salvati nella memoria vettoriale."""
-    from app.memory import vector_store
-    items = vector_store.list_memories(kind=kind, limit=limit, offset=offset)
-    total = vector_store.count_memory(kind=kind)
-    return {"memories": items, "total": total}
-
-@router.get("/v1/memory/search", dependencies=[Depends(verify_api_key)])
-async def search_memories_endpoint(query: str, kind: Optional[str] = None, k: int = 5):
-    """Esegue una ricerca semantica nel Vector Store (fatti e/o documenti KB)."""
-    from app.memory import vector_store
-    if not query.strip():
-        return {"results": []}
-    hits = vector_store.search_memory(query.strip(), k=k, kind=kind)
-    return {"results": hits}
+class EntityRef(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    type: EntityType = "other"
 
 
-@router.post("/v1/memory", response_model=MemoryItem, dependencies=[Depends(verify_api_key)])
-async def add_single_memory(req: AddMemoryRequest):
-    """Aggiunge manualmente un fatto alla memoria vettoriale a lungo termine."""
-    from app.memory import vector_store
-    row_id = vector_store.add_memory(
-        content=req.content,
-        kind=req.kind,
-        thread_id=req.thread_id,
-        metadata=req.metadata
-    )
-    if row_id is None:
-        raise HTTPException(status_code=400, detail="Impossibile aggiungere il fatto alla memoria")
-    return {
-        "id": row_id,
-        "kind": req.kind,
-        "thread_id": req.thread_id,
-        "content": req.content,
-        "metadata": req.metadata or {},
-        "created_at": None
-    }
+class FactInput(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+    entities: List[EntityRef] = []
 
-@router.delete("/v1/memory/{memory_id}", dependencies=[Depends(verify_api_key)])
-async def delete_single_memory(memory_id: int):
-    """Elimina un singolo fatto saliente per ID."""
-    from app.memory import vector_store
-    success = vector_store.delete_memory(memory_id)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Fatto con ID {memory_id} non trovato")
-    return {"status": "deleted", "id": memory_id}
 
-@router.delete("/v1/memory", response_model=ClearMemoryResponse, dependencies=[Depends(verify_api_key)])
-async def clear_all_memory(kind: Optional[str] = None):
-    """
-    Cancella l'intera memoria:
-    1. Svuota la tabella vettoriale SQLite (vec_memory e vec_memory_idx)
-    2. Cancella tutti gli agent Letta su CT 102
-    3. Rimuove i file locali di summary e fatti salienti in backend/memory/
-    """
-    import glob
+class EntityUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    type: EntityType
 
-    from app.memory import vector_store
-    deleted_vec = vector_store.clear_all_memories(kind=kind)
-    deleted_letta = 0
+
+class EntityMerge(BaseModel):
+    into: int
+
+
+def _refs(entities: List[EntityRef]) -> List[Dict[str, str]]:
+    return [e.model_dump() for e in entities]
+
+
+@router.get("/stats")
+def get_stats() -> Dict[str, int]:
+    return facts.stats()
+
+
+@router.get("/facts")
+def get_facts(
+    query: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    entity_id: Optional[int] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> Dict[str, Any]:
+    """Elenco dal più recente o, con `query`, i fatti più simili per significato (con punteggio)."""
+    if query and query.strip():
+        items = facts.search_facts(query.strip(), k=limit, thread_id=thread_id, entity_id=entity_id)
+        return {"facts": items, "total": len(items)}
+    items, total = facts.list_facts(thread_id=thread_id, entity_id=entity_id, limit=limit, offset=offset)
+    return {"facts": items, "total": total}
+
+
+@router.post("/facts", status_code=201)
+def create_fact(body: FactInput) -> Dict[str, Any]:
+    fact_id, created = facts.add_fact(body.content, entities=_refs(body.entities), entities_checked=bool(body.entities))
+    if fact_id is None:
+        raise HTTPException(status_code=400, detail="Fatto non salvato: testo vuoto o modello di embedding non disponibile.")
+    if not created:
+        raise HTTPException(status_code=409, detail=f"Esiste già un fatto equivalente (#{fact_id}).")
+    return facts.get_fact(fact_id)
+
+
+@router.put("/facts/{fact_id}")
+def update_fact(fact_id: int, body: FactInput) -> Dict[str, Any]:
+    fact = facts.update_fact(fact_id, body.content, _refs(body.entities))
+    if fact is None:
+        raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
+    return fact
+
+
+@router.delete("/facts/{fact_id}", status_code=204)
+def delete_fact(fact_id: int) -> None:
+    if not facts.delete_fact(fact_id):
+        raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
+
+
+@router.delete("/facts")
+def clear_facts() -> Dict[str, int]:
+    """Cancella tutti i fatti e le entità; conversazioni e knowledge base restano."""
+    return {"deleted": facts.clear_facts()}
+
+
+@router.get("/entities")
+def get_entities(query: Optional[str] = None, type: Optional[EntityType] = None) -> List[Dict[str, Any]]:
+    return facts.list_entities(query=query, entity_type=type)
+
+
+@router.get("/entities/{entity_id}")
+def get_entity(entity_id: int) -> Dict[str, Any]:
+    entity = facts.get_entity(entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entità #{entity_id} non trovata.")
+    return entity
+
+
+@router.put("/entities/{entity_id}")
+def update_entity(entity_id: int, body: EntityUpdate) -> Dict[str, Any]:
     try:
-        deleted_letta = letta_client.delete_all_threads()
-    except Exception:
-        pass
+        entity = facts.update_entity(entity_id, body.name, body.type)
+    except facts.EntityConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entità #{entity_id} non trovata.")
+    return entity
 
-    # Rimuovi file locali di summary e fatti salienti
-    mem_dir = settings.memory_dir
-    if os.path.exists(mem_dir):
-        for pattern in ["salient_facts_*.txt", "summary_*.txt"]:
-            for fpath in glob.glob(os.path.join(mem_dir, pattern)):
-                try:
-                    os.remove(fpath)
-                except Exception:
-                    pass
 
-    return {
-        "deleted_count": deleted_vec,
-        "letta_cleared": True,
-        "message": f"Memoria azzerata con successo ({deleted_vec} record vettoriali, {deleted_letta} agent Letta eliminati)."
-    }
+@router.post("/entities/{entity_id}/merge")
+def merge_entity(entity_id: int, body: EntityMerge) -> Dict[str, Any]:
+    """Unisce l'entità in `into`: i suoi fatti passano all'altra e lei viene eliminata."""
+    entity = facts.merge_entities(entity_id, body.into)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Una delle due entità non esiste.")
+    return entity
+
+
+@router.delete("/entities/{entity_id}", status_code=204)
+def delete_entity(entity_id: int) -> None:
+    if not facts.delete_entity(entity_id):
+        raise HTTPException(status_code=404, detail=f"Entità #{entity_id} non trovata.")
+
+
+@router.post("/entities/extract")
+def extract_entities(limit: int = Query(100, ge=1, le=500)) -> Dict[str, int]:
+    """Assegna con l'LLM le entità ai fatti mai analizzati (per esempio quelli salvati prima delle entità)."""
+    return tag_untagged_facts(limit)

@@ -117,33 +117,6 @@ class SetDefaultProviderRequest(BaseModel):
     model: Optional[str] = None
 
 
-class MemoryItem(BaseModel):
-    id: int
-    kind: str
-    thread_id: Optional[str] = None
-    content: str
-    metadata: Dict[str, Any] = {}
-    created_at: Optional[str] = None
-
-
-class MemoryListResponse(BaseModel):
-    memories: List[MemoryItem]
-    total: int
-
-
-class AddMemoryRequest(BaseModel):
-    content: str
-    kind: str = "fact"
-    thread_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-
-class ClearMemoryResponse(BaseModel):
-    deleted_count: int
-    letta_cleared: bool
-    message: str
-
-
 class ResolveApprovalRequest(BaseModel):
     action: str = "approve"  # "approve" | "deny" | "approve_thread" | "approve_always"
     resolved_by: str = "user"

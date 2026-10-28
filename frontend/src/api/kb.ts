@@ -30,3 +30,14 @@ export function uploadKbDocument(fileOrPayload: File | { filename: string; conte
 export function deleteKbDocument(filename: string): Promise<{ status: string; chunks_deleted: number }> {
   return http.delete(`/kb/documents/${encodeURIComponent(filename)}`);
 }
+
+export interface KbSearchResult {
+  filename: string;
+  doc_id?: string;
+  chunks: Array<{ content: string; score: number; chunk_index?: number }>;
+}
+
+export async function searchKb(query: string, k = 8): Promise<KbSearchResult[]> {
+  const res = await http.get<{ results: KbSearchResult[] }>('/kb/search', { query, k });
+  return res.results;
+}

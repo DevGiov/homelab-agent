@@ -24,7 +24,7 @@ flowchart LR
         MM[mcp] --> HUB[mcp/hub<br/>un client per server, Streamable HTTP]
         WS[web] --> SX[SearXNG / DDG + SSRF guard]
         CE[code] --> FC[Firecracker sandbox]
-        ME[memory] --> LT[Letta hybrid retrieval]
+        ME[memory] --> LT[fatti ed entità in sqlite-vec, knowledge base]
         VN[vision] --> VI[inspect_image]
     end
 
@@ -82,7 +82,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
 | `app/observability/` | Metriche: `turns.py` (turni e chiamate LLM), `health.py` (campionamento dei servizi), `store.py` (`metrics.db`), `report.py` (aggregazioni per la dashboard) |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
-| `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `knowledge_base.py`, `letta_client.py`, `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
+| `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `facts.py` (fatti, entità e relazioni), `knowledge_base.py`, `letta_client.py` (messaggi e riassunti delle conversazioni), `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
 | `app/registry/` | Registry dei tool: `mcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
 | `app/automations/` | Definizioni, run, scheduler, `runner.py` (ciclo di vita della run), `steps/` (un gestore per tipo di step), `templating.py` (placeholder e dati tra step), `run_secrets.py`, `routes/` (endpoint REST per dominio: definizioni, run, approvazioni, artefatti, integrazioni, catalogo, webhook), code runner, template, loop; `db/` è il database SQLite con un modulo per aggregato (`definitions`, `runs`, `approvals`, `artifacts`, `breaker_states`, `integrations`) più `connection.py` e `schema.py` |
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
@@ -108,12 +108,12 @@ da `DATA_DIR` (`settings.checkpoint_db_path`, `settings.memory_dir`, …):
 
 | Percorso | Contenuto |
 | :--- | :--- |
-| `checkpoints.db` | Checkpoint LangGraph, thread e messaggi, audit, permessi, memoria vettoriale (sqlite-vec) |
+| `checkpoints.db` | Checkpoint LangGraph, thread e messaggi, audit, permessi, memoria vettoriale (sqlite-vec), entità dei fatti |
 | `automations.db` | Automazioni, run, approvazioni, artefatti, circuit breaker, integrazioni |
 | `calendar.db` | Calendari ed eventi |
 | `mcp.db` | Server MCP registrati dalla UI e impostazioni per tool |
 | `metrics.db` | Metriche: turni, chiamate LLM, campioni di salute dei servizi (conservati `METRICS_RETENTION_DAYS` giorni) |
-| `memory/` | Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring |
+| `memory/` | Trascrizioni JSONL e riassunti per thread, log di monitoring |
 | `artifacts/`, `uploads/`, `knowledge_base/` | Artefatti delle automazioni, immagini caricate, documenti della knowledge base |
 
 ## Avvio
@@ -199,6 +199,13 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 | GET/POST | `/v1/kb/documents` | Lista/upload documenti KB |
 | DELETE | `/v1/kb/documents/{filename}` | Elimina documento |
 | GET | `/v1/kb/search` | Ricerca semantica KB |
+| GET | `/v1/memory/stats` | Fatti, entità, thread e fatti mai analizzati per le entità |
+| GET/POST/DELETE | `/v1/memory/facts` | Fatti (con `query` ricerca per significato; filtri `thread_id`, `entity_id`), aggiunta, svuotamento |
+| PUT/DELETE | `/v1/memory/facts/{id}` | Modifica (testo ed entità) ed eliminazione di un fatto |
+| GET | `/v1/memory/entities[/{id}]` | Entità con numero di fatti; il dettaglio include le entità in relazione |
+| PUT/DELETE | `/v1/memory/entities/{id}` | Rinomina, cambio di tipo, eliminazione (i fatti restano) |
+| POST | `/v1/memory/entities/{id}/merge` | Unisce l'entità in un'altra |
+| POST | `/v1/memory/entities/extract` | Assegna con l'LLM le entità ai fatti mai analizzati |
 | GET/POST/PUT/DELETE | `/v1/mcp/servers[/{id}]` | Server MCP registrati (il predefinito MetaMCP viene dal `.env`) |
 | POST | `/v1/mcp/servers[/{id}]/test` | Prova di connessione, anche prima di salvare |
 | GET/PUT | `/v1/mcp/tools[/{name}]` | Tool MCP con impostazioni: attivo e rischio (`auto`, `view`, `confirm`, `blocked`) |
@@ -213,6 +220,13 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 - **Nomi dei tool**: quelli di MetaMCP restano invariati (`proxmox-mcp__…`); quelli dei server aggiunti prendono il prefisso `<id>__`. L'id di un nuovo server non può coincidere con un prefisso già presente nel catalogo.
 - **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
 - **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
+
+## Memoria a lungo termine
+
+- **Fatti** (`app/memory/facts.py`): record `kind='fact'` di sqlite-vec, unica fonte (Letta conserva solo messaggi e riassunti delle conversazioni). Un fatto quasi identico a uno esistente (coseno ≥ 0,95) non viene riscritto: riceve solo le entità nuove.
+- **Entità**: tabelle `memory_entities` (nome, chiave normalizzata, tipo: `person`, `organization`, `place`, `project`, `software`, `infrastructure`, `other`) e `memory_fact_entities`. Due entità sono in relazione quando compaiono negli stessi fatti. Un'entità senza fatti viene eliminata.
+- **Estrazione** (`app/agent/fact_extraction.py`): a fine turno, non in incognito, una chiamata a output vincolato restituisce fino a 5 fatti durevoli con le loro entità. I fatti salvati prima delle entità si etichettano dall'explorer (`/v1/memory/entities/extract`, 10 fatti per chiamata); un fatto analizzato senza entità viene segnato (`entities_checked`) e non torna in coda.
+- **Recall**: il tool `recall_memory` e il recall semantico di `retrieve_memory` cercano tra i fatti.
 
 ## Osservabilità
 

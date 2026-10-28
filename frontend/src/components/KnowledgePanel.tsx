@@ -1,48 +1,31 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, Upload, Trash2, Search, FileText, RefreshCw, Loader2, Brain, Plus } from 'lucide-react';
-import { listKbDocuments, uploadKbDocument, deleteKbDocument, type KbDocument } from '../api/kb';
-import {
-  getMemories,
-  addMemory,
-  deleteMemory,
-  searchMemories,
-  type MemoryItem,
-  type MemorySearchResult,
-} from '../api/memory';
+import { BookOpen, FileText, Loader2, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
+import { deleteKbDocument, listKbDocuments, searchKb, uploadKbDocument, type KbDocument, type KbSearchResult } from '../api/kb';
 import { formatApiError } from '../utils/error';
 
-type Tab = 'facts' | 'docs' | 'search';
+type Tab = 'docs' | 'search';
 
+const SUPPORTED = ['.md', '.txt', '.pdf'];
+
+/** Knowledge base: documenti caricati e ricerca per significato nei loro passaggi. I fatti stanno nella vista Memoria. */
 export const KnowledgePanel: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('facts');
+  const [tab, setTab] = useState<Tab>('docs');
   const [docs, setDocs] = useState<KbDocument[]>([]);
-  const [facts, setFacts] = useState<MemoryItem[]>([]);
-  const [totalFacts, setTotalFacts] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
-
-  // New fact quick add
-  const [quickFact, setQuickFact] = useState('');
-  const [isAddingFact, setIsAddingFact] = useState(false);
-
-  // Search state
   const [query, setQuery] = useState('');
-  const [searchKind, setSearchKind] = useState<string>('all');
-  const [searchResults, setSearchResults] = useState<MemorySearchResult[]>([]);
+  const [results, setResults] = useState<KbSearchResult[]>([]);
+  const [searched, setSearched] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [docsData, memoriesData] = await Promise.all([
-        listKbDocuments().catch(() => []),
-        getMemories('fact').catch(() => ({ memories: [], total: 0 })),
-      ]);
-      setDocs(docsData);
-      setFacts(memoriesData.memories);
-      setTotalFacts(memoriesData.total);
+      setDocs(await listKbDocuments());
+    } catch {
+      setDocs([]);
     } finally {
       setIsLoading(false);
     }
@@ -53,10 +36,8 @@ export const KnowledgePanel: React.FC = () => {
   }, [refresh]);
 
   const handleFileUpload = async (file: File) => {
-    if (!file) return;
-    const validExt = ['.md', '.txt', '.pdf'];
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!validExt.includes(ext)) {
+    if (!SUPPORTED.includes(ext)) {
       setUploadMsg('Formato non supportato. Usa file .md, .txt o .pdf.');
       return;
     }
@@ -66,7 +47,7 @@ export const KnowledgePanel: React.FC = () => {
       const res = await uploadKbDocument(file);
       setUploadMsg(`Documento caricato: ${res.chunks_indexed} chunk indicizzati.`);
       await refresh();
-    } catch (e: any) {
+    } catch (e) {
       setUploadMsg(`Errore: ${formatApiError(e)}`);
     } finally {
       setIsUploading(false);
@@ -78,151 +59,59 @@ export const KnowledgePanel: React.FC = () => {
     try {
       await deleteKbDocument(filename);
       await refresh();
-    } catch (e: any) {
-      console.error('Delete document failed', e);
-    }
-  };
-
-  const handleAddQuickFact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickFact.trim() || isAddingFact) return;
-    setIsAddingFact(true);
-    try {
-      await addMemory(quickFact.trim(), 'fact');
-      setQuickFact('');
-      await refresh();
     } catch (e) {
-      console.error('Add fact failed', e);
-    } finally {
-      setIsAddingFact(false);
-    }
-  };
-
-  const handleDeleteFact = async (id: number) => {
-    try {
-      await deleteMemory(id);
-      await refresh();
-    } catch (e) {
-      console.error('Delete fact failed', e);
+      setUploadMsg(`Errore: ${formatApiError(e)}`);
     }
   };
 
   const handleSearch = async () => {
-    if (!query.trim()) return;
+    const text = query.trim();
+    if (!text) return;
     setIsSearching(true);
     try {
-      const kindParam = searchKind === 'all' ? undefined : searchKind;
-      const res = await searchMemories(query.trim(), kindParam, 8);
-      setSearchResults(res);
+      setResults(await searchKb(text, 8));
     } catch {
-      setSearchResults([]);
+      setResults([]);
     } finally {
+      setSearched(text);
       setIsSearching(false);
     }
   };
+
+  const tabClass = (active: boolean) =>
+    `flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+      active ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
+    }`;
 
   return (
     <div className="glass-card border border-border rounded-xl p-3.5 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-fg-muted text-xs">
           <BookOpen size={14} className="text-accent" />
-          <span className="font-medium text-fg">Memoria & Knowledge</span>
+          <span className="font-medium text-fg">Knowledge base</span>
         </div>
-        <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Refresh">
+        <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna">
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-panel rounded-lg p-0.5 border border-border/60">
-        <button
-          onClick={() => setTab('facts')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'facts' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
-          }`}
-        >
-          <Brain size={10} />
-          Fatti ({totalFacts})
-        </button>
-        <button
-          onClick={() => setTab('docs')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'docs' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
-          }`}
-        >
+        <button onClick={() => setTab('docs')} className={tabClass(tab === 'docs')}>
           <FileText size={10} />
-          Docs ({docs.length})
+          Documenti ({docs.length})
         </button>
-        <button
-          onClick={() => setTab('search')}
-          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'search' ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
-          }`}
-        >
+        <button onClick={() => setTab('search')} className={tabClass(tab === 'search')}>
           <Search size={10} />
           Cerca
         </button>
       </div>
 
-      {/* 1. FACTS TAB */}
-      {tab === 'facts' && (
-        <div className="space-y-2.5">
-          {/* Quick add */}
-          <form onSubmit={handleAddQuickFact} className="flex gap-1.5">
-            <input
-              type="text"
-              value={quickFact}
-              onChange={(e) => setQuickFact(e.target.value)}
-              placeholder="Aggiungi fatto (es. 'Gateway 192.168.1.1')..."
-              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
-            />
-            <button
-              type="submit"
-              disabled={!quickFact.trim() || isAddingFact}
-              className="px-2 py-1 bg-accent hover:bg-accent-hover disabled:opacity-40 text-white rounded-lg text-[10px] font-semibold transition flex items-center gap-1 cursor-pointer"
-              title="Aggiungi fatto"
-            >
-              {isAddingFact ? <Loader2 size={10} className="animate-spin" /> : <Plus size={11} />}
-            </button>
-          </form>
-
-          {/* Facts list */}
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-            {facts.length === 0 && !isLoading && (
-              <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun fatto memorizzato.</p>
-            )}
-            {facts.map((f) => (
-              <div
-                key={f.id}
-                className="group flex items-start justify-between gap-1.5 bg-panel-header/50 border border-border rounded-lg p-2 text-[11px] text-fg-muted hover:text-fg hover:border-accent/40 transition"
-              >
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <p className="leading-snug text-fg">{f.content}</p>
-                  <div className="flex items-center gap-1 text-[9px] text-fg-muted">
-                    {f.thread_id && <span className="truncate">Thread: {f.thread_id}</span>}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDeleteFact(f.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-rose-400 transition shrink-0 cursor-pointer"
-                  title="Elimina fatto"
-                >
-                  <Trash2 size={11} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 2. DOCUMENTS TAB */}
       {tab === 'docs' && (
         <div className="space-y-2">
-          {/* Upload */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".md,.txt,.pdf"
+            accept={SUPPORTED.join(',')}
             className="hidden"
             onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
           />
@@ -236,16 +125,10 @@ export const KnowledgePanel: React.FC = () => {
           </button>
           {uploadMsg && <p className="text-[10px] text-fg-muted italic">{uploadMsg}</p>}
 
-          {/* Document list */}
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-            {docs.length === 0 && !isLoading && (
-              <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>
-            )}
+            {docs.length === 0 && !isLoading && <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>}
             {docs.map((doc) => (
-              <div
-                key={doc.filename}
-                className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group"
-              >
+              <div key={doc.filename} className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group">
                 <div className="min-w-0 flex-1 flex items-center gap-1.5">
                   <FileText size={12} className="text-accent shrink-0" />
                   <span className="text-[11px] font-mono text-fg truncate">{doc.filename}</span>
@@ -264,58 +147,42 @@ export const KnowledgePanel: React.FC = () => {
         </div>
       )}
 
-      {/* 3. SEMANTIC SEARCH TAB */}
       {tab === 'search' && (
         <div className="space-y-2">
-          {/* Kind Filter & Search bar */}
           <div className="flex gap-1 items-center">
-            <select
-              value={searchKind}
-              onChange={(e) => setSearchKind(e.target.value)}
-              className="bg-panel border border-border rounded-lg px-1.5 py-1 text-[10px] text-fg focus:outline-none focus:border-accent"
-            >
-              <option value="all" className="bg-panel text-fg">Tutto</option>
-              <option value="fact" className="bg-panel text-fg">Solo Fatti</option>
-              <option value="kb" className="bg-panel text-fg">Solo KB</option>
-            </select>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Cerca per significato (es. Debian, IP)..."
+              placeholder="Cerca nei documenti per significato…"
               className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
             />
             <button
               onClick={handleSearch}
               disabled={isSearching || !query.trim()}
               className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/30 transition disabled:opacity-50 cursor-pointer"
+              title="Cerca"
             >
               {isSearching ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
             </button>
           </div>
 
-          {/* Search Results */}
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-            {searchResults.map((r) => (
-              <div key={r.id} className="bg-panel-header/50 border border-border rounded-lg p-2 space-y-1">
+            {results.map((r) => (
+              <div key={r.filename} className="bg-panel-header/50 border border-border rounded-lg p-2 space-y-1">
                 <div className="flex items-center justify-between gap-1 text-[10px]">
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-accent/15 text-accent border border-accent/25"
-                  >
-                    {r.kind === 'fact' ? 'Fatto' : 'Documento'}
-                  </span>
-                  <span className="text-emerald-400 font-mono text-[10px] font-medium">
-                    {(r.score * 100).toFixed(0)}% match
-                  </span>
+                  <span className="font-mono text-fg truncate">{r.filename}</span>
+                  <span className="text-fg-muted tabular-nums shrink-0">{Math.round(r.chunks[0].score * 100)}%</span>
                 </div>
-                <p className="text-[11px] text-fg leading-snug">{r.content}</p>
-                {r.metadata?.filename && (
-                  <p className="text-[9px] font-mono text-fg-muted">File: {r.metadata.filename}</p>
-                )}
+                {r.chunks.slice(0, 2).map((c, i) => (
+                  <p key={i} className="text-[11px] text-fg-muted leading-snug line-clamp-3">
+                    {c.content}
+                  </p>
+                ))}
               </div>
             ))}
-            {searchResults.length === 0 && !isSearching && query && (
-              <p className="text-xs text-fg-muted italic py-2 text-center">Nessun risultato per "{query}".</p>
+            {results.length === 0 && !isSearching && searched && (
+              <p className="text-xs text-fg-muted italic py-2 text-center">Nessun risultato per "{searched}".</p>
             )}
           </div>
         </div>

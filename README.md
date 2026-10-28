@@ -19,7 +19,7 @@ Agente AI autonomo per la gestione dell'infrastruttura Proxmox VE con orchestraz
   - Controlli real-time di pausa, ripresa e interruzione (`/v1/threads/{id}/control`).
   - Tracciamento separato di token di reasoning, token di contenuto e metriche prestazionali (tok/s, latenza).
 - **Architettura Universale a Registry Estendibili**:
-  - Separazione per domini: `mcp` (server MCP: MetaMCP e quelli registrati dalla UI), `web` (ricerca), `code` (sandbox), `memory` (RAG vettoriale e Letta), `vision` (ispezione immagini).
+  - Separazione per domini: `mcp` (server MCP: MetaMCP e quelli registrati dalla UI), `web` (ricerca), `code` (sandbox), `memory` (fatti della memoria a lungo termine e knowledge base), `vision` (ispezione immagini).
   - Nessuna scissione rigida: integrazione trasparente con futuri server MCP.
 - **Motore di Rollback Transazionale (Saga Pattern & WAL)**:
   - Registrazione anticipata su Write-Ahead Log prima dell'esecuzione.
@@ -90,8 +90,8 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 ## 🧠 Architettura della Memoria Conversazionale Ibrida
 
 - **Tier 1 — In-Context Memory**: Sliding window adattiva degli ultimi messaggi con summary incrementale via LLM per conversazioni lunghe.
-- **Tier 2 — Semantic Vector Memory**: `vector_store.py` con `sqlite-vec` (distanza coseno) e modelli di embedding multilingua leggeri via ONNX (`fastembed`).
-- **Tier 3 — Hybrid Knowledge Base & Letta**: Ricerca ibrida dense + BM25 con Reciprocal Rank Fusion (RRF) e knowledge base documentale (.md, .txt, .pdf).
+- **Tier 2 — Fatti ed entità**: a fine turno l'agente estrae i fatti da ricordare con le entità che citano (una chiamata a output vincolato); sono salvati in `sqlite-vec` (distanza coseno, embedding multilingua `fastembed`) e consultabili, modificabili e collegati per entità nella vista **Memoria**.
+- **Tier 3 — Knowledge base**: documenti .md, .txt, .pdf divisi in passaggi e cercati per significato.
 - **Tier 4 — Cross-Session SQLite Persistence**: `thread_store.py` e `checkpoints.db` con persistenza completa di messaggi, immagini base64, titoli e metadati.
 
 ---

@@ -1,15 +1,13 @@
 import json
 import logging
-import os
 import uuid
 from datetime import UTC, datetime
-from typing import Any, List, Optional
+from typing import Any
 
-from app.agent import llm_calls
+from app.agent.fact_extraction import remember_turn
 from app.agent.monitoring import AgentSpan, log_span
 from app.agent.state import AgentState
-from app.core.config import settings
-from app.memory import letta_client, transcript
+from app.memory import transcript
 
 logger = logging.getLogger("graph")
 
@@ -79,40 +77,10 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
     return f"**Esito elaborazione tool**: `{tool_name}`\n\n{raw_data}"
 
 
-def extract_salient_facts(task: str, response: str, memory_context: str, model: Optional[str] = None) -> List[str]:
-    """
-    Estrae fatti salienti dalla conversazione per il salvataggio in memoria archivistica.
-    """
-    if not task or not response:
-        return []
-
-    prompt = f"""Language Directive: Extract facts preserving proper entities and user intent.
-Extract salient facts from the following conversation that may be valuable for long-term memory.
-Include:
-- User preferences (e.g. "prefers Debian-based LXC containers")
-- Decisions made (e.g. "created web service to test performance")
-- Infrastructure context (e.g. "static IP allocated 192.168.1.180")
-
-User task: {task}
-Assistant response: {response}
-Existing context: {memory_context}
-
-Salient facts (list maximum 5 concise bullet points, one per line):"""
-
-    raw_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for extracting salient facts and entities.", max_tokens=512, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
-    raw = raw_res.get("content", "") if isinstance(raw_res, dict) else ""
-    if not raw:
-        return []
-
-    lines = [line.strip("- *").strip() for line in raw.split("\n") if line.strip()]
-    return [line for line in lines if len(line) > 5][:5]
-
-
 def respond_node(state: AgentState) -> AgentState:
     """Formats final response if not already set, appends assistant message to file system memory, logs monitoring span, and extracts salient facts."""
     thread_id = state.get("thread_id") or "default_thread"
     task = state.get("task", "")
-    agent_id = state.get("agent_id")
     memory_context = state.get("memory_context") or ""
 
     formatted = state.get("final_response")
@@ -148,31 +116,16 @@ def respond_node(state: AgentState) -> AgentState:
     )
     log_span(span)
 
-    # 2. Estrazione fatti salienti e salvataggio in Archival Memory (Task 4.3) - Skipped in incognito mode
+    # 2. Fatti da ricordare, con le entità che citano (non in incognito)
     if not incognito:
         try:
-            facts = extract_salient_facts(task, formatted, memory_context, model=state.get("model"))
-            if facts:
-                logger.info(f"Fatti salienti estratti ({len(facts)}): {facts}")
-                if agent_id:
-                    for fact in facts:
-                        letta_client.save_archival_memory(agent_id, fact)
-                os.makedirs(settings.memory_dir, exist_ok=True)
-                facts_file = os.path.join(settings.memory_dir, f"salient_facts_{thread_id}.txt")
-                with open(facts_file, "a", encoding="utf-8") as f:
-                    for fact in facts:
-                        f.write(f"- {fact}\n")
-                # --- Fase 2.1: indicizza i fatti nel vector store per recall semantico cross-thread ---
-                try:
-                    from app.memory.vector_store import add_memory
-                    for fact in facts:
-                        add_memory(fact, kind="fact", thread_id=thread_id, metadata={"source": "salient_facts"})
-                except Exception as ve:
-                    logger.warning(f"Indicizzazione vector store fallita (non bloccante): {ve}")
+            created = remember_turn(task, formatted, memory_context, thread_id, model=state.get("model"))
+            if created:
+                logger.info(f"Memoria: {created} fatti nuovi dal thread '{thread_id}'")
         except Exception as e:
-            logger.warning(f"Errore durante l'estrazione o il salvataggio dei fatti salienti: {e}")
+            logger.warning(f"Estrazione dei fatti non riuscita (non bloccante): {e}")
     else:
-        logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti e salvataggio memoria saltati.")
+        logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti saltata.")
 
     return {
         "final_response": formatted,

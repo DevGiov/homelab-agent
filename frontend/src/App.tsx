@@ -15,6 +15,9 @@ const AutomationsView = lazy(() =>
 const CalendarView = lazy(() =>
   import('./components/calendar/CalendarView').then((m) => ({ default: m.CalendarView })),
 );
+const MemoryView = lazy(() =>
+  import('./components/memory/MemoryView').then((m) => ({ default: m.MemoryView })),
+);
 const MetricsView = lazy(() =>
   import('./components/metrics/MetricsView').then((m) => ({ default: m.MetricsView })),
 );
@@ -199,6 +202,18 @@ function MainLayout() {
       ) : currentView === 'automations' ? (
         <LazyBoundary title="Errore nella vista automazioni">
           <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+        </LazyBoundary>
+      ) : currentView === 'memory' ? (
+        <LazyBoundary title="Errore nella vista memoria">
+          <MemoryView
+            threads={threads}
+            onOpenThread={(id) => {
+              setCurrentView('chat');
+              selectThread(id);
+              loadThreadHistory(id);
+            }}
+            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          />
         </LazyBoundary>
       ) : currentView === 'metrics' ? (
         <LazyBoundary title="Errore nella vista metriche">
