@@ -53,7 +53,8 @@ def main(argv=None) -> int:
 
     reports = []
     for model in models:
-        report = evaluate_model(model, suites, repeat=max(1, args.repeat), case_ids=_split(args.cases), progress=print)
+        report = evaluate_model(model, suites, repeat=max(1, args.repeat), case_ids=_split(args.cases),
+                                progress=lambda line: print(line, flush=True))
         path = save_report(report)
         print(f"Report salvato: {path} ({report['duration_s']} s)")
         reports.append(report)
