@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # Default: <repo>/data, che dentro il container (backend in /app) coincide con il volume /data.
     data_dir: str = Field(default=str(BACKEND_DIR.parent / "data"), alias="DATA_DIR")
     enable_automation_scheduler: bool = Field(default=True, alias="ENABLE_AUTOMATION_SCHEDULER")
+    # Osservabilità: campionamento della salute dei servizi (0 = disattivato) e conservazione delle metriche
+    metrics_sample_interval_s: int = Field(default=60, alias="METRICS_SAMPLE_INTERVAL_S")
+    metrics_retention_days: int = Field(default=30, alias="METRICS_RETENTION_DAYS")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
     # Caratteri di ogni risultato di tool ripetuti nei passi di selezione; la sintesi finale li riceve interi
     agent_observation_limit: int = Field(default=4000, alias="AGENT_OBSERVATION_LIMIT")
@@ -78,6 +81,11 @@ class Settings(BaseSettings):
     @property
     def calendar_db_path(self) -> str:
         return str(Path(self.data_dir) / "calendar.db")
+
+    @property
+    def metrics_db_path(self) -> str:
+        """Chiamate LLM, turni e campioni di salute dei servizi."""
+        return str(Path(self.data_dir) / "metrics.db")
 
     @property
     def mcp_db_path(self) -> str:

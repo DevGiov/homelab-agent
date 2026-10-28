@@ -15,6 +15,7 @@ import httpx
 
 from app.agent.stream_session import current_session_var
 from app.core.config import settings
+from app.observability.turns import record_llm_call
 
 logger = logging.getLogger("providers")
 
@@ -38,7 +39,6 @@ class LLMProvider(ABC):
     name: str = "base"
     default_model: str = ""
 
-    @abstractmethod
     def chat(
         self,
         messages: List[Dict[str, str]],
@@ -50,13 +50,36 @@ class LLMProvider(ABC):
         stream_callback: Optional[StreamCallback] = None,
         json_mode: bool = False,
         json_schema: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """Esegue una chat completion. Ritorna {'content', 'reasoning_content', 'metrics'}; se la richiesta fallisce
-        il contenuto è vuoto e 'error' ne riporta il motivo.
+        il contenuto è vuoto e 'error' ne riporta il motivo. Ogni chiamata finisce nelle metriche di osservabilità.
 
         json_mode chiede al server un output JSON valido (response_format / format=json); json_schema lo vincola a
         uno schema: il server genera solo un oggetto conforme e si ferma quando lo chiude.
         """
+        start = time.monotonic()
+        result = self._chat(messages, model=model, max_tokens=max_tokens, temperature=temperature,
+                            reasoning_budget=reasoning_budget, stream_callback=stream_callback,
+                            json_mode=json_mode, json_schema=json_schema)
+        metrics = result.get("metrics") or {}
+        record_llm_call(
+            provider=self.name,
+            model=model or self.default_model,
+            duration_ms=int((time.monotonic() - start) * 1000),
+            prompt_tokens=metrics.get("prompt_tokens", 0),
+            cached_tokens=metrics.get("cached_tokens", 0),
+            completion_tokens=metrics.get("completion_tokens", 0),
+            prompt_ms=metrics.get("prompt_ms"),
+            completion_ms=metrics.get("completion_ms"),
+            error=result.get("error"),
+        )
+        return result
+
+    @abstractmethod
+    def _chat(self, messages: List[Dict[str, str]], *, model: Optional[str], max_tokens: int, temperature: float,
+              reasoning_budget: int, stream_callback: Optional[StreamCallback], json_mode: bool,
+              json_schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Chiamata al server, senza metriche: la implementa ogni provider."""
         ...
 
     @abstractmethod
@@ -223,8 +246,8 @@ class OpenAICompatProvider(LLMProvider):
         logger.warning(f"[{self.name}] Timeout attesa caricamento modello '{effective_model}'")
         return False
 
-    def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
+    def _chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
+              reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
         """Chat completion sempre in streaming, con l'avanzamento dell'elaborazione del prompt.
 
         llama.cpp invia un chunk per ogni batch del prompt: un prompt lungo non fa scattare il timeout di lettura,
@@ -332,6 +355,11 @@ class OpenAICompatProvider(LLMProvider):
             "duration_s": duration_s,
             "tok_per_s": tok_per_s,
         }
+        if timings:
+            # Token del prompt riusati dalla cache e tempo di elaborazione dei soli token nuovi
+            metrics["cached_tokens"] = timings.get("cache_n", 0)
+            metrics["prompt_ms"] = int(timings.get("prompt_ms", 0))
+            metrics["completion_ms"] = int(timings.get("predicted_ms", 0))
         # Con la callback le metriche passano dalla StreamSession, che le accumula e le inoltra ai subscriber
         if stream_callback:
             stream_callback({"type": "metrics", "metrics": metrics})
@@ -420,8 +448,8 @@ class OllamaProvider(LLMProvider):
         self.name = "ollama"
         self.timeout = timeout
 
-    def chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-             reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, str]:
+    def _chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
+              reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
         url = f"{self.base_url}/api/chat"
         # Convert multimodal OpenAI blocks to Ollama format if necessary
         ollama_messages = []

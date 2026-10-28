@@ -27,6 +27,7 @@ from app.llm.providers import (
     get_active_model_name,
 )
 from app.memory import thread_store
+from app.observability.turns import observe_turn
 
 logger = logging.getLogger("api")
 
@@ -78,7 +79,9 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
     sess = create_session(effective_thread_id, task=task, mode=force_mode)
     current_session_var.set(sess)
     try:
-        final_state = get_app_graph().invoke(initial_state, config=cfg)
+        with observe_turn(effective_thread_id, "chat", stopped=sess.is_stopped) as turn:
+            final_state = get_app_graph().invoke(initial_state, config=cfg)
+            turn.mode = final_state.get("mode")
 
         mode = final_state.get("mode", force_mode or "plan")
         response_text = final_state.get("final_response", "")
@@ -191,7 +194,9 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
             stream_reasoning_phase_count.set(0)
             current_session_var.set(sess)
             try:
-                final_state = get_app_graph().invoke(initial_state, config=cfg)
+                with observe_turn(effective_thread_id, "chat", stopped=sess.is_stopped) as turn:
+                    final_state = get_app_graph().invoke(initial_state, config=cfg)
+                    turn.mode = final_state.get("mode")
                 mode = final_state.get("mode", force_mode or "plan")
                 response_text = final_state.get("final_response", "")
                 plan_dict = final_state.get("plan", {})

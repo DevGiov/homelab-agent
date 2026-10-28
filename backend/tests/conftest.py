@@ -22,6 +22,7 @@ os.environ["ALLOW_INSECURE"] = "1"
 os.environ["API_SECRET_KEY"] = ""
 os.environ["DATA_DIR"] = _TEST_DATA_DIR
 os.environ["ENABLE_AUTOMATION_SCHEDULER"] = "0"
+os.environ["METRICS_SAMPLE_INTERVAL_S"] = "0"
 
 
 class NetworkBlockedError(ConnectionRefusedError):

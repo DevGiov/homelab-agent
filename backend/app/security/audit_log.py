@@ -3,7 +3,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
 
@@ -123,3 +123,42 @@ def get_recent(
     except Exception as e:
         logger.warning(f"Impossibile leggere audit log: {e}")
         return []
+
+
+def count_calls(key: str, since: str) -> Tuple[int, int]:
+    """(chiamate, errori) dei tool di un turno: `key` è il thread della chat o la run dell'automazione."""
+    conn = _get_conn()
+    try:
+        calls, errors = conn.execute(
+            "SELECT COUNT(*), COALESCE(SUM(is_error), 0) FROM audit_log WHERE (thread_id = ? OR run_id = ?) AND timestamp >= ?",
+            (key, key, since),
+        ).fetchone()
+        return int(calls), int(errors)
+    finally:
+        conn.close()
+
+
+def tool_stats(since: str) -> List[Dict[str, Any]]:
+    """Per tool dalla data `since`: chiamate, errori e durate (media e 95° percentile), più lenti per primi."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT tool_name, is_error, duration_ms FROM audit_log WHERE timestamp >= ? AND result_summary NOT LIKE '{\"approval_pending\"%'",
+            (since,),
+        ).fetchall()
+    finally:
+        conn.close()
+    by_tool: Dict[str, Dict[str, Any]] = {}
+    for tool, is_error, duration in rows:
+        entry = by_tool.setdefault(tool, {"tool": tool, "calls": 0, "errors": 0, "durations": []})
+        entry["calls"] += 1
+        entry["errors"] += int(is_error or 0)
+        if duration:
+            entry["durations"].append(duration)
+    stats = []
+    for entry in by_tool.values():
+        durations = sorted(entry.pop("durations"))
+        entry["avg_ms"] = round(sum(durations) / len(durations)) if durations else None
+        entry["p95_ms"] = durations[min(len(durations) - 1, int(len(durations) * 0.95))] if durations else None
+        stats.append(entry)
+    return sorted(stats, key=lambda s: s["avg_ms"] or 0, reverse=True)

@@ -1,4 +1,4 @@
-"""Avvio del backend in un unico punto: sicurezza, schemi dei database, registry e scheduler.
+"""Avvio del backend in un unico punto: sicurezza, schemi dei database, registry, scheduler e campionamento della salute.
 
 Nessun modulo crea tabelle o connessioni all'import: lo fanno queste funzioni, chiamate dal
 lifespan FastAPI (app.api.main), dalla CLI e dal conftest dei test. Un errore di
@@ -13,6 +13,8 @@ from app.automations.scheduler import get_scheduler
 from app.calendar.db import init_calendar_db
 from app.core.config import settings
 from app.memory import thread_store, vector_store
+from app.observability import health
+from app.observability.store import init_metrics_db
 from app.registry.manager import get_registry_manager
 from app.security import audit_log, permissions
 
@@ -36,6 +38,7 @@ def init_storage() -> None:
     vector_store.init_vector_db()
     init_automations_db()
     init_calendar_db()
+    init_metrics_db()
     logger.info(f"Dati in {settings.data_dir}: directory e schemi pronti")
 
 
@@ -46,8 +49,10 @@ def start() -> None:
     get_registry_manager()
     if settings.enable_automation_scheduler:
         get_scheduler().start()
+    health.start_sampler()
 
 
 def stop() -> None:
+    health.stop_sampler()
     if settings.enable_automation_scheduler:
         get_scheduler().stop()

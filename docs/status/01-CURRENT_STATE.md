@@ -40,17 +40,18 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 | Memoria | [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [letta_client.py](../../backend/app/memory/letta_client.py), [thread_store.py](../../backend/app/memory/thread_store.py) | sqlite-vec, BM25+RRF, persistenza thread |
 | Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
 | LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
+| Osservabilità | [observability/](../../backend/app/observability/) | Turni e chiamate LLM in `metrics.db`, salute dei servizi campionata ogni minuto, API `/v1/metrics/*` |
 | Integrazioni | [integrations/manager.py](../../backend/app/integrations/manager.py) | Integrazioni modulari per le automazioni |
 
 ### 2.4 Persistenza
 
-Cinque database SQLite: `checkpoints.db` (LangGraph più thread), `automations.db`, `calendar.db`, la tabella `audit_log` e sqlite-vec. In produzione stanno nel volume Docker `agent_data:/data`. In locale `automations.db`, `calendar.db` e `checkpoints.db` sono nella radice di `backend/`; la directory `backend/memory/` contiene ~50 file `test_*.jsonl` generati dai test (ignorati da git).
+Database SQLite in `DATA_DIR`: `checkpoints.db` (LangGraph, thread, `audit_log`, sqlite-vec), `automations.db`, `calendar.db`, `mcp.db` (server MCP e impostazioni per tool), `metrics.db` (turni, chiamate LLM, salute dei servizi). In produzione stanno nel volume Docker `agent_data:/data`, in locale in `data/` nella radice del repo.
 
 ## 3. Frontend (`frontend/`)
 
 **Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
 
-- **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Knowledge, Impostazioni (sicurezza, modelli, temi).
+- **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Metriche (turni, velocità dei modelli, tool, salute dei servizi nel tempo), Knowledge, Impostazioni (sicurezza, modelli, temi, server MCP).
 - **Struttura (C3)**: chat in `components/chat/` (10 componenti, il più grande 193 righe), automazioni e calendario divisi per scheda e vista, stato negli hook (`useChat` 436 righe, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …), calcoli puri in `utils/` (`chatMessages`, `calendarDates`).
 - **Dimensioni**: nessun file sopra le 500 righe (il più grande è `ParametersModal.tsx`, 492). Impostazioni, gestione calendari, integrazioni, artefatti, modifica automazione e trigger sono cartelle per area (`settings/`, `calendar/manage/`, `automations/{integrations,artifacts,edit,triggers}/`), con la logica pura in `utils/` (`automationForm`, `cronSchedule`, `artifactGroups`).
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.

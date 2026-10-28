@@ -7,7 +7,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app import startup
 from app.api.deps import limiter
-from app.api.routes import approvals, chat, kb, mcp, memory, providers, system, threads, uploads
+from app.api.routes import approvals, chat, kb, mcp, memory, metrics, providers, system, threads, uploads
 from app.automations.routes import router as automations_router
 from app.automations.routes import webhook_router as automations_webhook_router
 from app.calendar.router import router as calendar_router
@@ -40,7 +40,7 @@ api.add_middleware(
 api.state.limiter = limiter
 api.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-for module in (system, providers, chat, uploads, kb, threads, approvals, memory, mcp):
+for module in (system, providers, chat, uploads, kb, threads, approvals, memory, mcp, metrics):
     api.include_router(module.router)
 api.include_router(automations_webhook_router)
 api.include_router(automations_router)

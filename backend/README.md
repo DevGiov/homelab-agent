@@ -80,6 +80,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/api/` | `main.py` (app FastAPI, lifespan, middleware), `deps.py` (API key, rate limit), `agent_runner.py` (esecuzione del grafo sincrona e in streaming), `schemas.py`, `routes/` con un router per dominio: `chat`, `threads`, `approvals` (approvazioni e permessi), `memory`, `kb`, `providers`, `uploads`, `system` (health, status, audit) |
 | `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory`, `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`, `commit_memory`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio), `monitoring.py` (span e metriche) |
 | `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
+| `app/observability/` | Metriche: `turns.py` (turni e chiamate LLM), `health.py` (campionamento dei servizi), `store.py` (`metrics.db`), `report.py` (aggregazioni per la dashboard) |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
 | `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `knowledge_base.py`, `letta_client.py`, `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
 | `app/registry/` | Registry dei tool: `mcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
@@ -110,6 +111,8 @@ da `DATA_DIR` (`settings.checkpoint_db_path`, `settings.memory_dir`, …):
 | `checkpoints.db` | Checkpoint LangGraph, thread e messaggi, audit, permessi, memoria vettoriale (sqlite-vec) |
 | `automations.db` | Automazioni, run, approvazioni, artefatti, circuit breaker, integrazioni |
 | `calendar.db` | Calendari ed eventi |
+| `mcp.db` | Server MCP registrati dalla UI e impostazioni per tool |
+| `metrics.db` | Metriche: turni, chiamate LLM, campioni di salute dei servizi (conservati `METRICS_RETENTION_DAYS` giorni) |
 | `memory/` | Trascrizioni JSONL, summary e fatti salienti per thread, log di monitoring |
 | `artifacts/`, `uploads/`, `knowledge_base/` | Artefatti delle automazioni, immagini caricate, documenti della knowledge base |
 
@@ -200,6 +203,9 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 | POST | `/v1/mcp/servers[/{id}]/test` | Prova di connessione, anche prima di salvare |
 | GET/PUT | `/v1/mcp/tools[/{name}]` | Tool MCP con impostazioni: attivo e rischio (`auto`, `view`, `confirm`, `blocked`) |
 | POST | `/v1/mcp/reload` | Ricarica i cataloghi di tutti i server |
+| GET | `/v1/metrics/summary?hours=` | Riepilogo della finestra: turni (esito, p50/p95), token e velocità per modello, tool più lenti, uptime dei servizi |
+| GET | `/v1/metrics/timeseries?hours=&buckets=` | Le stesse metriche in intervalli uguali, più la disponibilità di ogni servizio per intervallo |
+| GET | `/v1/metrics/turns?limit=&source=` | Ultimi turni registrati (`chat` o `automation`) |
 
 ## Server MCP
 
@@ -207,6 +213,15 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 - **Nomi dei tool**: quelli di MetaMCP restano invariati (`proxmox-mcp__…`); quelli dei server aggiunti prendono il prefisso `<id>__`. L'id di un nuovo server non può coincidere con un prefisso già presente nel catalogo.
 - **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
 - **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
+
+## Osservabilità
+
+Modulo `app/observability/`, database `data/metrics.db`, vista **Metriche** nel frontend.
+
+- **Turni** (`turns.py`): ogni turno di chat (`agent_runner`) e ogni esecuzione di una run (`AutomationRunner.execute_run`) è misurato da `observe_turn`: durata, esito (`ok`, `error`, `stopped`: stop dell'utente, approvazione in attesa, pausa o annullamento), modalità o id dell'automazione, chiamate LLM e token sommati dal contextvar del turno, chiamate ai tool e errori contati a fine turno dall'audit log.
+- **Chiamate LLM**: `LLMProvider.chat` registra ogni chiamata (anche quelle fuori da un turno, come titoli e riassunti) con modello, token, token del prompt riusati dalla cache ed errori; con llama.cpp anche i tempi di prompt e generazione (`timings`), da cui le velocità: il prompt conta solo i token nuovi.
+- **Salute dei servizi** (`health.py`): un thread interroga ogni `METRICS_SAMPLE_INTERVAL_S` secondi llama.cpp, Letta, SearXNG e ogni server MCP attivo, e una volta al giorno elimina le metriche più vecchie di `METRICS_RETENTION_DAYS`.
+- **Aggregazioni** (`report.py`): calcolate a richiesta dalle righe grezze; registrare una metrica non fa mai fallire una richiesta.
 
 ## Sicurezza
 

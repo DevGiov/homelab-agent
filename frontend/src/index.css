@@ -24,6 +24,18 @@
   --glow-2: rgba(99, 102, 241, 0.24);
   /* Derivata: segue il tema perché --panel e --fg sono impostati sullo stesso elemento */
   --panel-hover: color-mix(in srgb, var(--panel), var(--fg) 8%);
+  /* Grafici: serie e stati fissi (indipendenti dall'accento del tema, che può coincidere con un colore di stato) */
+  --chart-1: #3987e5;
+  --chart-good: #0ca30c;
+  --chart-warning: #fab219;
+  --chart-critical: #d03b3b;
+  --chart-grid: color-mix(in srgb, var(--fg) 10%, transparent);
+  --chart-axis: color-mix(in srgb, var(--fg) 25%, transparent);
+  --chart-hover: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+body:not(.dark) {
+  --chart-1: #2a78d6;
 }
 
 @layer base {

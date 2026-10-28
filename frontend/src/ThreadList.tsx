@@ -12,8 +12,18 @@ import {
   Settings,
   Workflow,
   Calendar,
+  Activity,
 } from 'lucide-react';
 import { LazyBoundary } from './components/LazyBoundary';
+
+export type AppView = 'chat' | 'automations' | 'calendar' | 'metrics';
+
+const VIEWS: Array<{ id: AppView; label: string; title: string; icon: typeof MessageSquare }> = [
+  { id: 'chat', label: 'Chat', title: "Chat con l'Agente", icon: MessageSquare },
+  { id: 'automations', label: 'Automations', title: 'Automazioni e Task Periodici', icon: Workflow },
+  { id: 'calendar', label: 'Calendario', title: 'Calendario ed Eventi', icon: Calendar },
+  { id: 'metrics', label: 'Metriche', title: 'Metriche di esecuzione e salute dei servizi', icon: Activity },
+];
 
 const SettingsModal = lazy(() =>
   import('./components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal })),
@@ -30,8 +40,8 @@ interface ThreadListProps {
   isLoading: boolean;
   isBackendHealthy: boolean | null;
   onCloseMobile?: () => void;
-  currentView?: 'chat' | 'automations' | 'calendar';
-  onViewChange?: (view: 'chat' | 'automations' | 'calendar') => void;
+  currentView?: AppView;
+  onViewChange?: (view: AppView) => void;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -134,45 +144,22 @@ export const ThreadList: React.FC<ThreadListProps> = ({
         </div>
       </div>
 
-      {/* View Switcher: Chat vs Automations vs Calendar */}
+      {/* Selettore della vista principale */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 flex items-center gap-1 text-xs">
-          <button
-            onClick={() => onViewChange('chat')}
-            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
-              currentView === 'chat'
-                ? 'bg-accent text-white shadow-sm'
-                : 'text-fg-muted hover:text-fg hover:bg-panel'
-            }`}
-            title="Chat con l'Agente"
-          >
-            <MessageSquare size={13} />
-            <span className="truncate">Chat</span>
-          </button>
-          <button
-            onClick={() => onViewChange('automations')}
-            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
-              currentView === 'automations'
-                ? 'bg-accent text-white shadow-sm'
-                : 'text-fg-muted hover:text-fg hover:bg-panel'
-            }`}
-            title="Automazioni e Task Periodici"
-          >
-            <Workflow size={13} />
-            <span className="truncate">Automations</span>
-          </button>
-          <button
-            onClick={() => onViewChange('calendar')}
-            className={`flex-1 py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
-              currentView === 'calendar'
-                ? 'bg-accent text-white shadow-sm'
-                : 'text-fg-muted hover:text-fg hover:bg-panel'
-            }`}
-            title="Calendario ed Eventi"
-          >
-            <Calendar size={13} />
-            <span className="truncate">Calendario</span>
-          </button>
+        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-2 gap-1 text-xs">
+          {VIEWS.map(({ id, label, title, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onViewChange(id)}
+              className={`py-1.5 px-1.5 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
+                currentView === id ? 'bg-accent text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
+              }`}
+              title={title}
+            >
+              <Icon size={13} />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
         </div>
       )}
 

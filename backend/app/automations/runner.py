@@ -26,11 +26,19 @@ from app.automations.models import (
 )
 from app.automations.run_secrets import collect_secrets
 from app.automations.steps import Outcome, StepContext, select_handler
+from app.observability.turns import observe_turn
 from app.registry.manager import get_registry_manager
 
 logger = logging.getLogger("automations.runner")
 
 FINAL_STATUSES = (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.BLOCKED)
+# Esito della run nelle metriche: approvazione, pausa e annullamento sono interruzioni, non errori
+_TURN_STATUS = {
+    RunStatus.COMPLETED: "ok",
+    RunStatus.FAILED: "error",
+    RunStatus.BLOCKED: "error",
+    RunStatus.EXHAUSTED: "error",
+}
 
 
 def _effective_inputs(auto_def: AutomationDefinition, run: AutomationRun) -> Dict[str, Any]:
@@ -131,7 +139,14 @@ class AutomationRunner:
         return AutomationRun(**run_data)
 
     def execute_run(self, run_id: str) -> AutomationRun:
-        """Esegue sequenzialmente gli step della run fino a completamento, blocco o approval."""
+        """Esegue sequenzialmente gli step della run fino a completamento, blocco o approval, misurandola come un turno."""
+        with observe_turn(run_id, "automation") as turn:
+            run = self._execute_steps(run_id)
+            turn.mode = run.automation_id
+            turn.status = _TURN_STATUS.get(run.status, "stopped")
+            return run
+
+    def _execute_steps(self, run_id: str) -> AutomationRun:
         run = self._load_run(run_id)
         if run.status in FINAL_STATUSES:
             return run

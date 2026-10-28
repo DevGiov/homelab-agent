@@ -63,7 +63,7 @@ Valutazione dei file sopra 600 righe (2026-10-27): `calendar/db.py`, `registry/c
 | # | Funzionalità | Valore | Dipende da |
 | :--- | :--- | :--- | :--- |
 | D1 | ~~**Server MCP dinamici**: registrazione e hot-reload di nuovi server MCP dalla UI, oltre a ProxmoxMcp (per esempio creative-suite), con permessi per tool~~ ✅ 2026-10-28 (registro nell'agente con MetaMCP come server predefinito; tool attivabili e rischio `auto`/`view`/`confirm`/`blocked`; registry rinominato `mcp`) | Estende l'agente senza deploy | B4 |
-| D2 | **Osservabilità**: metriche per run (latenza, token, errori tool), dashboard in Diagnostics, health dei provider nel tempo | Debug e tuning dei modelli | B6 |
+| D2 | ~~**Osservabilità**: metriche per run (latenza, token, errori tool), dashboard in Diagnostics, health dei provider nel tempo~~ ✅ 2026-10-28 (turni di chat e run in `metrics.db` con token, cache e velocità di llama.cpp; salute di llama.cpp, Letta, SearXNG e server MCP ogni minuto; vista Metriche dedicata invece di Diagnostics) | Debug e tuning dei modelli | B6 |
 | D3 | **Memory explorer**: viewer di fatti, entità e relazioni (sqlite-vec / Letta), con modifica e cancellazione | Controllo della memoria a lungo termine | B1 |
 | D4 | **Eval harness**: i test `live` diventano una suite di valutazione ripetibile (routing, tool selection, rollback) con report per modello | Confronto tra modelli su CT 149 | A3 |
 | D5 | **Auth multi-utente / RBAC**: solo se l'accesso esce dalla LAN | Sicurezza | B1 |

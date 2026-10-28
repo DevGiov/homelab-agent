@@ -1,5 +1,5 @@
 import { lazy, useState, useEffect } from 'react';
-import { ThreadList } from './ThreadList';
+import { ThreadList, type AppView } from './ThreadList';
 import { Chat } from './components/chat/Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
@@ -14,6 +14,9 @@ const AutomationsView = lazy(() =>
 );
 const CalendarView = lazy(() =>
   import('./components/calendar/CalendarView').then((m) => ({ default: m.CalendarView })),
+);
+const MetricsView = lazy(() =>
+  import('./components/metrics/MetricsView').then((m) => ({ default: m.MetricsView })),
 );
 
 function MainLayout() {
@@ -50,8 +53,7 @@ function MainLayout() {
     diagnostics,
   } = useChat(currentThreadId, (newId) => selectThread(newId));
 
-  // Top level view state: chat agent, automations & loops hub, or calendar
-  const [currentView, setCurrentView] = useState<'chat' | 'automations' | 'calendar'>('chat');
+  const [currentView, setCurrentView] = useState<AppView>('chat');
   const [targetEventUid, setTargetEventUid] = useState<string | null>(null);
 
   // Ascolta eventi globali da link markdown #event-<uid>
@@ -197,6 +199,10 @@ function MainLayout() {
       ) : currentView === 'automations' ? (
         <LazyBoundary title="Errore nella vista automazioni">
           <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+        </LazyBoundary>
+      ) : currentView === 'metrics' ? (
+        <LazyBoundary title="Errore nella vista metriche">
+          <MetricsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
         </LazyBoundary>
       ) : (
         <LazyBoundary title="Errore nella vista calendario">
