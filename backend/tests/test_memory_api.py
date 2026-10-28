@@ -69,7 +69,7 @@ def test_update_fact_reembeds_and_replaces_entities():
     assert updated["content"] == "La stampante Brother ha IP 192.168.1.50"
     assert [e["name"] for e in updated["entities"]] == ["Brother"]
     assert [e["name"] for e in facts.list_entities()] == ["Brother"]  # 'gateway' orfana eliminata
-    assert facts.search_facts("stampante laser", k=1)[0]["id"] == fact_id
+    assert facts.search_facts("che IP ha la stampante?", k=1)[0]["id"] == fact_id
 
 
 def test_entity_rename_conflict_merge_and_delete():
@@ -169,6 +169,8 @@ def test_facts_api_crud(api):
     assert listed["total"] == 1
     found = api.get("/v1/memory/facts", params={"query": "videogioco a blocchi"}).json()["facts"]
     assert found[0]["id"] == fact["id"] and "score" in found[0]
+    # I fatti poco simili non compaiono tra i risultati
+    assert api.get("/v1/memory/facts", params={"query": "ricetta della carbonara"}).json()["facts"] == []
 
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 204
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 404

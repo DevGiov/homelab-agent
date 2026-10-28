@@ -16,6 +16,8 @@ logger = logging.getLogger("facts")
 ENTITY_TYPES = ("person", "organization", "place", "project", "software", "infrastructure", "other")
 # Somiglianza coseno oltre la quale un nuovo fatto è considerato già presente
 DUPLICATE_SCORE = 0.95
+# Sotto questa somiglianza un fatto non è pertinente alla query
+RELEVANT_SCORE = 0.3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_entities (
@@ -125,9 +127,11 @@ def list_facts(
         conn.close()
 
 
-def search_facts(query: str, *, k: int = 20, thread_id: Optional[str] = None, entity_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Fatti più simili alla query (punteggio coseno), con gli stessi filtri dell'elenco."""
-    hits = vector_store.search_memory(query, k=k, kind="fact", thread_id=thread_id)
+def search_facts(
+    query: str, *, k: int = 20, thread_id: Optional[str] = None, entity_id: Optional[int] = None, min_score: float = RELEVANT_SCORE
+) -> List[Dict[str, Any]]:
+    """Fatti pertinenti alla query (punteggio coseno almeno `min_score`), con gli stessi filtri dell'elenco."""
+    hits = [h for h in vector_store.search_memory(query, k=k, kind="fact", thread_id=thread_id) if h["score"] >= min_score]
     if not hits:
         return []
     scores = {h["id"]: h["score"] for h in hits}

@@ -4,9 +4,6 @@ from typing import Any, Dict, List
 from app.memory import facts
 from app.registry.base import BaseToolRegistry
 
-# Fatti meno simili di così alla query non sono pertinenti
-RECALL_MIN_SCORE = 0.3
-
 
 class MemoryRegistry(BaseToolRegistry):
     def __init__(self):
@@ -72,7 +69,7 @@ class MemoryRegistry(BaseToolRegistry):
         query = args.get("query", "")
         if not query:
             return {"error": "Parametro 'query' mancante."}
-        hits = [f for f in facts.search_facts(query, k=8, thread_id=args.get("thread_id")) if f["score"] >= RECALL_MIN_SCORE]
+        hits = facts.search_facts(query, k=8, thread_id=args.get("thread_id"))
         if not hits:
             return {"results": [], "note": "Nessun fatto pertinente in memoria."}
         return {
