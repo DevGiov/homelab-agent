@@ -30,6 +30,7 @@ env/
 .env
 *.local.env
 .env.*
+!.env.example
 config.local.yaml
 
 # Node/Vite (Frontend)
