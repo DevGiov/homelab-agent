@@ -117,6 +117,8 @@ def test_rollback_plan_is_requested_without_reasoning():
     with patch("app.agent.llm_calls.call_llm", return_value={"content": "1. release_ip"}) as llm:
         assert generate_rollback_plan_with_llm([ExecutionLog({"id": 1}, "proxmox-mcp__allocate_ip", {})], "t", "errore") == "1. release_ip"
     assert llm.call_args.kwargs["reasoning_budget"] == 0
+    # Le compensazioni dichiarate dei passi riusciti sono nel prompt
+    assert "`proxmox-mcp__allocate_ip` → `proxmox-mcp__release_ip`" in llm.call_args.args[0]
 
 
 def test_cli_requires_models():

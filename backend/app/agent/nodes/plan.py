@@ -32,12 +32,13 @@ def generate_plan_structure(task: str, user_prompt: str, model: Optional[str] = 
         "      \"id\": 1,\n"
         "      \"description\": \"Step description\",\n"
         "      \"tool\": \"exact_tool_name\",\n"
-        "      \"args\": {\"param\": \"value\"},\n"
+        "      \"args\": {},\n"
         "      \"depends_on\": null,\n"
         "      \"output_var\": \"variable_name\"\n"
         "    }\n"
         "  ]\n"
-        "}"
+        "}\n"
+        "args holds only the parameters listed for that tool in the catalog ({} when it has none or they come from earlier steps)."
     )
     # Grammatica: solo nomi del catalogo e un unico oggetto, senza ragionamento (consumava i token prima del JSON)
     schema = {

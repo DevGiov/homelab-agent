@@ -181,9 +181,16 @@ def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str
     Usa l'LLM per generare un piano di rollback contestuale quando quello dichiarativo non basta.
     """
     log_summary = "\n".join([
-        f"- Step {e.step.get('id')}: `{e.tool_name}`({e.args}) → {'OK' if not e.error else 'ERROR: ' + str(e.error)}"
+        f"- Step {e.step.get('id')}: `{e.tool_name}`({e.args}) → {'OK ' + json.dumps(e.result, default=str)[:200] if not e.error else 'ERROR: ' + str(e.error)}"
         for e in execution_log
     ])
+    # Compensazioni dichiarate per i passi riusciti: il modello non deve indovinare nomi di tool
+    known = [
+        f"- `{e.tool_name}` → `{info['rollback_tool']}`"
+        for e in execution_log
+        if not e.error and (info := get_rollback_info(e.tool_name)).get("reversible") and info.get("rollback_tool")
+    ]
+    known_block = ("Known compensating tools:\n" + "\n".join(known) + "\n\n") if known else ""
 
     prompt = f"""Language Directive: Respond in the language used in the task.
 An execution plan failed after these steps:
@@ -192,10 +199,9 @@ An execution plan failed after these steps:
 Original task: {task}
 Error context: {error_context}
 
-Generate a rollback plan to revert to the initial state.
-List the rollback steps in reverse order, specifying for each:
-- Action to take
-- Tool to use (if known, otherwise specify "manual action")
+{known_block}Generate a rollback plan to revert to the initial state. Only steps that succeeded (OK) changed the
+state; the failed step needs no rollback. Undo them in reverse order, one numbered line per step:
+the action, the tool (a known compensating tool when listed, otherwise "manual action") and its arguments.
 
 Rollback plan:"""
 
