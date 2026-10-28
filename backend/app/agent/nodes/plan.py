@@ -39,7 +39,32 @@ def generate_plan_structure(task: str, user_prompt: str, model: Optional[str] = 
         "  ]\n"
         "}"
     )
-    res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=4096, temperature=0.1, model=model, stream_mode="none")
+    # Grammatica: solo nomi del catalogo e un unico oggetto, senza ragionamento (consumava i token prima del JSON)
+    schema = {
+        "type": "object",
+        "properties": {
+            "steps": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "description": {"type": "string"},
+                        "tool": {"type": "string", "enum": [t["name"] for t in tools]},
+                        "args": {"type": "object"},
+                        "depends_on": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                        "output_var": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    },
+                    "required": ["id", "description", "tool", "args", "depends_on", "output_var"],
+                },
+            }
+        },
+        "required": ["steps"],
+    }
+    res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=2048, temperature=0.1, reasoning_budget=0,
+                             model=model, stream_mode="none", json_schema=schema)
     content = res.get("content", "") if isinstance(res, dict) else ""
     clean = re.sub(r"```(?:json)?", "", content).strip()
     start = clean.find("{")

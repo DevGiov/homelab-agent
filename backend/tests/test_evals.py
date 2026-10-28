@@ -111,6 +111,14 @@ def test_evaluate_model_report_and_compare(monkeypatch, tmp_path):
     assert "**rotto**: 2 casi falliti" in table
 
 
+def test_rollback_plan_is_requested_without_reasoning():
+    from app.agent.execution_log import ExecutionLog, generate_rollback_plan_with_llm
+
+    with patch("app.agent.llm_calls.call_llm", return_value={"content": "1. release_ip"}) as llm:
+        assert generate_rollback_plan_with_llm([ExecutionLog({"id": 1}, "proxmox-mcp__allocate_ip", {})], "t", "errore") == "1. release_ip"
+    assert llm.call_args.kwargs["reasoning_budget"] == 0
+
+
 def test_cli_requires_models():
     from app.evals.__main__ import main
 
@@ -122,8 +130,12 @@ def test_plan_structure_has_no_fabricated_fallback():
     from app.agent.nodes.plan import generate_plan_structure
 
     valid = {"content": '```json\n{"steps": [{"id": 1, "description": "Elenca", "tool": "proxmox-mcp__list_containers", "args": {}}]}\n``` testo dopo'}
-    with patch("app.agent.llm_calls.call_llm", return_value=valid):
+    with patch("app.agent.llm_calls.call_llm", return_value=valid) as llm:
         assert generate_plan_structure("lista i container", "User Request: 'lista i container'")["steps"][0]["tool"] == "proxmox-mcp__list_containers"
+    # Output vincolato ai tool del catalogo, senza ragionamento
+    kwargs = llm.call_args.kwargs
+    assert kwargs["reasoning_budget"] == 0
+    assert "web_search" in kwargs["json_schema"]["properties"]["steps"]["items"]["properties"]["tool"]["enum"]
     for content in ("non ho capito", '{"steps": []}', '{"steps": [{"id": 1}]}'):
         with patch("app.agent.llm_calls.call_llm", return_value={"content": content}):
             assert generate_plan_structure("crea un servizio", "User Request: 'crea un servizio'") is None
