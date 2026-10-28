@@ -95,13 +95,16 @@ def save_report(report: Dict[str, Any]) -> Path:
 
 
 def latest_reports(paths: Optional[List[Path]] = None) -> List[Dict[str, Any]]:
-    """I report indicati, o l'ultimo di ogni modello in `data/evals/`."""
+    """I report indicati, o per ogni modello in `data/evals/` il risultato più recente di ogni suite (un'esecuzione
+    parziale aggiorna solo le sue suite); `started_at` è quello dell'esecuzione più recente."""
     if paths:
         return [json.loads(p.read_text(encoding="utf-8")) for p in paths]
     latest: Dict[str, Dict[str, Any]] = {}
     for path in sorted(reports_dir().glob("*.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
-        latest[report["model"]] = report
+        merged = latest.setdefault(report["model"], {"model": report["model"], "suites": {}})
+        merged["started_at"] = report["started_at"]
+        merged["suites"].update(report["suites"])
     return list(latest.values())
 
 

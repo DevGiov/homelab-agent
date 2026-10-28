@@ -166,8 +166,8 @@ fatto salvato. Cinque suite, con i casi in `app/evals/cases/*.json`:
 | `memory` | `extract_facts` | fatti con le entità attese; nessun fatto per chiacchiere, nozioni generali o cronaca della conversazione |
 
 Ogni caso può girare più volte (`--repeat`) per misurare la stabilità. Il report di ogni modello (esito,
-durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca l'ultimo report di ogni
-modello in una tabella Markdown. Le chiamate LLM delle valutazioni compaiono nelle metriche con `turn_key`
+durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca, per ogni modello, il
+risultato più recente di ogni suite in una tabella Markdown (un'esecuzione parziale aggiorna solo le sue suite). Le chiamate LLM delle valutazioni compaiono nelle metriche con `turn_key`
 `eval:…`, ma non tra i turni.
 
 ```bash

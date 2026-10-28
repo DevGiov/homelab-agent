@@ -54,7 +54,7 @@ test-container: ## Esegue pytest nel container di test isolato (CT 125)
 eval: ## Valuta i modelli nel backend avviato: make eval MODELS=A,B ARGS="--suites routing,tools --repeat 3"
 	$(COMPOSE_PROD) exec backend python -m app.evals run --models $(MODELS) $(ARGS)
 
-eval-compare: ## Tabella Markdown dell'ultimo report di valutazione di ogni modello
+eval-compare: ## Tabella Markdown: per ogni modello, l'ultimo risultato di ogni suite
 	$(COMPOSE_PROD) exec backend python -m app.evals compare
 
 # ── Deploy produzione ────────────────────────────────────────────────────────

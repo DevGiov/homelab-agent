@@ -105,6 +105,10 @@ def test_evaluate_model_report_and_compare(monkeypatch, tmp_path):
     path = runner.save_report(good)
     runner.save_report(broken)
     assert json.loads(path.read_text())["model"] == "modello-a"
+    # Un'esecuzione parziale successiva aggiorna solo le sue suite
+    runner.save_report({**good, "started_at": "2099-01-01T00:00:00+00:00", "suites": {"tools": good["suites"]["routing"]}})
+    merged = {r["model"]: r for r in runner.latest_reports()}["modello-a"]
+    assert set(merged["suites"]) == {"routing", "tools"} and merged["started_at"].startswith("2099")
     table = runner.compare_markdown(runner.latest_reports())
     assert "| routing | 50% (2/4)" in table
     assert "- `routing/b`: modalità chat, attesa act" in table
