@@ -95,6 +95,8 @@ def test_grade_recall():
     assert "manca 192.168.1.250" in detail and "nel contesto: no" in detail
     assert "cita 192.168.1.53" in grade_recall(case, {"answer": "192.168.1.250, prima 192.168.1.53", "found": True}, "").detail
     assert "nel contesto: sì" in grade_recall({"expect_all": ["Grafana", "Loki"]}, {"answer": "Grafana", "found": True}, "Grafana, Loki").detail
+    # Conta solo se i valori mancanti erano nel contesto, non quelli già nella risposta
+    assert "manca Loki (nel contesto: no)" in grade_recall({"expect_all": ["Grafana", "Loki"]}, {"answer": "Grafana", "found": True}, "Grafana").detail
     assert grade_recall({"abstain": True}, {"answer": "Non ne abbiamo mai parlato", "found": False}, "").passed
     assert not grade_recall({"abstain": True}, {"answer": "Sul CT 140", "found": True}, "").passed
     assert not grade_recall(case, None, "").passed

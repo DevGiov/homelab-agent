@@ -127,13 +127,14 @@ def grade_recall(case: Dict[str, Any], answer: Optional[Dict[str, Any]], context
     text, found = answer["answer"].lower(), answer["found"]
     if case.get("abstain"):
         return Outcome(not found, "nessuna informazione, come atteso" if not found else f"risposta inventata: {answer['answer'][:80]}")
-    expected = case.get("expect_all", []) + case.get("expect_any", [])
-    in_context = "sì" if any(e.lower() in context.lower() for e in expected) else "no"
-    missing = [e for e in case.get("expect_all", []) if e.lower() not in text]
+    # Ogni valore mancante è un gruppo di alternative: basta una per gruppo
+    missing = [[e] for e in case.get("expect_all", []) if e.lower() not in text]
     if case.get("expect_any") and not any(e.lower() in text for e in case["expect_any"]):
-        missing.append(" o ".join(case["expect_any"]))
+        missing.append(case["expect_any"])
     if missing:
-        return Outcome(False, f"manca {', '.join(missing)} (nel contesto: {in_context}): {answer['answer'][:80]}")
+        in_context = all(any(e.lower() in context.lower() for e in group) for group in missing)
+        names = ", ".join(" o ".join(group) for group in missing)
+        return Outcome(False, f"manca {names} (nel contesto: {'sì' if in_context else 'no'}): {answer['answer'][:80]}")
     forbidden = [f for f in case.get("forbid", []) if f.lower() in text]
     if forbidden:
         return Outcome(False, f"cita {', '.join(forbidden)}: {answer['answer'][:80]}")
