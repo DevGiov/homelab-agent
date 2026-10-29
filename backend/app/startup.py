@@ -7,6 +7,7 @@ inizializzazione blocca l'avvio invece di lasciare un servizio a metà.
 import logging
 from pathlib import Path
 
+from app.agent import memory_consolidation
 from app.agent.graph import get_checkpointer
 from app.automations.db.schema import init_automations_db
 from app.automations.scheduler import get_scheduler
@@ -35,6 +36,7 @@ def init_storage() -> None:
     thread_store.init_db()
     profile.init_profile_db()
     procedures.init_procedures_db()
+    memory_consolidation.init_consolidation_db()
     audit_log.init_audit_db()
     permissions.init_permissions_db()
     vector_store.init_vector_db()
@@ -54,9 +56,11 @@ def start() -> None:
     if settings.enable_automation_scheduler:
         get_scheduler().start()
     health.start_sampler()
+    memory_consolidation.start_scheduler()
 
 
 def stop() -> None:
     health.stop_sampler()
+    memory_consolidation.stop_scheduler()
     if settings.enable_automation_scheduler:
         get_scheduler().stop()

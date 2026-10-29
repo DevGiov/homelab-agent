@@ -2,7 +2,6 @@ import json
 import logging
 from typing import Any
 
-from app.agent.fact_extraction import remember_turn
 from app.agent.procedure_distillation import distill
 from app.agent.state import AgentState
 from app.memory.episodes import remember_episode
@@ -76,12 +75,11 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
 
 
 def respond_node(state: AgentState) -> AgentState:
-    """Formats final response if not already set and saves the facts worth remembering and, for act/plan turns that ran
-    tools, the execution episode and any procedure it teaches, as a proposal (the message itself is saved by the
-    caller in thread_store)."""
+    """Formats final response if not already set and, for act/plan turns that ran tools, saves the execution episode
+    and any procedure it teaches, as a proposal. The message itself is saved by the caller in thread_store; its facts
+    reach long-term memory later, through consolidation (app.agent.memory_consolidation)."""
     thread_id = state.get("thread_id") or "default_thread"
     task = state.get("task", "")
-    memory_context = state.get("memory_context") or ""
 
     formatted = state.get("final_response")
     if not formatted:
@@ -99,14 +97,7 @@ def respond_node(state: AgentState) -> AgentState:
 
     incognito = state.get("incognito", False)
 
-    # Fatti da ricordare, con le entità che citano (non in incognito)
     if not incognito:
-        try:
-            created = remember_turn(task, formatted, memory_context, thread_id, model=state.get("model"))
-            if created:
-                logger.info(f"Memoria: {created} fatti nuovi dal thread '{thread_id}'")
-        except Exception as e:
-            logger.warning(f"Estrazione dei fatti non riuscita (non bloccante): {e}")
         if state.get("mode") in ("act", "plan") and state.get("execution_trace"):
             try:
                 if remember_episode(task, state["mode"], state["execution_trace"], thread_id):
@@ -116,7 +107,7 @@ def respond_node(state: AgentState) -> AgentState:
             except Exception as e:
                 logger.warning(f"Salvataggio dell'episodio non riuscito (non bloccante): {e}")
     else:
-        logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti saltata.")
+        logger.info(f"Modalità Incognito attiva per thread '{thread_id}': episodio non salvato.")
 
     return {
         "final_response": formatted,

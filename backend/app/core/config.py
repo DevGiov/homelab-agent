@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # Osservabilità: campionamento della salute dei servizi (0 = disattivato) e conservazione delle metriche
     metrics_sample_interval_s: int = Field(default=60, alias="METRICS_SAMPLE_INTERVAL_S")
     metrics_retention_days: int = Field(default=30, alias="METRICS_RETENTION_DAYS")
+    # Ora (0-23, fuso del container: UTC salvo TZ) del consolidamento giornaliero della memoria; -1 = solo su richiesta
+    memory_consolidation_hour: int = Field(default=3, alias="MEMORY_CONSOLIDATION_HOUR")
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
     # Caratteri di ogni risultato di tool ripetuti nei passi di selezione; la sintesi finale li riceve interi
     agent_observation_limit: int = Field(default=4000, alias="AGENT_OBSERVATION_LIMIT")

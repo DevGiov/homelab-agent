@@ -4,6 +4,7 @@ import {
   createFact,
   deleteEntity,
   deleteFact,
+  restoreFact,
   extractEntities,
   getEntity,
   getMemoryStats,
@@ -39,6 +40,7 @@ export function useMemoryExplorer(notify: Notify) {
   const [searchText, setSearchText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [showSuperseded, setShowSuperseded] = useState(false);
   const selectedId = selected?.id;
 
   // La ricerca parte quando l'utente smette di scrivere
@@ -50,7 +52,7 @@ export function useMemoryExplorer(notify: Notify) {
   const loadFacts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await listFacts({ query: searchText || undefined, entity_id: selectedId, limit: PAGE_SIZE });
+      const res = await listFacts({ query: searchText || undefined, entity_id: selectedId, include_superseded: showSuperseded || undefined, limit: PAGE_SIZE });
       setFacts(res.facts);
       setTotal(res.total);
     } catch (err) {
@@ -58,7 +60,7 @@ export function useMemoryExplorer(notify: Notify) {
     } finally {
       setIsLoading(false);
     }
-  }, [searchText, selectedId, notify]);
+  }, [searchText, selectedId, showSuperseded, notify]);
 
   const loadEntities = useCallback(async () => {
     try {
@@ -118,12 +120,12 @@ export function useMemoryExplorer(notify: Notify) {
 
   const loadMore = useCallback(async () => {
     try {
-      const res = await listFacts({ entity_id: selectedId, limit: PAGE_SIZE, offset: facts.length });
+      const res = await listFacts({ entity_id: selectedId, include_superseded: showSuperseded || undefined, limit: PAGE_SIZE, offset: facts.length });
       setFacts((prev) => [...prev, ...res.facts]);
     } catch (err) {
       notify('error', formatApiError(err));
     }
-  }, [selectedId, facts.length, notify]);
+  }, [selectedId, showSuperseded, facts.length, notify]);
 
   /** Esegue un'azione, mostra l'esito e riallinea la vista; false se è fallita. */
   const run = useCallback(
@@ -144,6 +146,7 @@ export function useMemoryExplorer(notify: Notify) {
   const saveFact = (id: number | null, input: FactInput) =>
     run(() => (id == null ? createFact(input) : updateFact(id, input)), id == null ? 'Fatto aggiunto.' : 'Fatto aggiornato.');
   const removeFact = (id: number) => run(() => deleteFact(id), 'Fatto eliminato.');
+  const restore = (id: number) => run(() => restoreFact(id), 'Fatto di nuovo valido.');
   const editEntity = (id: number, input: EntityRef) => run(() => updateEntity(id, input), `Entità '${input.name}' aggiornata.`);
   const removeEntity = (entity: Entity) =>
     run(async () => {
@@ -191,11 +194,14 @@ export function useMemoryExplorer(notify: Notify) {
     isSearching: searchText !== '',
     isLoading,
     isExtracting,
+    showSuperseded,
+    setShowSuperseded,
     loadMore,
     reload: refreshAll,
     refreshStats: loadStats,
     saveFact,
     removeFact,
+    restore,
     editEntity,
     removeEntity,
     mergeInto,

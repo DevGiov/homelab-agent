@@ -13,7 +13,8 @@ def _get_conn():
     return sqlite3.connect(settings.checkpoint_db_path)
 
 def init_db():
-    """Inizializza le tabelle dei thread: metadati, messaggi e riassunto della parte vecchia della conversazione."""
+    """Inizializza le tabelle dei thread: metadati, messaggi, riassunto della parte vecchia della conversazione e
+    punto fino a cui i messaggi sono stati consolidati nella memoria a lungo termine."""
     conn = _get_conn()
     try:
         conn.execute("""
@@ -54,6 +55,13 @@ def init_db():
             CREATE TABLE IF NOT EXISTS thread_summaries (
                 thread_id TEXT PRIMARY KEY,
                 summary TEXT NOT NULL,
+                covered INTEGER NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS thread_consolidation (
+                thread_id TEXT PRIMARY KEY,
                 covered INTEGER NOT NULL,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -449,6 +457,38 @@ def save_summary(thread_id: str, summary: str, covered: int) -> None:
         conn.close()
 
 
+def get_consolidated(thread_id: str) -> int:
+    """Quanti messaggi della cronologia sono già stati consolidati nella memoria a lungo termine."""
+    conn = _get_conn()
+    try:
+        row = conn.execute("SELECT covered FROM thread_consolidation WHERE thread_id = ?", (thread_id,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else 0
+
+
+def save_consolidated(thread_id: str, covered: int) -> None:
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO thread_consolidation (thread_id, covered, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (thread_id, covered),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def threads_by_first_message() -> List[str]:
+    """Tutti i thread con messaggi, dal più vecchio (ordine in cui consolidarli: i fatti nuovi superano i vecchi)."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute("SELECT thread_id FROM thread_messages GROUP BY thread_id ORDER BY MIN(created_at), MIN(rowid)").fetchall()
+    finally:
+        conn.close()
+    return [r[0] for r in rows]
+
+
 def get_last_message(thread_id: str) -> Optional[str]:
     """Recupera l'anteprima del testo dell'ultimo messaggio non vuoto di un thread."""
     if not thread_id:
@@ -470,7 +510,7 @@ def get_last_message(thread_id: str) -> Optional[str]:
 
 
 def delete_thread_messages(thread_id: str):
-    """Elimina i messaggi e il riassunto di un thread."""
+    """Elimina i messaggi, il riassunto e lo stato di consolidamento di un thread (i fatti già estratti restano)."""
     if not thread_id:
         return
     try:
@@ -478,6 +518,7 @@ def delete_thread_messages(thread_id: str):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM thread_messages WHERE thread_id = ?", (thread_id,))
         cursor.execute("DELETE FROM thread_summaries WHERE thread_id = ?", (thread_id,))
+        cursor.execute("DELETE FROM thread_consolidation WHERE thread_id = ?", (thread_id,))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -491,6 +532,7 @@ def clear_all_thread_messages():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM thread_messages")
         cursor.execute("DELETE FROM thread_summaries")
+        cursor.execute("DELETE FROM thread_consolidation")
         conn.commit()
         conn.close()
     except Exception as e:

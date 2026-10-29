@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Brain, Loader2, Menu, Plus, RefreshCw, Search, Sparkles, Tags, Trash2 } from 'lucide-react';
 import type { ThreadItem } from '../../api/threads';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useConsolidation } from '../../hooks/useConsolidation';
 import { useEpisodes } from '../../hooks/useEpisodes';
 import { useProcedures } from '../../hooks/useProcedures';
 import { useFeedback } from '../../hooks/useFeedback';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useMemoryExplorer } from '../../hooks/useMemoryExplorer';
 import { FeedbackToast } from '../FeedbackToast';
+import { ConsolidationBar } from './ConsolidationBar';
 import { EntityDetail } from './EntityDetail';
 import { EntityPanel } from './EntityPanel';
 import { EpisodesPanel } from './EpisodesPanel';
@@ -39,6 +41,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
   const { confirm, dialog } = useConfirm();
   const episodes = useEpisodes(notify, memory.refreshStats);
   const procedures = useProcedures(notify, memory.refreshStats);
+  const consolidation = useConsolidation(notify, memory.reload);
   const [tab, setTab] = useState<Tab>('facts');
   const [isAdding, setIsAdding] = useState(false);
   const [showEntities, setShowEntities] = useState(false);
@@ -182,6 +185,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
           {tab === 'facts' && (
             <div className="space-y-3">
+              {consolidation.status && <ConsolidationBar status={consolidation.status} onStart={consolidation.start} />}
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -244,11 +248,19 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             />
           )}
 
-          <p className="text-[11px] text-fg-muted">
-            {memory.isSearching
-              ? `${memory.facts.length} fatti più pertinenti${selected ? ` tra quelli di ${selected.name}` : ''}`
-              : `${memory.total} fatti${selected ? ` su ${selected.name}` : ''}, dal più recente`}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-fg-muted">
+              {memory.isSearching
+                ? `${memory.facts.length} fatti più pertinenti${selected ? ` tra quelli di ${selected.name}` : ''}`
+                : `${memory.total} fatti${memory.showSuperseded ? ', compresi i superati' : ''}${selected ? ` su ${selected.name}` : ''}, dal più recente`}
+            </p>
+            {!memory.isSearching && !!stats?.superseded_facts && (
+              <label className="flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={memory.showSuperseded} onChange={(e) => memory.setShowSuperseded(e.target.checked)} className="accent-accent" />
+                Mostra i {stats.superseded_facts} superati
+              </label>
+            )}
+          </div>
 
           {memory.isLoading && memory.facts.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-12 text-xs text-fg-muted">
@@ -256,7 +268,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             </div>
           ) : memory.facts.length === 0 ? (
             <p className="text-xs text-fg-muted text-center py-12">
-              {memory.isSearching ? 'Nessun fatto pertinente.' : "Nessun fatto in memoria: l'agente li salva a fine conversazione, o aggiungine uno."}
+              {memory.isSearching ? 'Nessun fatto pertinente.' : 'Nessun fatto in memoria: nascono dal consolidamento delle conversazioni, o aggiungine uno.'}
             </p>
           ) : (
             <div className="space-y-2">
@@ -270,6 +282,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                   onSelectEntity={memory.selectEntity}
                   onOpenThread={onOpenThread}
                   onSave={(input) => memory.saveFact(fact.id, input)}
+                  onRestore={() => memory.restore(fact.id)}
                   onDelete={async () => {
                     if (await confirm({ message: 'Eliminare questo fatto?' })) memory.removeFact(fact.id);
                   }}

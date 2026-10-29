@@ -1,5 +1,4 @@
 """Ricerca per parole e ibrida, tool search_conversations ed episodi di esecuzione, su un database temporaneo."""
-from unittest.mock import patch
 
 import pytest
 
@@ -94,10 +93,9 @@ def test_episode_describes_tools_errors_and_outcome():
 
 
 def test_act_turn_saves_an_episode_and_later_act_turns_see_it(sandbox):
-    with patch.object(respond, "remember_turn", return_value=0):
-        respond.respond_node({"thread_id": "t1", "task": "Riavvia Immich sul CT 130", "mode": "act",
-                              "execution_trace": TRACE, "final_response": "Non riuscito"})
-        respond.respond_node({"thread_id": "t1", "task": "Che ore sono?", "mode": "chat", "final_response": "Le 10"})
+    respond.respond_node({"thread_id": "t1", "task": "Riavvia Immich sul CT 130", "mode": "act",
+                          "execution_trace": TRACE, "final_response": "Non riuscito"})
+    respond.respond_node({"thread_id": "t1", "task": "Che ore sono?", "mode": "chat", "final_response": "Le 10"})
     assert vector_store.count_memory("episode") == 1
 
     act = retrieve_memory_node({"thread_id": "t2", "task": "Riavvia Immich sul CT 130", "mode": "act"})["memory_context"]

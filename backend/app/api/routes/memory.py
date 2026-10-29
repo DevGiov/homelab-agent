@@ -75,14 +75,17 @@ def get_facts(
     query: Optional[str] = None,
     thread_id: Optional[str] = None,
     entity_id: Optional[int] = None,
+    include_superseded: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> Dict[str, Any]:
-    """Elenco dal più recente o, con `query`, i fatti più simili per significato (con punteggio)."""
+    """Elenco dal più recente (con `include_superseded` anche i fatti superati) o, con `query`, i fatti validi più
+    pertinenti (con punteggio)."""
     if query and query.strip():
         items = facts.search_facts(query.strip(), k=limit, thread_id=thread_id, entity_id=entity_id)
         return {"facts": items, "total": len(items)}
-    items, total = facts.list_facts(thread_id=thread_id, entity_id=entity_id, limit=limit, offset=offset)
+    items, total = facts.list_facts(thread_id=thread_id, entity_id=entity_id, include_superseded=include_superseded,
+                                    limit=limit, offset=offset)
     return {"facts": items, "total": total}
 
 
@@ -99,6 +102,15 @@ def create_fact(body: FactInput) -> Dict[str, Any]:
 @router.put("/facts/{fact_id}")
 def update_fact(fact_id: int, body: FactInput) -> Dict[str, Any]:
     fact = facts.update_fact(fact_id, body.content, _refs(body.entities))
+    if fact is None:
+        raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
+    return fact
+
+
+@router.post("/facts/{fact_id}/restore")
+def restore_fact(fact_id: int) -> Dict[str, Any]:
+    """Un fatto superato torna valido."""
+    fact = facts.restore_fact(fact_id)
     if fact is None:
         raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
     return fact
@@ -243,3 +255,21 @@ def reject_procedure(procedure_id: int) -> Dict[str, Any]:
 def delete_procedure(procedure_id: int) -> None:
     if not procedures.delete(procedure_id):
         raise HTTPException(status_code=404, detail=f"Procedura #{procedure_id} non trovata.")
+
+
+@router.get("/consolidation")
+def get_consolidation() -> Dict[str, Any]:
+    """Stato del consolidamento: in corso, ultima esecuzione con l'esito, messaggi ancora da consolidare."""
+    from app.agent import memory_consolidation
+
+    return memory_consolidation.status()
+
+
+@router.post("/consolidation", status_code=202)
+def start_consolidation() -> Dict[str, Any]:
+    """Consolida subito i messaggi nuovi e deduplica i fatti, in background, con il modello attivo."""
+    from app.agent import memory_consolidation
+
+    if not memory_consolidation.run_in_background():
+        raise HTTPException(status_code=409, detail="Consolidamento già in corso.")
+    return {"started": True}

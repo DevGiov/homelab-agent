@@ -122,11 +122,12 @@ def fts_query(text: str) -> str:
 
 
 def keyword_search_memory(query: str, *, kind: str, k: int, thread_id: Optional[str] = None) -> List[int]:
-    """Id dei record di `kind` che contengono le parole della query, dal più pertinente (BM25)."""
+    """Id dei record validi di `kind` che contengono le parole della query, dal più pertinente (BM25)."""
     match = fts_query(query)
     if not match:
         return []
-    sql = "SELECT f.rowid FROM memory_fts f JOIN vec_memory m ON m.id = f.rowid WHERE memory_fts MATCH ? AND f.kind = ?"
+    sql = ("SELECT f.rowid FROM memory_fts f JOIN vec_memory m ON m.id = f.rowid "
+           "WHERE memory_fts MATCH ? AND f.kind = ? AND m.invalid_at IS NULL")
     params: list = [match, kind]
     if thread_id:
         sql += " AND m.thread_id = ?"

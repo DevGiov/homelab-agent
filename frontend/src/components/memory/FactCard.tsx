@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Pencil, PenLine, Trash2 } from 'lucide-react';
+import { History, MessageSquare, Pencil, PenLine, RotateCcw, Trash2 } from 'lucide-react';
 import type { Entity, Fact, FactInput } from '../../api/memory';
 import { formatDateTime } from '../../utils/metricsFormat';
 import { EntityChip } from './EntityChip';
@@ -14,10 +14,11 @@ interface FactCardProps {
   onSelectEntity: (id: number) => void;
   onOpenThread?: (threadId: string) => void;
   onSave: (input: FactInput) => Promise<boolean>;
+  onRestore: () => void;
   onDelete: () => void;
 }
 
-export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityId, threadTitle, onSelectEntity, onOpenThread, onSave, onDelete }) => {
+export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityId, threadTitle, onSelectEntity, onOpenThread, onSave, onRestore, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -35,10 +36,15 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
   }
 
   return (
-    <article className="group rounded-xl border border-border bg-panel/60 p-3 hover:border-accent/30 transition">
+    <article className={`group rounded-xl border border-border p-3 hover:border-accent/30 transition ${fact.invalid_at ? 'bg-panel/30 opacity-70' : 'bg-panel/60'}`} aria-label={`Fatto ${fact.id}`}>
       <div className="flex items-start gap-2">
-        <p className="flex-1 text-[13px] text-fg leading-relaxed">{fact.content}</p>
+        <p className={`flex-1 text-[13px] leading-relaxed ${fact.invalid_at ? 'text-fg-muted line-through decoration-fg-muted/50' : 'text-fg'}`}>{fact.content}</p>
         <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition">
+          {fact.invalid_at && (
+            <button onClick={onRestore} className="p-1 rounded-md text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer" title="Rendi di nuovo valido">
+              <RotateCcw size={13} />
+            </button>
+          )}
           <button onClick={() => setIsEditing(true)} className="p-1 rounded-md text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer" title="Modifica fatto">
             <Pencil size={13} />
           </button>
@@ -74,6 +80,11 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
           </span>
         )}
         {fact.created_at && <span>{formatDateTime(fact.created_at)}</span>}
+        {fact.invalid_at && (
+          <span className="flex items-center gap-1 text-amber-400/90">
+            <History size={11} /> {fact.superseded_by ? `superato da #${fact.superseded_by}` : 'non più valido'} il {formatDateTime(fact.invalid_at)}
+          </span>
+        )}
         {fact.score != null && <span className="tabular-nums">pertinenza {Math.round(fact.score * 100)}%</span>}
       </div>
     </article>

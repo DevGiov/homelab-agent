@@ -1,5 +1,8 @@
 """Fatti della memoria a lungo termine e entità che citano.
 
+Un fatto ha una validità: quando un fatto più recente lo smentisce non viene cancellato ma riceve `invalid_at` e
+`superseded_by` (il fatto che lo sostituisce), così resta la storia e la ricerca restituisce solo quelli validi.
+
 I fatti sono i record `kind='fact'` della memoria vettoriale (testo, embedding, thread di origine). Ogni fatto
 è collegato alle entità che nomina (persone, servizi, host, …); due entità sono in relazione quando compaiono
 negli stessi fatti. Un'entità esiste solo finché almeno un fatto la cita: le orfane si eliminano a ogni modifica.
@@ -79,10 +82,15 @@ def _entities_of(conn, fact_ids: Iterable[int]) -> Dict[int, List[Dict[str, Any]
     return by_fact
 
 
+def _iso(value: Any) -> Optional[str]:
+    # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
+    return f"{str(value).replace(' ', 'T')}+00:00" if value else None
+
+
 def _fact_rows(conn, rows: List[tuple], scores: Optional[Dict[int, float]] = None) -> List[Dict[str, Any]]:
     entities = _entities_of(conn, (r[0] for r in rows))
     facts = []
-    for fact_id, thread_id, content, metadata_json, created_at in rows:
+    for fact_id, thread_id, content, metadata_json, created_at, invalid_at, superseded_by in rows:
         metadata = json.loads(metadata_json) if metadata_json else {}
         fact = {
             "id": fact_id,
@@ -90,7 +98,9 @@ def _fact_rows(conn, rows: List[tuple], scores: Optional[Dict[int, float]] = Non
             "thread_id": thread_id,
             "source": metadata.get("source", "manual"),
             # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
-            "created_at": f"{str(created_at).replace(' ', 'T')}+00:00" if created_at else None,
+            "created_at": _iso(created_at),
+            "invalid_at": _iso(invalid_at),
+            "superseded_by": superseded_by,
             "entities": entities[fact_id],
         }
         if scores is not None:
@@ -99,11 +109,13 @@ def _fact_rows(conn, rows: List[tuple], scores: Optional[Dict[int, float]] = Non
     return facts
 
 
-_FACT_COLUMNS = "m.id, m.thread_id, m.content, m.metadata_json, m.created_at"
+_FACT_COLUMNS = "m.id, m.thread_id, m.content, m.metadata_json, m.created_at, m.invalid_at, m.superseded_by"
 
 
-def _filters(thread_id: Optional[str], entity_id: Optional[int]) -> Tuple[str, List[Any]]:
+def _filters(thread_id: Optional[str], entity_id: Optional[int], include_superseded: bool = False) -> Tuple[str, List[Any]]:
     sql, params = " WHERE m.kind = 'fact'", []
+    if not include_superseded:
+        sql += " AND m.invalid_at IS NULL"
     if thread_id:
         sql += " AND m.thread_id = ?"
         params.append(thread_id)
@@ -114,10 +126,11 @@ def _filters(thread_id: Optional[str], entity_id: Optional[int]) -> Tuple[str, L
 
 
 def list_facts(
-    *, thread_id: Optional[str] = None, entity_id: Optional[int] = None, limit: int = 50, offset: int = 0
+    *, thread_id: Optional[str] = None, entity_id: Optional[int] = None, include_superseded: bool = False,
+    limit: int = 50, offset: int = 0,
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """Fatti dal più recente, con il totale per la paginazione."""
-    where, params = _filters(thread_id, entity_id)
+    """Fatti validi (o anche quelli superati) dal più recente, con il totale per la paginazione."""
+    where, params = _filters(thread_id, entity_id, include_superseded)
     conn = vector_store._get_conn()
     try:
         total = conn.execute(f"SELECT COUNT(*) FROM vec_memory m{where}", params).fetchone()[0]
@@ -233,10 +246,13 @@ def get_entity(entity_id: int) -> Optional[Dict[str, Any]]:
 def stats() -> Dict[str, int]:
     conn = vector_store._get_conn()
     try:
-        facts, threads = conn.execute("SELECT COUNT(*), COUNT(DISTINCT thread_id) FROM vec_memory WHERE kind = 'fact'").fetchone()
+        facts, threads = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT thread_id) FROM vec_memory WHERE kind = 'fact' AND invalid_at IS NULL"
+        ).fetchone()
+        superseded = conn.execute("SELECT COUNT(*) FROM vec_memory WHERE kind = 'fact' AND invalid_at IS NOT NULL").fetchone()[0]
         entities = conn.execute("SELECT COUNT(DISTINCT entity_id) FROM memory_fact_entities").fetchone()[0]
         untagged = conn.execute(f"SELECT COUNT(*) FROM vec_memory m WHERE {_UNTAGGED}").fetchone()[0]
-        return {"facts": facts, "threads": threads, "entities": entities, "facts_without_entities": untagged}
+        return {"facts": facts, "superseded_facts": superseded, "threads": threads, "entities": entities, "facts_without_entities": untagged}
     finally:
         conn.close()
 
@@ -283,15 +299,17 @@ def add_fact(
     entities: Iterable[Dict[str, str]] = (),
     source: str = "manual",
     entities_checked: bool = False,
+    created_at: Optional[str] = None,
 ) -> Tuple[Optional[int], bool]:
     """Salva un fatto con le sue entità. Restituisce (id, creato): un quasi-duplicato non viene riscritto ma
     riceve le entità nuove, e l'id è quello del fatto esistente. `entities_checked` segna che le entità sono già
-    state cercate (dall'estrazione), così il fatto non torna tra quelli da analizzare anche se non ne ha."""
+    state cercate (dall'estrazione), così il fatto non torna tra quelli da analizzare anche se non ne ha.
+    `created_at` è la data da cui il fatto vale (per i fatti consolidati, quella del messaggio da cui vengono)."""
     content = content.strip()
     if not content:
         return None, False
     duplicate = find_duplicate(content)
-    fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata={"source": source})
+    fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata={"source": source}, created_at=created_at)
     if fact_id is None:
         return None, False
     if entities_checked:
@@ -342,6 +360,34 @@ def tag_fact(fact_id: int, entities: Iterable[Dict[str, str]]) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def supersede_fact(fact_id: int, *, by: Optional[int] = None, at: Optional[str] = None) -> bool:
+    """Il fatto smette di valere da `at` (default adesso), sostituito dal fatto `by` o semplicemente non più vero."""
+    if by == fact_id:
+        return False
+    conn = vector_store._get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE vec_memory SET invalid_at = COALESCE(?, CURRENT_TIMESTAMP), superseded_by = ? "
+            "WHERE id = ? AND kind = 'fact' AND invalid_at IS NULL",
+            (at, by, fact_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def restore_fact(fact_id: int) -> Optional[Dict[str, Any]]:
+    """Un fatto superato torna valido (per esempio se la sostituzione era sbagliata)."""
+    conn = vector_store._get_conn()
+    try:
+        cur = conn.execute("UPDATE vec_memory SET invalid_at = NULL, superseded_by = NULL WHERE id = ? AND kind = 'fact'", (fact_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_fact(fact_id) if cur.rowcount else None
 
 
 def delete_fact(fact_id: int) -> bool:

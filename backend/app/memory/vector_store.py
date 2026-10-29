@@ -16,7 +16,7 @@ logger = logging.getLogger("vector_store")
 # Il Dockerfile pre-scarica questo modello nell'immagine (FASTEMBED_CACHE_PATH): tenerli allineati
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBED_DIM = 384
-# Vicini estratti per ogni risultato richiesto quando la ricerca filtra per tipo o thread
+# Vicini estratti per ogni risultato richiesto: la ricerca filtra dopo per tipo, thread e validità
 FILTER_OVERSAMPLING = 20
 
 _embedder = None
@@ -70,9 +70,17 @@ def init_vector_db():
                 thread_id TEXT,
                 content TEXT NOT NULL,
                 metadata_json TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                invalid_at DATETIME,
+                superseded_by INTEGER
             )
         """)
+        # Validità temporale (E6) sui database creati prima: un record smentito resta, con la data in cui ha smesso
+        # di valere e il record che lo sostituisce, ed esce dalle ricerche
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(vec_memory)")}
+        for column, sql_type in (("invalid_at", "DATETIME"), ("superseded_by", "INTEGER")):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE vec_memory ADD COLUMN {column} {sql_type}")
         conn.execute(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS vec_memory_idx USING vec0(
                 embedding float[{EMBED_DIM}] distance_metric=cosine
@@ -89,16 +97,18 @@ def add_memory(
     kind: str = "fact",
     thread_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    created_at: Optional[str] = None,
 ) -> Optional[int]:
-    """Aggiunge un documento alla memoria vettoriale. Ritorna l'id o None."""
+    """Aggiunge un documento alla memoria vettoriale (`created_at` UTC 'YYYY-MM-DD HH:MM:SS', default adesso).
+    Ritorna l'id o None."""
     if not content or not content.strip():
         return None
     try:
         embedding = embed_query(content.strip())
         conn = _get_conn()
         cur = conn.execute(
-            "INSERT INTO vec_memory (kind, thread_id, content, metadata_json) VALUES (?, ?, ?, ?)",
-            (kind, thread_id, content.strip(), json.dumps(metadata or {}, ensure_ascii=False)),
+            "INSERT INTO vec_memory (kind, thread_id, content, metadata_json, created_at) VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))",
+            (kind, thread_id, content.strip(), json.dumps(metadata or {}, ensure_ascii=False), created_at),
         )
         row_id = cur.lastrowid
         conn.execute(
@@ -120,30 +130,21 @@ def search_memory(
     kind: Optional[str] = None,
     thread_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Ricerca semantica per similarità coseno (sqlite-vec distance = 1 - cosine)."""
+    """Ricerca semantica per similarità coseno (sqlite-vec distance = 1 - cosine), solo tra i record ancora validi."""
     try:
         q_emb = embed_query(query)
         conn = _get_conn()
+        # Filtro dopo la ricerca (sqlite-vec non filtra dentro MATCH): si prendono più vicini e si tagliano a k,
+        # altrimenti i record di un altro tipo o superati occuperebbero tutti i posti
+        params: List[Any] = [json.dumps(q_emb), k * FILTER_OVERSAMPLING]
         sql = """
-            SELECT m.id, m.kind, m.thread_id, m.content, m.metadata_json, v.distance
-            FROM vec_memory_idx v
-            JOIN vec_memory m ON m.id = v.rowid
-            WHERE v.embedding MATCH ?
-              AND k = ?
+            SELECT * FROM (
+                SELECT m.id, m.kind, m.thread_id, m.content, m.metadata_json, v.distance, m.invalid_at
+                FROM vec_memory_idx v
+                JOIN vec_memory m ON m.id = v.rowid
+                WHERE v.embedding MATCH ? AND k = ?
+            ) WHERE invalid_at IS NULL
         """
-        params: List[Any] = [json.dumps(q_emb), k]
-        if kind or thread_id:
-            # Filtro dopo la ricerca (sqlite-vec non filtra dentro MATCH): si prendono più vicini e si tagliano a k,
-            # altrimenti i documenti di un altro tipo occuperebbero tutti i posti
-            params[1] = k * FILTER_OVERSAMPLING
-            sql = """
-                SELECT * FROM (
-                    SELECT m.id, m.kind, m.thread_id, m.content, m.metadata_json, v.distance
-                    FROM vec_memory_idx v
-                    JOIN vec_memory m ON m.id = v.rowid
-                    WHERE v.embedding MATCH ? AND k = ?
-                ) WHERE 1=1
-            """
         if kind:
             sql += " AND kind = ?"
             params.append(kind)

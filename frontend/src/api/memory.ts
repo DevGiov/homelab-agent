@@ -18,7 +18,12 @@ export interface Fact {
   /** Thread in cui è emerso; null per i fatti aggiunti a mano. */
   thread_id: string | null;
   source: 'conversation' | 'manual' | string;
+  /** Da quando vale (per i fatti consolidati, la data del messaggio da cui viene). */
   created_at: string | null;
+  /** Da quando non vale più: smentito da un fatto più recente o non più vero. */
+  invalid_at: string | null;
+  /** Il fatto che lo sostituisce. */
+  superseded_by: number | null;
   entities: FactEntity[];
   /** Somiglianza con la query, solo nei risultati di ricerca. */
   score?: number;
@@ -34,7 +39,9 @@ export interface EntityDetail extends Entity {
 }
 
 export interface MemoryStats {
+  /** Fatti validi. */
   facts: number;
+  superseded_facts: number;
   threads: number;
   entities: number;
   /** Fatti mai analizzati per le entità (salvati prima delle entità o a mano senza entità). */
@@ -48,6 +55,7 @@ export interface FactFilters {
   query?: string;
   thread_id?: string;
   entity_id?: number;
+  include_superseded?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -71,6 +79,10 @@ export function createFact(input: FactInput): Promise<Fact> {
 
 export function updateFact(id: number, input: FactInput): Promise<Fact> {
   return http.put(`/memory/facts/${id}`, input);
+}
+
+export function restoreFact(id: number): Promise<Fact> {
+  return http.post(`/memory/facts/${id}/restore`);
 }
 
 export function deleteFact(id: number): Promise<void> {
@@ -207,4 +219,34 @@ export function rejectProcedure(id: number): Promise<Procedure> {
 
 export function deleteProcedure(id: number): Promise<void> {
   return http.delete(`/memory/procedures/${id}`);
+}
+
+export interface ConsolidationResult {
+  trigger: string;
+  messages?: number;
+  added?: number;
+  updated?: number;
+  invalidated?: number;
+  deduplicated?: number;
+  error?: string;
+  seconds: number;
+}
+
+/** Consolidamento della memoria: dai messaggi delle conversazioni ai fatti. */
+export interface ConsolidationStatus {
+  running: boolean;
+  running_since: string | null;
+  last_run: string | null;
+  last_result: ConsolidationResult | null;
+  pending: { messages: number; threads: number };
+  /** Ora del consolidamento giornaliero, -1 se solo su richiesta. */
+  schedule_hour: number;
+}
+
+export function getConsolidation(): Promise<ConsolidationStatus> {
+  return http.get('/memory/consolidation');
+}
+
+export function startConsolidation(): Promise<{ started: boolean }> {
+  return http.post('/memory/consolidation');
 }

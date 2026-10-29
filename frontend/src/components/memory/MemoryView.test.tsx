@@ -9,9 +9,19 @@ const debian = { id: 2, name: 'Debian', type: 'software' as const };
 const docker = { id: 3, name: 'Docker', type: 'software' as const };
 
 const facts: Fact[] = [
-  { id: 11, content: 'Il CT 125 usa Debian 12', thread_id: 't1', source: 'conversation', created_at: '2026-10-27T13:32:08+00:00', entities: [ct125, debian] },
-  { id: 10, content: "L'agente gira su Docker nel CT 125", thread_id: null, source: 'manual', created_at: '2026-10-26T10:00:00+00:00', entities: [ct125, docker] },
+  { id: 11, content: 'Il CT 125 usa Debian 12', thread_id: 't1', source: 'conversation', created_at: '2026-10-27T13:32:08+00:00', invalid_at: null, superseded_by: null, entities: [ct125, debian] },
+  { id: 10, content: "L'agente gira su Docker nel CT 125", thread_id: null, source: 'manual', created_at: '2026-10-26T10:00:00+00:00', invalid_at: null, superseded_by: null, entities: [ct125, docker] },
 ];
+const superseded: Fact = {
+  id: 9,
+  content: 'Il CT 125 usa Debian 11',
+  thread_id: 't1',
+  source: 'conversation',
+  created_at: '2026-08-01T10:00:00+00:00',
+  invalid_at: '2026-10-27T13:32:08+00:00',
+  superseded_by: 11,
+  entities: [ct125, debian],
+};
 const entities: Entity[] = [
   { ...ct125, fact_count: 2 },
   { ...debian, fact_count: 1 },
@@ -22,10 +32,11 @@ const ct125Detail: EntityDetail = { ...entities[0], related: [{ ...debian, share
 function setup() {
   return mockBackend(
     {
-      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, threads: 1, entities: 3, facts_without_entities: 4, episodes: 1, procedures_proposed: 1 }),
+      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, superseded_facts: 1, threads: 1, entities: 3, facts_without_entities: 4, episodes: 1, procedures_proposed: 1 }),
       'GET /v1/memory/facts': (req) => {
         const params = new URLSearchParams(req.search);
         if (params.get('query')) return jsonResponse({ facts: [{ ...facts[0], score: 0.82 }], total: 1 });
+        if (params.get('include_superseded')) return jsonResponse({ facts: [...facts, superseded], total: 3 });
         return jsonResponse({ facts, total: 2 });
       },
       'GET /v1/memory/entities': () => jsonResponse(entities),
@@ -37,6 +48,17 @@ function setup() {
       'GET /v1/memory/procedures/tools': () => jsonResponse(['proxmox-mcp__exec_lxc_command', 'web_search']),
       'POST /v1/memory/procedures/3/approve': () => jsonResponse({ ...proposal, status: 'approved' }),
       'POST /v1/memory/procedures': (req) => jsonResponse({ ...proposal, ...(req.body as object), id: 4, status: 'approved', source: 'user' }, 201),
+      'GET /v1/memory/consolidation': () =>
+        jsonResponse({
+          running: false,
+          running_since: null,
+          last_run: '2026-10-29T03:00:05+00:00',
+          last_result: { trigger: 'schedule', messages: 12, added: 3, updated: 1, invalidated: 0, deduplicated: 0, seconds: 40 },
+          pending: { messages: 6, threads: 2 },
+          schedule_hour: 3,
+        }),
+      'POST /v1/memory/consolidation': () => jsonResponse({ started: true }, 202),
+      'POST /v1/memory/facts/9/restore': () => jsonResponse({ ...superseded, invalid_at: null, superseded_by: null }),
       'GET /v1/memory/profile': () => jsonResponse({ content: '', updated_at: null }),
       'PUT /v1/memory/profile': (req) => jsonResponse({ content: (req.body as { content: string }).content.trim(), updated_at: '2026-10-29T12:00:00+00:00' }),
     },
@@ -232,6 +254,23 @@ describe('MemoryView', () => {
         tool_name: null,
       })
     );
+  });
+
+  it('mostra il consolidamento e lo avvia; i fatti superati si vedono a richiesta e si ripristinano', async () => {
+    const { requests } = setup();
+    render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
+    const bar = await screen.findByLabelText('Consolidamento della memoria');
+    expect(within(bar).getByText('6')).toBeTruthy();
+    expect(within(bar).getByText(/3 fatti nuovi, 1 aggiornati/)).toBeTruthy();
+    fireEvent.click(within(bar).getByRole('button', { name: /Consolida ora/ }));
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')).toBe(true));
+
+    expect(screen.queryByText('Il CT 125 usa Debian 11')).toBeNull();
+    fireEvent.click(screen.getByLabelText(/Mostra i 1 superati/));
+    const card = await screen.findByRole('article', { name: 'Fatto 9' });
+    expect(within(card).getByText(/superato da #11/)).toBeTruthy();
+    fireEvent.click(within(card).getByTitle('Rendi di nuovo valido'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/facts/9/restore')).toBe(true));
   });
 
   it('scrive il profilo che l\'agente legge a ogni turno', async () => {

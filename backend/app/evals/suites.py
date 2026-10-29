@@ -196,10 +196,15 @@ def run_rollback(case: Dict[str, Any], model: str) -> Outcome:
 
 
 def run_memory(case: Dict[str, Any], model: str) -> Outcome:
-    from app.agent.fact_extraction import extract_facts
+    """Un solo scambio consolidato in una memoria vuota: i fatti sono le operazioni `add`."""
+    from app.agent.memory_consolidation import propose_operations
 
-    facts = extract_facts(case["task"], case["response"], "", model=model)
-    return grade_memory(case, [{"text": f.text, "entities": [e.name for e in f.entities]} for f in facts])
+    messages = [{"role": "user", "content": case["task"]}, {"role": "assistant", "content": case["response"]}]
+    operations = propose_operations(messages, [], model=model)
+    if operations is None:
+        return Outcome(False, "nessuna risposta strutturata")
+    added = [op for op in operations if op.op == "add" and op.fact.strip()]
+    return grade_memory(case, [{"text": op.fact, "entities": [e.name for e in op.entities]} for op in added])
 
 
 # Scambi neutri che allungano un thread oltre la finestra dei messaggi recenti
@@ -217,6 +222,7 @@ FILLER_TURNS = [
 @contextmanager
 def memory_sandbox() -> Iterator[None]:
     """Conversazioni, riassunti, profilo (vuoto), procedure e fatti in un database temporaneo, eliminato all'uscita."""
+    from app.agent import memory_consolidation
     from app.core.config import Settings
     from app.memory import facts, hybrid_search, procedures, profile, thread_store, vector_store
 
@@ -226,15 +232,15 @@ def memory_sandbox() -> Iterator[None]:
             thread_store.init_db()
             profile.init_profile_db()
             procedures.init_procedures_db()
+            memory_consolidation.init_consolidation_db()
             vector_store.init_vector_db()
             facts.init_facts_db()
             hybrid_search.init_search_indexes()
             yield
 
 
-def _ingest(session: Dict[str, Any], model: str) -> None:
-    """Salva gli scambi come farebbe l'agente (messaggi ed estrazione dei fatti), datati alla data della sessione."""
-    from app.agent.fact_extraction import remember_turn
+def _ingest(session: Dict[str, Any]) -> None:
+    """Salva gli scambi come farebbe l'agente, datati alla data della sessione (i fatti arrivano dal consolidamento)."""
     from app.core.config import settings
     from app.memory import thread_store
 
@@ -243,11 +249,8 @@ def _ingest(session: Dict[str, Any], model: str) -> None:
     for i, (user, assistant) in enumerate(turns):
         thread_store.save_user_message(thread, user, user_msg_id=f"{thread}-u{i}")
         thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat"}, ast_msg_id=f"{thread}-a{i}")
-        if session.get("extract", True) and i < len(session["turns"]):
-            remember_turn(user, assistant, "", thread, model=model)
     with sqlite3.connect(settings.checkpoint_db_path) as conn:
-        for table in ("thread_messages", "vec_memory"):
-            conn.execute(f"UPDATE {table} SET created_at = ? WHERE thread_id = ?", (f"{session['date']} 10:00:00", thread))
+        conn.execute("UPDATE thread_messages SET created_at = ? WHERE thread_id = ?", (f"{session['date']} 10:00:00", thread))
 
 
 class RecallAnswer(BaseModel):
@@ -257,12 +260,14 @@ class RecallAnswer(BaseModel):
 
 def run_recall(case: Dict[str, Any], model: str) -> Outcome:
     from app.agent import llm_calls
+    from app.agent.memory_consolidation import consolidate_messages
     from app.agent.nodes.retrieve_memory import retrieve_memory_node
     from app.memory import thread_store
 
     with memory_sandbox():
         for session in case["sessions"]:
-            _ingest(session, model)
+            _ingest(session)
+        consolidate_messages(model)
         thread = case.get("thread", "domanda")
         thread_store.save_user_message(thread, case["question"], user_msg_id=f"{thread}-question")
         context = retrieve_memory_node({"thread_id": thread, "task": case["question"], "model": model, "mode": "ask"})["memory_context"] or ""

@@ -103,7 +103,8 @@ def test_grade_recall():
 
 
 def test_recall_runs_in_a_sandbox_and_leaves_real_memory_untouched():
-    from app.agent import fact_extraction
+    from app.agent import memory_consolidation
+    from app.agent.memory_consolidation import FactOperation
     from app.agent.nodes import retrieve_memory
     from app.memory import facts, thread_store
 
@@ -113,27 +114,32 @@ def test_recall_runs_in_a_sandbox_and_leaves_real_memory_untouched():
     case = {
         "sessions": [
             {"thread": "a", "date": "2026-08-15", "turns": [["Pi-hole ha l'IP 192.168.1.53.", "Annotato."]]},
-            {"thread": "q", "date": "2026-10-12", "extract": False, "turns": [["Chiamiamo Orione il progetto.", "D'accordo."]], "filler": 14},
+            {"thread": "q", "date": "2026-10-12", "turns": [["Chiamiamo Orione il progetto.", "D'accordo."]], "filler": 14},
         ],
         "thread": "q",
         "question": "Qual è l'IP di Pi-hole e come si chiama il progetto?",
         "expect_all": ["192.168.1.53", "Orione"],
     }
-    extracted = [fact_extraction.ExtractedFact(text="Pi-hole ha l'IP 192.168.1.53", entities=[])]
     seen = {}
+
+    def consolidate(messages, related, model=None):
+        if "Pi-hole" in messages[0]["content"]:
+            return [FactOperation(op="add", message=1, fact="Pi-hole ha l'IP 192.168.1.53")]
+        return []
 
     def reader(prompt, *args, **kwargs):
         seen["prompt"] = prompt
         return RecallAnswer(answer="192.168.1.53, progetto Orione", found=True)
 
-    with patch.object(fact_extraction, "extract_facts", return_value=extracted) as extract, \
+    with patch.object(memory_consolidation, "propose_operations", side_effect=consolidate) as consolidation, \
             patch.object(retrieve_memory, "_update_summary", return_value="Il progetto si chiama Orione.") as summarize, \
             patch("app.agent.llm_calls.call_llm_structured", side_effect=reader):
         outcome = suites.run_recall(case, "m")
 
     assert outcome.passed, outcome.detail
-    assert extract.call_count == 1  # solo gli scambi del caso, non i riempitivi né le sessioni senza estrazione
+    assert consolidation.call_count == 3  # thread a in un blocco, il thread lungo (30 messaggi) in due
     assert len(summarize.call_args.args[1]) == 30 - 10  # thread lungo: la parte vecchia passa dal riassunto
+    # il fatto consolidato porta la data del messaggio da cui viene
     assert "- [2026-08-15] Pi-hole ha l'IP 192.168.1.53" in seen["prompt"] and "Il progetto si chiama Orione." in seen["prompt"]
     assert len(thread_store.get_history("a")) == real_threads and facts.stats() == real_facts
 

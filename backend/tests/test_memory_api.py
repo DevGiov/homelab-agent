@@ -1,12 +1,11 @@
-"""Memoria a lungo termine: fatti con entità, relazioni, estrazione a fine turno, tool di recall e API dell'explorer."""
+"""Memoria a lungo termine: fatti con entità, relazioni, validità, tool di recall e API dell'explorer."""
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.agent import fact_extraction
-from app.agent.fact_extraction import EntityTagging, ExtractedEntity, ExtractedFact, FactExtraction, TaggedFact
-from app.llm.providers import LLMUnavailableError
+from app.agent.fact_extraction import EntityTagging, ExtractedEntity, TaggedFact
 from app.memory import facts, vector_store
 from app.registry.memory import MemoryRegistry
 
@@ -94,34 +93,6 @@ def test_search_is_not_crowded_out_by_documents():
     assert [f["id"] for f in facts.search_facts("Debian container", k=3)] == [fact_id]
 
 
-# --- Estrazione a fine turno ---
-
-
-def extraction(*items):
-    return FactExtraction(facts=[ExtractedFact(text=t, entities=[ExtractedEntity(name=n, type=k) for n, k in es]) for t, es in items])
-
-
-def test_remember_turn_saves_facts_with_entities():
-    result = extraction(
-        ("Il NAS Synology ha IP 192.168.1.20", [("Synology", "organization"), ("NAS", "infrastructure")]),
-        ("L'utente preferisce risposte brevi", []),
-        ("ok", []),
-    )
-    with patch(STRUCTURED, return_value=result) as llm:
-        created = fact_extraction.remember_turn("Che IP ha il NAS?", "Il NAS ha IP 192.168.1.20", "", "thread-m1")
-    assert created == 2
-    assert llm.call_args.kwargs["reasoning_budget"] == 0
-    stats = facts.stats()
-    # Il fatto senza entità è già stato analizzato: non resta in coda per l'etichettatura
-    assert (stats["facts"], stats["entities"], stats["facts_without_entities"]) == (2, 2, 0)
-    assert {f["source"] for f in facts.list_facts()[0]} == {"conversation"}
-
-
-def test_extraction_tolerates_llm_unavailable():
-    with patch(STRUCTURED, side_effect=LLMUnavailableError("timeout")):
-        assert fact_extraction.remember_turn("domanda", "risposta", "", "t") == 0
-
-
 def test_tag_untagged_facts_in_batches():
     ids = [facts.add_fact(text)[0] for text in (
         "Luca lavora al progetto Odysseus",
@@ -174,7 +145,7 @@ def test_facts_api_crud(api):
 
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 204
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 404
-    assert api.get("/v1/memory/stats").json() == {"facts": 0, "threads": 0, "entities": 0, "facts_without_entities": 0, "episodes": 0, "procedures_proposed": 0}
+    assert api.get("/v1/memory/stats").json() == {"facts": 0, "superseded_facts": 0, "threads": 0, "entities": 0, "facts_without_entities": 0, "episodes": 0, "procedures_proposed": 0}
 
 
 def test_entities_api(api):
