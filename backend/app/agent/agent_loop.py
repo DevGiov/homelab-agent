@@ -8,8 +8,11 @@ Ogni risultato di tool è tenuto due volte: intero per la sintesi finale e accor
 nello storico che i passi di selezione rileggono, così un elenco lungo non fa crescere ogni prompt successivo.
 
 Funzioni LLM attese dal chiamante:
-- `call_llm_fn(prompt, system_prompt=..., reasoning_budget=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
-- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., images=...)` -> ToolSelection
+- `call_llm_fn(prompt, system_prompt=..., thinking=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
+- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=...)` -> ToolSelection
+
+Il livello di ragionamento (`thinking`) è quello della fase nella `ThinkingPolicy` della modalità: `select` per la
+scelta dei tool, `answer` per risposte e sintesi.
 """
 import json
 import logging
@@ -35,8 +38,6 @@ logger = logging.getLogger("agent_loop")
 SEARCH_SIMILARITY_THRESHOLD = 0.80
 SESSION_PAUSE_TIMEOUT_SECONDS = 300
 SELECTION_MAX_TOKENS = 4096
-SELECTION_REASONING_CAP = 1024
-SYNTHESIS_REASONING_CAP = 512
 
 
 def is_tools_discovery_query(query: str) -> bool:
@@ -191,18 +192,15 @@ class AgentLoop:
         self.history.append(f"{header} -> {_guarded(tool_name, short)}")
         return full
 
-    def _ask_llm(self, prompt: str, system_prompt: str, reasoning_budget: int, phase: str) -> str:
-        """Chiamata testuale; il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
-        res = self.call_llm_fn(prompt, system_prompt=system_prompt, reasoning_budget=reasoning_budget, reasoning_phase=phase)
+    def _ask_llm(self, prompt: str, system_prompt: str, phase: str) -> str:
+        """Risposta testuale (fase `answer`); il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
+        res = self.call_llm_fn(prompt, system_prompt=system_prompt, thinking=self.policy.thinking.answer, reasoning_phase=phase)
         if isinstance(res, dict) and res.get("error"):
             raise LLMUnavailableError(res["error"])
         content, reasoning = _content(res)
         if reasoning:
             self.reasonings.append((phase, reasoning))
         return clean_synthesis_content(content)
-
-    def _synthesis_budget(self) -> int:
-        return min(self.policy.reasoning_budget, SYNTHESIS_REASONING_CAP) if self.policy.reasoning_budget > 0 else 0
 
     # --- percorso principale ----------------------------------------------------
 
@@ -271,7 +269,7 @@ class AgentLoop:
             res = self.call_llm_fn(
                 prompts.no_tools_prompt(self.task, self.now, self.memory_context, self.prefetch_block),
                 system_prompt=prompts.no_tools_system_prompt(self.mode),
-                reasoning_budget=self.policy.reasoning_budget,
+                thinking=self.policy.thinking.answer,
                 reasoning_phase=None,
             )
             if res:
@@ -286,7 +284,7 @@ class AgentLoop:
         res = self.call_llm_fn(
             prompts.plain_answer_prompt(self.task, self.now, self.memory_context),
             system_prompt=prompts.plain_answer_system_prompt(self.mode),
-            reasoning_budget=self.policy.reasoning_budget,
+            thinking=self.policy.thinking.answer,
             reasoning_phase="Elaborazione Risposta Finale",
         )
         content, reasoning = _content(res)
@@ -308,7 +306,6 @@ class AgentLoop:
 
     def _select_tool(self, step_id: int, system_prompt: str) -> Optional[ToolSelection]:
         history = "\n".join(self.history) if self.history else "Nessuna azione eseguita finora."
-        budget = self.policy.reasoning_budget
         selection = self.call_llm_structured_fn(
             prompt=prompts.tool_selection_prompt(self.task, self.now, self.memory_context, self.prefetch_block,
                                                  len(self.images or []), history),
@@ -317,7 +314,7 @@ class AgentLoop:
             max_tokens=SELECTION_MAX_TOKENS,
             temperature=0.10,
             max_retries=2,
-            reasoning_budget=min(budget, SELECTION_REASONING_CAP) if budget > 0 else SELECTION_REASONING_CAP,
+            thinking=self.policy.thinking.select,
             images=self.images,
         )
         reasoning = (getattr(selection, "raw_thinking", "") or "") or ((selection.reasoning if selection else "") or "")
@@ -348,7 +345,6 @@ class AgentLoop:
             answer = self._ask_llm(
                 prompts.tool_synthesis_prompt(self.task, self.now, self._observation_text()),
                 prompts.tool_synthesis_system_prompt(),
-                self._synthesis_budget(),
                 "Sintesi Risultati Tool",
             )
             return self._result(answer or "The model processed the information but did not produce a text response. Please retry or adjust mode.")
@@ -356,7 +352,6 @@ class AgentLoop:
         answer = self._ask_llm(
             prompts.direct_answer_prompt(self.task, self.now, self.memory_context, self.prefetch_block),
             prompts.direct_answer_system_prompt(self.mode),
-            self.policy.reasoning_budget,
             "Elaborazione Risposta Finale",
         )
         return self._result(answer or "Il modello ha elaborato le informazioni ma non ha prodotto una risposta testuale. Riprova o cambia modalità.")
@@ -478,7 +473,6 @@ class AgentLoop:
         answer = self._ask_llm(
             prompts.final_synthesis_prompt(self.task, self.now, self._observation_text()),
             prompts.final_synthesis_system_prompt(),
-            self._synthesis_budget(),
             "Sintesi Risultati Finali",
         )
         return self._result(answer or "Operazione completata.")

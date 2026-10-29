@@ -81,24 +81,15 @@ class TestAntiLoop(unittest.TestCase):
 
 
 class TestSamplingPayload(unittest.TestCase):
-    def test_sampling_penalties_injected(self):
+    def test_sampling_comes_from_the_model_profile(self):
         from app.llm.providers import OpenAICompatProvider
+        from app.llm.reasoning import resolve
+
         provider = OpenAICompatProvider(base_url="http://mock:8080/v1", default_model="Qwen3.6-35B-HugeCtx")
-        payload = provider._build_payload(
-            messages=[{"role": "user", "content": "hello"}],
-            model="Qwen3.6-35B-HugeCtx",
-            max_tokens=100,
-            temperature=0.7,
-            reasoning_budget=-1,
-        )
-        self.assertIn("repeat_penalty", payload)
-        self.assertEqual(payload["repeat_penalty"], 1.10)
-        self.assertIn("presence_penalty", payload)
-        self.assertEqual(payload["presence_penalty"], 0.15)
-        self.assertIn("frequency_penalty", payload)
-        self.assertEqual(payload["frequency_penalty"], 0.10)
-        self.assertIn("top_p", payload)
-        self.assertEqual(payload["top_p"], 0.95)
+        payload = provider._build_payload([{"role": "user", "content": "hello"}], "Qwen3.6-35B-HugeCtx", 100,
+                                          resolve("Qwen3.6-35B-HugeCtx", "medium"))
+        self.assertEqual((payload["temperature"], payload["top_p"], payload["top_k"], payload["presence_penalty"]), (0.6, 0.95, 20, 0.0))
+        self.assertNotIn("frequency_penalty", payload)
 
 
 if __name__ == "__main__":

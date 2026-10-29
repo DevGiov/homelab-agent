@@ -31,7 +31,6 @@ def formulate_visual_search_query(task: str, images: List[str], model: Optional[
             prompt=prompt,
             max_tokens=80,
             temperature=0.0,
-            reasoning_budget=0,
             model=model,
             stream_mode="none",
             images=images

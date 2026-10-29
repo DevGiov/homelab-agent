@@ -15,6 +15,7 @@ import httpx
 
 from app.agent.stream_session import current_session_var
 from app.core.config import settings
+from app.llm.reasoning import Reasoning, resolve
 from app.observability.turns import record_llm_call
 
 logger = logging.getLogger("providers")
@@ -45,8 +46,8 @@ class LLMProvider(ABC):
         *,
         model: Optional[str] = None,
         max_tokens: int = 4096,
-        temperature: float = 0.3,
-        reasoning_budget: int = -1,
+        temperature: Optional[float] = None,
+        reasoning: Optional[Reasoning] = None,
         stream_callback: Optional[StreamCallback] = None,
         json_mode: bool = False,
         json_schema: Optional[Dict[str, Any]] = None,
@@ -56,11 +57,15 @@ class LLMProvider(ABC):
 
         json_mode chiede al server un output JSON valido (response_format / format=json); json_schema lo vincola a
         uno schema: il server genera solo un oggetto conforme e si ferma quando lo chiude.
+
+        `reasoning` (vedi app.llm.reasoning) dice se e quanto ragionare e con che campionamento; senza, la richiesta
+        non ragiona e usa `temperature`.
         """
         start = time.monotonic()
-        result = self._chat(messages, model=model, max_tokens=max_tokens, temperature=temperature,
-                            reasoning_budget=reasoning_budget, stream_callback=stream_callback,
-                            json_mode=json_mode, json_schema=json_schema)
+        if reasoning is None:
+            reasoning = resolve(model or self.default_model, "off", temperature=temperature)
+        result = self._chat(messages, model=model, max_tokens=max_tokens, reasoning=reasoning,
+                            stream_callback=stream_callback, json_mode=json_mode, json_schema=json_schema)
         metrics = result.get("metrics") or {}
         record_llm_call(
             provider=self.name,
@@ -76,8 +81,8 @@ class LLMProvider(ABC):
         return result
 
     @abstractmethod
-    def _chat(self, messages: List[Dict[str, str]], *, model: Optional[str], max_tokens: int, temperature: float,
-              reasoning_budget: int, stream_callback: Optional[StreamCallback], json_mode: bool,
+    def _chat(self, messages: List[Dict[str, str]], *, model: Optional[str], max_tokens: int, reasoning: Reasoning,
+              stream_callback: Optional[StreamCallback], json_mode: bool,
               json_schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Chiamata al server, senza metriche: la implementa ogni provider."""
         ...
@@ -103,11 +108,6 @@ class LLMProvider(ABC):
     def ensure_model_loaded(self, model: Optional[str] = None, timeout: float = 180.0) -> bool:
         """Assicura che il modello sia caricato in VRAM prima di procedere."""
         return True
-
-
-def _supports_reasoning(model_name: str) -> bool:
-    lowered = (model_name or "").lower()
-    return any(x in lowered for x in ["qwen", "deepseek", "r1", "o1", "o3", "mistral", "think", "reason"])
 
 
 _VISION_MODEL_KEYWORDS = (
@@ -153,32 +153,14 @@ class OpenAICompatProvider(LLMProvider):
         self.name = name
         self.timeout = timeout
 
-    def _build_payload(self, messages, model, max_tokens, temperature, reasoning_budget, json_mode=False, json_schema=None) -> dict:
-        effective_model = model or self.default_model
-        enable_thinking = (reasoning_budget != 0) and _supports_reasoning(effective_model)
+    def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
         payload = {
-            "model": effective_model,
+            "model": model or self.default_model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": temperature,
+            **reasoning.sampling.params(),
+            **reasoning.payload(),
         }
-        if settings.llm_repeat_penalty and settings.llm_repeat_penalty != 1.0:
-            payload["repeat_penalty"] = settings.llm_repeat_penalty
-        if settings.llm_presence_penalty and settings.llm_presence_penalty != 0.0:
-            payload["presence_penalty"] = settings.llm_presence_penalty
-        if settings.llm_frequency_penalty and settings.llm_frequency_penalty != 0.0:
-            payload["frequency_penalty"] = settings.llm_frequency_penalty
-        if settings.llm_top_p and settings.llm_top_p != 1.0:
-            payload["top_p"] = settings.llm_top_p
-        if enable_thinking:
-            payload["chat_template_kwargs"] = {"enable_thinking": True}
-            if reasoning_budget > 0:
-                payload["reasoning_budget_tokens"] = reasoning_budget
-        else:
-            payload["chat_template_kwargs"] = {"enable_thinking": False}
-            if reasoning_budget == 0:
-                # Alcuni template (es. LFM2.5) ragionano comunque: solo il budget a 0 spegne il thinking lato server
-                payload["reasoning_budget_tokens"] = 0
         if json_schema:
             payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "response", "schema": json_schema}}
         elif json_mode:
@@ -246,8 +228,8 @@ class OpenAICompatProvider(LLMProvider):
         logger.warning(f"[{self.name}] Timeout attesa caricamento modello '{effective_model}'")
         return False
 
-    def _chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-              reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
+    def _chat(self, messages, *, model=None, max_tokens=4096, reasoning: Reasoning,
+              stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
         """Chat completion sempre in streaming, con l'avanzamento dell'elaborazione del prompt.
 
         llama.cpp invia un chunk per ogni batch del prompt: un prompt lungo non fa scattare il timeout di lettura,
@@ -255,7 +237,7 @@ class OpenAICompatProvider(LLMProvider):
         """
         effective_model = model or self.default_model
         self.ensure_model_loaded(effective_model)
-        payload = self._build_payload(messages, model, max_tokens, temperature, reasoning_budget, json_mode=json_mode,
+        payload = self._build_payload(messages, model, max_tokens, reasoning, json_mode=json_mode,
                                       json_schema=json_schema)
 
         sess = current_session_var.get()
@@ -448,8 +430,8 @@ class OllamaProvider(LLMProvider):
         self.name = "ollama"
         self.timeout = timeout
 
-    def _chat(self, messages, *, model=None, max_tokens=4096, temperature=0.3,
-              reasoning_budget=-1, stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
+    def _chat(self, messages, *, model=None, max_tokens=4096, reasoning: Reasoning,
+              stream_callback=None, json_mode=False, json_schema=None) -> Dict[str, Any]:
         url = f"{self.base_url}/api/chat"
         # Convert multimodal OpenAI blocks to Ollama format if necessary
         ollama_messages = []
@@ -477,8 +459,10 @@ class OllamaProvider(LLMProvider):
             "model": model or self.default_model,
             "messages": ollama_messages,
             "stream": bool(stream_callback),
-            "options": {"num_predict": max_tokens, "temperature": temperature},
+            "options": {"num_predict": max_tokens, **reasoning.sampling.params()},
         }
+        if reasoning.send_controls:
+            payload["think"] = reasoning.enabled
         if json_schema:
             payload["format"] = json_schema
         elif json_mode:

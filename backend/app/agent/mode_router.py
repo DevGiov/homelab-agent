@@ -303,7 +303,6 @@ def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]
         model=model,
         max_tokens=256,
         temperature=0.0,
-        reasoning_budget=0,
         json_mode=True,
     )
     raw_content = (res.get("content") or "").strip()

@@ -60,7 +60,6 @@ Write title and content in Italian."""
         ProcedureProposal,
         max_tokens=768,
         max_retries=1,
-        reasoning_budget=0,
         model=model,
         reasoning_phase=None,
     )

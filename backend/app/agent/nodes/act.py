@@ -1,7 +1,6 @@
 from app.agent import llm_calls
 from app.agent.agent_loop import run_agent_loop
 from app.agent.execution_log import execute_plan
-from app.agent.mode_policy import get_mode_policy
 from app.agent.state import AgentState
 
 PLAN_EXECUTION_KEYWORDS = ("esegui il piano", "esegui piano", "avvia esecuzione", "esecuzione piano")
@@ -34,8 +33,6 @@ def act_graph_node(state: AgentState) -> AgentState:
         if state.get("execute") or any(kw in task_lower for kw in PLAN_EXECUTION_KEYWORDS):
             return execute_plan_node(state)
 
-    policy = get_mode_policy("act")
-    budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
     model = state.get("model")
 
     memory_context = state.get("memory_context") or ""
@@ -47,7 +44,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         web_prefetch_data=state.get("web_prefetch_data"),
         images=state.get("images"),
         security_mode=state.get("security_mode") or "normal",
-        **llm_calls.agent_loop_llm_fns(budget, model, state.get("images")),
+        **llm_calls.agent_loop_llm_fns(state.get("reasoning_budget"), model, state.get("images")),
     )
 
     ans = loop_res.get("final_response", "")

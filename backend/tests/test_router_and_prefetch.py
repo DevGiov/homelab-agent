@@ -231,7 +231,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
         kwargs = provider.chat.call_args.kwargs
         self.assertEqual(kwargs["model"], "Gemma-4-26B-Q3")
         self.assertTrue(kwargs["json_mode"])
-        self.assertEqual(kwargs["reasoning_budget"], 0)
+        self.assertIsNone(kwargs.get("reasoning"))  # il provider non ragiona senza un Reasoning esplicito
 
     def test_title_generation_uses_specified_model(self):
         """Verifica che generate_and_save_title passi il modello selezionato a provider.chat."""

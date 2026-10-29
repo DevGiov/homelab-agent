@@ -10,6 +10,7 @@ from app.core import image_utils
 from app.core.config import settings
 from app.core.text_utils import strip_thinking
 from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
+from app.llm.reasoning import Level, resolve
 
 logger = logging.getLogger("graph")
 
@@ -21,8 +22,9 @@ def call_llm(
     prompt: str,
     system_prompt: str = None,
     max_tokens: int = 4096,
-    temperature: float = 0.3,
-    reasoning_budget: int = -1,
+    temperature: Optional[float] = None,
+    thinking: Level = "off",
+    thinking_budget: Optional[int] = None,
     model: Optional[str] = None,
     stream_mode: str = "all",  # "all" | "reasoning_only" | "content_only" | "none"
     reasoning_phase: Optional[str] = None,
@@ -31,14 +33,12 @@ def call_llm(
 ) -> dict:
     messages = []
 
-    # Capability detection based on effective model
+    # `thinking` è il livello della fase, tradotto dal profilo del modello (app.llm.reasoning); `thinking_budget` è il
+    # budget in token scelto dall'utente per il turno, se c'è
     provider = get_provider()
     effective_model = model or getattr(provider, "default_model", "") or settings.default_model
-    model_name_lower = effective_model.lower()
-    supports_reasoning = any(x in model_name_lower for x in ["qwen", "deepseek", "r1", "o1", "o3", "mistral", "think", "reason"])
-
-    enable_thinking = (reasoning_budget != 0) and supports_reasoning
-    if enable_thinking:
+    reasoning = resolve(effective_model, thinking, budget_override=thinking_budget, temperature=temperature)
+    if reasoning.enabled:
         thinking_instruction = (
             "IMPORTANTE: Il sistema di inferenza gestisce automaticamente il tuo processo di ragionamento tramite il meccanismo nativo di thinking. "
             "NON includere processi di pensiero, analisi intermedie, note di self-correction o passi di ragionamento nel testo della tua risposta. "
@@ -113,12 +113,12 @@ def call_llm(
         return {"content": "", "reasoning_content": "", "metrics": {}}
 
     # Fase 1.1: delega al provider abstraction
+    # `max_tokens` è la lunghezza della risposta: il server conta anche i token di ragionamento, che si aggiungono
     return provider.chat(
         messages,
         model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning_budget=reasoning_budget,
+        max_tokens=max_tokens + (reasoning.budget if reasoning.enabled else 0),
+        reasoning=reasoning,
         stream_callback=stream_callback,
         json_schema=json_schema,
     )
@@ -134,9 +134,10 @@ def call_llm_structured(
     system_prompt: str,
     schema_cls: Any,
     max_tokens: int = 4096,
-    temperature: float = 0.10,
+    temperature: Optional[float] = 0.10,
     max_retries: int = 3,
-    reasoning_budget: int = -1,
+    thinking: Level = "off",
+    thinking_budget: Optional[int] = None,
     model: Optional[str] = None,
     reasoning_phase: Optional[str] = "Analisi e Selezione Tool",
     images: Optional[List[str]] = None,
@@ -158,12 +159,6 @@ def call_llm_structured(
         f"Non aggiungere testo fuori dal JSON."
     )
 
-    # Limita il reasoning budget per la selezione tool per evitare loop di pensiero prolungati
-    effective_reasoning_budget = reasoning_budget
-    if getattr(schema_cls, "__name__", "") == "ToolSelection":
-        if reasoning_budget <= 0 or reasoning_budget > 1024:
-            effective_reasoning_budget = 1024
-
     last_error = None
     effective_max_tokens = max_tokens
     MAX_TOKENS_CAP = 16384
@@ -182,7 +177,8 @@ def call_llm_structured(
             system_prompt=schema_prompt,
             max_tokens=effective_max_tokens,
             temperature=temperature,
-            reasoning_budget=effective_reasoning_budget,
+            thinking=thinking,
+            thinking_budget=thinking_budget,
             model=model,
             stream_mode="reasoning_only",
             reasoning_phase=reasoning_phase,
@@ -227,12 +223,17 @@ def call_llm_structured(
     return None
 
 
-def agent_loop_llm_fns(budget: int, model: Optional[str], state_images: Optional[List[str]]) -> dict:
-    """Callable LLM per run_agent_loop: risposta in streaming e selezione tool strutturata."""
-    def call_llm_fn(p, system_prompt=None, reasoning_budget=budget, model=model, reasoning_phase=None):
-        return call_llm(p, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=reasoning_budget, model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images)
+def agent_loop_llm_fns(thinking_budget: Optional[int], model: Optional[str], state_images: Optional[List[str]]) -> dict:
+    """Callable LLM per run_agent_loop: risposta in streaming e selezione tool strutturata. Il livello di ragionamento
+    lo sceglie il loop per fase; `thinking_budget` è l'eventuale budget dell'utente per il turno."""
+    def call_llm_fn(p, system_prompt=None, thinking="off", reasoning_phase=None):
+        return call_llm(p, system_prompt=system_prompt, max_tokens=4096, thinking=thinking, thinking_budget=thinking_budget,
+                        model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images)
 
-    def call_llm_structured_fn(prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, reasoning_budget=budget, model=model, reasoning_phase="Analisi e Selezione Tool", images=None):
-        return call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, reasoning_budget=reasoning_budget, model=model, reasoning_phase=reasoning_phase, images=images if images is not None else state_images)
+    def call_llm_structured_fn(prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, thinking="off",
+                               reasoning_phase="Analisi e Selezione Tool", images=None):
+        return call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, thinking=thinking,
+                                   thinking_budget=thinking_budget, model=model, reasoning_phase=reasoning_phase,
+                                   images=images if images is not None else state_images)
 
     return {"call_llm_fn": call_llm_fn, "call_llm_structured_fn": call_llm_structured_fn}

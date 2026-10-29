@@ -79,7 +79,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | `app/startup.py` | Avvio unico: fail-fast di sicurezza, schemi di tutti i database (`init_databases`), registry dei tool, scheduler. Lo usano il lifespan FastAPI, la CLI e i test |
 | `app/api/` | `main.py` (app FastAPI, lifespan, middleware), `deps.py` (API key, rate limit), `agent_runner.py` (esecuzione del grafo sincrona e in streaming), `schemas.py`, `routes/` con un router per dominio: `chat`, `threads`, `approvals` (approvazioni e permessi), `memory`, `kb`, `providers`, `uploads`, `system` (health, status, audit) |
 | `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory` (con `recent_turns`), `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio) |
-| `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
+| `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama; `reasoning.py`: profili di ragionamento e campionamento per modello |
 | `app/observability/` | Metriche: `turns.py` (turni e chiamate LLM), `health.py` (campionamento dei servizi), `store.py` (`metrics.db`), `report.py` (aggregazioni per la dashboard) |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
 | `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `facts.py` (fatti, entità e relazioni), `knowledge_base.py`, `thread_store.py` (cronologia, immagini, titoli, riassunti delle conversazioni) |
@@ -246,6 +246,23 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 - **Nomi dei tool**: quelli di MetaMCP restano invariati (`proxmox-mcp__…`); quelli dei server aggiunti prendono il prefisso `<id>__`. L'id di un nuovo server non può coincidere con un prefisso già presente nel catalogo.
 - **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
 - **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
+
+## Ragionamento
+
+Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md).
+
+- **Livelli per fase** (`ThinkingPolicy` in `mode_policy.py`): ogni fase del turno chiede un livello `off`, `low`, `medium` o `high`. Le chiamate di servizio (routing, memoria, titoli, piano strutturato, rollback) non ragionano.
+
+  | | risposta e sintesi | scelta dei tool | stesura del piano |
+  | :--- | :--- | :--- | :--- |
+  | chat | off | — | — |
+  | ask | low | low | — |
+  | act | low | medium | — |
+  | plan | low | medium | high |
+
+- **Profilo del modello** (`app/llm/reasoning.py`, scelto con un pattern sull'alias del preset): dice se il modello ragiona sempre (LFM2.5), si accende e spegne (Qwen3.6, Qwen3.8, Gemma 4) o non ragiona (Phi-4), quale `reasoning_effort` del template usare per livello (Qwen3.8: `low`, `medium`, `xhigh`), il budget minimo dei modelli sempre ragionanti (256 token) e il campionamento raccomandato con e senza ragionamento. Un modello senza profilo riceve interruttore e budget e solo la temperatura del chiamante.
+- **Budget**: `low` 512, `medium` 2048, `high` 8192 token, sempre inviati in modo esplicito (`reasoning_budget_tokens`, mai il default del preset) con una frase di transizione per i troncamenti; il budget si somma a `max_tokens`, che resta la lunghezza della risposta. Il budget scelto dall'utente nella chat (`reasoning_budget`) sostituisce quello dei livelli nelle fasi che ragionano (0 le spegne).
+- **Campionamento**: con il ragionamento attivo vale quello del profilo (i modelli che ragionano degradano a temperature basse); senza, la temperatura del chiamante (bassa per gli output strutturati) o quella del profilo.
 
 ## Memoria
 

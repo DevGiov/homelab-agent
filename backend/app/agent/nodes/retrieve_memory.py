@@ -52,7 +52,6 @@ When a later message changes something, keep only the current value."""
         system_prompt="You maintain a concise running summary of a conversation.",
         max_tokens=512,
         temperature=0.2,
-        reasoning_budget=0,
         model=model,
         stream_mode="none",
     )

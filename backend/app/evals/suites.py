@@ -161,9 +161,8 @@ def run_routing(case: Dict[str, Any], model: str) -> Outcome:
 def run_tools(case: Dict[str, Any], model: str) -> Outcome:
     from app.agent import llm_calls
     from app.agent.agent_loop import AgentLoop
-    from app.agent.mode_policy import get_mode_policy
 
-    fns = llm_calls.agent_loop_llm_fns(get_mode_policy("act").reasoning_budget, model, None)
+    fns = llm_calls.agent_loop_llm_fns(None, model, None)
     loop = AgentLoop(case["input"], "act", None, fns["call_llm_fn"], fns["call_llm_structured_fn"], None, None, None, "normal")
     selection = loop.first_selection()
     chosen: List[str] = []
@@ -285,7 +284,6 @@ thing, use the most recent one. If the memory does not contain the answer, set f
             RecallAnswer,
             max_tokens=512,
             max_retries=1,
-            reasoning_budget=0,
             model=model,
             reasoning_phase=None,
         )

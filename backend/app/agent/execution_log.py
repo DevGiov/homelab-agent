@@ -206,7 +206,7 @@ the action, the tool (a known compensating tool when listed, otherwise "manual a
 Rollback plan:"""
 
     # Senza ragionamento: con il thinking attivo il modello esauriva i token prima di scrivere il piano
-    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, reasoning_budget=0, model=model, stream_mode="none")
+    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, model=model, stream_mode="none")
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 

@@ -5,6 +5,7 @@ import httpx
 from app.agent.stream_session import StreamSession
 from app.core.config import settings
 from app.llm.providers import OllamaProvider, OpenAICompatProvider
+from app.llm.reasoning import LEVEL_BUDGETS, resolve
 from app.memory import thread_store
 
 
@@ -206,10 +207,11 @@ def test_ensure_model_loaded_waits_until_model_is_loaded():
 
 def test_json_mode_requests_json_output_from_each_provider():
     openai = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
-    assert openai._build_payload([], None, 10, 0.0, -1, json_mode=True)["response_format"] == {"type": "json_object"}
-    assert "response_format" not in openai._build_payload([], None, 10, 0.0, -1)
+    off = resolve("m", "off", temperature=0.0)
+    assert openai._build_payload([], None, 10, off, json_mode=True)["response_format"] == {"type": "json_object"}
+    assert "response_format" not in openai._build_payload([], None, 10, off)
     schema = {"type": "object", "properties": {"a": {"type": "string"}}}
-    constrained = openai._build_payload([], None, 10, 0.0, -1, json_schema=schema)["response_format"]
+    constrained = openai._build_payload([], None, 10, off, json_schema=schema)["response_format"]
     assert constrained == {"type": "json_schema", "json_schema": {"name": "response", "schema": schema}}
 
     reply = MagicMock(status_code=200)
@@ -220,13 +222,33 @@ def test_json_mode_requests_json_output_from_each_provider():
     assert post.call_args.kwargs["json"]["format"] == "json"
 
 
-def test_zero_reasoning_budget_disables_thinking_server_side():
-    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="LFM2.5-24B-A2B-HugeCtx")
+def test_reasoning_payload_follows_the_model_profile():
     msgs = [{"role": "user", "content": "hi"}]
+    build = OpenAICompatProvider("http://localhost:8080/v1", default_model="x")._build_payload
 
-    no_think = provider._build_payload(msgs, None, 120, 0.0, 0)
-    assert no_think["chat_template_kwargs"] == {"enable_thinking": False}
-    assert no_think["reasoning_budget_tokens"] == 0
+    off = build(msgs, "Qwen3.6-35B", 120, resolve("Qwen3.6-35B", "off", temperature=0.1))
+    assert off["chat_template_kwargs"] == {"enable_thinking": False} and off["reasoning_budget_tokens"] == 0
+    assert off["temperature"] == 0.1 and "presence_penalty" not in off  # output strutturato: solo la temperatura
 
-    default = provider._build_payload(msgs, None, 120, 0.0, -1)
-    assert "reasoning_budget_tokens" not in default
+    plan = build(msgs, "Qwen3.8-27B-Fast", 120, resolve("Qwen3.8-27B-Fast", "high"))
+    assert plan["chat_template_kwargs"] == {"enable_thinking": True, "reasoning_effort": "xhigh"}
+    assert plan["reasoning_budget_tokens"] == LEVEL_BUDGETS["high"] and plan["reasoning_budget_message"]
+    assert plan["temperature"] == 1.0  # mai greedy in modalità ragionamento
+
+    # Sempre ragionante: "off" non porta il budget a 0
+    lfm = build(msgs, "LFM2.5-24B-A2B-HugeCtx", 120, resolve("LFM2.5-24B-A2B-HugeCtx", "off", temperature=0.0))
+    assert lfm["chat_template_kwargs"]["enable_thinking"] is True and lfm["reasoning_budget_tokens"] == 256
+    assert lfm["temperature"] == 0.1
+
+    # Gemma 4 ora ragiona quando la fase lo chiede (prima il nome non era riconosciuto)
+    gemma = build(msgs, "Gemma-4-26B-Q4", 120, resolve("Gemma-4-26B-Q4", "low"))
+    assert gemma["chat_template_kwargs"] == {"enable_thinking": True} and gemma["top_k"] == 64
+
+    # Senza ragionamento: nessun parametro di ragionamento
+    phi = build(msgs, "Phi-4-15B-Q4", 120, resolve("Phi-4-15B-Q4", "high", temperature=0.3))
+    assert "chat_template_kwargs" not in phi and "reasoning_budget_tokens" not in phi and phi["temperature"] == 0.3
+
+    # Il budget dell'utente vale solo per le fasi che ragionano
+    assert resolve("Qwen3.6-35B", "medium", budget_override=300).budget == 300
+    assert resolve("Qwen3.6-35B", "off", budget_override=300).enabled is False
+    assert resolve("Qwen3.6-35B", "medium", budget_override=0).enabled is False

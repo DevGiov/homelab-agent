@@ -189,7 +189,7 @@ def test_rollback_plan_is_requested_without_reasoning():
 
     with patch("app.agent.llm_calls.call_llm", return_value={"content": "1. release_ip"}) as llm:
         assert generate_rollback_plan_with_llm([ExecutionLog({"id": 1}, "proxmox-mcp__allocate_ip", {})], "t", "errore") == "1. release_ip"
-    assert llm.call_args.kwargs["reasoning_budget"] == 0
+    assert llm.call_args.kwargs.get("thinking", "off") == "off"
     # Le compensazioni dichiarate dei passi riusciti sono nel prompt
     assert "`proxmox-mcp__allocate_ip` → `proxmox-mcp__release_ip`" in llm.call_args.args[0]
 
@@ -209,7 +209,7 @@ def test_plan_structure_has_no_fabricated_fallback():
         assert generate_plan_structure("lista i container", "User Request: 'lista i container'")["steps"][0]["tool"] == "proxmox-mcp__list_containers"
     # Output vincolato ai tool del catalogo, senza ragionamento
     kwargs = llm.call_args.kwargs
-    assert kwargs["reasoning_budget"] == 0
+    assert kwargs.get("thinking", "off") == "off"
     assert "web_search" in kwargs["json_schema"]["properties"]["steps"]["items"]["properties"]["tool"]["enum"]
     for content in ("non ho capito", '{"steps": []}', '{"steps": [{"id": 1}]}'):
         with patch("app.agent.llm_calls.call_llm", return_value={"content": content}):

@@ -53,12 +53,13 @@ const WEB_SEARCH: Record<WebSearchMode, { label: string; button: string; icon: s
   },
 };
 
+// "Per fase": ogni fase del turno ragiona secondo la modalità; un numero sostituisce il budget delle fasi che ragionano
 const BUDGETS = [
-  { value: 'default', label: 'Budget: Default' },
-  { value: '0', label: 'Disable (0t)' },
-  { value: '2048', label: 'Balanced (2048t)' },
-  { value: '8192', label: 'Deep Think (8192t)' },
-  { value: '-1', label: 'Unlimited (-1)' },
+  { value: 'default', label: 'Ragionamento: per fase' },
+  { value: '0', label: 'Ragionamento: spento' },
+  { value: '2048', label: 'Ragionamento: 2048 token' },
+  { value: '8192', label: 'Ragionamento: 8192 token' },
+  { value: '32768', label: 'Ragionamento: 32768 token' },
 ];
 
 /** Opzioni del prossimo invio: sicurezza, incognito, ricerca web, modello e budget di reasoning. */
@@ -129,7 +130,7 @@ export const ChatOptionsBar: React.FC<{ options: ChatOptions; models: ModelCatal
           value={options.reasoningBudget === undefined ? 'default' : String(options.reasoningBudget)}
           onChange={(e) => options.setReasoningBudget(e.target.value === 'default' ? undefined : Number(e.target.value))}
           className="bg-transparent text-[11px] text-fg focus:outline-none cursor-pointer"
-          title="Reasoning Token Budget"
+          title="Budget di ragionamento del turno"
         >
           {BUDGETS.map(({ value, label }) => (
             <option key={value} value={value} className="bg-panel text-fg">

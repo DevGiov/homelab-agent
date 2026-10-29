@@ -21,7 +21,6 @@ def chat_graph_node(state: AgentState) -> AgentState:
         return {"plan": {"mode": "chat", "tool_needed": False, "direct_answer": ans}, "final_response": ans}
 
     policy = get_mode_policy("chat")
-    budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
     model = state.get("model")
     prefetch_data = state.get("web_prefetch_data")
 
@@ -57,7 +56,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta Utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    ans_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"))
+    ans_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, thinking=policy.thinking.answer, thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"))
     raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
     reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
     ans = clean_synthesis_content(raw_ans) or raw_ans

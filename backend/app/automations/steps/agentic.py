@@ -26,10 +26,9 @@ def _input_data(ctx: StepContext) -> Tuple[str, str]:
     return "", ""
 
 
-def _call_llm(prompt, system_prompt=None, reasoning_budget=0, model=None, reasoning_phase=None):
+def _call_llm(prompt, system_prompt=None, thinking="off", model=None, reasoning_phase=None):
     # Sintesi diretta, senza thinking né streaming verso la UI
-    return call_llm(prompt, system_prompt=system_prompt, max_tokens=MAX_TOKENS, reasoning_budget=0, model=model,
-                    stream_mode="none")
+    return call_llm(prompt, system_prompt=system_prompt, max_tokens=MAX_TOKENS, model=model, stream_mode="none")
 
 
 def run(ctx: StepContext) -> Outcome:

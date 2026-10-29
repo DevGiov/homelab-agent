@@ -2,6 +2,8 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
+from app.llm.reasoning import Level
+
 
 class MemoryPolicy(BaseModel):
     """Quanta memoria entra nel prompt della modalità."""
@@ -12,13 +14,21 @@ class MemoryPolicy(BaseModel):
     templates_k: int = 0  # piani modello approvati pertinenti alla richiesta
 
 
+class ThinkingPolicy(BaseModel):
+    """Livello di ragionamento di ogni fase del turno; il profilo del modello lo traduce in parametri (app.llm.reasoning).
+    Le chiamate di servizio (routing, memoria, titoli, piano strutturato) non ragionano."""
+    answer: Level = "off"  # risposta diretta o sintesi dei risultati dei tool
+    select: Level = "off"  # scelta del tool a ogni passo dell'agent loop
+    plan: Level = "off"  # stesura del piano
+
+
 class ModePolicy(BaseModel):
     mode: str
     max_tool_calls: int
     allowed_registries: List[str]
     allow_react_loop: bool
     timeout_seconds: int
-    reasoning_budget: int
+    thinking: ThinkingPolicy
     memory: MemoryPolicy
 
 DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
@@ -28,7 +38,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allowed_registries=[],
         allow_react_loop=False,
         timeout_seconds=15,
-        reasoning_budget=0,
+        thinking=ThinkingPolicy(),
         memory=MemoryPolicy(context_tokens=1500, facts_k=0)
     ),
     "ask": ModePolicy(
@@ -37,7 +47,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allowed_registries=["web", "code", "memory", "vision", "automations", "calendar"],
         allow_react_loop=True,
         timeout_seconds=30,
-        reasoning_budget=2048,
+        thinking=ThinkingPolicy(answer="low", select="low"),
         memory=MemoryPolicy(context_tokens=6000, facts_k=5)
     ),
     "act": ModePolicy(
@@ -46,7 +56,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allowed_registries=["mcp", "web", "code", "memory", "vision", "email", "automations", "calendar"],
         allow_react_loop=True,
         timeout_seconds=120,
-        reasoning_budget=8192,
+        thinking=ThinkingPolicy(answer="low", select="medium"),
         memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=3, templates_k=2)
     ),
     "plan": ModePolicy(
@@ -55,7 +65,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allowed_registries=["mcp", "web", "code", "memory", "vision", "email", "automations", "calendar"],
         allow_react_loop=True,
         timeout_seconds=300,
-        reasoning_budget=-1,
+        thinking=ThinkingPolicy(answer="low", select="medium", plan="high"),
         memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=5, templates_k=3)
     ),
 }

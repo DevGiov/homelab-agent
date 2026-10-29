@@ -138,7 +138,6 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
             system_prompt=summary_system_prompt,
             max_tokens=4096,
             stream_mode="none",
-            reasoning_budget=0
         )
         raw_ans = syn_res.get("content", "") if syn_res else ""
         synthesized_text = clean_synthesis_content(raw_ans)

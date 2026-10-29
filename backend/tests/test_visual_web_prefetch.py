@@ -40,11 +40,11 @@ class TestVisualWebPrefetch(unittest.TestCase):
             model="gemini-2.5-flash"
         )
         self.assertEqual(query, "Eachine EV800DM prezzo specifiche")
-        # Verify LLM was called with stream_mode='none' and reasoning_budget=0 for speed
+        # Verify LLM was called with stream_mode='none' and no reasoning for speed
         mock_llm.assert_called_once()
         _, kwargs = mock_llm.call_args
         self.assertEqual(kwargs.get("stream_mode"), "none")
-        self.assertEqual(kwargs.get("reasoning_budget"), 0)
+        self.assertEqual(kwargs.get("thinking", "off"), "off")
         self.assertEqual(kwargs.get("temperature"), 0.0)
 
     @patch("app.agent.llm_calls.call_llm")

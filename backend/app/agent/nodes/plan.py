@@ -64,7 +64,7 @@ def generate_plan_structure(task: str, user_prompt: str, model: Optional[str] = 
         },
         "required": ["steps"],
     }
-    res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=2048, temperature=0.1, reasoning_budget=0,
+    res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=2048, temperature=0.1,
                              model=model, stream_mode="none", json_schema=schema)
     content = res.get("content", "") if isinstance(res, dict) else ""
     clean = re.sub(r"```(?:json)?", "", content).strip()
@@ -93,7 +93,6 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prefetch_data = state.get("web_prefetch_data")
 
     policy = get_mode_policy("plan")
-    budget = state.get("reasoning_budget") if state.get("reasoning_budget") is not None else policy.reasoning_budget
 
     from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
@@ -166,7 +165,8 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"User Request: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    llm_plan_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2, reasoning_budget=budget, model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
+    llm_plan_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2, thinking=policy.thinking.plan,
+                                      thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:

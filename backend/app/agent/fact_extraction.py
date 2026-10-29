@@ -62,7 +62,6 @@ Answer with one item per fact, using the id in brackets.
                 EntityTagging,
                 max_tokens=2048,
                 max_retries=1,
-                reasoning_budget=0,
                 model=model,
                 reasoning_phase=None,
             )

@@ -135,7 +135,6 @@ not for suggestions. Return an empty list when nothing changes. At most {MAX_OPE
         Consolidation,
         max_tokens=2048,
         max_retries=1,
-        reasoning_budget=0,
         model=model,
         reasoning_phase=None,
     )
@@ -272,7 +271,6 @@ with "by" = the fact that should stay (prefer the more recent and more complete)
             Deduplication,
             max_tokens=512,
             max_retries=1,
-            reasoning_budget=0,
             model=model,
             reasoning_phase=None,
         )
