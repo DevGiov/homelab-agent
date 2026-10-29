@@ -30,6 +30,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | ✅ Risolto (Letta rimosso, E1) |
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
 | [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | 🟡 Backend risolto, infra aperta |
+| [ISS-27](#iss-27) | Eval `planning/new-service` e `rollback/ip-only` da rivedere insieme a ProxmoxMcp | S3 | evals, ProxmoxMcp | Rimandato |
 
 ---
 
@@ -264,3 +265,10 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
   - La sintesi usa un prompt ridotto senza catalogo né specifica delle automazioni e con l'indicazione che non ci sono tool: con il prompt completo LFM2.5 rispondeva con una tool call.
 - **Verifica live (stessa richiesta, LFM2.5)**: il turno si chiude in 290 s (prima non si chiudeva in 10 minuti). Passo 1 a freddo: 7.884 token di prompt in 77 s, selezione valida al primo tentativo. Passo 2: 7.372 token dalla cache e 2.418 nuovi in 51 s. Sintesi: 7.596 token in 72 s, 1.815 generati, tabella dei container in italiano (qualità del riepilogo limitata dal modello).
 - **Ancora aperto (infra CT 100)**: l'elaborazione dei prompt resta lenta e degrada con il contesto (circa 400 token/s all'inizio, 100 a 8.000 token, 51 token/s per 557 token aggiunti a 8.000 di contesto). È il costo dominante del turno. LFM2.5 è ibrido (convoluzioni più attention): llama.cpp riprende un prompt solo dai checkpoint, quindi il riuso funziona quando un prompt estende il precedente ma non su un prefisso comune parziale. Da valutare con l'utente: KV cache `q8_0` al posto di `turbo2` o un profilo con quantizzazione meno spinta.
+
+## ISS-27
+
+- **`planning/new-service`**: il caso chiede un servizio web con IP, container, DNS e proxy, e si aspetta i quattro tool separati. Da E5 Qwen3.6-35B sceglie in modo stabile il tool composito `create_service`, preceduto dal dry run, che fa lo stesso provisioning in una chiamata. Non dipende dalla memoria. Per l'utente il tool dedicato è la scelta giusta: meno token e meno errori tra un passo e l'altro, se il tool è corretto. Il caso andrà riscritto per accettarlo; nella stessa revisione va controllato che il modello passi gli argomenti giusti (`create_service` di default esegue anche il bootstrap Agy, `skip_agy=false`).
+- **`rollback/ip-only`**: il piano di compensazione chiama `release_ip` senza l'indirizzo da rilasciare.
+- **Quando**: con la revisione di ProxmoxMcp (bug, refactoring, nuove feature), dopo la fase E.
+
