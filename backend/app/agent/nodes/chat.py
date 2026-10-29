@@ -1,7 +1,6 @@
-from datetime import datetime
-
 from app.agent import llm_calls
 from app.agent.agent_loop import is_tools_discovery_query
+from app.agent.agent_prompts import current_time
 from app.agent.mode_policy import get_mode_policy
 from app.agent.state import AgentState
 from app.agent.tool_catalog import format_available_tools_catalog
@@ -26,11 +25,9 @@ def chat_graph_node(state: AgentState) -> AgentState:
     model = state.get("model")
     prefetch_data = state.get("web_prefetch_data")
 
-    now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
     from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
     system_prompt = (
-        f"Current System Date and Time: {now_str}\n"
         "You are the Homelab AI Management Assistant (mode: CHAT).\n"
         "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
         "You do not have access to execution tools in this mode: respond directly in conversational natural language using your internal knowledge, visual perception, and web prefetch data if provided.\n"
@@ -47,6 +44,7 @@ def chat_graph_node(state: AgentState) -> AgentState:
     prompt_sections = []
     if memory_context:
         prompt_sections.append(f"Contesto memoria conversazionale:\n{memory_context}")
+    prompt_sections.append(f"Data e ora correnti: {current_time()}")
 
     if prefetch_data and prefetch_data.get("summary_text"):
         wrapped_evidence = wrap_untrusted_web_evidence(

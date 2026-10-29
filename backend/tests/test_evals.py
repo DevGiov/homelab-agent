@@ -134,7 +134,7 @@ def test_recall_runs_in_a_sandbox_and_leaves_real_memory_untouched():
     assert outcome.passed, outcome.detail
     assert extract.call_count == 1  # solo gli scambi del caso, non i riempitivi né le sessioni senza estrazione
     assert len(summarize.call_args.args[1]) == 30 - 10  # thread lungo: la parte vecchia passa dal riassunto
-    assert "- Pi-hole ha l'IP 192.168.1.53" in seen["prompt"] and "Il progetto si chiama Orione." in seen["prompt"]
+    assert "- [2026-08-15] Pi-hole ha l'IP 192.168.1.53" in seen["prompt"] and "Il progetto si chiama Orione." in seen["prompt"]
     assert len(thread_store.get_history("a")) == real_threads and facts.stats() == real_facts
 
 

@@ -1,4 +1,4 @@
-"""Memoria a lungo termine: fatti, entità che citano e relazioni tra entità (explorer della memoria)."""
+"""Memoria a lungo termine: profilo dell'utente, fatti, entità che citano e relazioni tra entità (explorer della memoria)."""
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.fact_extraction import tag_untagged_facts
 from app.api.deps import verify_api_key
-from app.memory import facts
+from app.memory import facts, profile
 
 router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(verify_api_key)])
 
@@ -32,6 +32,10 @@ class EntityMerge(BaseModel):
     into: int
 
 
+class ProfileInput(BaseModel):
+    content: str = Field(max_length=profile.MAX_CHARS)
+
+
 def _refs(entities: List[EntityRef]) -> List[Dict[str, str]]:
     return [e.model_dump() for e in entities]
 
@@ -39,6 +43,17 @@ def _refs(entities: List[EntityRef]) -> List[Dict[str, str]]:
 @router.get("/stats")
 def get_stats() -> Dict[str, int]:
     return facts.stats()
+
+
+@router.get("/profile")
+def get_profile() -> Dict[str, Any]:
+    return profile.get_profile()
+
+
+@router.put("/profile")
+def update_profile(body: ProfileInput) -> Dict[str, Any]:
+    """Note stabili sull'utente, all'inizio della memoria di ogni turno (vuoto = nessun profilo)."""
+    return profile.save_profile(body.content)
 
 
 @router.get("/facts")

@@ -1,10 +1,10 @@
 import json
 import logging
 import re
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from app.agent import llm_calls
+from app.agent.agent_prompts import current_time
 from app.agent.mode_policy import get_mode_policy
 from app.agent.nodes.act import execute_plan_node
 from app.agent.state import AgentState
@@ -97,7 +97,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
 
     from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
-    now_str = datetime.now().strftime('%A %d %B %Y, %H:%M:%S')
+    now_str = current_time()
     task_lower = task.lower()
     is_automation_request = any(kw in task_lower for kw in [
         "crea automazione", "crea un'automazione", "automatizza", "nuova automazione",
@@ -107,7 +107,6 @@ def plan_graph_node(state: AgentState) -> AgentState:
 
     if is_automation_request:
         system_prompt = (
-            f"Current System Date and Time: {now_str}\n"
             "You are the Homelab AI Management Agent (mode: PLAN - AUTOMATION PROPOSAL).\n"
             "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
             "The user wants to create, schedule, or propose an automation/loop.\n"
@@ -143,7 +142,6 @@ def plan_graph_node(state: AgentState) -> AgentState:
         )
     else:
         system_prompt = (
-            f"Current System Date and Time: {now_str}\n"
             "You are the Homelab AI Management Agent (mode: PLAN).\n"
             "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
             "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request "
@@ -155,6 +153,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections = []
     if memory_context:
         prompt_sections.append(f"Conversational memory context:\n{memory_context}")
+    prompt_sections.append(f"Current System Date and Time: {now_str}")
 
     if prefetch_data and prefetch_data.get("summary_text"):
         wrapped_evidence = wrap_untrusted_web_evidence(

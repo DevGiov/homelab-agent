@@ -8,6 +8,7 @@ import { EntityDetail } from './EntityDetail';
 import { EntityPanel } from './EntityPanel';
 import { FactCard } from './FactCard';
 import { FactEditor } from './FactEditor';
+import { ProfileCard } from './ProfileCard';
 
 interface MemoryViewProps {
   threads: ThreadItem[];
@@ -17,7 +18,7 @@ interface MemoryViewProps {
 
 const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] text-fg-muted shrink-0';
 
-/** Memoria a lungo termine: fatti ricordati dall'agente, entità che citano e relazioni tra entità. */
+/** Memoria a lungo termine: profilo dell'utente, fatti ricordati dall'agente, entità che citano e relazioni tra entità. */
 export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, onOpenMobileSidebar }) => {
   const { feedback, notify } = useFeedback();
   const memory = useMemoryExplorer(notify);
@@ -45,7 +46,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h1>
-            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Fatti ricordati dall'agente e le entità che citano</p>
+            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente e le entità che citano</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -108,6 +109,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
         </aside>
 
         <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 space-y-3">
+          <ProfileCard notify={notify} />
+
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />

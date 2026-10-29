@@ -1,12 +1,18 @@
-"""Memoria conversazionale: cronologia da thread_store, riassunto incrementale senza buchi, contesto del turno."""
+"""Memoria conversazionale: cronologia da thread_store, riassunto incrementale senza buchi, memoria per modalità."""
 import json
 from unittest.mock import patch
 
 import pytest
 
 from app.agent.nodes import retrieve_memory
-from app.agent.nodes.retrieve_memory import RECENT_KEEP, RECENT_MAX, conversation_window, retrieve_memory_node
-from app.memory import thread_store
+from app.agent.nodes.retrieve_memory import (
+    RECENT_KEEP,
+    RECENT_MAX,
+    conversation_window,
+    recent_turns_node,
+    retrieve_memory_node,
+)
+from app.memory import facts, profile, thread_store
 
 
 @pytest.fixture
@@ -14,8 +20,11 @@ def thread():
     thread_id = "conv-test"
     thread_store.init_db()
     thread_store.delete_thread_messages(thread_id)
+    profile.init_profile_db()
+    profile.save_profile("")
     yield thread_id
     thread_store.delete_thread_messages(thread_id)
+    profile.save_profile("")
 
 
 def _exchanges(thread_id, n, start=0):
@@ -92,26 +101,66 @@ def test_deleting_a_thread_removes_its_summary(thread):
     assert thread_store.get_summary(thread) == ("", 0)
 
 
-def test_turn_context_excludes_the_current_message(thread):
-    _exchanges(thread, 2)
-    thread_store.save_user_message(thread, "domanda corrente", user_msg_id="u-now")
-    with patch("app.memory.vector_store.search_memory", return_value=[
-        {"content": "Il NAS ha IP 192.168.1.20", "score": 0.8, "thread_id": "altro"},
-        {"content": "fatto di questo thread", "score": 0.9, "thread_id": thread},
-        {"content": "fatto poco pertinente", "score": 0.2, "thread_id": "altro"},
-    ]):
-        state = retrieve_memory_node({"thread_id": thread, "task": "domanda corrente"})
+RECALLED = [
+    {"content": "fatto di questo thread", "score": 0.9, "thread_id": "conv-test", "created_at": "2026-10-01T10:00:00+00:00"},
+    {"content": "Il NAS ha IP 192.168.1.20", "score": 0.8, "thread_id": "altro", "created_at": "2026-08-12T10:00:00+00:00"},
+]
 
-    context = state["memory_context"]
-    assert "domanda corrente" not in context
-    assert "User: domanda 1\nAssistant: risposta 1" in context
-    assert "- Il NAS ha IP 192.168.1.20" in context
-    assert "fatto di questo thread" not in context and "poco pertinente" not in context
+
+def test_router_sees_only_the_last_messages_and_the_previous_mode(thread):
+    _exchanges(thread, 3)
+    thread_store.save_user_message(thread, "domanda corrente", user_msg_id="u-now")
+    with patch.object(retrieve_memory, "_update_summary") as summarize:
+        state = recent_turns_node({"thread_id": thread, "task": "domanda corrente"})
+    summarize.assert_not_called()
+    assert state["routing_context"] == "User: domanda 1\nAssistant: risposta 1\nUser: domanda 2\nAssistant: risposta 2"
     assert (state["previous_mode"], state["last_tool_used"]) == ("ask", "web_search")
 
 
+def test_ask_memory_has_profile_conversation_and_dated_facts_in_stable_order(thread):
+    _exchanges(thread, 2)
+    thread_store.save_user_message(thread, "domanda corrente", user_msg_id="u-now")
+    profile.save_profile("Mi chiamo Dani, uso Debian 12.")
+    with patch.object(facts, "search_facts", return_value=RECALLED) as search:
+        context = retrieve_memory_node({"thread_id": thread, "task": "domanda corrente", "mode": "ask"})["memory_context"]
+
+    assert search.call_args.kwargs["k"] == 10  # facts_k di ask, raddoppiato per scartare i fatti del thread
+    assert "domanda corrente" not in context and "fatto di questo thread" not in context
+    assert "- [2026-08-12] Il NAS ha IP 192.168.1.20" in context and "verificali" not in context
+    order = [context.index(s) for s in ("Mi chiamo Dani", "User: domanda 0", "Il NAS ha IP")]
+    assert order == sorted(order)
+
+
+def test_chat_memory_is_a_small_window_without_facts(thread):
+    for i in range(8):
+        thread_store.save_user_message(thread, f"domanda {i} " + "x" * 1200, user_msg_id=f"u{i}")
+    with patch.object(facts, "search_facts") as search:
+        context = retrieve_memory_node({"thread_id": thread, "task": "ciao", "mode": "chat"})["memory_context"]
+    search.assert_not_called()
+    assert "domanda 7" in context and "domanda 2" not in context  # ~300 token a messaggio, budget 1500
+
+
+def test_act_facts_are_marked_to_verify(thread):
+    with patch.object(facts, "search_facts", return_value=RECALLED):
+        context = retrieve_memory_node({"thread_id": thread, "task": "riavvia il NAS", "mode": "act"})["memory_context"]
+    assert "verificali con i tool prima di agire" in context
+
+
 def test_incognito_skips_memory():
+    assert recent_turns_node({"thread_id": "x", "task": "ciao", "incognito": True}) == {"routing_context": None}
     assert retrieve_memory_node({"thread_id": "x", "task": "ciao", "incognito": True}) == {"memory_context": None}
+
+
+def test_profile_api_roundtrip(thread):
+    from fastapi.testclient import TestClient
+
+    from app.api.main import api
+
+    client = TestClient(api)
+    assert client.get("/v1/memory/profile").json()["content"] == ""
+    saved = client.put("/v1/memory/profile", json={"content": "  Preferisco Debian.  "}).json()
+    assert saved["content"] == "Preferisco Debian." and saved["updated_at"]
+    assert client.put("/v1/memory/profile", json={"content": "x" * (profile.MAX_CHARS + 1)}).status_code == 422
 
 
 def test_thread_detail_has_no_external_memory_fields(thread):

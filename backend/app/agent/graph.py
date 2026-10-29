@@ -1,4 +1,4 @@
-"""Grafo LangGraph dell'agente: intake → memoria → routing → prefetch web → sottografo di modalità → risposta."""
+"""Grafo LangGraph dell'agente: intake → ultimi messaggi → routing → memoria della modalità → prefetch web → sottografo → risposta."""
 import sqlite3
 from functools import lru_cache
 
@@ -11,7 +11,7 @@ from app.agent.nodes.chat import chat_graph_node
 from app.agent.nodes.intake import intake_node
 from app.agent.nodes.plan import plan_graph_node
 from app.agent.nodes.respond import respond_node
-from app.agent.nodes.retrieve_memory import retrieve_memory_node
+from app.agent.nodes.retrieve_memory import recent_turns_node, retrieve_memory_node
 from app.agent.nodes.routing import mode_router_node
 from app.agent.nodes.web_prefetch import web_prefetch_node
 from app.agent.state import AgentState
@@ -35,6 +35,7 @@ def build_graph():
     workflow = StateGraph(AgentState)
 
     workflow.add_node("intake", intake_node)
+    workflow.add_node("recent_turns", recent_turns_node)
     workflow.add_node("retrieve_memory", retrieve_memory_node)
     workflow.add_node("web_prefetch", web_prefetch_node)
     workflow.add_node("mode_router_node", mode_router_node)
@@ -48,9 +49,10 @@ def build_graph():
     workflow.add_node("respond", respond_node)
 
     workflow.set_entry_point("intake")
-    workflow.add_edge("intake", "retrieve_memory")
-    workflow.add_edge("retrieve_memory", "mode_router_node")
-    workflow.add_edge("mode_router_node", "web_prefetch")
+    workflow.add_edge("intake", "recent_turns")
+    workflow.add_edge("recent_turns", "mode_router_node")
+    workflow.add_edge("mode_router_node", "retrieve_memory")
+    workflow.add_edge("retrieve_memory", "web_prefetch")
 
     workflow.add_conditional_edges(
         "web_prefetch",

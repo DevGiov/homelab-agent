@@ -102,3 +102,19 @@ export function deleteEntity(id: number): Promise<void> {
 export function extractEntities(): Promise<{ processed: number; tagged: number; remaining: number }> {
   return http.post('/memory/entities/extract');
 }
+
+export interface UserProfile {
+  /** Note stabili sull'utente, all'inizio della memoria di ogni turno. */
+  content: string;
+  updated_at: string | null;
+}
+
+export const PROFILE_MAX_CHARS = 4000;
+
+export function getProfile(): Promise<UserProfile> {
+  return http.get('/memory/profile');
+}
+
+export function updateProfile(content: string): Promise<UserProfile> {
+  return http.put('/memory/profile', { content });
+}

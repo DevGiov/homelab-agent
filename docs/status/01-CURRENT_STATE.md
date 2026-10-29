@@ -18,12 +18,12 @@ Rilevata il 2026-10-26 su `dev` @ `4e9f040`.
 ### 2.1 Grafo LangGraph ([graph.py](../../backend/app/agent/graph.py))
 
 ```
-intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | act | plan → execute_plan } → respond → commit_memory
+intake → recent_turns → mode_router → retrieve_memory → web_prefetch → { chat | ask | act | plan → execute_plan } → respond
 ```
 
 - **Modalità**: CHAT (conversazione), ASK (ricerca/consultazione), ACT (tool MCP con self-correction), PLAN (piani multi-step con rollback Saga/WAL).
 - **Codice**: [graph.py](../../backend/app/agent/graph.py) costruisce solo il grafo; ogni nodo sta in [nodes/](../../backend/app/agent/nodes/), l'esecuzione dei piani (Saga/WAL con rollback) in [execution_log.py](../../backend/app/agent/execution_log.py), le chiamate LLM in [llm_calls.py](../../backend/app/agent/llm_calls.py).
-- **Routing**: [router.py](../../backend/app/agent/mode_router.py) usa regole più un LLM di fallback; [mode_policy.py](../../backend/app/agent/mode_policy.py) definisce budget di tool e reasoning per ogni modalità.
+- **Routing**: [router.py](../../backend/app/agent/mode_router.py) usa regole più un LLM di fallback; [mode_policy.py](../../backend/app/agent/mode_policy.py) definisce budget di tool, reasoning e memoria per ogni modalità.
 
 ### 2.2 Registry dei tool ([registry/](../../backend/app/registry/))
 
@@ -37,7 +37,7 @@ intake → retrieve_memory → mode_router → web_prefetch → { chat | ask | a
 | Automazioni | [automations/](../../backend/app/automations/) ([routes/](../../backend/app/automations/routes/), 41 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
 | Calendario | [calendar_db.py](../../backend/app/calendar/db.py), [calendar_router.py](../../backend/app/calendar/router.py) (~15 route), [calendar_sync.py](../../backend/app/calendar/sync.py) | Import ICS/Google |
 | Sicurezza | [policy.py](../../backend/app/security/policy.py), [approvals.py](../../backend/app/security/approvals.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
-| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py) | Fatti con entità e relazioni in sqlite-vec, knowledge base, thread con messaggi e riassunti; tutto in `checkpoints.db`, nessun servizio esterno |
+| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py), [profile.py](../../backend/app/memory/profile.py) | Profilo dell'utente, fatti con entità e relazioni in sqlite-vec, knowledge base, thread con messaggi e riassunti, composti per modalità dopo il router; tutto in `checkpoints.db`, nessun servizio esterno |
 | Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
 | LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
 | Osservabilità | [observability/](../../backend/app/observability/) | Turni e chiamate LLM in `metrics.db`, salute dei servizi campionata ogni minuto, API `/v1/metrics/*` |
@@ -51,7 +51,7 @@ Database SQLite in `DATA_DIR`: `checkpoints.db` (LangGraph, thread, `audit_log`,
 
 **Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
 
-- **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Memoria (fatti, entità e relazioni, con modifica e unione), Metriche (turni, velocità dei modelli, tool, salute dei servizi nel tempo), Knowledge, Impostazioni (sicurezza, modelli, temi, server MCP).
+- **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Memoria (profilo, fatti, entità e relazioni, con modifica e unione), Metriche (turni, velocità dei modelli, tool, salute dei servizi nel tempo), Knowledge, Impostazioni (sicurezza, modelli, temi, server MCP).
 - **Struttura (C3)**: chat in `components/chat/` (10 componenti, il più grande 193 righe), automazioni e calendario divisi per scheda e vista, stato negli hook (`useChat` 436 righe, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …), calcoli puri in `utils/` (`chatMessages`, `calendarDates`).
 - **Dimensioni**: nessun file sopra le 500 righe (il più grande è `ParametersModal.tsx`, 492). Impostazioni, gestione calendari, integrazioni, artefatti, modifica automazione e trigger sono cartelle per area (`settings/`, `calendar/manage/`, `automations/{integrations,artifacts,edit,triggers}/`), con la logica pura in `utils/` (`automationForm`, `cronSchedule`, `artifactGroups`).
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.

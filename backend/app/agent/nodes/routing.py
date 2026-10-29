@@ -13,7 +13,7 @@ def mode_router_node(state: AgentState) -> AgentState:
     model = state.get("model")
     images = state.get("images")
     has_images = bool(images and len(images) > 0)
-    memory_context = state.get("memory_context")
+    routing_context = state.get("routing_context")
     previous_mode = state.get("previous_mode")
     last_tool_used = state.get("last_tool_used")
     web_search_val = state.get("web_search")
@@ -22,7 +22,7 @@ def mode_router_node(state: AgentState) -> AgentState:
         user_input=task,
         previous_mode=previous_mode,
         last_tool_used=last_tool_used,
-        conversation_context=memory_context,
+        conversation_context=routing_context,
         force_mode=force_mode,
         model=model,
         has_images=has_images,

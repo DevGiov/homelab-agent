@@ -11,8 +11,8 @@ flowchart LR
     API --> G[LangGraph app/agent/graph.py]
 
     subgraph Grafo
-        I[intake] --> RM[retrieve_memory] --> MR[mode_router]
-        MR --> WP[web_prefetch<br/>visual query grounding]
+        I[intake] --> RT[recent_turns] --> MR[mode_router]
+        MR --> RM[retrieve_memory<br/>memoria della modalità] --> WP[web_prefetch<br/>visual query grounding]
         WP --> CH[chat] & AK[ask] & AC[act] & PL[plan]
         CH & AK & AC & PL --> RS[respond]
     end
@@ -78,7 +78,7 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | :--- | :--- |
 | `app/startup.py` | Avvio unico: fail-fast di sicurezza, schemi di tutti i database (`init_databases`), registry dei tool, scheduler. Lo usano il lifespan FastAPI, la CLI e i test |
 | `app/api/` | `main.py` (app FastAPI, lifespan, middleware), `deps.py` (API key, rate limit), `agent_runner.py` (esecuzione del grafo sincrona e in streaming), `schemas.py`, `routes/` con un router per dominio: `chat`, `threads`, `approvals` (approvazioni e permessi), `memory`, `kb`, `providers`, `uploads`, `system` (health, status, audit) |
-| `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory`, `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio) |
+| `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory` (con `recent_turns`), `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio) |
 | `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
 | `app/observability/` | Metriche: `turns.py` (turni e chiamate LLM), `health.py` (campionamento dei servizi), `store.py` (`metrics.db`), `report.py` (aggregazioni per la dashboard) |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
@@ -251,7 +251,16 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 
 Tutta la memoria è nel backend, in `checkpoints.db`. Ricerca e proposta per le prossime evoluzioni: [docs/memory/MEMORY_RESEARCH.md](../docs/memory/MEMORY_RESEARCH.md).
 
-- **Conversazione** (`app/agent/nodes/retrieve_memory.py`): la cronologia del thread viene da `thread_store` (testo della versione attiva, senza errori né il messaggio corrente). Oltre 20 messaggi non riassunti, o oltre 6000 token stimati, i più vecchi entrano nel riassunto del thread (`thread_summaries`, con il numero di messaggi coperti) e nella finestra ne restano 10.
+- **Memoria per modalità** (`app/agent/nodes/retrieve_memory.py`): prima del router `recent_turns` legge solo gli ultimi 4 messaggi e la modalità dell'ultima risposta, senza chiamate al modello. Dopo il router `retrieve_memory` compone la memoria secondo la `MemoryPolicy` della modalità (`mode_policy.py`):
+
+  | | chat | ask | act | plan |
+  | :--- | :--- | :--- | :--- | :--- |
+  | Riassunto e messaggi recenti | ~1500 token | ~6000 token | ~6000 token | ~6000 token |
+  | Fatti di altri thread | no | fino a 5 | fino a 5, da verificare | fino a 5, da verificare |
+
+  L'ordine va dal più stabile al più variabile (profilo, riassunto, messaggi recenti, fatti; orario e richiesta dopo la memoria), così llama.cpp riusa da un turno all'altro la parte iniziale del prompt. I fatti portano la data.
+- **Profilo** (`app/memory/profile.py`, `GET/PUT /v1/memory/profile`): testo scritto dall'utente nella vista Memoria (massimo 4000 caratteri), all'inizio della memoria di ogni turno in tutte le modalità. L'agente non lo modifica.
+- **Conversazione**: la cronologia del thread viene da `thread_store` (testo della versione attiva, senza errori né il messaggio corrente). Oltre 20 messaggi non riassunti, o oltre 6000 token stimati, i più vecchi entrano nel riassunto del thread (`thread_summaries`, con il numero di messaggi coperti) e nella finestra ne restano 10.
 - **Fatti** (`app/memory/facts.py`): record `kind='fact'` di sqlite-vec, unica fonte. Un fatto quasi identico a uno esistente (coseno ≥ 0,95) non viene riscritto: riceve solo le entità nuove.
 - **Entità**: tabelle `memory_entities` (nome, chiave normalizzata, tipo: `person`, `organization`, `place`, `project`, `software`, `infrastructure`, `other`) e `memory_fact_entities`. Due entità sono in relazione quando compaiono negli stessi fatti. Un'entità senza fatti viene eliminata.
 - **Estrazione** (`app/agent/fact_extraction.py`): a fine turno, non in incognito, una chiamata a output vincolato restituisce fino a 5 fatti durevoli con le loro entità. I fatti salvati prima delle entità si etichettano dall'explorer (`/v1/memory/entities/extract`, 10 fatti per chiamata); un fatto analizzato senza entità viene segnato (`entities_checked`) e non torna in coda.

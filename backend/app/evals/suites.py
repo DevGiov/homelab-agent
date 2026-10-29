@@ -216,14 +216,15 @@ FILLER_TURNS = [
 
 @contextmanager
 def memory_sandbox() -> Iterator[None]:
-    """Conversazioni, riassunti e fatti in un database temporaneo, eliminato all'uscita."""
+    """Conversazioni, riassunti, profilo (vuoto) e fatti in un database temporaneo, eliminato all'uscita."""
     from app.core.config import Settings
-    from app.memory import facts, thread_store, vector_store
+    from app.memory import facts, profile, thread_store, vector_store
 
     with tempfile.TemporaryDirectory(prefix="eval_memory_") as tmp:
         db_path = str(Path(tmp) / "checkpoints.db")
         with patch.object(Settings, "checkpoint_db_path", property(lambda _: db_path)):
             thread_store.init_db()
+            profile.init_profile_db()
             vector_store.init_vector_db()
             facts.init_facts_db()
             yield
@@ -262,7 +263,7 @@ def run_recall(case: Dict[str, Any], model: str) -> Outcome:
             _ingest(session, model)
         thread = case.get("thread", "domanda")
         thread_store.save_user_message(thread, case["question"], user_msg_id=f"{thread}-question")
-        context = retrieve_memory_node({"thread_id": thread, "task": case["question"], "model": model})["memory_context"] or ""
+        context = retrieve_memory_node({"thread_id": thread, "task": case["question"], "model": model, "mode": "ask"})["memory_context"] or ""
         answer = llm_calls.call_llm_structured(
             f"""Today is {case.get('date', '2026-10-20')}.
 

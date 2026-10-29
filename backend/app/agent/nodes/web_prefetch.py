@@ -102,7 +102,7 @@ def web_prefetch_node(state: AgentState) -> AgentState:
             should_run = should_prefetch_web(
                 task,
                 images=images,
-                conversation_context=state.get("memory_context"),
+                conversation_context=state.get("routing_context"),
                 model=state.get("model")
             )
 

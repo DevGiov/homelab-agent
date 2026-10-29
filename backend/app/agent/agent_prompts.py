@@ -1,8 +1,9 @@
 """Prompt dell'agent loop: istruzioni di sistema, selezione dei tool, sintesi e risposta diretta.
 
 I system prompt sono statici per modalità (niente orario, memoria o risultati dei tool): llama.cpp riusa così
-la parte già elaborata da una chiamata all'altra. Ciò che cambia sta nel messaggio utente, con lo storico dei
-tool in coda, così ogni passo di selezione estende il prompt del precedente.
+la parte già elaborata da una chiamata all'altra. Ciò che cambia sta nel messaggio utente: prima la memoria (dal più
+stabile al più variabile, vedi retrieve_memory), poi l'orario e la richiesta, con lo storico dei tool in coda, così
+ogni passo di selezione estende il prompt del precedente.
 """
 from datetime import datetime
 from typing import Optional
@@ -16,7 +17,7 @@ def current_time() -> str:
 
 
 def _turn_context(now: str, memory_context: Optional[str]) -> str:
-    return f"Current System Date and Time: {now}\n\nConversational memory context:\n{memory_context or ''}"
+    return f"Conversational memory context:\n{memory_context or ''}\n\nCurrent System Date and Time: {now}"
 
 
 def no_tools_system_prompt(mode: str) -> str:
@@ -28,7 +29,7 @@ def no_tools_system_prompt(mode: str) -> str:
 
 
 def no_tools_prompt(task: str, now: str, memory_context: Optional[str], prefetch_block: str) -> str:
-    parts = [f"Data e Ora Corrente del Sistema: {now}", f"Contesto memoria:\n{memory_context or ''}"]
+    parts = [f"Contesto memoria:\n{memory_context or ''}", f"Data e Ora Corrente del Sistema: {now}"]
     if prefetch_block:
         parts.append(prefetch_block)
     parts.append(f"Richiesta utente: '{task}'")

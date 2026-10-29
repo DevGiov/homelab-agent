@@ -30,6 +30,8 @@ function setup() {
       },
       'GET /v1/memory/entities': () => jsonResponse(entities),
       'POST /v1/memory/entities/extract': () => jsonResponse({ processed: 4, tagged: 3, remaining: 0 }),
+      'GET /v1/memory/profile': () => jsonResponse({ content: '', updated_at: null }),
+      'PUT /v1/memory/profile': (req) => jsonResponse({ content: (req.body as { content: string }).content.trim(), updated_at: '2026-10-29T12:00:00+00:00' }),
     },
     [
       [/^\/v1\/memory\/entities\/\d+\/merge$/, () => jsonResponse({ ...entities[1], related: [] })],
@@ -127,5 +129,19 @@ describe('MemoryView', () => {
     fireEvent.click(within(detail).getByRole('button', { name: 'Unisci' }));
     await waitFor(() => expect(requests.some((r) => r.path.endsWith('/merge'))).toBe(true));
     expect(requests.find((r) => r.path.endsWith('/merge'))?.body).toEqual({ into: 2 });
+  });
+
+  it('scrive il profilo che l\'agente legge a ogni turno', async () => {
+    const { requests } = setup();
+    render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
+    const card = await screen.findByRole('region', { name: "Profilo dell'utente" });
+    expect(await within(card).findByText(/Nessun profilo/)).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole('button', { name: /Modifica/ }));
+    fireEvent.change(within(card).getByLabelText('Testo del profilo'), { target: { value: 'Uso Debian 12 per i container' } });
+    fireEvent.click(within(card).getByRole('button', { name: 'Salva' }));
+
+    expect(await within(card).findByText('Uso Debian 12 per i container')).toBeTruthy();
+    expect(requests.find((r) => r.method === 'PUT' && r.path === '/v1/memory/profile')?.body).toEqual({ content: 'Uso Debian 12 per i container' });
   });
 });
