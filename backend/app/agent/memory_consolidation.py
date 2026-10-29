@@ -122,6 +122,8 @@ Update the long-term memory with what these messages establish about the user an
 - "update": the messages change an existing fact (a service moved, an IP changed, a tool replaced): write the new
   fact, self-contained, and set "replaces" to the id of the old fact.
 - "invalidate": an existing fact is no longer true and nothing replaces it (a service removed): set "replaces".
+  When the change itself is worth remembering (a service decommissioned, a host deleted), also "add" a fact that
+  states it, so the memory can still answer what happened.
 Every operation has "message": the number of the message it comes from.
 Each fact must be understandable on its own, without the conversation.
 Do NOT store: the conversation itself ("the user asked..."), general knowledge the assistant explained, transient
