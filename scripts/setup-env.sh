@@ -127,13 +127,6 @@ section "🧠 LLM"
 ask DEFAULT_MODEL "DEFAULT_MODEL" "$(read_existing DEFAULT_MODEL "Qwen3.6-35B-HugeCtx")"
 ask LLAMA_CPP_URL "LLAMA_CPP_URL (endpoint OpenAI-compatible)" "$(read_existing LLAMA_CPP_URL "http://llm.example.local:8080/v1")"
 
-# ── Letta ──
-
-section "💾 Letta (memoria conversazionale)"
-
-ask LETTA_URL "LETTA_URL" "$(read_existing LETTA_URL "http://letta.example.local:8083")"
-ask LETTA_API_KEY "LETTA_API_KEY" "$(read_existing LETTA_API_KEY "")" true
-
 # ── Storage ──
 
 section "📦 Storage"
@@ -181,10 +174,6 @@ METAMCP_API_KEY=${METAMCP_API_KEY}
 # --- LLM ---
 DEFAULT_MODEL=${DEFAULT_MODEL}
 LLAMA_CPP_URL=${LLAMA_CPP_URL}
-
-# --- Letta ---
-LETTA_URL=${LETTA_URL}
-LETTA_API_KEY=${LETTA_API_KEY}
 
 # --- Storage ---
 DATA_DIR=${DATA_DIR}

@@ -17,7 +17,7 @@ from app.api.schemas import (
     ThreadSummary,
 )
 from app.core.config import settings
-from app.memory import letta_client, thread_store
+from app.memory import thread_store
 
 logger = logging.getLogger("api")
 
@@ -125,24 +125,11 @@ async def get_thread(thread_id: str):
                     "timestamp": time.strftime("%H:%M")
                 })
 
-        # 4. Letta come fonte supplementare opzionale (mai bloccante)
-        clean_messages = []
-        agent_id = None
-        try:
-            agent_id = letta_client.create_thread(thread_id)
-            if agent_id:
-                raw_messages = letta_client.get_messages(agent_id)
-                clean_messages = letta_client.filter_clean_messages(raw_messages) if raw_messages else []
-        except Exception as letta_err:
-            logger.warning(f"Letta non raggiungibile per thread '{thread_id}': {letta_err}")
-
         return {
             "thread_id": thread_id,
             "title": thread_store.get_thread_title(thread_id),
-            "agent_id": agent_id,
             "checkpoint_count": count,
             "messages": stored_messages,
-            "letta_messages": clean_messages,
             "is_active": is_active,
             "is_paused": is_paused,
             "active_snapshot": active_snapshot
@@ -191,14 +178,6 @@ async def delete_single_thread(thread_id: str):
         conn.close()
 
         thread_store.delete_thread_messages(thread_id)
-
-        # Delete from Letta if agent exists (non-blocking)
-        try:
-            agent_id = letta_client.create_thread(thread_id)
-            if agent_id:
-                letta_client.delete_thread(agent_id)
-        except Exception:
-            pass
 
         return {"status": "deleted", "thread_id": thread_id, "deleted_checkpoints": deleted_rows}
     except Exception as e:

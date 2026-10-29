@@ -27,7 +27,7 @@ def configure_logging() -> None:
 
 def init_storage() -> None:
     """Crea le directory dei dati e gli schemi mancanti di tutti i database (idempotente)."""
-    for directory in (settings.data_dir, settings.memory_dir, settings.artifacts_dir, settings.uploads_dir,
+    for directory in (settings.data_dir, settings.artifacts_dir, settings.uploads_dir,
                       settings.knowledge_base_dir, Path(settings.checkpoint_db_path).parent):
         Path(directory).mkdir(parents=True, exist_ok=True)
     # checkpoints.db: checkpoint LangGraph, thread, audit, permessi e memoria vettoriale

@@ -35,11 +35,9 @@ async def status():
         except Exception as e:
             return {"name": name, "url": url, "ok": False, "error": str(e)[:120]}
 
-    letta_headers = {"Authorization": f"Bearer {settings.letta_api_key}"} if settings.letta_api_key else {}
     results = await asyncio.gather(
         _ping("llamacpp", f"{settings.llama_cpp_url.rstrip('/')}/models"),
         _ping("metamcp", _origin(settings.metamcp_url)),
-        _ping("letta", f"{settings.letta_url.rstrip('/')}/v1/agents/", headers=letta_headers),
         return_exceptions=True,
     )
     services = [r for r in results if isinstance(r, dict)]

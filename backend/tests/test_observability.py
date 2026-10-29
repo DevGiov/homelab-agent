@@ -134,8 +134,8 @@ def test_summary_aggregates_turns_llm_speed_and_health():
     # 100 token nuovi in 50 ms (2000 tok/s), 40 generati in 400 ms (100 tok/s), metà del prompt dalla cache
     llm_row(prompt_tokens=200, cached_tokens=100, completion_tokens=40, prompt_ms=50, completion_ms=400)
     llm_row(model="ollama-m", completion_tokens=5, error="boom")  # senza tempi di llama.cpp
-    store.insert_health_samples([{"service": "llamacpp", "ok": True, "latency_ms": 20}, {"service": "letta", "ok": False, "error": "giù"}])
-    store.insert_health_samples([{"service": "llamacpp", "ok": False, "error": "HTTP 503"}, {"service": "letta", "ok": False, "error": "giù"}])
+    store.insert_health_samples([{"service": "llamacpp", "ok": True, "latency_ms": 20}, {"service": "searxng", "ok": False, "error": "giù"}])
+    store.insert_health_samples([{"service": "llamacpp", "ok": False, "error": "HTTP 503"}, {"service": "searxng", "ok": False, "error": "giù"}])
 
     data = report.summary(24)
     t = data["turns"]
@@ -147,7 +147,7 @@ def test_summary_aggregates_turns_llm_speed_and_health():
     assert by_model["ollama-m"]["gen_tok_s"] is None and by_model["ollama-m"]["errors"] == 1
     by_service = {h["service"]: h for h in data["health"]}
     assert (by_service["llamacpp"]["uptime_pct"], by_service["llamacpp"]["ok"], by_service["llamacpp"]["avg_latency_ms"]) == (50.0, False, 20)
-    assert by_service["letta"]["last_error"] == "giù"
+    assert by_service["searxng"]["last_error"] == "giù"
 
 
 def test_timeseries_places_rows_in_buckets():

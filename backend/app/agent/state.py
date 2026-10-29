@@ -12,7 +12,6 @@ class AgentState(TypedDict, total=False):
     web_search: Optional[Any]
     web_prefetch_data: Optional[Dict[str, Any]]
     web_prefetch_metadata: Optional[Dict[str, Any]]
-    agent_id: Optional[str]
     memory_context: Optional[str]
     previous_mode: Optional[str]
     last_tool_used: Optional[str]

@@ -8,7 +8,6 @@ from langgraph.graph import END, StateGraph
 from app.agent.nodes.act import act_graph_node
 from app.agent.nodes.ask import ask_graph_node
 from app.agent.nodes.chat import chat_graph_node
-from app.agent.nodes.commit_memory import commit_memory_node
 from app.agent.nodes.intake import intake_node
 from app.agent.nodes.plan import plan_graph_node
 from app.agent.nodes.respond import respond_node
@@ -47,7 +46,6 @@ def build_graph():
     workflow.add_node("plan_graph", plan_graph_node)
 
     workflow.add_node("respond", respond_node)
-    workflow.add_node("commit_memory", commit_memory_node)
 
     workflow.set_entry_point("intake")
     workflow.add_edge("intake", "retrieve_memory")
@@ -70,7 +68,6 @@ def build_graph():
     workflow.add_edge("act_graph", "respond")
     workflow.add_edge("plan_graph", "respond")
 
-    workflow.add_edge("respond", "commit_memory")
-    workflow.add_edge("commit_memory", END)
+    workflow.add_edge("respond", END)
 
     return workflow.compile(checkpointer=get_checkpointer())

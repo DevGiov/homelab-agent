@@ -1,5 +1,4 @@
 import type { ChatResponse, FormattedMessage, AgentMode } from '../api/chat';
-import type { LettaMessage } from '../api/threads';
 
 /**
  * Converts a raw ChatResponse into a normalized FormattedMessage for the UI.
@@ -47,84 +46,4 @@ export function adaptChatResponseToMessage(
     risk_reason: response.risk_reason,
     security_mode: response.security_mode,
   };
-}
-
-/**
- * Converts an array of raw LettaMessages into normalized FormattedMessage items.
- * Safely handles historical messages without breaking if metadata is missing.
- */
-export function adaptLettaMessagesToMessages(messages: LettaMessage[]): FormattedMessage[] {
-  const chatMsgs: FormattedMessage[] = [];
-
-  // Filter only user and assistant messages with non-empty content
-  const filtered = messages.filter(
-    (m) => (m.message_type === 'user_message' || m.message_type === 'assistant_message') && m.content
-  );
-
-  // Sort chronologically
-  filtered.sort((a, b) => {
-    const dateA = a.date ? new Date(a.date).getTime() : 0;
-    const dateB = b.date ? new Date(b.date).getTime() : 0;
-    return dateA - dateB;
-  });
-
-  filtered.forEach((m, idx) => {
-    const timeStr = m.date
-      ? new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '';
-
-    let rawContent = m.content || '';
-
-    // Structured metadata fallback check
-    let mode: string | undefined = m.metadata?.mode;
-    let tool_used: string | undefined = m.tool_name || m.metadata?.tool_used;
-    let plan_steps: string[] | undefined = m.metadata?.plan_steps;
-    let plan_structure = m.metadata?.plan_structure;
-    let execution_trace = m.metadata?.execution_trace;
-
-    // Legacy string parsing fallbacks for older messages without structured metadata
-    if (!mode) {
-      const modeMatch = rawContent.match(/\[Mode:\s*([A-Za-z]+)\]/i);
-      if (modeMatch) {
-        mode = modeMatch[1].toLowerCase();
-      }
-    }
-
-    if (!tool_used) {
-      const toolMatch = rawContent.match(/Tool utilizzato:\s*([^\n]+)/i);
-      if (toolMatch) {
-        tool_used = toolMatch[1].trim().replace(/`/g, '');
-      }
-    }
-
-    if (!plan_steps && rawContent.includes('Passaggi di esecuzione:')) {
-      const planSection = rawContent.split('Passaggi di esecuzione:')[1];
-      if (planSection) {
-        const lines = planSection
-          .split('\n')
-          .map((l) => l.trim())
-          .filter((l) => /^\d+\.\s+/.test(l));
-        if (lines.length > 0) {
-          plan_steps = lines.map((l) => l.replace(/^\d+\.\s+/, ''));
-        }
-      }
-    }
-
-    // Clean legacy tags from content
-    const content = rawContent.replace(/\[Mode:\s*[A-Za-z]+\]\n?/i, '').trim();
-
-    chatMsgs.push({
-      id: m.id || `msg_hist_${idx}`,
-      sender: m.message_type === 'user_message' ? 'user' : 'assistant',
-      content,
-      timestamp: timeStr,
-      mode: mode as AgentMode,
-      tool_used,
-      plan_steps,
-      plan_structure,
-      execution_trace,
-    });
-  });
-
-  return chatMsgs;
 }

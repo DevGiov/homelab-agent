@@ -9,22 +9,11 @@ export interface ThreadItem {
   is_active?: boolean;
 }
 
-export interface LettaMessage {
-  id: string;
-  date?: string;
-  message_type: 'user_message' | 'assistant_message' | 'system_message' | 'reasoning_message' | 'tool_call_message' | 'tool_return_message' | string;
-  content: string | null;
-  tool_name?: string;
-  metadata?: Record<string, any>;
-}
-
 export interface ThreadDetails {
   thread_id: string;
   title?: string;
-  agent_id?: string;
   checkpoint_count?: number;
   messages?: FormattedMessage[];
-  letta_messages?: LettaMessage[];
   is_active?: boolean;
   is_paused?: boolean;
   active_snapshot?: any;

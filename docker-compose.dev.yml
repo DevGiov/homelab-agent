@@ -1,6 +1,6 @@
 # Docker Compose per sviluppo locale homelab-agent (Fase 5.3)
 # Backend FastAPI + Frontend Vite dev server. I servizi esterni (llama.cpp,
-# MetaMCP, Letta) restano sulla rete homelab reale: configura gli URL in backend/.env.
+# MetaMCP, SearXNG) restano sulla rete homelab reale: configura gli URL in backend/.env.
 
 services:
   backend:

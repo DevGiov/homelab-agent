@@ -42,7 +42,6 @@ def _plan_state(thread_id: str, security_mode: str) -> dict:
         "execute": True,
         "security_mode": security_mode,
         "plan_structure": PLAN_WITH_FAILING_LAST_STEP,
-        "agent_id": None,
         "memory_context": None,
         "mode": "",
         "plan": {},

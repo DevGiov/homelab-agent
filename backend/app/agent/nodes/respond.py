@@ -4,7 +4,6 @@ from typing import Any
 
 from app.agent.fact_extraction import remember_turn
 from app.agent.state import AgentState
-from app.memory import transcript
 
 logger = logging.getLogger("graph")
 
@@ -75,7 +74,7 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
 
 
 def respond_node(state: AgentState) -> AgentState:
-    """Formats final response if not already set, appends assistant message to the transcript and saves the facts worth remembering."""
+    """Formats final response if not already set and saves the facts worth remembering (the message itself is saved by the caller in thread_store)."""
     thread_id = state.get("thread_id") or "default_thread"
     task = state.get("task", "")
     memory_context = state.get("memory_context") or ""
@@ -95,9 +94,6 @@ def respond_node(state: AgentState) -> AgentState:
             formatted = f"[Mode: {mode.upper()}]\n{direct_ans}"
 
     incognito = state.get("incognito", False)
-
-    if thread_id and formatted and not incognito:
-        transcript.append_message(thread_id, "assistant", formatted)
 
     # Fatti da ricordare, con le entità che citano (non in incognito)
     if not incognito:

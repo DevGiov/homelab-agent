@@ -1,7 +1,7 @@
 """Campionamento periodico della salute dei servizi esterni e pulizia delle metriche scadute.
 
-Servizi: llama.cpp, Letta, SearXNG e ogni server MCP attivo. llama.cpp e Letta hanno un endpoint di
-stato e devono rispondere 200; per gli altri basta una risposta sotto il 500 (un endpoint MCP
+Servizi: llama.cpp, SearXNG e ogni server MCP attivo. llama.cpp ha un endpoint di stato e deve
+rispondere 200; per gli altri basta una risposta sotto il 500 (un endpoint MCP
 interrogato in GET risponde 405/406 ma è raggiungibile).
 """
 import logging
@@ -32,10 +32,8 @@ class Target:
 
 
 def targets() -> List[Target]:
-    letta_headers = {"Authorization": f"Bearer {settings.letta_api_key}"} if settings.letta_api_key else None
     return [
         Target("llamacpp", f"{settings.llama_cpp_url.rstrip('/')}/models", require_200=True),
-        Target("letta", f"{settings.letta_url.rstrip('/')}/v1/agents/", letta_headers, require_200=True),
         Target("searxng", settings.searxng_url),
         *(Target(f"mcp:{s.id}", s.url) for s in get_mcp_hub().servers() if s.enabled),
     ]

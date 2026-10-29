@@ -27,7 +27,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-21](#iss-21) | Risoluzione template non deterministica (template sbagliato creato) | S1 | backend/automations | ✅ Risolto (`0021414`) |
 | [ISS-22](#iss-22) | Modello di embedding scaricato a runtime da HuggingFace | S2 | deploy | ✅ Risolto (`16eae3a`) |
 | [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | ✅ Risolto in B8 |
-| [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | Aperto |
+| [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | ✅ Risolto (Letta rimosso, E1) |
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
 | [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | 🟡 Backend risolto, infra aperta |
 
@@ -227,11 +227,13 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Emerso nella verifica su CT 125**: con `LFM2.5-24B-A2B-HugeCtx`, `enable_thinking: false` non basta: il modello ragiona comunque e consuma tutto `max_tokens`, quindi il contenuto resta vuoto. Il vecchio router trasformava questa risposta vuota in "chat" senza segnalarlo. Ora il provider manda anche `reasoning_budget_tokens: 0` quando `reasoning_budget=0`. La correzione vale per tutte le chiamate senza ragionamento: router, summary, fatti salienti, sintesi post-approvazione, query visiva.
 
 ## ISS-24
-**Letta non in esecuzione su CT 102** — S2 · Aperto (rilevato il 2026-10-27, da indagare)
+**Letta non in esecuzione su CT 102** — S2 · ✅ Risolto il 2026-10-29 (Letta rimosso dal backend)
 
 - `/v1/status` risponde `degraded`: `http://192.168.1.177:8083` non risponde. CT 102 (`memory-services`) è acceso, ma nessun processo ascolta su 8083 e non gira nessun container Docker.
 - Impatto: [letta_client.py](../../backend/app/memory/letta_client.py) fallisce in modo silenzioso. La cronologia ripiega sulla trascrizione JSONL ([transcript.py](../../backend/app/memory/transcript.py)), ma la memoria archivistica Letta (fatti salienti, summary incrementali) non viene salvata e `commit_memory` non scrive nulla. Il recall semantico cross-thread usa sqlite-vec e non ne risente.
-- Da decidere: ripristinare Letta su CT 102 oppure toglierlo e affidare summary e fatti a sqlite-vec, eliminando una dipendenza esterna.
+- **Causa**: i container di Letta erano fermi dal 2026-08-04 (uscita 255, nessuna politica di riavvio); nessuno se n'era accorto perché l'agente ripiegava sui file locali.
+- **Decisione (2026-10-29)**: Letta era usato solo come archivio passivo, con i messaggi salvati quattro volte e una cronologia ferma ad agosto. Rimosso dal backend; la memoria è tutta in `checkpoints.db` ([ricerca](../memory/MEMORY_RESEARCH.md)). CT 102 e i suoi dati restano intatti, spenti.
+- **Fix (E1)**: cronologia solo da `thread_store`; riassunto incrementale in `thread_summaries` (prima un file mai aggiornato dopo la prima generazione); eliminati `letta_client.py`, `transcript.py` (JSONL), il nodo `commit_memory`, la configurazione `LETTA_*` e il controllo di salute.
 
 ## ISS-25
 **Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata** — S3 · ✅ Risolto in B10

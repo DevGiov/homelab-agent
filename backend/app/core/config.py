@@ -32,10 +32,6 @@ class Settings(BaseSettings):
     llm_frequency_penalty: float = Field(default=0.10, alias="LLM_FREQUENCY_PENALTY")
     llm_top_p: float = Field(default=0.95, alias="LLM_TOP_P")
 
-    # --- Letta ---
-    letta_url: str = Field(default="http://192.168.1.177:8083", alias="LETTA_URL")
-    letta_api_key: str = Field(default="", alias="LETTA_API_KEY")
-
     # --- Storage ---
     # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).
     # Default: <repo>/data, che dentro il container (backend in /app) coincide con il volume /data.
@@ -91,11 +87,6 @@ class Settings(BaseSettings):
     def mcp_db_path(self) -> str:
         """Server MCP registrati dalla UI e impostazioni per tool."""
         return str(Path(self.data_dir) / "mcp.db")
-
-    @property
-    def memory_dir(self) -> str:
-        """Trascrizioni JSONL e riassunti per thread."""
-        return str(Path(self.data_dir) / "memory")
 
     @property
     def artifacts_dir(self) -> str:

@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 import type { HealthPoint, MetricsPoint, ServiceHealth } from '../../api/metrics';
 import { formatDateTime, formatDuration, formatPct } from '../../utils/metricsFormat';
 
-const SERVICE_LABELS: Record<string, string> = { llamacpp: 'llama.cpp', letta: 'Letta', searxng: 'SearXNG' };
+const SERVICE_LABELS: Record<string, string> = { llamacpp: 'llama.cpp', searxng: 'SearXNG' };
 
 function serviceLabel(service: string): string {
   return service.startsWith('mcp:') ? `MCP · ${service.slice(4)}` : (SERVICE_LABELS[service] ?? service);

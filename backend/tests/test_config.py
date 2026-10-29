@@ -6,8 +6,8 @@ def test_every_data_path_lives_under_data_dir():
     assert s.checkpoint_db_path == "/srv/agent/checkpoints.db"
     assert s.automations_db_path == "/srv/agent/automations.db"
     assert s.calendar_db_path == "/srv/agent/calendar.db"
-    assert (s.memory_dir, s.artifacts_dir) == ("/srv/agent/memory", "/srv/agent/artifacts")
-    assert (s.uploads_dir, s.knowledge_base_dir) == ("/srv/agent/uploads", "/srv/agent/knowledge_base")
+    assert (s.artifacts_dir, s.uploads_dir) == ("/srv/agent/artifacts", "/srv/agent/uploads")
+    assert s.knowledge_base_dir == "/srv/agent/knowledge_base"
 
 
 def test_env_vars_populate_settings(monkeypatch):

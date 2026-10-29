@@ -26,11 +26,11 @@ def test_init_storage_creates_every_schema_on_empty_data_dir(fresh_data_dir):
     startup.init_storage()
     startup.init_storage()  # idempotente
 
-    assert {"checkpoints", "writes", "thread_metadata", "thread_messages", "audit_log", "tool_permissions",
+    assert {"checkpoints", "writes", "thread_metadata", "thread_messages", "thread_summaries", "audit_log", "tool_permissions",
             "vec_memory", "vec_memory_idx"} <= _tables(fresh_data_dir / "checkpoints.db")
     assert {"automation_definitions", "automation_runs", "automation_approvals"} <= _tables(fresh_data_dir / "automations.db")
     assert "calendars" in _tables(fresh_data_dir / "calendar.db")
-    assert {"memory", "artifacts", "uploads", "knowledge_base"} <= {p.name for p in fresh_data_dir.iterdir()}
+    assert {"artifacts", "uploads", "knowledge_base"} <= {p.name for p in fresh_data_dir.iterdir()}
 
 
 def test_thread_list_works_right_after_startup(fresh_data_dir):

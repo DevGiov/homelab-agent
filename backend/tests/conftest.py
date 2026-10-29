@@ -5,7 +5,7 @@ così config.py legge i valori di test invece del .env reale e nessun test
 scrive nei dati persistenti (es. /data nel container di produzione).
 
 I test non marcati `live` non possono aprire connessioni di rete verso host
-non locali: un servizio reale (LLM, MetaMCP, SearXNG, Letta) non mockato
+non locali: un servizio reale (LLM, MetaMCP, SearXNG) non mockato
 fallisce subito invece di rallentare o modificare l'infrastruttura.
 """
 import ipaddress

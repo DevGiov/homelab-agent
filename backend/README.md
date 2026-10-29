@@ -14,7 +14,7 @@ flowchart LR
         I[intake] --> RM[retrieve_memory] --> MR[mode_router]
         MR --> WP[web_prefetch<br/>visual query grounding]
         WP --> CH[chat] & AK[ask] & AC[act] & PL[plan]
-        CH & AK & AC & PL --> RS[respond] --> CM[commit_memory]
+        CH & AK & AC & PL --> RS[respond]
     end
 
     G --> AL[agent_loop ReAct]
@@ -78,11 +78,11 @@ Tutto il codice applicativo sta nel pacchetto `app/` (import assoluti `app.*`). 
 | :--- | :--- |
 | `app/startup.py` | Avvio unico: fail-fast di sicurezza, schemi di tutti i database (`init_databases`), registry dei tool, scheduler. Lo usano il lifespan FastAPI, la CLI e i test |
 | `app/api/` | `main.py` (app FastAPI, lifespan, middleware), `deps.py` (API key, rate limit), `agent_runner.py` (esecuzione del grafo sincrona e in streaming), `schemas.py`, `routes/` con un router per dominio: `chat`, `threads`, `approvals` (approvazioni e permessi), `memory`, `kb`, `providers`, `uploads`, `system` (health, status, audit) |
-| `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory`, `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`, `commit_memory`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio) |
+| `app/agent/` | `graph.py` (costruzione del grafo LangGraph e checkpointer), `nodes/` (un modulo per nodo: `intake`, `retrieve_memory`, `routing`, `web_prefetch`, `chat`, `ask`, `act`, `plan`, `respond`), `state.py` (`AgentState`), `llm_calls.py` (chiamate LLM in streaming e output strutturato), `execution_log.py` (esecuzione dei piani come Saga: log write-ahead e rollback), `agent_loop.py` (loop ReAct `AgentLoop`: una fase per metodo, cache e chiamate parallele read-only), `agent_prompts.py`, `mode_router.py` e `mode_policy.py` (scelta e budget della modalità), `tool_catalog.py`, `tool_schemas.py`, `stream_session.py` (sessioni SSE con pausa/ripresa/stop e riaggancio) |
 | `app/llm/` | `providers.py`: provider OpenAI-compatible (llama.cpp, LiteLLM) e Ollama |
 | `app/observability/` | Metriche: `turns.py` (turni e chiamate LLM), `health.py` (campionamento dei servizi), `store.py` (`metrics.db`), `report.py` (aggregazioni per la dashboard) |
 | `app/security/` | `policy.py` (rischio dei tool, analisi dei comandi shell, decisione: blocco deterministico o approvazione), `approvals.py` (richieste di approvazione, scope, approvazioni a runtime), `permissions.py` (permessi `thread`/`always`), `audit_log.py` |
-| `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `facts.py` (fatti, entità e relazioni), `knowledge_base.py`, `letta_client.py` (messaggi e riassunti delle conversazioni), `thread_store.py` (cronologia, immagini, titoli), `transcript.py` (trascrizione JSONL dei thread, fallback se Letta non risponde) |
+| `app/memory/` | `vector_store.py` (sqlite-vec + fastembed), `facts.py` (fatti, entità e relazioni), `knowledge_base.py`, `thread_store.py` (cronologia, immagini, titoli, riassunti delle conversazioni) |
 | `app/registry/` | Registry dei tool: `mcp`, `web`, `code` (sandbox Firecracker), `memory`, `vision`, `email`, `automations`, `calendar` |
 | `app/automations/` | Definizioni, run, scheduler, `runner.py` (ciclo di vita della run), `steps/` (un gestore per tipo di step), `templating.py` (placeholder e dati tra step), `run_secrets.py`, `routes/` (endpoint REST per dominio: definizioni, run, approvazioni, artefatti, integrazioni, catalogo, webhook), code runner, template, loop; `db/` è il database SQLite con un modulo per aggregato (`definitions`, `runs`, `approvals`, `artifacts`, `breaker_states`, `integrations`) più `connection.py` e `schema.py` |
 | `app/calendar/` | `db.py`, `router.py` (API), `sync.py` (import ICS/Google) |
@@ -108,12 +108,11 @@ da `DATA_DIR` (`settings.checkpoint_db_path`, `settings.memory_dir`, …):
 
 | Percorso | Contenuto |
 | :--- | :--- |
-| `checkpoints.db` | Checkpoint LangGraph, thread e messaggi, audit, permessi, memoria vettoriale (sqlite-vec), entità dei fatti |
+| `checkpoints.db` | Checkpoint LangGraph, thread, messaggi e riassunti, audit, permessi, memoria vettoriale (sqlite-vec), entità dei fatti |
 | `automations.db` | Automazioni, run, approvazioni, artefatti, circuit breaker, integrazioni |
 | `calendar.db` | Calendari ed eventi |
 | `mcp.db` | Server MCP registrati dalla UI e impostazioni per tool |
 | `metrics.db` | Metriche: turni, chiamate LLM, campioni di salute dei servizi (conservati `METRICS_RETENTION_DAYS` giorni) |
-| `memory/` | Trascrizioni JSONL e riassunti per thread |
 | `artifacts/`, `uploads/`, `knowledge_base/` | Artefatti delle automazioni, immagini caricate, documenti della knowledge base |
 
 ## Avvio
@@ -212,7 +211,7 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 | Metodo | Path | Descrizione |
 |---|---|---|
 | GET | `/v1/health` | Health check (pubblico) |
-| GET | `/v1/status` | Health aggregato llama.cpp/MetaMCP/Letta |
+| GET | `/v1/status` | Health aggregato llama.cpp/MetaMCP |
 | POST | `/v1/chat\|ask\|act\|plan\|invoke` | Chat sincrona per mode |
 | POST | `/v1/invoke_stream` | Chat streaming SSE con supporto immagini |
 | GET | `/v1/threads/{id}/stream` | Aggancio streaming live per riconnessione/multi-device |
@@ -247,9 +246,12 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 - **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
 - **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
 
-## Memoria a lungo termine
+## Memoria
 
-- **Fatti** (`app/memory/facts.py`): record `kind='fact'` di sqlite-vec, unica fonte (Letta conserva solo messaggi e riassunti delle conversazioni). Un fatto quasi identico a uno esistente (coseno ≥ 0,95) non viene riscritto: riceve solo le entità nuove.
+Tutta la memoria è nel backend, in `checkpoints.db`. Ricerca e proposta per le prossime evoluzioni: [docs/memory/MEMORY_RESEARCH.md](../docs/memory/MEMORY_RESEARCH.md).
+
+- **Conversazione** (`app/agent/nodes/retrieve_memory.py`): la cronologia del thread viene da `thread_store` (testo della versione attiva, senza errori né il messaggio corrente). Oltre 20 messaggi non riassunti, o oltre 6000 token stimati, i più vecchi entrano nel riassunto del thread (`thread_summaries`, con il numero di messaggi coperti) e nella finestra ne restano 10.
+- **Fatti** (`app/memory/facts.py`): record `kind='fact'` di sqlite-vec, unica fonte. Un fatto quasi identico a uno esistente (coseno ≥ 0,95) non viene riscritto: riceve solo le entità nuove.
 - **Entità**: tabelle `memory_entities` (nome, chiave normalizzata, tipo: `person`, `organization`, `place`, `project`, `software`, `infrastructure`, `other`) e `memory_fact_entities`. Due entità sono in relazione quando compaiono negli stessi fatti. Un'entità senza fatti viene eliminata.
 - **Estrazione** (`app/agent/fact_extraction.py`): a fine turno, non in incognito, una chiamata a output vincolato restituisce fino a 5 fatti durevoli con le loro entità. I fatti salvati prima delle entità si etichettano dall'explorer (`/v1/memory/entities/extract`, 10 fatti per chiamata); un fatto analizzato senza entità viene segnato (`entities_checked`) e non torna in coda.
 - **Recall**: il tool `recall_memory` e il recall semantico di `retrieve_memory` cercano tra i fatti.
@@ -260,7 +262,7 @@ Modulo `app/observability/`, database `data/metrics.db`, vista **Metriche** nel 
 
 - **Turni** (`turns.py`): ogni turno di chat (`agent_runner`) e ogni esecuzione di una run (`AutomationRunner.execute_run`) è misurato da `observe_turn`: durata, esito (`ok`, `error`, `stopped`: stop dell'utente, approvazione in attesa, pausa o annullamento), modalità o id dell'automazione, chiamate LLM e token sommati dal contextvar del turno, chiamate ai tool e errori contati a fine turno dall'audit log.
 - **Chiamate LLM**: `LLMProvider.chat` registra ogni chiamata (anche quelle fuori da un turno, come titoli e riassunti) con modello, token, token del prompt riusati dalla cache ed errori; con llama.cpp anche i tempi di prompt e generazione (`timings`), da cui le velocità: il prompt conta solo i token nuovi.
-- **Salute dei servizi** (`health.py`): un thread interroga ogni `METRICS_SAMPLE_INTERVAL_S` secondi llama.cpp, Letta, SearXNG e ogni server MCP attivo, e una volta al giorno elimina le metriche più vecchie di `METRICS_RETENTION_DAYS`.
+- **Salute dei servizi** (`health.py`): un thread interroga ogni `METRICS_SAMPLE_INTERVAL_S` secondi llama.cpp, SearXNG e ogni server MCP attivo, e una volta al giorno elimina le metriche più vecchie di `METRICS_RETENTION_DAYS`.
 - **Aggregazioni** (`report.py`): calcolate a richiesta dalle righe grezze; registrare una metrica non fa mai fallire una richiesta.
 
 ## Sicurezza

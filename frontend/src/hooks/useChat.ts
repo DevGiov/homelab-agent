@@ -15,7 +15,6 @@ import {
 } from '../api/chat';
 import { getThreadDetails, saveMessageVersions, switchMessageVersion } from '../api/threads';
 import { formatApiError } from '../utils/error';
-import { adaptLettaMessagesToMessages } from '../utils/messageAdapter';
 import {
   applySnapshot,
   diagnosticsOf,
@@ -114,9 +113,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         return;
       }
 
-      const messages = details.messages?.length
-        ? details.messages
-        : adaptLettaMessagesToMessages(details.letta_messages || []);
+      const messages = details.messages ?? [];
       setCurrentThreadTitle(details.title || null);
       updateThread(threadId, () => messages);
       setDiagnostics(diagnosticsOf(lastAssistant(messages)));

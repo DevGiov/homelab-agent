@@ -74,7 +74,6 @@ Non è persistente, ma è dove si decide la qualità: tutto il resto della memor
 **Lezioni ricorrenti:**
 - Gli agenti **aggiungono bene ma compattano male**: invece di generalizzare ("ignora le email commerciali") elencano ogni mittente [3].
 - **Comprimere in fatti fa perdere dettaglio**: su LongMemEval memorizzare i singoli scambi funziona meglio che i fatti estratti, che però aiutano le domande su più sessioni. La combinazione migliore usa i fatti come **chiave di indicizzazione aggiuntiva** del testo originale: +9,4% di richiamo e +5,4% di accuratezza [16].
-- Anche un sistema semplice regge se le scritture sono sicure: Odysseus tiene i ricordi in un JSON con categoria e contatore d'uso, cerca con Jaccard più vettori e rifiuta di riscrivere l'archivio se non riesce a leggerlo, per non sostituirlo con una lista vuota [6].
 - Le note che riguardano azioni future devono dire quando valgono, quando scadono e chi le ha stabilite; la memoria **non è una policy** e non sostituisce approvazioni e sandbox [4].
 
 **Da noi:** i fatti di D3 (sqlite-vec, embedding `paraphrase-multilingual-MiniLM-L12-v2` a 384 dimensioni, deduplicazione a 0,95, entità nella stessa chiamata) coprono il modello Mem0 tranne l'aggiornamento e la cancellazione automatici: un fatto smentito resta accanto a quello nuovo. Non esiste un profilo: le preferenze dell'utente competono con gli altri fatti per i 3 posti del recall.
@@ -195,7 +194,7 @@ C'è un vincolo di architettura: oggi il recupero avviene prima del router. Diff
 | **Profilo** (precaricato, inizio prompt) | sì | sì | sì | sì |
 | **Finestra e riepilogo** | piccola (~1500 token) | media | media | media |
 | **Fatti** | no, salvo preferenze nel profilo | precaricati (soglia) + `recall_memory` | precaricati sulle entità citate, marcati come da verificare | come act |
-| **Ricerca nelle conversazioni** | no | tool `search_conversations` | no | no |
+| **Ricerca nelle conversazioni** | no | tool `search_conversations` | tool `search_conversations` (decisioni e configurazioni passate) | tool `search_conversations` |
 | **Episodi di esecuzione** | no | no | i 2–3 più simili, compressi (tool, esito, errore) | i 3–5 più simili, con piano ed esito |
 | **Procedure** | no | no | note sui tool scelti (iniettate con lo schema del tool) | piani modello pertinenti + note sui tool del catalogo |
 | **Scrittura** | preferenze e decisioni esplicite | fatti dalle risposte, con provenienza (mai dal web senza conferma) | episodio deterministico dalla traccia; lezione proposta se fallito | episodio con piano; proposta di piano modello se riuscito e approvato |
@@ -221,7 +220,7 @@ Punteggi indicativi: valore per il nostro caso, costo di implementazione, rischi
 | Piani modello (stile AWM) | medio-alto: planning al 12% | medio | medio: piani obsoleti | **sì, dopo gli episodi**, misurato con la suite `planning` |
 | Consolidamento in background | medio: meno latenza, fatti migliori | medio | medio: fusioni sbagliate | **sì**, con decisioni a regole e ripiego a "solo aggiunta" |
 | Ricerca ibrida (FTS5 + vettori) | medio: ID, IP, nomi | basso (FTS5 è in SQLite) | basso | **sì** |
-| Ricerca nelle conversazioni | medio (ask) | medio | basso | **sì**, indicizzando i singoli scambi |
+| Ricerca nelle conversazioni | medio (ask, act, plan) | medio | basso | **sì**, come tool e non precaricata, indicizzando i singoli scambi |
 | Validità temporale dei fatti | medio | basso | basso | **sì**, insieme al consolidamento |
 | Grafo dell'infrastruttura da API | medio | medio | basso (dati esatti) | più avanti, se servono domande multi-salto |
 | Grafo temporale completo (Graphiti, Neo4j) | basso-medio | alto | alto: estrazione LLM | **no** per ora |
@@ -247,7 +246,7 @@ Punteggi indicativi: valore per il nostro caso, costo di implementazione, rischi
 
 ## 7. Piano proposto
 
-Ogni passo è misurabile con l'harness di D4: prima si aggiunge la suite, poi si cambia la memoria.
+Ogni passo è misurabile con l'harness di D4: prima si aggiunge la suite, poi si cambia la memoria. Nella roadmap i passi sono la fase E (M0 = E1, M1 = E2, …): [04-ROADMAP.md](../status/04-ROADMAP.md).
 
 | Passo | Contenuto | Misura |
 | :--- | :--- | :--- |
@@ -257,7 +256,7 @@ Ogni passo è misurabile con l'harness di D4: prima si aggiunge la suite, poi si
 | **M3** | Episodi di esecuzione (kind `episode`) ricavati da `execution_trace_json`/`rollback_trace_json`, recuperati in act e plan; ricerca ibrida FTS5 + vettori | suite `tools`, `planning`, `rollback` |
 | **M4** | Memoria procedurale: note sui tool e piani modello, proposti dall'agente dopo esecuzioni riuscite o corrette dall'utente, approvati nella UI | suite `planning`, `tools` |
 | **M5** | Consolidamento notturno come automazione: estrazione dei fatti in blocco al posto di `remember_turn`, deduplicazione, validità temporale, diario delle decisioni | suite `memory`, `recall` |
-| più avanti | Ricerca nelle conversazioni per ask; grafo dell'infrastruttura sincronizzato dalle API | da valutare |
+| più avanti | Ricerca nelle conversazioni (tool per ask, act e plan); grafo dell'infrastruttura sincronizzato dalle API | da valutare |
 
 ---
 

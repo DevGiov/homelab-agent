@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 
 api = FastAPI(
     title="Home Lab Agent API",
-    description="FastAPI service exposing LangGraph Agent with MetaMCP tools, Letta persistent memory, and SQLite Checkpointing",
+    description="FastAPI service exposing LangGraph Agent with MetaMCP tools, SQLite memory and checkpointing",
     version="1.0",
     lifespan=lifespan,
 )

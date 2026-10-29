@@ -68,6 +68,20 @@ Valutazione dei file sopra 600 righe (2026-10-27): `calendar/db.py`, `registry/c
 | D4 | ~~**Eval harness**: i test `live` diventano una suite di valutazione ripetibile (routing, tool selection, rollback) con report per modello~~ ✅ 2026-10-28 (`app/evals`: suite routing, tools, planning, rollback, memory senza effetti collaterali; report JSON per modello e confronto Markdown; `make eval`; test live dei modelli rimossi) | Confronto tra modelli su CT 149 | A3 |
 | D5 | **Auth multi-utente / RBAC**: solo se l'accesso esce dalla LAN | Sicurezza | B1 |
 
+## Fase E — Memoria
+
+Dalla [ricerca sulla memoria degli agenti](../memory/MEMORY_RESEARCH.md): una politica di memoria per modalità, poi episodi, procedure e consolidamento. Ogni passo si misura con le suite di valutazione.
+
+| # | Passo | Misura | Dipende da |
+| :--- | :--- | :--- | :--- |
+| E1 | ~~**Memoria tutta interna**: rimozione di Letta, cronologia solo da `thread_store`, riassunto incrementale nel database~~ ✅ 2026-10-29 | test | D3 |
+| E2 | **Suite `recall`**: aggiornamenti, domande temporali, astensione, richiamo tra thread e su thread lunghi, su un database temporaneo | baseline | D4 |
+| E3 | **Memoria per modalità**: composizione dopo il routing, budget per modalità in `ModePolicy`, profilo utente precaricato e modificabile, memoria stabile all'inizio del prompt | `recall`, latenza di chat | E1, E2 |
+| E4 | **Episodi di esecuzione** per act e plan, ricavati dalle tracce; ricerca ibrida FTS5 + vettori; tool `search_conversations` per ask, act e plan | `tools`, `planning`, `rollback`, `recall` | E3 |
+| E5 | **Memoria procedurale**: note sui tool e piani modello, proposti dall'agente e approvati nella UI | `planning`, `tools` | E4 |
+| E6 | **Consolidamento notturno**: estrazione dei fatti in blocco al posto di quella a ogni turno, deduplicazione, validità temporale dei fatti | `memory`, `recall` | E2 |
+| E7 | **Budget di ragionamento per modello**: i valori per modalità dipendono dal modello (alcuni non ragionano, altri ne hanno bisogno per i tool) | tutte le suite | D4 |
+
 ## Storico
 
 | Periodo | Contenuto |

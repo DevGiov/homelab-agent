@@ -3,7 +3,7 @@ import logging
 import re
 import sqlite3
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
 
@@ -13,7 +13,7 @@ def _get_conn():
     return sqlite3.connect(settings.checkpoint_db_path)
 
 def init_db():
-    """Inizializza le tabelle thread_metadata e thread_messages nel database SQLite."""
+    """Inizializza le tabelle dei thread: metadati, messaggi e riassunto della parte vecchia della conversazione."""
     conn = _get_conn()
     try:
         conn.execute("""
@@ -48,6 +48,14 @@ def init_db():
                 model TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (thread_id, message_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS thread_summaries (
+                thread_id TEXT PRIMARY KEY,
+                summary TEXT NOT NULL,
+                covered INTEGER NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         conn.commit()
@@ -384,6 +392,63 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         return []
 
 
+def _active_content(content: str, versions_json: Optional[str], version_index: Optional[int]) -> str:
+    """Il testo della versione mostrata nella UI (una rigenerazione o una modifica aggiunge versioni)."""
+    if versions_json:
+        try:
+            versions = json.loads(versions_json)
+            if 0 <= (version_index or 0) < len(versions):
+                return versions[version_index or 0].get("content") or content
+        except (ValueError, AttributeError, TypeError):
+            pass
+    return content
+
+
+def get_history(thread_id: str) -> List[Dict[str, Any]]:
+    """La conversazione come la vede l'agente: ruolo, testo della versione attiva, modalità, tool e data di
+    creazione (UTC). Esclude i messaggi vuoti e gli errori."""
+    if not thread_id:
+        return []
+    conn = _get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT sender, content, versions_json, version_index, mode, tool_used, created_at
+            FROM thread_messages
+            WHERE thread_id = ? AND COALESCE(is_error, 0) = 0
+            ORDER BY rowid ASC
+        """, (thread_id,)).fetchall()
+    finally:
+        conn.close()
+    history = []
+    for sender, content, versions_json, version_index, mode, tool_used, created_at in rows:
+        text = _active_content(content, versions_json, version_index).strip()
+        if text:
+            history.append({"role": sender, "content": text, "mode": mode, "tool_used": tool_used, "created_at": created_at})
+    return history
+
+
+def get_summary(thread_id: str) -> Tuple[str, int]:
+    """Riassunto dei primi `covered` messaggi della cronologia; ("", 0) se il thread non ne ha."""
+    conn = _get_conn()
+    try:
+        row = conn.execute("SELECT summary, covered FROM thread_summaries WHERE thread_id = ?", (thread_id,)).fetchone()
+    finally:
+        conn.close()
+    return (row[0], row[1]) if row else ("", 0)
+
+
+def save_summary(thread_id: str, summary: str, covered: int) -> None:
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO thread_summaries (thread_id, summary, covered, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (thread_id, summary, covered),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_last_message(thread_id: str) -> Optional[str]:
     """Recupera l'anteprima del testo dell'ultimo messaggio non vuoto di un thread."""
     if not thread_id:
@@ -405,13 +470,14 @@ def get_last_message(thread_id: str) -> Optional[str]:
 
 
 def delete_thread_messages(thread_id: str):
-    """Elimina tutti i messaggi associati a un thread."""
+    """Elimina i messaggi e il riassunto di un thread."""
     if not thread_id:
         return
     try:
         conn = _get_conn()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM thread_messages WHERE thread_id = ?", (thread_id,))
+        cursor.execute("DELETE FROM thread_summaries WHERE thread_id = ?", (thread_id,))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -419,11 +485,12 @@ def delete_thread_messages(thread_id: str):
 
 
 def clear_all_thread_messages():
-    """Svuota l'intera tabella dei messaggi."""
+    """Elimina i messaggi e i riassunti di tutti i thread."""
     try:
         conn = _get_conn()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM thread_messages")
+        cursor.execute("DELETE FROM thread_summaries")
         conn.commit()
         conn.close()
     except Exception as e:
