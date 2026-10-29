@@ -91,6 +91,11 @@ Prima base di Qwen3.6-35B su `planning` (**100%, 4/4**, 27 s per caso) e `rollba
 il piano di compensazione LLM chiama `release_ip` senza l'indirizzo da rilasciare. Il rollback non usa la memoria; da
 indagare a parte.
 
+Dopo E5: `tools` **100% (17/17)**, `planning` **75% (3/4)**. Nel caso `new-service` il modello ora sceglie, in modo
+stabile (3 volte su 3), il tool composito `create_service` (con il dry run) invece dei quattro passi espliciti attesi
+dal caso. Non dipende da E5: lo fa anche togliendo `propose_procedure` dal catalogo. Va deciso se il caso deve accettare
+anche `create_service`.
+
 ## 4. Deploy (CT 125)
 
 | Voce | Stato |
