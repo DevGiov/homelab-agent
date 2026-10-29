@@ -5,7 +5,16 @@ from unittest.mock import patch
 import pytest
 
 from app.evals import runner, suites
-from app.evals.suites import Outcome, grade_memory, grade_plan, grade_rollback, grade_routing, grade_tool
+from app.evals.suites import (
+    Outcome,
+    RecallAnswer,
+    grade_memory,
+    grade_plan,
+    grade_recall,
+    grade_rollback,
+    grade_routing,
+    grade_tool,
+)
 from app.observability import store
 from app.observability.turns import capture_llm_calls, record_llm_call
 
@@ -23,8 +32,12 @@ def test_case_files_are_well_formed(suite):
         "planning": {"input", "required_tools"},
         "rollback": {"task", "steps", "error", "expect_mentions"},
         "memory": {"task", "response", "expect_facts"},
+        "recall": {"sessions", "question"},
     }[suite]
     assert all(required <= set(c) for c in cases)
+    if suite == "recall":
+        assert all(c.get("abstain") or c.get("expect_any") or c.get("expect_all") for c in cases)
+        assert all({"thread", "date", "turns"} <= set(s) for c in cases for s in c["sessions"])
 
 
 def test_grade_routing():
@@ -73,6 +86,54 @@ def test_grade_memory():
     assert "conversazione" in grade_memory(case, [{"text": "The user asked about Synology", "entities": ["Synology"]}]).detail
     assert grade_memory({"expect_facts": False}, []).passed
     assert not grade_memory({"expect_facts": False}, [{"text": "Un bigram è una coppia di parole", "entities": []}]).passed
+
+
+def test_grade_recall():
+    case = {"expect_any": ["192.168.1.250"], "forbid": ["192.168.1.53"]}
+    assert grade_recall(case, {"answer": "L'IP di Pi-hole è 192.168.1.250", "found": True}, "IP 192.168.1.250").passed
+    detail = grade_recall(case, {"answer": "Non lo so", "found": False}, "Pi-hole ha IP 192.168.1.53").detail
+    assert "manca 192.168.1.250" in detail and "nel contesto: no" in detail
+    assert "cita 192.168.1.53" in grade_recall(case, {"answer": "192.168.1.250, prima 192.168.1.53", "found": True}, "").detail
+    assert "nel contesto: sì" in grade_recall({"expect_all": ["Grafana", "Loki"]}, {"answer": "Grafana", "found": True}, "Grafana, Loki").detail
+    assert grade_recall({"abstain": True}, {"answer": "Non ne abbiamo mai parlato", "found": False}, "").passed
+    assert not grade_recall({"abstain": True}, {"answer": "Sul CT 140", "found": True}, "").passed
+    assert not grade_recall(case, None, "").passed
+
+
+def test_recall_runs_in_a_sandbox_and_leaves_real_memory_untouched():
+    from app.agent import fact_extraction
+    from app.agent.nodes import retrieve_memory
+    from app.memory import facts, thread_store
+
+    thread_store.init_db()
+    real_threads = len(thread_store.get_history("a"))
+    real_facts = facts.stats()
+    case = {
+        "sessions": [
+            {"thread": "a", "date": "2026-08-15", "turns": [["Pi-hole ha l'IP 192.168.1.53.", "Annotato."]]},
+            {"thread": "q", "date": "2026-10-12", "extract": False, "turns": [["Chiamiamo Orione il progetto.", "D'accordo."]], "filler": 14},
+        ],
+        "thread": "q",
+        "question": "Qual è l'IP di Pi-hole e come si chiama il progetto?",
+        "expect_all": ["192.168.1.53", "Orione"],
+    }
+    extracted = [fact_extraction.ExtractedFact(text="Pi-hole ha l'IP 192.168.1.53", entities=[])]
+    seen = {}
+
+    def reader(prompt, *args, **kwargs):
+        seen["prompt"] = prompt
+        return RecallAnswer(answer="192.168.1.53, progetto Orione", found=True)
+
+    with patch.object(fact_extraction, "extract_facts", return_value=extracted) as extract, \
+            patch.object(retrieve_memory, "_update_summary", return_value="Il progetto si chiama Orione.") as summarize, \
+            patch("app.agent.llm_calls.call_llm_structured", side_effect=reader):
+        outcome = suites.run_recall(case, "m")
+
+    assert outcome.passed, outcome.detail
+    assert extract.call_count == 1  # solo gli scambi del caso, non i riempitivi né le sessioni senza estrazione
+    assert len(summarize.call_args.args[1]) == 30 - 10  # thread lungo: la parte vecchia passa dal riassunto
+    assert "- Pi-hole ha l'IP 192.168.1.53" in seen["prompt"] and "Il progetto si chiama Orione." in seen["prompt"]
+    assert len(thread_store.get_history("a")) == real_threads and facts.stats() == real_facts
 
 
 def test_capture_counts_llm_calls_without_recording_a_turn():

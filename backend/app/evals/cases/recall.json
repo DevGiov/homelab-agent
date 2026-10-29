@@ -1,0 +1,110 @@
+[
+  {
+    "id": "cross-thread-preference",
+    "sessions": [
+      {"thread": "a", "date": "2026-09-02", "turns": [["Per i nuovi container preferisco sempre Debian 12, mai Ubuntu.", "Ricevuto: per i nuovi container userò Debian 12."]]}
+    ],
+    "question": "Che distribuzione uso di solito per i nuovi container?",
+    "expect_any": ["Debian"]
+  },
+  {
+    "id": "cross-thread-detail",
+    "sessions": [
+      {"thread": "a", "date": "2026-09-05", "turns": [["Il NAS Synology fa i backup di Proxmox ogni notte alle 3:30.", "Annotato: backup notturno di Proxmox sul NAS Synology alle 3:30."]]},
+      {"thread": "b", "date": "2026-09-20", "turns": [["Mi spieghi la differenza tra snapshot e backup?", "Uno snapshot congela lo stato di un container sullo stesso storage; un backup ne copia i dati altrove, quindi sopravvive alla perdita del disco."]]}
+    ],
+    "question": "A che ora partono i backup sul NAS?",
+    "expect_any": ["3:30", "03:30", "3 e mezza", "tre e mezza"]
+  },
+  {
+    "id": "cross-thread-decision",
+    "sessions": [
+      {"thread": "a", "date": "2026-09-10", "turns": [["Abbiamo deciso: niente più snapshot manuali, per i container si usa solo vzdump notturno verso Proxmox Backup Server.", "Perfetto, d'ora in poi i backup dei container passano solo da vzdump notturno su Proxmox Backup Server."]]}
+    ],
+    "question": "Come gestiamo i backup dei container?",
+    "expect_any": ["vzdump", "Proxmox Backup Server", "PBS"]
+  },
+  {
+    "id": "multi-session-aggregation",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-12", "turns": [["Sul CT 150 ho installato Grafana.", "Bene, Grafana è sul CT 150."]]},
+      {"thread": "b", "date": "2026-08-30", "turns": [["Sul CT 150 ho aggiunto anche Prometheus.", "Ottimo, ora sul CT 150 ci sono Grafana e Prometheus."]]},
+      {"thread": "c", "date": "2026-09-14", "turns": [["Sul CT 150 adesso gira pure Loki per i log.", "Annotato: Loki per i log sul CT 150."]]}
+    ],
+    "question": "Quali servizi ho messo sul CT 150?",
+    "expect_all": ["Grafana", "Prometheus", "Loki"]
+  },
+  {
+    "id": "update-container",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-20", "turns": [["Immich gira sul CT 130.", "Annotato: Immich è sul CT 130."]]},
+      {"thread": "b", "date": "2026-10-05", "turns": [["Ho spostato Immich dal CT 130 al CT 141, il 130 l'ho eliminato.", "Ricevuto: Immich ora è sul CT 141 e il CT 130 non esiste più."]]}
+    ],
+    "question": "Su quale container gira Immich adesso?",
+    "expect_any": ["141"]
+  },
+  {
+    "id": "update-ip",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-15", "turns": [["Pi-hole ha l'IP 192.168.1.53.", "Annotato: Pi-hole risponde su 192.168.1.53."]]},
+      {"thread": "b", "date": "2026-10-01", "turns": [["Ho cambiato l'IP di Pi-hole: ora è 192.168.1.250.", "Ricevuto, il nuovo indirizzo di Pi-hole è 192.168.1.250."]]}
+    ],
+    "question": "Qual è l'IP attuale di Pi-hole?",
+    "expect_any": ["192.168.1.250"]
+  },
+  {
+    "id": "update-tool",
+    "sessions": [
+      {"thread": "a", "date": "2026-07-28", "turns": [["Per gestire Docker uso Portainer.", "Bene, Portainer per la gestione di Docker."]]},
+      {"thread": "b", "date": "2026-09-25", "turns": [["Ho tolto Portainer, adesso gestisco Docker con Dockge.", "Annotato: Dockge al posto di Portainer."]]}
+    ],
+    "question": "Con che strumento gestisco i container Docker?",
+    "expect_any": ["Dockge"]
+  },
+  {
+    "id": "temporal-month",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-10", "turns": [["Oggi ho installato Jellyfin sul CT 133.", "Ottimo, Jellyfin è sul CT 133."]]},
+      {"thread": "b", "date": "2026-09-16", "turns": [["Oggi ho installato Paperless-ngx sul CT 136.", "Bene, Paperless-ngx è sul CT 136."]]}
+    ],
+    "question": "Quale servizio ho installato ad agosto?",
+    "expect_any": ["Jellyfin"],
+    "forbid": ["Paperless"]
+  },
+  {
+    "id": "temporal-latest",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-10", "turns": [["Oggi ho installato Jellyfin sul CT 133.", "Ottimo, Jellyfin è sul CT 133."]]},
+      {"thread": "b", "date": "2026-09-16", "turns": [["Oggi ho installato Paperless-ngx sul CT 136.", "Bene, Paperless-ngx è sul CT 136."]]},
+      {"thread": "c", "date": "2026-10-08", "turns": [["Oggi ho installato Vaultwarden sul CT 138.", "Annotato: Vaultwarden sul CT 138."]]}
+    ],
+    "question": "Qual è l'ultimo servizio che ho installato?",
+    "expect_any": ["Vaultwarden"]
+  },
+  {
+    "id": "abstain-unknown-service",
+    "sessions": [
+      {"thread": "a", "date": "2026-08-20", "turns": [["Immich gira sul CT 130.", "Annotato: Immich è sul CT 130."]]},
+      {"thread": "b", "date": "2026-09-10", "turns": [["Jellyfin è sul CT 133.", "Bene, Jellyfin sul CT 133."]]}
+    ],
+    "question": "Su quale container gira Nextcloud?",
+    "abstain": true
+  },
+  {
+    "id": "abstain-unknown-device",
+    "sessions": [
+      {"thread": "a", "date": "2026-09-05", "turns": [["Il NAS Synology fa i backup di Proxmox ogni notte alle 3:30.", "Annotato: backup notturno sul NAS Synology alle 3:30."]]}
+    ],
+    "question": "Che modello di router ho in casa?",
+    "abstain": true
+  },
+  {
+    "id": "long-thread-early-detail",
+    "sessions": [
+      {"thread": "q", "date": "2026-10-12", "extract": false, "turns": [["Chiamiamo 'Orione' il progetto di migrazione dei backup sul secondo NAS.", "D'accordo: il progetto di migrazione dei backup sul secondo NAS si chiama Orione."]], "filler": 14}
+    ],
+    "thread": "q",
+    "question": "Come avevamo chiamato il progetto di migrazione dei backup?",
+    "expect_any": ["Orione"]
+  }
+]

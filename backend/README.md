@@ -154,7 +154,7 @@ make lint
 ## Valutazione dei modelli
 
 `app/evals/` misura quanto bene un modello guida l'agente, senza effetti collaterali: nessun tool eseguito, nessun
-fatto salvato. Cinque suite, con i casi in `app/evals/cases/*.json`:
+fatto salvato nella memoria reale. Sei suite, con i casi in `app/evals/cases/*.json`:
 
 | Suite | Cosa chiama | Superato se |
 | :--- | :--- | :--- |
@@ -163,6 +163,7 @@ fatto salvato. Cinque suite, con i casi in `app/evals/cases/*.json`:
 | `planning` | `generate_plan_structure` | piano valido, solo tool del catalogo, passi richiesti presenti, nessun tool vietato, non troppi passi |
 | `rollback` | `generate_rollback_plan_with_llm` | compensazioni attese citate (nell'ordine, se richiesto) |
 | `memory` | `extract_facts` | fatti con le entità attese; nessun fatto per chiacchiere, nozioni generali o cronaca della conversazione |
+| `recall` | conversazioni datate salvate ed estratte come fa l'agente in un database temporaneo, poi `retrieve_memory` e una risposta strutturata alla domanda | valore atteso nella risposta (il dettaglio dice se era nel contesto); per le domande senza risposta in memoria, ammissione di non sapere. Casi: preferenze e dettagli tra thread, aggregazione su più thread, valori aggiornati, domande temporali, astensione, dettaglio iniziale di un thread lungo (riassunto) |
 
 Ogni caso può girare più volte (`--repeat`) per misurare la stabilità. Il report di ogni modello (esito,
 durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca, per ogni modello, il

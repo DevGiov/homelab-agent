@@ -1,13 +1,21 @@
 """Suite di valutazione: per ogni suite un esecutore (chiama il modello senza effetti collaterali: nessun tool
-eseguito, nessun fatto salvato) e un giudizio puro sul risultato, testabile senza LLM.
+eseguito, nessun fatto salvato nella memoria reale) e un giudizio puro sul risultato, testabile senza LLM.
+
+La suite `recall` scrive conversazioni e fatti, ma in un database temporaneo per caso (`memory_sandbox`).
 
 Un giudizio restituisce `Outcome`: superato o no, con una riga che spiega l'esito; `skipped` quando il caso
 non è valutabile in questo deploy (per esempio il tool atteso non è nel catalogo).
 """
 import json
+import sqlite3
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional
+from unittest.mock import patch
+
+from pydantic import BaseModel
 
 CASES_DIR = Path(__file__).parent / "cases"
 
@@ -111,6 +119,27 @@ def grade_memory(case: Dict[str, Any], facts: List[Dict[str, Any]]) -> Outcome:
     return Outcome(True, f"{len(facts)} fatti, entità: {', '.join(sorted(set(names)))}")
 
 
+def grade_recall(case: Dict[str, Any], answer: Optional[Dict[str, Any]], context: str) -> Outcome:
+    """Risposta alla domanda sulla memoria. Il dettaglio dice se il valore atteso era nel contesto, per distinguere
+    un errore di recupero da uno di lettura."""
+    if not answer:
+        return Outcome(False, "nessuna risposta strutturata")
+    text, found = answer["answer"].lower(), answer["found"]
+    if case.get("abstain"):
+        return Outcome(not found, "nessuna informazione, come atteso" if not found else f"risposta inventata: {answer['answer'][:80]}")
+    expected = case.get("expect_all", []) + case.get("expect_any", [])
+    in_context = "sì" if any(e.lower() in context.lower() for e in expected) else "no"
+    missing = [e for e in case.get("expect_all", []) if e.lower() not in text]
+    if case.get("expect_any") and not any(e.lower() in text for e in case["expect_any"]):
+        missing.append(" o ".join(case["expect_any"]))
+    if missing:
+        return Outcome(False, f"manca {', '.join(missing)} (nel contesto: {in_context}): {answer['answer'][:80]}")
+    forbidden = [f for f in case.get("forbid", []) if f.lower() in text]
+    if forbidden:
+        return Outcome(False, f"cita {', '.join(forbidden)}: {answer['answer'][:80]}")
+    return Outcome(True, f"risposta corretta: {answer['answer'][:80]}")
+
+
 # --- Esecutori: chiamano il modello e passano il risultato al giudizio ---
 
 
@@ -172,10 +201,93 @@ def run_memory(case: Dict[str, Any], model: str) -> Outcome:
     return grade_memory(case, [{"text": f.text, "entities": [e.name for e in f.entities]} for f in facts])
 
 
+# Scambi neutri che allungano un thread oltre la finestra dei messaggi recenti
+FILLER_TURNS = [
+    ("Come vedo lo spazio libero dentro un container?", "Dentro il container usa `df -h`; dall'host Proxmox `pct df <vmid>`."),
+    ("Che differenza c'è tra un container privilegiato e uno non privilegiato?", "Il non privilegiato mappa gli UID su un intervallo dell'host: se il container viene compromesso, root non è root sull'host."),
+    ("Come riavvio un servizio systemd?", "Con `systemctl restart <servizio>`; `systemctl status <servizio>` mostra lo stato e gli ultimi log."),
+    ("Come leggo gli ultimi log di un servizio?", "`journalctl -u <servizio> -n 50` per le ultime 50 righe, `-f` per seguirli."),
+    ("Quanta RAM conviene dare a un container con solo Nginx?", "Per un Nginx statico bastano 256-512 MB."),
+    ("Come aggiorno i pacchetti su Debian?", "`apt update && apt full-upgrade`, poi `apt autoremove` per i pacchetti orfani."),
+    ("A cosa serve il bind mount in un container LXC?", "Monta una directory dell'host nel container, per esempio un dataset condiviso con i media."),
+]
+
+
+@contextmanager
+def memory_sandbox() -> Iterator[None]:
+    """Conversazioni, riassunti e fatti in un database temporaneo, eliminato all'uscita."""
+    from app.core.config import Settings
+    from app.memory import facts, thread_store, vector_store
+
+    with tempfile.TemporaryDirectory(prefix="eval_memory_") as tmp:
+        db_path = str(Path(tmp) / "checkpoints.db")
+        with patch.object(Settings, "checkpoint_db_path", property(lambda _: db_path)):
+            thread_store.init_db()
+            vector_store.init_vector_db()
+            facts.init_facts_db()
+            yield
+
+
+def _ingest(session: Dict[str, Any], model: str) -> None:
+    """Salva gli scambi come farebbe l'agente (messaggi ed estrazione dei fatti), datati alla data della sessione."""
+    from app.agent.fact_extraction import remember_turn
+    from app.core.config import settings
+    from app.memory import thread_store
+
+    thread = session["thread"]
+    turns = [tuple(t) for t in session["turns"]] + [FILLER_TURNS[i % len(FILLER_TURNS)] for i in range(session.get("filler", 0))]
+    for i, (user, assistant) in enumerate(turns):
+        thread_store.save_user_message(thread, user, user_msg_id=f"{thread}-u{i}")
+        thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat"}, ast_msg_id=f"{thread}-a{i}")
+        if session.get("extract", True) and i < len(session["turns"]):
+            remember_turn(user, assistant, "", thread, model=model)
+    with sqlite3.connect(settings.checkpoint_db_path) as conn:
+        for table in ("thread_messages", "vec_memory"):
+            conn.execute(f"UPDATE {table} SET created_at = ? WHERE thread_id = ?", (f"{session['date']} 10:00:00", thread))
+
+
+class RecallAnswer(BaseModel):
+    answer: str
+    found: bool
+
+
+def run_recall(case: Dict[str, Any], model: str) -> Outcome:
+    from app.agent import llm_calls
+    from app.agent.nodes.retrieve_memory import retrieve_memory_node
+    from app.memory import thread_store
+
+    with memory_sandbox():
+        for session in case["sessions"]:
+            _ingest(session, model)
+        thread = case.get("thread", "domanda")
+        thread_store.save_user_message(thread, case["question"], user_msg_id=f"{thread}-question")
+        context = retrieve_memory_node({"thread_id": thread, "task": case["question"], "model": model})["memory_context"] or ""
+        answer = llm_calls.call_llm_structured(
+            f"""Today is {case.get('date', '2026-10-20')}.
+
+Memory of past conversations:
+{context or '(empty)'}
+
+Question: {case['question']}
+
+Answer using only the memory above, in the language of the question. When the memory has several values for the same
+thing, use the most recent one. If the memory does not contain the answer, set found to false and say you don't know.""",
+            "You answer questions about the user's past conversations using only the memory provided.",
+            RecallAnswer,
+            max_tokens=512,
+            max_retries=1,
+            reasoning_budget=0,
+            model=model,
+            reasoning_phase=None,
+        )
+    return grade_recall(case, answer.model_dump() if answer else None, context)
+
+
 SUITES: Dict[str, Callable[[Dict[str, Any], str], Outcome]] = {
     "routing": run_routing,
     "tools": run_tools,
     "planning": run_planning,
     "rollback": run_rollback,
     "memory": run_memory,
+    "recall": run_recall,
 }
