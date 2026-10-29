@@ -13,6 +13,7 @@
   {"id": "automations", "input": "Quali automazioni sono configurate?", "expected_tool": "list_automations"},
   {"id": "web-news", "input": "Cerca sul web le ultime notizie su llama.cpp", "expected_tool": "web_search"},
   {"id": "memory-recall", "input": "Ti ricordi che distribuzione preferisco per i container?", "expected_tool": "recall_memory"},
+  {"id": "conversation-search", "input": "In quale conversazione avevamo parlato del certificato di nginx sul CT 125? Ritrova cosa avevamo deciso.", "expected_tool": "search_conversations", "accept_tools": ["recall_memory"]},
   {"id": "no-tool-poem", "input": "Scrivi una poesia sul tramonto nell'homelab", "expected_tool": null},
   {"id": "no-tool-thanks", "input": "Perfetto, grazie mille per l'aiuto!", "expected_tool": null}
 ]

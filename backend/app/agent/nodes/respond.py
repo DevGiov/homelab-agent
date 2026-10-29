@@ -4,6 +4,7 @@ from typing import Any
 
 from app.agent.fact_extraction import remember_turn
 from app.agent.state import AgentState
+from app.memory.episodes import remember_episode
 
 logger = logging.getLogger("graph")
 
@@ -74,7 +75,8 @@ def _format_tool_result(tool_name: str, result: Any) -> str:
 
 
 def respond_node(state: AgentState) -> AgentState:
-    """Formats final response if not already set and saves the facts worth remembering (the message itself is saved by the caller in thread_store)."""
+    """Formats final response if not already set and saves the facts worth remembering and, for act/plan turns that ran
+    tools, the execution episode (the message itself is saved by the caller in thread_store)."""
     thread_id = state.get("thread_id") or "default_thread"
     task = state.get("task", "")
     memory_context = state.get("memory_context") or ""
@@ -103,6 +105,12 @@ def respond_node(state: AgentState) -> AgentState:
                 logger.info(f"Memoria: {created} fatti nuovi dal thread '{thread_id}'")
         except Exception as e:
             logger.warning(f"Estrazione dei fatti non riuscita (non bloccante): {e}")
+        if state.get("mode") in ("act", "plan") and state.get("execution_trace"):
+            try:
+                if remember_episode(task, state["mode"], state["execution_trace"], thread_id):
+                    logger.info(f"Memoria: episodio di esecuzione salvato dal thread '{thread_id}'")
+            except Exception as e:
+                logger.warning(f"Salvataggio dell'episodio non riuscito (non bloccante): {e}")
     else:
         logger.info(f"Modalità Incognito attiva per thread '{thread_id}': estrazione fatti saltata.")
 

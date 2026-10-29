@@ -2,10 +2,11 @@
 
 Prima del router (`recent_turns_node`) servono solo gli ultimi messaggi e la modalità dell'ultima risposta. Dopo il
 router (`retrieve_memory_node`) la memoria si compone secondo la `MemoryPolicy` della modalità scelta: profilo
-dell'utente, riassunto della parte vecchia del thread, messaggi recenti entro il budget e fatti di altri thread.
+dell'utente, riassunto della parte vecchia del thread, messaggi recenti entro il budget, fatti di altri thread ed
+esecuzioni passate simili (act e plan).
 
 L'ordine va dal più stabile al più variabile, così llama.cpp riusa da un turno all'altro la parte iniziale del prompt:
-il profilo cambia di rado, il riassunto a ogni ripiegamento, i messaggi si accodano; i fatti dipendono dalla richiesta.
+il profilo cambia di rado, il riassunto a ogni ripiegamento, i messaggi si accodano; fatti ed episodi dipendono dalla richiesta.
 
 La cronologia esclude il messaggio corrente (salvato prima dell'esecuzione del grafo, arriva come `task`). Quando i
 messaggi non ancora riassunti superano `RECENT_MAX` o `CONTEXT_TOKEN_BUDGET`, i più vecchi vengono aggiunti al
@@ -18,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.agent import llm_calls
 from app.agent.mode_policy import MemoryPolicy, get_mode_policy
 from app.agent.state import AgentState
-from app.memory import facts, profile, thread_store
+from app.memory import episodes, facts, profile, thread_store
 
 logger = logging.getLogger("graph")
 
@@ -121,6 +122,20 @@ def _recalled_facts(task: str, thread_id: str, policy: MemoryPolicy) -> str:
     return f"{header}:\n" + "\n".join(lines)
 
 
+def _past_executions(task: str, policy: MemoryPolicy) -> str:
+    """Episodi di esecuzione simili alla richiesta: tool usati, errori ed esito."""
+    if not policy.episodes_k:
+        return ""
+    try:
+        similar = episodes.similar_episodes(task, policy.episodes_k)
+    except Exception as e:
+        logger.warning(f"Ricerca degli episodi non riuscita (non bloccante): {e}")
+        return ""
+    if not similar:
+        return ""
+    return "### Esecuzioni simili passate (tool usati ed esito):\n" + "\n".join(f"- [{e['date']}] {e['content']}" for e in similar)
+
+
 def recent_turns_node(state: AgentState) -> AgentState:
     """Prima del router: ultimi messaggi e modalità dell'ultima risposta, senza chiamate al modello."""
     if not state.get("thread_id") or state.get("incognito"):
@@ -159,10 +174,13 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
     recalled = _recalled_facts(task, thread_id, policy)
     if recalled:
         parts.append(recalled)
+    executions = _past_executions(task, policy)
+    if executions:
+        parts.append(executions)
 
     logger.info(
         f"Memoria [{mode}] del thread '{thread_id}': {len(history)} messaggi, profilo={'sì' if user_profile else 'no'}, "
         f"riassunto={'sì' if summary else 'no'}, finestra={len(recent)}/{len(window)}, "
-        f"fatti={max(len(recalled.splitlines()) - 1, 0)}, {(time.monotonic() - started) * 1000:.0f} ms"
+        f"fatti={max(len(recalled.splitlines()) - 1, 0)}, episodi={max(len(executions.splitlines()) - 1, 0)}, {(time.monotonic() - started) * 1000:.0f} ms"
     )
     return {"memory_context": "\n\n".join(parts)}

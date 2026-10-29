@@ -218,7 +218,7 @@ FILLER_TURNS = [
 def memory_sandbox() -> Iterator[None]:
     """Conversazioni, riassunti, profilo (vuoto) e fatti in un database temporaneo, eliminato all'uscita."""
     from app.core.config import Settings
-    from app.memory import facts, profile, thread_store, vector_store
+    from app.memory import facts, hybrid_search, profile, thread_store, vector_store
 
     with tempfile.TemporaryDirectory(prefix="eval_memory_") as tmp:
         db_path = str(Path(tmp) / "checkpoints.db")
@@ -227,6 +227,7 @@ def memory_sandbox() -> Iterator[None]:
             profile.init_profile_db()
             vector_store.init_vector_db()
             facts.init_facts_db()
+            hybrid_search.init_search_indexes()
             yield
 
 

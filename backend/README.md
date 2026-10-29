@@ -257,14 +257,17 @@ Tutta la memoria è nel backend, in `checkpoints.db`. Ricerca e proposta per le 
   | :--- | :--- | :--- | :--- | :--- |
   | Riassunto e messaggi recenti | ~1500 token | ~6000 token | ~6000 token | ~6000 token |
   | Fatti di altri thread | no | fino a 5 | fino a 5, da verificare | fino a 5, da verificare |
+  | Esecuzioni passate simili | no | no | fino a 3 | fino a 5 |
 
-  L'ordine va dal più stabile al più variabile (profilo, riassunto, messaggi recenti, fatti; orario e richiesta dopo la memoria), così llama.cpp riusa da un turno all'altro la parte iniziale del prompt. I fatti portano la data.
+  L'ordine va dal più stabile al più variabile (profilo, riassunto, messaggi recenti, fatti, episodi; orario e richiesta dopo la memoria), così llama.cpp riusa da un turno all'altro la parte iniziale del prompt. I fatti portano la data.
 - **Profilo** (`app/memory/profile.py`, `GET/PUT /v1/memory/profile`): testo scritto dall'utente nella vista Memoria (massimo 4000 caratteri), all'inizio della memoria di ogni turno in tutte le modalità. L'agente non lo modifica.
 - **Conversazione**: la cronologia del thread viene da `thread_store` (testo della versione attiva, senza errori né il messaggio corrente). Oltre 20 messaggi non riassunti, o oltre 6000 token stimati, i più vecchi entrano nel riassunto del thread (`thread_summaries`, con il numero di messaggi coperti) e nella finestra ne restano 10.
 - **Fatti** (`app/memory/facts.py`): record `kind='fact'` di sqlite-vec, unica fonte. Un fatto quasi identico a uno esistente (coseno ≥ 0,95) non viene riscritto: riceve solo le entità nuove.
 - **Entità**: tabelle `memory_entities` (nome, chiave normalizzata, tipo: `person`, `organization`, `place`, `project`, `software`, `infrastructure`, `other`) e `memory_fact_entities`. Due entità sono in relazione quando compaiono negli stessi fatti. Un'entità senza fatti viene eliminata.
 - **Estrazione** (`app/agent/fact_extraction.py`): a fine turno, non in incognito, una chiamata a output vincolato restituisce fino a 5 fatti durevoli con le loro entità. I fatti salvati prima delle entità si etichettano dall'explorer (`/v1/memory/entities/extract`, 10 fatti per chiamata); un fatto analizzato senza entità viene segnato (`entities_checked`) e non torna in coda.
-- **Recall**: il tool `recall_memory` e il recall semantico di `retrieve_memory` cercano tra i fatti.
+- **Ricerca ibrida** (`app/memory/hybrid_search.py`): indici FTS5 mantenuti da trigger su `vec_memory` (`memory_fts`) e sulla versione attiva dei messaggi senza errori (`message_fts`), creati e popolati all'avvio. Fatti ed episodi si cercano per significato (coseno sopra soglia) e per parole (BM25; parole lunghe per prefisso, indirizzi IP come frase), fusi con la Reciprocal Rank Fusion: un nome o un ID esatto recupera ciò che l'embedding non avvicina.
+- **Recall**: il tool `recall_memory` e la memoria del turno cercano tra i fatti con la ricerca ibrida; il tool `search_conversations` (ask, act, plan) cerca per parole nei messaggi di tutte le conversazioni, con estratto, data e titolo del thread.
+- **Episodi** (`app/memory/episodes.py`): a fine turno act o plan con tool eseguiti, un record `kind='episode'` ricavato senza modello dalla traccia (richiesta, tool con argomenti, errori, esito; esclusi i turni in attesa di approvazione). I più simili alla richiesta entrano nella memoria dei turni act e plan.
 
 ## Osservabilità
 

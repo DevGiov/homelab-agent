@@ -9,7 +9,7 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from app.memory import vector_store
+from app.memory import hybrid_search, vector_store
 
 logger = logging.getLogger("facts")
 
@@ -18,6 +18,8 @@ ENTITY_TYPES = ("person", "organization", "place", "project", "software", "infra
 DUPLICATE_SCORE = 0.95
 # Sotto questa somiglianza un fatto non è pertinente alla query
 RELEVANT_SCORE = 0.3
+# Soglia per i fatti trovati per parole in comune con la query (scarta solo le coincidenze senza relazione di senso)
+KEYWORD_RELEVANT_SCORE = 0.15
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_entities (
@@ -130,11 +132,16 @@ def list_facts(
 def search_facts(
     query: str, *, k: int = 20, thread_id: Optional[str] = None, entity_id: Optional[int] = None, min_score: float = RELEVANT_SCORE
 ) -> List[Dict[str, Any]]:
-    """Fatti pertinenti alla query (punteggio coseno almeno `min_score`), con gli stessi filtri dell'elenco."""
-    hits = [h for h in vector_store.search_memory(query, k=k, kind="fact", thread_id=thread_id) if h["score"] >= min_score]
+    """Fatti pertinenti alla query, dal più pertinente, con gli stessi filtri dell'elenco.
+
+    Ricerca ibrida: per significato (coseno almeno `min_score`) e per parole in comune; `score` è il coseno."""
+    hits = hybrid_search.hybrid_search(
+        query, kind="fact", k=k, thread_id=thread_id, min_score=min_score, keyword_min_score=min(min_score, KEYWORD_RELEVANT_SCORE)
+    )
     if not hits:
         return []
-    scores = {h["id"]: h["score"] for h in hits}
+    rank = {fact_id: i for i, (fact_id, _) in enumerate(hits)}
+    scores = dict(hits)
     where, params = _filters(None, entity_id)
     placeholders = ",".join("?" * len(scores))
     conn = vector_store._get_conn()
@@ -145,7 +152,7 @@ def search_facts(
         facts = _fact_rows(conn, rows, scores)
     finally:
         conn.close()
-    return sorted(facts, key=lambda f: -f["score"])
+    return sorted(facts, key=lambda f: rank[f["id"]])
 
 
 def get_fact(fact_id: int) -> Optional[Dict[str, Any]]:

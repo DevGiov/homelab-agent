@@ -67,7 +67,7 @@ VIEW_TOOLS = {
     "list_ip_reservations", "list_pihole_dns_records", "list_npm_proxy_hosts",
 
     # Conoscenza, Memoria & Web
-    "web_search", "http_get", "recall_memory", "knowledge_search", "inspect_image",
+    "web_search", "http_get", "recall_memory", "search_conversations", "knowledge_search", "inspect_image",
 
     # Email & Briefing (Milestone M2 & M4)
     "email_fetch_unread", "email_create_draft", "save_briefing_artifact", "save_artifact", "save_report",
@@ -121,7 +121,7 @@ TOOL_CATEGORIES = {
     "exec_lxc_command": "host.exec", "exec_host_command": "host.exec.dangerous",
     "run_agy_bootstrap": "provisioning", "create_service": "provisioning",
     "python_interpreter": "code.sandboxed", "web_search": "web.read",
-    "recall_memory": "memory.read", "knowledge_search": "kb.read", "inspect_image": "vision.read",
+    "recall_memory": "memory.read", "search_conversations": "memory.read", "knowledge_search": "kb.read", "inspect_image": "vision.read",
     "list_automation_templates": "automations.read", "list_automations": "automations.read",
     "get_automation_details": "automations.read", "create_automation_from_template": "automations.write",
     "create_custom_automation": "automations.write", "trigger_automation_run": "automations.exec",
@@ -336,7 +336,7 @@ def enforce_guardrails(
 
     # 3. MODALITÀ SAFEST: Ogni tool esterno richiede conferma (eccetto web_search e memoria)
     if sec_mode in ("safest", "safe_mode"):
-        if clean_name in ("web_search", "recall_memory", "knowledge_search", "inspect_image"):
+        if clean_name in ("web_search", "recall_memory", "search_conversations", "knowledge_search", "inspect_image"):
             return None
 
         # Se già esplicitamente pre-approvato

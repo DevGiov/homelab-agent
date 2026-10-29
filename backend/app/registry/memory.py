@@ -1,7 +1,7 @@
-"""Registry 'memory': ricerca nei fatti della memoria a lungo termine e nella knowledge base."""
+"""Registry 'memory': ricerca nei fatti della memoria a lungo termine, nelle conversazioni passate e nella knowledge base."""
 from typing import Any, Dict, List
 
-from app.memory import facts
+from app.memory import facts, hybrid_search
 from app.registry.base import BaseToolRegistry
 
 
@@ -38,6 +38,28 @@ class MemoryRegistry(BaseToolRegistry):
                 }
             },
             {
+                "name": "search_conversations",
+                "description": (
+                    "Cerca per parole nei messaggi delle conversazioni passate (utente e agente), con un estratto e la data. "
+                    "Usalo per ritrovare decisioni, configurazioni, comandi o dettagli discussi in precedenza che non sono "
+                    "tra i fatti di recall_memory; cerca con i termini esatti (nomi di servizi, ID dei container, host)."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Parole da cercare (es. 'nginx CT 125 certificato', 'vzdump retention')."
+                        },
+                        "thread_id": {
+                            "type": "string",
+                            "description": "Limita a una conversazione (opzionale)."
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
                 "name": "knowledge_search",
                 "description": (
                     "Cerca nei documenti della knowledge base (file .md, .txt, .pdf caricati dall'utente: "
@@ -63,6 +85,8 @@ class MemoryRegistry(BaseToolRegistry):
     def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
         if tool_name == "knowledge_search":
             return self._knowledge_search(args)
+        if tool_name == "search_conversations":
+            return self._search_conversations(args)
         if tool_name != "recall_memory":
             return {"error": f"Tool '{tool_name}' non gestito dal registry memory."}
 
@@ -84,6 +108,15 @@ class MemoryRegistry(BaseToolRegistry):
                 for f in hits
             ]
         }
+
+    def _search_conversations(self, args: Dict[str, Any]) -> Any:
+        query = args.get("query", "")
+        if not query:
+            return {"error": "Parametro 'query' mancante."}
+        results = hybrid_search.search_messages(query, k=8, thread_id=args.get("thread_id"))
+        if not results:
+            return {"results": [], "note": "Nessun messaggio con queste parole nelle conversazioni passate."}
+        return {"results": results}
 
     def _knowledge_search(self, args: Dict[str, Any]) -> Any:
         """Ricerca nella knowledge base documentale (Fase 2.3)."""
