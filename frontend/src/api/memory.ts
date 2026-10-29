@@ -39,6 +39,7 @@ export interface MemoryStats {
   entities: number;
   /** Fatti mai analizzati per le entità (salvati prima delle entità o a mano senza entità). */
   facts_without_entities: number;
+  episodes: number;
 }
 
 export interface FactFilters {
@@ -117,4 +118,38 @@ export function getProfile(): Promise<UserProfile> {
 
 export function updateProfile(content: string): Promise<UserProfile> {
   return http.put('/memory/profile', { content });
+}
+
+export interface EpisodeStep {
+  tool: string;
+  /** Argomenti in JSON, accorciati. */
+  args: string;
+  error: string | null;
+  rolled_back: boolean;
+}
+
+/** Esecuzione passata di un turno act o plan, ricavata dalla traccia dei tool. */
+export interface Episode {
+  id: number;
+  content: string;
+  thread_id: string | null;
+  mode: string | null;
+  task: string | null;
+  outcome: string | null;
+  steps: EpisodeStep[];
+  created_at: string | null;
+  /** Somiglianza con la query, solo nei risultati di ricerca. */
+  score?: number;
+}
+
+export function listEpisodes(filters: { query?: string; limit?: number; offset?: number } = {}): Promise<{ episodes: Episode[]; total: number }> {
+  return http.get('/memory/episodes', { ...filters });
+}
+
+export function deleteEpisode(id: number): Promise<void> {
+  return http.delete(`/memory/episodes/${id}`);
+}
+
+export function clearEpisodes(): Promise<{ deleted: number }> {
+  return http.delete('/memory/episodes');
 }

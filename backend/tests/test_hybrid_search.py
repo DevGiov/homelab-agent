@@ -102,3 +102,26 @@ def test_act_turn_saves_an_episode_and_later_act_turns_see_it(sandbox):
     ask = retrieve_memory_node({"thread_id": "t2", "task": "Riavvia Immich sul CT 130", "mode": "ask"})["memory_context"]
     assert "Esecuzioni simili" not in ask
     assert facts.search_facts("Riavvia Immich", k=5) == []  # gli episodi non sono fatti
+
+
+def test_episodes_api_lists_searches_and_deletes(sandbox):
+    from fastapi.testclient import TestClient
+
+    from app.api.main import api
+
+    episode_id = episodes.remember_episode("Riavvia Immich sul CT 130", "act", TRACE, "t1")
+    client = TestClient(api)
+    body = client.get("/v1/memory/episodes").json()
+    assert body["total"] == 1
+    episode = body["episodes"][0]
+    assert (episode["id"], episode["mode"], episode["outcome"], episode["thread_id"]) == (episode_id, "act", "fallito", "t1")
+    assert [s["tool"] for s in episode["steps"]] == ["get_container_status", "exec_lxc_command"]
+    assert episode["steps"][1]["error"] == "Unit immich.service not found"
+    assert client.get("/v1/memory/episodes", params={"query": "riavvio immich"}).json()["episodes"][0]["score"] > 0
+    assert client.get("/v1/memory/stats").json()["episodes"] == 1
+
+    assert client.delete(f"/v1/memory/facts/{episode_id}").status_code == 404  # un episodio non è un fatto
+    assert client.delete(f"/v1/memory/episodes/{episode_id}").status_code == 204
+    assert client.delete(f"/v1/memory/episodes/{episode_id}").status_code == 404
+    episodes.remember_episode("Riavvia Immich", "act", TRACE, "t1")
+    assert client.delete("/v1/memory/episodes").json() == {"deleted": 1}

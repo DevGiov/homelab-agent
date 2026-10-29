@@ -6,7 +6,7 @@ richiesta entrano nella memoria del turno: l'agente vede come è andata le altre
 """
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.memory import hybrid_search, vector_store
 
@@ -34,13 +34,12 @@ def _step(entry: Dict[str, Any]) -> str:
     return f"{call} ✓"
 
 
-def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
-    """Testo dell'episodio; None se il turno non ha eseguito tool (o li ha solo ripetuti)."""
-    steps = [e for e in trace if e.get("tool_name") and not e.get("duplicate_blocked") and not e.get("approval_required")]
-    if not steps:
-        return None
-    errors = sum(1 for e in steps if e.get("error"))
-    if not errors:
+def _executed(trace: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [e for e in trace if e.get("tool_name") and not e.get("duplicate_blocked") and not e.get("approval_required")]
+
+
+def _outcome(steps: List[Dict[str, Any]]) -> str:
+    if not any(e.get("error") for e in steps):
         outcome = "riuscito"
     elif steps[-1].get("error"):
         outcome = "fallito"
@@ -48,7 +47,15 @@ def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
         outcome = "riuscito dopo errori"
     if any(e.get("rollback_executed") for e in steps):
         outcome += ", con rollback"
-    return f"Richiesta: «{_clip(task, MAX_TASK_CHARS)}» → " + "; ".join(_step(e) for e in steps) + f" → esito: {outcome}"
+    return outcome
+
+
+def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
+    """Testo dell'episodio; None se il turno non ha eseguito tool (o li ha solo ripetuti)."""
+    steps = _executed(trace)
+    if not steps:
+        return None
+    return f"Richiesta: «{_clip(task, MAX_TASK_CHARS)}» → " + "; ".join(_step(e) for e in steps) + f" → esito: {_outcome(steps)}"
 
 
 def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_id: Optional[str]) -> Optional[int]:
@@ -58,29 +65,81 @@ def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_i
     text = describe(task, trace)
     if not text:
         return None
-    tools = sorted({e["tool_name"] for e in trace if e.get("tool_name")})
-    return vector_store.add_memory(text, kind="episode", thread_id=thread_id, metadata={"mode": mode, "tools": tools})
+    steps = _executed(trace)
+    metadata = {
+        "mode": mode,
+        "task": _clip(task, MAX_TASK_CHARS),
+        "outcome": _outcome(steps),
+        "steps": [
+            {
+                "tool": e["tool_name"],
+                "args": _clip(json.dumps(e.get("args") or {}, ensure_ascii=False), MAX_ARGS_CHARS),
+                "error": _clip(e["error"], MAX_ERROR_CHARS) if e.get("error") else None,
+                "rolled_back": bool(e.get("rollback_executed")),
+            }
+            for e in steps
+        ],
+    }
+    return vector_store.add_memory(text, kind="episode", thread_id=thread_id, metadata=metadata)
 
 
-def similar_episodes(task: str, k: int) -> List[Dict[str, Any]]:
-    """Gli episodi più simili alla richiesta, con la data."""
+def _rows(conn, where: str, params: list) -> List[Dict[str, Any]]:
+    rows = conn.execute(f"SELECT id, thread_id, content, metadata_json, created_at FROM vec_memory WHERE kind = 'episode'{where}", params).fetchall()
+    episodes = []
+    for episode_id, thread_id, content, metadata_json, created_at in rows:
+        metadata = json.loads(metadata_json) if metadata_json else {}
+        episodes.append({
+            "id": episode_id,
+            "content": content,
+            "thread_id": thread_id,
+            "mode": metadata.get("mode"),
+            "task": metadata.get("task"),
+            "outcome": metadata.get("outcome"),
+            "steps": metadata.get("steps", []),
+            # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
+            "created_at": f"{str(created_at).replace(' ', 'T')}+00:00" if created_at else None,
+        })
+    return episodes
+
+
+def list_episodes(*, limit: int = 50, offset: int = 0) -> Tuple[List[Dict[str, Any]], int]:
+    """Episodi dal più recente, con il totale per la paginazione."""
+    conn = vector_store._get_conn()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM vec_memory WHERE kind = 'episode'").fetchone()[0]
+        return _rows(conn, " ORDER BY id DESC LIMIT ? OFFSET ?", [limit, offset]), total
+    finally:
+        conn.close()
+
+
+def search_episodes(query: str, *, k: int = 20, min_score: float = RELEVANT_SCORE) -> List[Dict[str, Any]]:
+    """Episodi pertinenti alla richiesta, dal più pertinente, con la somiglianza coseno in `score`."""
     hits = hybrid_search.hybrid_search(
-        task, kind="episode", k=k, min_score=RELEVANT_SCORE, keyword_min_score=KEYWORD_RELEVANT_SCORE
+        query, kind="episode", k=k, min_score=min_score, keyword_min_score=min(min_score, KEYWORD_RELEVANT_SCORE)
     )
     if not hits:
         return []
-    ids = [i for i, _ in hits]
     conn = vector_store._get_conn()
     try:
-        rows = dict(
-            (r[0], (r[1], r[2]))
-            for r in conn.execute(
-                f"SELECT id, content, created_at FROM vec_memory WHERE id IN ({','.join('?' * len(ids))})", ids
-            ).fetchall()
-        )
+        by_id = {e["id"]: e for e in _rows(conn, f" AND id IN ({','.join('?' * len(hits))})", [i for i, _ in hits])}
     finally:
         conn.close()
-    return [
-        {"id": i, "content": rows[i][0], "date": str(rows[i][1] or "")[:10], "score": round(score, 3)}
-        for i, score in hits if i in rows
-    ]
+    return [{**by_id[i], "score": round(score, 3)} for i, score in hits if i in by_id]
+
+
+def delete_episode(episode_id: int) -> bool:
+    conn = vector_store._get_conn()
+    try:
+        found = conn.execute("SELECT 1 FROM vec_memory WHERE id = ? AND kind = 'episode'", (episode_id,)).fetchone()
+    finally:
+        conn.close()
+    return bool(found) and vector_store.delete_memory(episode_id)
+
+
+def clear_episodes() -> int:
+    return vector_store.clear_all_memories(kind="episode")
+
+
+def similar_episodes(task: str, k: int) -> List[Dict[str, Any]]:
+    """Gli episodi più simili alla richiesta, per la memoria dei turni act e plan."""
+    return search_episodes(task, k=k)

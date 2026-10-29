@@ -1,4 +1,4 @@
-"""Memoria a lungo termine: profilo dell'utente, fatti, entità che citano e relazioni tra entità (explorer della memoria)."""
+"""Memoria a lungo termine: profilo dell'utente, fatti, entità che citano e relazioni tra entità, episodi di esecuzione (explorer della memoria)."""
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.fact_extraction import tag_untagged_facts
 from app.api.deps import verify_api_key
-from app.memory import facts, profile
+from app.memory import episodes, facts, profile
 
 router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(verify_api_key)])
 
@@ -42,7 +42,7 @@ def _refs(entities: List[EntityRef]) -> List[Dict[str, str]]:
 
 @router.get("/stats")
 def get_stats() -> Dict[str, int]:
-    return facts.stats()
+    return {**facts.stats(), "episodes": episodes.list_episodes(limit=1)[1]}
 
 
 @router.get("/profile")
@@ -145,3 +145,29 @@ def delete_entity(entity_id: int) -> None:
 def extract_entities(limit: int = Query(100, ge=1, le=500)) -> Dict[str, int]:
     """Assegna con l'LLM le entità ai fatti mai analizzati (per esempio quelli salvati prima delle entità)."""
     return tag_untagged_facts(limit)
+
+
+@router.get("/episodes")
+def get_episodes(
+    query: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> Dict[str, Any]:
+    """Episodi di esecuzione dal più recente o, con `query`, i più pertinenti (con punteggio)."""
+    if query and query.strip():
+        items = episodes.search_episodes(query.strip(), k=limit, min_score=facts.RELEVANT_SCORE)
+        return {"episodes": items, "total": len(items)}
+    items, total = episodes.list_episodes(limit=limit, offset=offset)
+    return {"episodes": items, "total": total}
+
+
+@router.delete("/episodes/{episode_id}", status_code=204)
+def delete_episode(episode_id: int) -> None:
+    if not episodes.delete_episode(episode_id):
+        raise HTTPException(status_code=404, detail=f"Episodio #{episode_id} non trovato.")
+
+
+@router.delete("/episodes")
+def clear_episodes() -> Dict[str, int]:
+    """Cancella tutti gli episodi di esecuzione; fatti e conversazioni restano."""
+    return {"deleted": episodes.clear_episodes()}

@@ -193,6 +193,7 @@ export function useMemoryExplorer(notify: Notify) {
     isExtracting,
     loadMore,
     reload: refreshAll,
+    refreshStats: loadStats,
     saveFact,
     removeFact,
     editEntity,

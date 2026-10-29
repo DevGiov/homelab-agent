@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Entity, EntityDetail, Fact } from '../../api/memory';
+import type { Entity, EntityDetail, Episode, Fact } from '../../api/memory';
 import { jsonResponse, mockBackend } from '../../test/backend';
 import { MemoryView } from './MemoryView';
 
@@ -22,7 +22,7 @@ const ct125Detail: EntityDetail = { ...entities[0], related: [{ ...debian, share
 function setup() {
   return mockBackend(
     {
-      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, threads: 1, entities: 3, facts_without_entities: 4 }),
+      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, threads: 1, entities: 3, facts_without_entities: 4, episodes: 1 }),
       'GET /v1/memory/facts': (req) => {
         const params = new URLSearchParams(req.search);
         if (params.get('query')) return jsonResponse({ facts: [{ ...facts[0], score: 0.82 }], total: 1 });
@@ -30,6 +30,9 @@ function setup() {
       },
       'GET /v1/memory/entities': () => jsonResponse(entities),
       'POST /v1/memory/entities/extract': () => jsonResponse({ processed: 4, tagged: 3, remaining: 0 }),
+      'DELETE /v1/memory/facts/11': () => new Response(null, { status: 204 }),
+      'GET /v1/memory/episodes': () => jsonResponse({ episodes: [episode], total: 1 }),
+      'DELETE /v1/memory/episodes/7': () => new Response(null, { status: 204 }),
       'GET /v1/memory/profile': () => jsonResponse({ content: '', updated_at: null }),
       'PUT /v1/memory/profile': (req) => jsonResponse({ content: (req.body as { content: string }).content.trim(), updated_at: '2026-10-29T12:00:00+00:00' }),
     },
@@ -47,10 +50,25 @@ function setup() {
   );
 }
 
+const episode: Episode = {
+  id: 7,
+  content: 'Richiesta: «Riavvia Immich» → …',
+  thread_id: 't1',
+  mode: 'act',
+  task: 'Riavvia Immich sul CT 130',
+  outcome: 'fallito',
+  steps: [
+    { tool: 'get_container_status', args: '{"vmid": 130}', error: null, rolled_back: false },
+    { tool: 'exec_lxc_command', args: '{"vmid": 130}', error: 'Unit immich.service not found', rolled_back: false },
+  ],
+  created_at: '2026-10-29T10:00:00+00:00',
+};
+
 const threads = [{ thread_id: 't1', title: 'Setup del CT 125', last_message: null, checkpoint_count: 3 }];
 
 beforeEach(() => {
-  vi.stubGlobal('confirm', () => true);
+  // La conferma è un dialogo dell'app: il confirm() nativo non deve più servire
+  vi.stubGlobal('confirm', () => false);
 });
 
 afterEach(() => {
@@ -127,8 +145,46 @@ describe('MemoryView', () => {
     fireEvent.click(within(detail).getByTitle("Unisci in un'altra entità"));
     fireEvent.change(within(detail).getByLabelText('Entità di destinazione'), { target: { value: '2' } });
     fireEvent.click(within(detail).getByRole('button', { name: 'Unisci' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Unisci' }));
     await waitFor(() => expect(requests.some((r) => r.path.endsWith('/merge'))).toBe(true));
     expect(requests.find((r) => r.path.endsWith('/merge'))?.body).toEqual({ into: 2 });
+  });
+
+  it('elimina un fatto dopo la conferma nel dialogo dell\'app; annullando non elimina', async () => {
+    const { requests } = setup();
+    render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
+    await screen.findByText('Il CT 125 usa Debian 12');
+    const deletes = () => requests.filter((r) => r.method === 'DELETE');
+
+    fireEvent.click(screen.getAllByTitle('Elimina fatto')[0]);
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Annulla' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(deletes()).toEqual([]);
+
+    fireEvent.click(screen.getAllByTitle('Elimina fatto')[0]);
+    expect(within(await screen.findByRole('alertdialog')).getByText('Eliminare questo fatto?')).toBeTruthy();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Elimina' }));
+    await waitFor(() => expect(deletes().map((r) => r.path)).toEqual(['/v1/memory/facts/11']));
+    expect(await screen.findByText('Fatto eliminato.')).toBeTruthy();
+  });
+
+  it('mostra gli episodi con tool, errori ed esito e li elimina dopo la conferma', async () => {
+    const { requests } = setup();
+    render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
+    await screen.findByText('Il CT 125 usa Debian 12');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Episodi' }));
+    const card = await screen.findByRole('article', { name: 'Episodio 7' });
+    expect(within(card).getByText('Riavvia Immich sul CT 130')).toBeTruthy();
+    expect(within(card).getByText('fallito')).toBeTruthy();
+    expect(within(card).getByText('Unit immich.service not found')).toBeTruthy();
+    expect(within(card).getByText('Setup del CT 125')).toBeTruthy();
+    expect(screen.queryByRole('list', { name: 'Entità' })?.closest('aside')?.className).not.toContain('md:flex');
+
+    fireEvent.click(within(card).getByTitle('Elimina episodio'));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Elimina' }));
+    await waitFor(() => expect(requests.some((r) => r.method === 'DELETE' && r.path === '/v1/memory/episodes/7')).toBe(true));
+    expect(await screen.findByText('Episodio eliminato.')).toBeTruthy();
   });
 
   it('scrive il profilo che l\'agente legge a ogni turno', async () => {

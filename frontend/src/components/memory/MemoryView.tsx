@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Brain, Loader2, Menu, Plus, RefreshCw, Search, Sparkles, Tags, Trash2 } from 'lucide-react';
 import type { ThreadItem } from '../../api/threads';
+import { useConfirm } from '../../hooks/useConfirm';
+import { useEpisodes } from '../../hooks/useEpisodes';
 import { useFeedback } from '../../hooks/useFeedback';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { useMemoryExplorer } from '../../hooks/useMemoryExplorer';
 import { FeedbackToast } from '../FeedbackToast';
 import { EntityDetail } from './EntityDetail';
 import { EntityPanel } from './EntityPanel';
+import { EpisodesPanel } from './EpisodesPanel';
 import { FactCard } from './FactCard';
 import { FactEditor } from './FactEditor';
 import { ProfileCard } from './ProfileCard';
@@ -16,12 +20,22 @@ interface MemoryViewProps {
   onOpenMobileSidebar?: () => void;
 }
 
+const TABS = [
+  ['facts', 'Fatti'],
+  ['episodes', 'Episodi'],
+] as const;
+
 const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] text-fg-muted shrink-0';
 
-/** Memoria a lungo termine: profilo dell'utente, fatti ricordati dall'agente, entità che citano e relazioni tra entità. */
+type Tab = 'facts' | 'episodes';
+
+/** Memoria a lungo termine: profilo dell'utente, fatti ricordati dall'agente con le entità che citano, episodi di esecuzione. */
 export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, onOpenMobileSidebar }) => {
   const { feedback, notify } = useFeedback();
   const memory = useMemoryExplorer(notify);
+  const { confirm, dialog } = useConfirm();
+  const episodes = useEpisodes(notify, memory.refreshStats);
+  const [tab, setTab] = useState<Tab>('facts');
   const [isAdding, setIsAdding] = useState(false);
   const [showEntities, setShowEntities] = useState(false);
   const { stats, selected } = memory;
@@ -46,7 +60,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h1>
-            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente e le entità che citano</p>
+            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente e le sue esecuzioni passate</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -58,30 +72,39 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               <span className={pill}>
                 <span className="font-semibold text-fg">{stats.entities}</span> entità
               </span>
+              <span className={pill}>
+                <span className="font-semibold text-fg">{stats.episodes}</span> episodi
+              </span>
             </div>
           )}
+          {tab === 'facts' && (
+            <button
+              onClick={() => setIsAdding(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold shadow-sm cursor-pointer"
+            >
+              <Plus size={13} /> <span className="hidden sm:inline">Fatto</span>
+            </button>
+          )}
           <button
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold shadow-sm cursor-pointer"
-          >
-            <Plus size={13} /> <span className="hidden sm:inline">Fatto</span>
-          </button>
-          <button
-            onClick={memory.reload}
+            onClick={tab === 'facts' ? memory.reload : episodes.reload}
             className="p-1.5 rounded-lg border border-border text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer"
             title="Aggiorna"
           >
-            <RefreshCw size={14} className={memory.isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={(tab === 'facts' ? memory.isLoading : episodes.isLoading) ? 'animate-spin' : ''} />
           </button>
           <button
-            onClick={() => {
-              if (stats?.facts && confirm(`Eliminare tutti i ${stats.facts} fatti e le loro entità? Conversazioni e knowledge base restano.`)) {
+            onClick={async () => {
+              if (tab === 'episodes') {
+                if (await confirm({ message: `Eliminare tutti i ${episodes.total} episodi di esecuzione? Fatti e conversazioni restano.`, confirmLabel: 'Svuota' })) {
+                  episodes.clearAll();
+                }
+              } else if (await confirm({ message: `Eliminare tutti i ${stats?.facts} fatti e le loro entità? Conversazioni e knowledge base restano.`, confirmLabel: 'Svuota' })) {
                 memory.clearAll();
               }
             }}
-            disabled={!stats?.facts}
+            disabled={tab === 'facts' ? !stats?.facts : !episodes.total}
             className="p-1.5 rounded-lg border border-border text-fg-muted hover:text-rose-400 hover:bg-panel-hover disabled:opacity-40 cursor-pointer"
-            title="Svuota la memoria"
+            title={tab === 'facts' ? 'Svuota i fatti' : 'Svuota gli episodi'}
           >
             <Trash2 size={14} />
           </button>
@@ -89,10 +112,11 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
       </div>
 
       <FeedbackToast feedback={feedback} />
+      <ConfirmDialog {...dialog} />
 
       <div className="flex-1 min-h-0 flex">
         <aside
-          className={`${showEntities ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-64 shrink-0 border-r border-border p-3 min-h-0 absolute md:static inset-x-0 top-[57px] bottom-0 z-20 bg-panel md:bg-transparent`}
+          className={`${showEntities ? 'flex' : 'hidden'} ${tab === 'facts' ? 'md:flex' : ''} flex-col w-full md:w-64 shrink-0 border-r border-border p-3 min-h-0 absolute md:static inset-x-0 top-[57px] bottom-0 z-20 bg-panel md:bg-transparent`}
         >
           <EntityPanel
             entities={memory.entities}
@@ -110,6 +134,34 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
         <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 space-y-3">
           <ProfileCard notify={notify} />
+
+          <div className="flex gap-1 border-b border-border" role="tablist">
+            {TABS.map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px cursor-pointer ${tab === id ? 'border-accent text-fg' : 'border-transparent text-fg-muted hover:text-fg'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'episodes' && (
+            <EpisodesPanel
+              state={episodes}
+              threadTitles={threadTitles}
+              onOpenThread={onOpenThread}
+              onDelete={async (id) => {
+                if (await confirm({ message: "Eliminare questo episodio? L'agente non lo rileggerà più prima di agire." })) episodes.remove(id);
+              }}
+            />
+          )}
+
+          {tab === 'facts' && (
+            <div className="space-y-3">
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -161,13 +213,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               onClose={() => memory.selectEntity(null)}
               onSelect={memory.selectEntity}
               onEdit={(input) => memory.editEntity(selected.id, input)}
-              onMerge={(target) => {
-                if (confirm(`Unire '${selected.name}' in '${target.name}'? I fatti di '${selected.name}' passeranno a '${target.name}'.`)) {
+              onMerge={async (target) => {
+                if (await confirm({ message: `Unire '${selected.name}' in '${target.name}'? I fatti di '${selected.name}' passeranno a '${target.name}'.`, confirmLabel: 'Unisci' })) {
                   memory.mergeInto(selected, target);
                 }
               }}
-              onDelete={() => {
-                if (confirm(`Eliminare l'entità '${selected.name}'? I fatti restano, senza questa entità.`)) memory.removeEntity(selected);
+              onDelete={async () => {
+                if (await confirm({ message: `Eliminare l'entità '${selected.name}'? I fatti restano, senza questa entità.` })) memory.removeEntity(selected);
               }}
             />
           )}
@@ -198,8 +250,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                   onSelectEntity={memory.selectEntity}
                   onOpenThread={onOpenThread}
                   onSave={(input) => memory.saveFact(fact.id, input)}
-                  onDelete={() => {
-                    if (confirm('Eliminare questo fatto?')) memory.removeFact(fact.id);
+                  onDelete={async () => {
+                    if (await confirm({ message: 'Eliminare questo fatto?' })) memory.removeFact(fact.id);
                   }}
                 />
               ))}
@@ -208,6 +260,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                   Carica altri ({memory.total - memory.facts.length})
                 </button>
               )}
+            </div>
+          )}
             </div>
           )}
         </main>

@@ -133,7 +133,7 @@ def _past_executions(task: str, policy: MemoryPolicy) -> str:
         return ""
     if not similar:
         return ""
-    return "### Esecuzioni simili passate (tool usati ed esito):\n" + "\n".join(f"- [{e['date']}] {e['content']}" for e in similar)
+    return "### Esecuzioni simili passate (tool usati ed esito):\n" + "\n".join(f"- [{(e['created_at'] or '')[:10]}] {e['content']}" for e in similar)
 
 
 def recent_turns_node(state: AgentState) -> AgentState:
