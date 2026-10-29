@@ -102,6 +102,14 @@ preparazione di ogni caso); `memory` **100% (6/6)**. Il primo run aveva trovato 
 quasi-duplicati scambiava "Pi-hole ha IP …53" e "…250" per lo stesso fatto (coseno 0,97), quindi gli aggiornamenti non
 sostituivano il valore vecchio; ora due fatti sono duplicati solo se hanno anche gli stessi identificatori con cifre.
 
+Dopo E7 (profili di ragionamento per modello, livelli per fase, campionamento raccomandato): Qwen3.6-35B `tools`
+**100% (17/17)**, 7,2 s di mediana come prima, con l'82% di token generati in più nella scelta dei tool (budget
+`medium` da 2048 token al posto del tetto di 1024, temperatura 0,6 al posto di 0,1); `planning` **100% (4/4)**.
+`recall` 85% in un run con l'host in swap (un caso in timeout di llama.cpp) e un caso in cui il consolidamento aveva
+solo invalidato il fatto del servizio dismesso senza registrare l'evento: le istruzioni ora chiedono di registrarlo,
+e i due casi rieseguiti passano 2 volte su 2.
+I profili degli altri modelli (Qwen3.8, Gemma 4, LFM2.5) vengono dalle schede del produttore e non sono ancora misurati.
+
 ## 4. Deploy (CT 125)
 
 | Voce | Stato |
