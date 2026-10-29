@@ -78,6 +78,11 @@ arriva nel contesto. Due domande temporali ("cosa ho installato ad agosto", "l'u
 somigliano ai fatti, che non portano date; l'aggregazione su tre thread perde il terzo fatto (recall limitato a 3
 fatti sopra 0,35). Sono gli obiettivi di E3 ed E4.
 
+Dopo E3 (memoria per modalità, fino a 5 fatti datati in ask): ancora **75% (9/12)**, 11,4 s per caso, ma con un
+fallimento diverso. L'aggregazione ora passa. La preferenza tra thread fallisce a volte, perché il fatto ha
+somiglianza 0,351 con la domanda, sul filo della soglia: ripetuto a parte passa 2 volte su 2. Le due domande
+temporali restano fuori dal contesto: servono la ricerca ibrida (E4) e la validità temporale dei fatti (E6).
+
 ## 4. Deploy (CT 125)
 
 | Voce | Stato |

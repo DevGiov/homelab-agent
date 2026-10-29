@@ -76,7 +76,7 @@ Dalla [ricerca sulla memoria degli agenti](../memory/MEMORY_RESEARCH.md): una po
 | :--- | :--- | :--- | :--- |
 | E1 | ~~**Memoria tutta interna**: rimozione di Letta, cronologia solo da `thread_store`, riassunto incrementale nel database~~ ✅ 2026-10-29 | test | D3 |
 | E2 | ~~**Suite `recall`**: aggiornamenti, domande temporali, astensione, richiamo tra thread e su thread lunghi, su un database temporaneo~~ ✅ 2026-10-29 (12 casi; Qwen3.6-35B 75%, i fallimenti sono di recupero: domande temporali e aggregazione) | baseline | D4 |
-| E3 | **Memoria per modalità**: composizione dopo il routing, budget per modalità in `ModePolicy`, profilo utente precaricato e modificabile, memoria stabile all'inizio del prompt | `recall`, latenza di chat | E1, E2 |
+| E3 | ~~**Memoria per modalità**: composizione dopo il routing, budget per modalità in `ModePolicy`, profilo utente precaricato e modificabile, memoria stabile all'inizio del prompt~~ ✅ 2026-10-29 (`recall` 75%: l'aggregazione ora passa, la preferenza tra thread è al limite della soglia di somiglianza; memoria di chat 1–2 ms contro 16 ms di ask) | `recall`, latenza di chat | E1, E2 |
 | E4 | **Episodi di esecuzione** per act e plan, ricavati dalle tracce; ricerca ibrida FTS5 + vettori; tool `search_conversations` per ask, act e plan | `tools`, `planning`, `rollback`, `recall` | E3 |
 | E5 | **Memoria procedurale**: note sui tool e piani modello, proposti dall'agente e approvati nella UI | `planning`, `tools` | E4 |
 | E6 | **Consolidamento notturno**: estrazione dei fatti in blocco al posto di quella a ogni turno, deduplicazione, validità temporale dei fatti | `memory`, `recall` | E2 |
