@@ -71,6 +71,13 @@ La selezione dei tool è lenta perché il preset HugeCtx elabora i ~7,9k token d
 senza cache). La valutazione ha anche trovato due bug, corretti: piano di rollback sempre vuoto e piano strutturato
 non valido (il thinking esauriva i token).
 
+Suite `recall` (E2), base del 2026-10-29 su Qwen3.6-35B-HugeCtx: **75% (9/12)**, 13 s per caso. Superati preferenze,
+dettagli e decisioni tra thread, valori aggiornati (IP, container, strumento), astensione e il dettaglio iniziale di un
+thread lungo, recuperato dal riassunto. I tre fallimenti sono tutti di recupero, non di lettura: il valore atteso non
+arriva nel contesto. Due domande temporali ("cosa ho installato ad agosto", "l'ultimo servizio installato") non
+somigliano ai fatti, che non portano date; l'aggregazione su tre thread perde il terzo fatto (recall limitato a 3
+fatti sopra 0,35). Sono gli obiettivi di E3 ed E4.
+
 ## 4. Deploy (CT 125)
 
 | Voce | Stato |
