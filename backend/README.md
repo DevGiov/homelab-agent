@@ -258,6 +258,7 @@ Tutta la memoria è nel backend, in `checkpoints.db`. Ricerca e proposta per le 
   | Riassunto e messaggi recenti | ~1500 token | ~6000 token | ~6000 token | ~6000 token |
   | Fatti di altri thread | no | fino a 5 | fino a 5, da verificare | fino a 5, da verificare |
   | Esecuzioni passate simili | no | no | fino a 3 | fino a 5 |
+  | Piani modello approvati | no | no | fino a 2 | fino a 3 |
 
   L'ordine va dal più stabile al più variabile (profilo, riassunto, messaggi recenti, fatti, episodi; orario e richiesta dopo la memoria), così llama.cpp riusa da un turno all'altro la parte iniziale del prompt. I fatti portano la data.
 - **Profilo** (`app/memory/profile.py`, `GET/PUT /v1/memory/profile`): testo scritto dall'utente nella vista Memoria (massimo 4000 caratteri), all'inizio della memoria di ogni turno in tutte le modalità. L'agente non lo modifica.
@@ -268,6 +269,7 @@ Tutta la memoria è nel backend, in `checkpoints.db`. Ricerca e proposta per le 
 - **Ricerca ibrida** (`app/memory/hybrid_search.py`): indici FTS5 mantenuti da trigger su `vec_memory` (`memory_fts`) e sulla versione attiva dei messaggi senza errori (`message_fts`), creati e popolati all'avvio. Fatti ed episodi si cercano per significato (coseno sopra soglia) e per parole (BM25; parole lunghe per prefisso, indirizzi IP come frase), fusi con la Reciprocal Rank Fusion: un nome o un ID esatto recupera ciò che l'embedding non avvicina.
 - **Recall**: il tool `recall_memory` e la memoria del turno cercano tra i fatti con la ricerca ibrida; il tool `search_conversations` (ask, act, plan) cerca per parole nei messaggi di tutte le conversazioni, con estratto, data e titolo del thread.
 - **Episodi** (`app/memory/episodes.py`): a fine turno act o plan con tool eseguiti, un record `kind='episode'` ricavato senza modello dalla traccia (richiesta, tool con argomenti, errori, esito; esclusi i turni in attesa di approvazione). I più simili alla richiesta entrano nella memoria dei turni act e plan. Elenco, ricerca ed eliminazione: `GET/DELETE /v1/memory/episodes` e scheda **Episodi** della vista Memoria.
+- **Procedure** (`app/memory/procedures.py`, `app/agent/procedure_distillation.py`): memoria procedurale in due tipi, note su un tool (`tool_note`, aggiunte sotto il tool nel catalogo di act e plan come `NOTA APPROVATA`) e piani modello (`plan_template`, nella memoria di act e plan quando la richiesta è simile, con la ricerca ibrida). Entrano in uso solo dopo l'approvazione dell'utente nella scheda **Procedure** della vista Memoria. Le proposte arrivano dal tool `propose_procedure` (quando l'utente chiede all'agente di ricordare come si fa qualcosa) e dalle esecuzioni istruttive: un errore poi superato o una modifica riuscita in più passi, distillati con una chiamata a output vincolato. Le rifiutate restano come `rejected`, così la stessa proposta non torna; quelle scritte dall'utente nascono approvate. API: `/v1/memory/procedures` (elenco, creazione, modifica, `approve`, `reject`, eliminazione) e `/v1/memory/procedures/tools`.
 
 ## Osservabilità
 

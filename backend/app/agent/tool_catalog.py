@@ -1,6 +1,9 @@
+import logging
 from typing import Any, Dict, List
 
 from app.mcp.hub import get_mcp_hub
+
+logger = logging.getLogger("tool_catalog")
 
 ROLLBACK_DECLARATIONS = {
     "proxmox-mcp__allocate_ip": {
@@ -76,8 +79,15 @@ def get_tool_catalog(force_refresh: bool = False) -> List[Dict[str, Any]]:
 
 
 def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
-    """Formatta il catalogo dinamico in modo compatto per il prompt LLM con tag [VIEW] ed [EXECUTE]."""
+    """Formatta il catalogo dinamico in modo compatto per il prompt LLM con tag [VIEW] ed [EXECUTE] e, sotto ogni
+    tool, le note d'uso approvate dall'utente (memoria procedurale)."""
+    from app.memory.procedures import approved_tool_notes
     from app.security.policy import is_view_tool
+    try:
+        notes = approved_tool_notes()
+    except Exception as e:
+        logger.warning(f"Note sui tool non disponibili (non bloccante): {e}")
+        notes = {}
     lines = []
     for t in tools:
         name = t.get("name", "")
@@ -86,6 +96,7 @@ def format_catalog_for_prompt(tools: List[Dict[str, Any]]) -> str:
         params_summary = ", ".join(props.keys()) if isinstance(props, dict) else ""
         badge = "[VIEW]" if is_view_tool(name) else "[EXECUTE]"
         lines.append(f"- `{name}` {badge}: {t.get('description', '')} (args: {params_summary or 'nessuno'})")
+        lines.extend(f"  NOTA APPROVATA: {note}" for note in notes.get(name, []))
     return "\n".join(lines)
 
 

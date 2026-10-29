@@ -34,11 +34,11 @@ def _step(entry: Dict[str, Any]) -> str:
     return f"{call} ✓"
 
 
-def _executed(trace: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def executed_steps(trace: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [e for e in trace if e.get("tool_name") and not e.get("duplicate_blocked") and not e.get("approval_required")]
 
 
-def _outcome(steps: List[Dict[str, Any]]) -> str:
+def outcome_of(steps: List[Dict[str, Any]]) -> str:
     if not any(e.get("error") for e in steps):
         outcome = "riuscito"
     elif steps[-1].get("error"):
@@ -52,10 +52,10 @@ def _outcome(steps: List[Dict[str, Any]]) -> str:
 
 def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
     """Testo dell'episodio; None se il turno non ha eseguito tool (o li ha solo ripetuti)."""
-    steps = _executed(trace)
+    steps = executed_steps(trace)
     if not steps:
         return None
-    return f"Richiesta: «{_clip(task, MAX_TASK_CHARS)}» → " + "; ".join(_step(e) for e in steps) + f" → esito: {_outcome(steps)}"
+    return f"Richiesta: «{_clip(task, MAX_TASK_CHARS)}» → " + "; ".join(_step(e) for e in steps) + f" → esito: {outcome_of(steps)}"
 
 
 def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_id: Optional[str]) -> Optional[int]:
@@ -65,11 +65,11 @@ def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_i
     text = describe(task, trace)
     if not text:
         return None
-    steps = _executed(trace)
+    steps = executed_steps(trace)
     metadata = {
         "mode": mode,
         "task": _clip(task, MAX_TASK_CHARS),
-        "outcome": _outcome(steps),
+        "outcome": outcome_of(steps),
         "steps": [
             {
                 "tool": e["tool_name"],

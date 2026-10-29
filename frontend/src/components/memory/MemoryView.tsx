@@ -3,6 +3,7 @@ import { Brain, Loader2, Menu, Plus, RefreshCw, Search, Sparkles, Tags, Trash2 }
 import type { ThreadItem } from '../../api/threads';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useEpisodes } from '../../hooks/useEpisodes';
+import { useProcedures } from '../../hooks/useProcedures';
 import { useFeedback } from '../../hooks/useFeedback';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useMemoryExplorer } from '../../hooks/useMemoryExplorer';
@@ -10,6 +11,7 @@ import { FeedbackToast } from '../FeedbackToast';
 import { EntityDetail } from './EntityDetail';
 import { EntityPanel } from './EntityPanel';
 import { EpisodesPanel } from './EpisodesPanel';
+import { ProceduresPanel } from './ProceduresPanel';
 import { FactCard } from './FactCard';
 import { FactEditor } from './FactEditor';
 import { ProfileCard } from './ProfileCard';
@@ -23,18 +25,20 @@ interface MemoryViewProps {
 const TABS = [
   ['facts', 'Fatti'],
   ['episodes', 'Episodi'],
+  ['procedures', 'Procedure'],
 ] as const;
 
 const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] text-fg-muted shrink-0';
 
-type Tab = 'facts' | 'episodes';
+type Tab = 'facts' | 'episodes' | 'procedures';
 
-/** Memoria a lungo termine: profilo dell'utente, fatti ricordati dall'agente con le entità che citano, episodi di esecuzione. */
+/** Memoria a lungo termine: profilo dell'utente, fatti ricordati dall'agente con le entità che citano, episodi di esecuzione e procedure. */
 export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, onOpenMobileSidebar }) => {
   const { feedback, notify } = useFeedback();
   const memory = useMemoryExplorer(notify);
   const { confirm, dialog } = useConfirm();
   const episodes = useEpisodes(notify, memory.refreshStats);
+  const procedures = useProcedures(notify, memory.refreshStats);
   const [tab, setTab] = useState<Tab>('facts');
   const [isAdding, setIsAdding] = useState(false);
   const [showEntities, setShowEntities] = useState(false);
@@ -60,7 +64,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h1>
-            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente e le sue esecuzioni passate</p>
+            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente, le sue esecuzioni passate e le procedure</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -86,12 +90,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             </button>
           )}
           <button
-            onClick={tab === 'facts' ? memory.reload : episodes.reload}
+            onClick={{ facts: memory.reload, episodes: episodes.reload, procedures: procedures.reload }[tab]}
             className="p-1.5 rounded-lg border border-border text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer"
             title="Aggiorna"
           >
-            <RefreshCw size={14} className={(tab === 'facts' ? memory.isLoading : episodes.isLoading) ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={{ facts: memory.isLoading, episodes: episodes.isLoading, procedures: procedures.isLoading }[tab] ? 'animate-spin' : ''} />
           </button>
+          {tab !== 'procedures' && (
           <button
             onClick={async () => {
               if (tab === 'episodes') {
@@ -108,6 +113,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           >
             <Trash2 size={14} />
           </button>
+          )}
         </div>
       </div>
 
@@ -145,6 +151,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                 className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px cursor-pointer ${tab === id ? 'border-accent text-fg' : 'border-transparent text-fg-muted hover:text-fg'}`}
               >
                 {label}
+                {id === 'procedures' && !!stats?.procedures_proposed && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-[10px] tabular-nums">{stats.procedures_proposed}</span>
+                )}
               </button>
             ))}
           </div>
@@ -156,6 +165,17 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               onOpenThread={onOpenThread}
               onDelete={async (id) => {
                 if (await confirm({ message: "Eliminare questo episodio? L'agente non lo rileggerà più prima di agire." })) episodes.remove(id);
+              }}
+            />
+          )}
+
+          {tab === 'procedures' && (
+            <ProceduresPanel
+              state={procedures}
+              threadTitles={threadTitles}
+              onOpenThread={onOpenThread}
+              onDelete={async (id) => {
+                if (await confirm({ message: 'Eliminare questa procedura? Se era in uso, l\'agente non la seguirà più.' })) procedures.remove(id);
               }}
             />
           )}

@@ -1,7 +1,8 @@
-"""Registry 'memory': ricerca nei fatti della memoria a lungo termine, nelle conversazioni passate e nella knowledge base."""
+"""Registry 'memory': ricerca nei fatti della memoria a lungo termine, nelle conversazioni passate e nella knowledge base;
+proposte di procedure, che entrano in uso solo dopo l'approvazione dell'utente."""
 from typing import Any, Dict, List
 
-from app.memory import facts, hybrid_search
+from app.memory import facts, hybrid_search, procedures
 from app.registry.base import BaseToolRegistry
 
 
@@ -60,6 +61,25 @@ class MemoryRegistry(BaseToolRegistry):
                 }
             },
             {
+                "name": "propose_procedure",
+                "description": (
+                    "Propone una procedura da ricordare per le richieste future: una nota su come usare un tool "
+                    "(tool_note) o una sequenza di passi riusabile (plan_template). Usalo quando l'utente ti chiede di "
+                    "ricordare come si fa qualcosa o una convenzione sull'uso dei tool. La proposta entra in uso solo dopo "
+                    "che l'utente la approva nella vista Memoria: dillo all'utente."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {"type": "string", "enum": ["tool_note", "plan_template"]},
+                        "title": {"type": "string", "description": "Titolo breve (es. 'Riavvio dei servizi su CT 125')."},
+                        "content": {"type": "string", "description": "La nota o i passi numerati, con segnaposto per i valori variabili."},
+                        "tool_name": {"type": "string", "description": "Per tool_note: nome esatto del tool dal catalogo."}
+                    },
+                    "required": ["kind", "title", "content"]
+                }
+            },
+            {
                 "name": "knowledge_search",
                 "description": (
                     "Cerca nei documenti della knowledge base (file .md, .txt, .pdf caricati dall'utente: "
@@ -87,6 +107,8 @@ class MemoryRegistry(BaseToolRegistry):
             return self._knowledge_search(args)
         if tool_name == "search_conversations":
             return self._search_conversations(args)
+        if tool_name == "propose_procedure":
+            return self._propose_procedure(args)
         if tool_name != "recall_memory":
             return {"error": f"Tool '{tool_name}' non gestito dal registry memory."}
 
@@ -108,6 +130,19 @@ class MemoryRegistry(BaseToolRegistry):
                 for f in hits
             ]
         }
+
+    def _propose_procedure(self, args: Dict[str, Any]) -> Any:
+        try:
+            procedure_id, created = procedures.propose(
+                args.get("kind", ""), args.get("title", ""), args.get("content", ""),
+                tool_name=args.get("tool_name"), source="agent",
+            )
+        except ValueError as e:
+            return {"error": str(e)}
+        if not created:
+            return {"procedure_id": procedure_id, "note": "Esiste già una procedura equivalente: nessuna nuova proposta."}
+        return {"procedure_id": procedure_id, "status": "proposed",
+                "note": "Proposta salvata: entra in uso quando l'utente la approva in Memoria → Procedure."}
 
     def _search_conversations(self, args: Dict[str, Any]) -> Any:
         query = args.get("query", "")

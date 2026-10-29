@@ -9,6 +9,7 @@ class MemoryPolicy(BaseModel):
     facts_k: int  # fatti di altri thread richiamati per somiglianza (0 = nessuno)
     verify_facts: bool = False  # i fatti vanno verificati prima di agire
     episodes_k: int = 0  # esecuzioni passate simili alla richiesta (tool usati ed esito)
+    templates_k: int = 0  # piani modello approvati pertinenti alla richiesta
 
 
 class ModePolicy(BaseModel):
@@ -46,7 +47,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allow_react_loop=True,
         timeout_seconds=120,
         reasoning_budget=8192,
-        memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=3)
+        memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=3, templates_k=2)
     ),
     "plan": ModePolicy(
         mode="plan",
@@ -55,7 +56,7 @@ DEFAULT_MODE_POLICIES: Dict[str, ModePolicy] = {
         allow_react_loop=True,
         timeout_seconds=300,
         reasoning_budget=-1,
-        memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=5)
+        memory=MemoryPolicy(context_tokens=6000, facts_k=5, verify_facts=True, episodes_k=5, templates_k=3)
     ),
 }
 

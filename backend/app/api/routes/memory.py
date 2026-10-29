@@ -1,4 +1,5 @@
-"""Memoria a lungo termine: profilo dell'utente, fatti, entità che citano e relazioni tra entità, episodi di esecuzione (explorer della memoria)."""
+"""Memoria a lungo termine: profilo dell'utente, fatti, entità che citano e relazioni tra entità, episodi di esecuzione e
+procedure (explorer della memoria)."""
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.fact_extraction import tag_untagged_facts
 from app.api.deps import verify_api_key
-from app.memory import episodes, facts, profile
+from app.memory import episodes, facts, procedures, profile
 
 router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(verify_api_key)])
 
@@ -32,6 +33,19 @@ class EntityMerge(BaseModel):
     into: int
 
 
+class ProcedureInput(BaseModel):
+    kind: Literal["tool_note", "plan_template"]
+    title: str = Field(min_length=1, max_length=procedures.MAX_TITLE_CHARS)
+    content: str = Field(min_length=1, max_length=procedures.MAX_CONTENT_CHARS)
+    tool_name: Optional[str] = Field(default=None, max_length=200)
+
+
+class ProcedureUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=procedures.MAX_TITLE_CHARS)
+    content: str = Field(min_length=1, max_length=procedures.MAX_CONTENT_CHARS)
+    tool_name: Optional[str] = Field(default=None, max_length=200)
+
+
 class ProfileInput(BaseModel):
     content: str = Field(max_length=profile.MAX_CHARS)
 
@@ -42,7 +56,7 @@ def _refs(entities: List[EntityRef]) -> List[Dict[str, str]]:
 
 @router.get("/stats")
 def get_stats() -> Dict[str, int]:
-    return {**facts.stats(), "episodes": episodes.list_episodes(limit=1)[1]}
+    return {**facts.stats(), "episodes": episodes.list_episodes(limit=1)[1], "procedures_proposed": procedures.counts()["proposed"]}
 
 
 @router.get("/profile")
@@ -171,3 +185,61 @@ def delete_episode(episode_id: int) -> None:
 def clear_episodes() -> Dict[str, int]:
     """Cancella tutti gli episodi di esecuzione; fatti e conversazioni restano."""
     return {"deleted": episodes.clear_episodes()}
+
+
+def _procedure_or_404(procedure: Optional[Dict[str, Any]], procedure_id: int) -> Dict[str, Any]:
+    if procedure is None:
+        raise HTTPException(status_code=404, detail=f"Procedura #{procedure_id} non trovata.")
+    return procedure
+
+
+@router.get("/procedures")
+def get_procedures(
+    status: Optional[Literal["proposed", "approved", "rejected"]] = None,
+    kind: Optional[Literal["tool_note", "plan_template"]] = None,
+) -> List[Dict[str, Any]]:
+    """Proposte in attesa prima, poi approvate e rifiutate."""
+    return procedures.list_procedures(status=status, kind=kind)
+
+
+@router.get("/procedures/tools")
+def get_procedure_tools() -> List[str]:
+    """Nomi dei tool a cui una nota può riferirsi: il catalogo di act."""
+    from app.agent.mode_policy import get_mode_policy
+    from app.registry.manager import get_registry_manager
+
+    return sorted(t["name"] for t in get_registry_manager().get_tools_for_mode(get_mode_policy("act").allowed_registries))
+
+
+@router.post("/procedures", status_code=201)
+def create_procedure(body: ProcedureInput) -> Dict[str, Any]:
+    """Procedura scritta dall'utente: è subito in uso."""
+    try:
+        return procedures.create(body.kind, body.title, body.content, tool_name=body.tool_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/procedures/{procedure_id}")
+def update_procedure(procedure_id: int, body: ProcedureUpdate) -> Dict[str, Any]:
+    try:
+        return _procedure_or_404(procedures.update(procedure_id, body.title, body.content, body.tool_name), procedure_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/procedures/{procedure_id}/approve")
+def approve_procedure(procedure_id: int) -> Dict[str, Any]:
+    return _procedure_or_404(procedures.approve(procedure_id), procedure_id)
+
+
+@router.post("/procedures/{procedure_id}/reject")
+def reject_procedure(procedure_id: int) -> Dict[str, Any]:
+    """Esce dall'uso e resta come rifiutata, così la stessa proposta non torna."""
+    return _procedure_or_404(procedures.reject(procedure_id), procedure_id)
+
+
+@router.delete("/procedures/{procedure_id}", status_code=204)
+def delete_procedure(procedure_id: int) -> None:
+    if not procedures.delete(procedure_id):
+        raise HTTPException(status_code=404, detail=f"Procedura #{procedure_id} non trovata.")

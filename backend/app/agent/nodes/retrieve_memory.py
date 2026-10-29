@@ -2,11 +2,11 @@
 
 Prima del router (`recent_turns_node`) servono solo gli ultimi messaggi e la modalità dell'ultima risposta. Dopo il
 router (`retrieve_memory_node`) la memoria si compone secondo la `MemoryPolicy` della modalità scelta: profilo
-dell'utente, riassunto della parte vecchia del thread, messaggi recenti entro il budget, fatti di altri thread ed
-esecuzioni passate simili (act e plan).
+dell'utente, riassunto della parte vecchia del thread, messaggi recenti entro il budget, fatti di altri thread,
+esecuzioni passate simili e piani modello approvati (act e plan).
 
 L'ordine va dal più stabile al più variabile, così llama.cpp riusa da un turno all'altro la parte iniziale del prompt:
-il profilo cambia di rado, il riassunto a ogni ripiegamento, i messaggi si accodano; fatti ed episodi dipendono dalla richiesta.
+il profilo cambia di rado, il riassunto a ogni ripiegamento, i messaggi si accodano; fatti, episodi e piani dipendono dalla richiesta.
 
 La cronologia esclude il messaggio corrente (salvato prima dell'esecuzione del grafo, arriva come `task`). Quando i
 messaggi non ancora riassunti superano `RECENT_MAX` o `CONTEXT_TOKEN_BUDGET`, i più vecchi vengono aggiunti al
@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.agent import llm_calls
 from app.agent.mode_policy import MemoryPolicy, get_mode_policy
 from app.agent.state import AgentState
-from app.memory import episodes, facts, profile, thread_store
+from app.memory import episodes, facts, procedures, profile, thread_store
 
 logger = logging.getLogger("graph")
 
@@ -136,6 +136,21 @@ def _past_executions(task: str, policy: MemoryPolicy) -> str:
     return "### Esecuzioni simili passate (tool usati ed esito):\n" + "\n".join(f"- [{(e['created_at'] or '')[:10]}] {e['content']}" for e in similar)
 
 
+def _plan_templates(task: str, policy: MemoryPolicy) -> str:
+    """Piani modello approvati dall'utente pertinenti alla richiesta."""
+    if not policy.templates_k:
+        return ""
+    try:
+        templates = procedures.relevant_templates(task, policy.templates_k)
+    except Exception as e:
+        logger.warning(f"Ricerca dei piani modello non riuscita (non bloccante): {e}")
+        return ""
+    if not templates:
+        return ""
+    blocks = [f"**{t['title']}**\n{t['content']}" for t in templates]
+    return "### Procedure approvate dall'utente per richieste simili (seguile, adattando i valori):\n" + "\n\n".join(blocks)
+
+
 def recent_turns_node(state: AgentState) -> AgentState:
     """Prima del router: ultimi messaggi e modalità dell'ultima risposta, senza chiamate al modello."""
     if not state.get("thread_id") or state.get("incognito"):
@@ -177,10 +192,13 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
     executions = _past_executions(task, policy)
     if executions:
         parts.append(executions)
+    templates = _plan_templates(task, policy)
+    if templates:
+        parts.append(templates)
 
     logger.info(
         f"Memoria [{mode}] del thread '{thread_id}': {len(history)} messaggi, profilo={'sì' if user_profile else 'no'}, "
         f"riassunto={'sì' if summary else 'no'}, finestra={len(recent)}/{len(window)}, "
-        f"fatti={max(len(recalled.splitlines()) - 1, 0)}, episodi={max(len(executions.splitlines()) - 1, 0)}, {(time.monotonic() - started) * 1000:.0f} ms"
+        f"fatti={max(len(recalled.splitlines()) - 1, 0)}, episodi={max(len(executions.splitlines()) - 1, 0)}, piani={templates.count("**") // 2}, {(time.monotonic() - started) * 1000:.0f} ms"
     )
     return {"memory_context": "\n\n".join(parts)}

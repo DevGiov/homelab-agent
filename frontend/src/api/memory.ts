@@ -40,6 +40,8 @@ export interface MemoryStats {
   /** Fatti mai analizzati per le entità (salvati prima delle entità o a mano senza entità). */
   facts_without_entities: number;
   episodes: number;
+  /** Procedure proposte in attesa di approvazione. */
+  procedures_proposed: number;
 }
 
 export interface FactFilters {
@@ -152,4 +154,57 @@ export function deleteEpisode(id: number): Promise<void> {
 
 export function clearEpisodes(): Promise<{ deleted: number }> {
   return http.delete('/memory/episodes');
+}
+
+export type ProcedureKind = 'tool_note' | 'plan_template';
+export type ProcedureStatus = 'proposed' | 'approved' | 'rejected';
+
+/** Come si fanno le cose: nota sull'uso di un tool o piano modello. In uso solo se approvata. */
+export interface Procedure {
+  id: number;
+  kind: ProcedureKind;
+  title: string;
+  content: string;
+  tool_name: string | null;
+  status: ProcedureStatus;
+  /** user (scritta a mano), agent (tool propose_procedure) o execution (ricavata da un'esecuzione). */
+  source: string;
+  thread_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ProcedureInput {
+  kind: ProcedureKind;
+  title: string;
+  content: string;
+  tool_name: string | null;
+}
+
+export function listProcedures(): Promise<Procedure[]> {
+  return http.get('/memory/procedures');
+}
+
+export function listProcedureTools(): Promise<string[]> {
+  return http.get('/memory/procedures/tools');
+}
+
+export function createProcedure(input: ProcedureInput): Promise<Procedure> {
+  return http.post('/memory/procedures', input);
+}
+
+export function updateProcedure(id: number, input: Omit<ProcedureInput, 'kind'>): Promise<Procedure> {
+  return http.put(`/memory/procedures/${id}`, input);
+}
+
+export function approveProcedure(id: number): Promise<Procedure> {
+  return http.post(`/memory/procedures/${id}/approve`);
+}
+
+export function rejectProcedure(id: number): Promise<Procedure> {
+  return http.post(`/memory/procedures/${id}/reject`);
+}
+
+export function deleteProcedure(id: number): Promise<void> {
+  return http.delete(`/memory/procedures/${id}`);
 }

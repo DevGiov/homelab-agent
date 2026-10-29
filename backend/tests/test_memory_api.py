@@ -174,7 +174,7 @@ def test_facts_api_crud(api):
 
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 204
     assert api.delete(f"/v1/memory/facts/{fact['id']}").status_code == 404
-    assert api.get("/v1/memory/stats").json() == {"facts": 0, "threads": 0, "entities": 0, "facts_without_entities": 0, "episodes": 0}
+    assert api.get("/v1/memory/stats").json() == {"facts": 0, "threads": 0, "entities": 0, "facts_without_entities": 0, "episodes": 0, "procedures_proposed": 0}
 
 
 def test_entities_api(api):

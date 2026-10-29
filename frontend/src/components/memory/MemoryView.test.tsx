@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Entity, EntityDetail, Episode, Fact } from '../../api/memory';
+import type { Entity, EntityDetail, Episode, Fact, Procedure } from '../../api/memory';
 import { jsonResponse, mockBackend } from '../../test/backend';
 import { MemoryView } from './MemoryView';
 
@@ -22,7 +22,7 @@ const ct125Detail: EntityDetail = { ...entities[0], related: [{ ...debian, share
 function setup() {
   return mockBackend(
     {
-      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, threads: 1, entities: 3, facts_without_entities: 4, episodes: 1 }),
+      'GET /v1/memory/stats': () => jsonResponse({ facts: 2, threads: 1, entities: 3, facts_without_entities: 4, episodes: 1, procedures_proposed: 1 }),
       'GET /v1/memory/facts': (req) => {
         const params = new URLSearchParams(req.search);
         if (params.get('query')) return jsonResponse({ facts: [{ ...facts[0], score: 0.82 }], total: 1 });
@@ -33,6 +33,10 @@ function setup() {
       'DELETE /v1/memory/facts/11': () => new Response(null, { status: 204 }),
       'GET /v1/memory/episodes': () => jsonResponse({ episodes: [episode], total: 1 }),
       'DELETE /v1/memory/episodes/7': () => new Response(null, { status: 204 }),
+      'GET /v1/memory/procedures': () => jsonResponse([proposal]),
+      'GET /v1/memory/procedures/tools': () => jsonResponse(['proxmox-mcp__exec_lxc_command', 'web_search']),
+      'POST /v1/memory/procedures/3/approve': () => jsonResponse({ ...proposal, status: 'approved' }),
+      'POST /v1/memory/procedures': (req) => jsonResponse({ ...proposal, ...(req.body as object), id: 4, status: 'approved', source: 'user' }, 201),
       'GET /v1/memory/profile': () => jsonResponse({ content: '', updated_at: null }),
       'PUT /v1/memory/profile': (req) => jsonResponse({ content: (req.body as { content: string }).content.trim(), updated_at: '2026-10-29T12:00:00+00:00' }),
     },
@@ -62,6 +66,19 @@ const episode: Episode = {
     { tool: 'exec_lxc_command', args: '{"vmid": 130}', error: 'Unit immich.service not found', rolled_back: false },
   ],
   created_at: '2026-10-29T10:00:00+00:00',
+};
+
+const proposal: Procedure = {
+  id: 3,
+  kind: 'tool_note',
+  title: 'Riavvio su CT 125',
+  content: 'Riavvia con docker compose, non con systemctl.',
+  tool_name: 'proxmox-mcp__exec_lxc_command',
+  status: 'proposed',
+  source: 'execution',
+  thread_id: 't1',
+  created_at: '2026-10-29T10:00:00+00:00',
+  updated_at: null,
 };
 
 const threads = [{ thread_id: 't1', title: 'Setup del CT 125', last_message: null, checkpoint_count: 3 }];
@@ -185,6 +202,36 @@ describe('MemoryView', () => {
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Elimina' }));
     await waitFor(() => expect(requests.some((r) => r.method === 'DELETE' && r.path === '/v1/memory/episodes/7')).toBe(true));
     expect(await screen.findByText('Episodio eliminato.')).toBeTruthy();
+  });
+
+  it('approva una procedura proposta e ne scrive una nuova', async () => {
+    const { requests } = setup();
+    render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
+    await screen.findByText('Il CT 125 usa Debian 12');
+
+    const tab = screen.getByRole('tab', { name: /Procedure/ });
+    expect(within(tab).getByText('1')).toBeTruthy(); // proposte in attesa
+    fireEvent.click(tab);
+    const card = await screen.findByRole('article', { name: 'Procedura Riavvio su CT 125' });
+    expect(within(card).getByText('da approvare')).toBeTruthy();
+    expect(within(card).getByText("ricavata da un'esecuzione")).toBeTruthy();
+    fireEvent.click(within(card).getByRole('button', { name: /Approva/ }));
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/procedures/3/approve')).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: /Procedura/ }));
+    fireEvent.change(screen.getByLabelText('Tipo di procedura'), { target: { value: 'plan_template' } });
+    expect(screen.queryByLabelText('Tool della nota')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Titolo della procedura'), { target: { value: 'Nuovo container' } });
+    fireEvent.change(screen.getByLabelText('Contenuto della procedura'), { target: { value: '1. allocate_ip' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aggiungi' }));
+    await waitFor(() =>
+      expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/procedures')?.body).toEqual({
+        kind: 'plan_template',
+        title: 'Nuovo container',
+        content: '1. allocate_ip',
+        tool_name: null,
+      })
+    );
   });
 
   it('scrive il profilo che l\'agente legge a ogni turno', async () => {
