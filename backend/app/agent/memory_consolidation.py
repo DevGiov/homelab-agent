@@ -168,8 +168,10 @@ def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], rela
             continue
         if len(op.fact.strip()) <= 5:
             continue
+        # Un aggiornamento esplicito non passa dal controllo dei quasi-duplicati: il fatto nuovo somiglia per forza
+        # a quello che sostituisce
         fact_id, created = facts.add_fact(op.fact, thread_id=thread_id, entities=entity_refs(op.entities), source="conversation",
-                                          entities_checked=True, created_at=date)
+                                          entities_checked=True, created_at=date, dedupe=op.op != "update")
         if fact_id is None:
             continue
         if op.op == "update" and fact_id != op.replaces:

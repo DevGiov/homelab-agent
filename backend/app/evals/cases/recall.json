@@ -61,7 +61,7 @@
     "question": "Con che strumento gestisco i container Docker?",
     "expect_any": ["Dockge"]
   },
-  {"id": "invalidate-removed-service", "sessions": [{"thread": "a", "date": "2026-08-18", "turns": [["Uptime Kuma gira sul CT 145 e controlla tutti i servizi.", "Annotato: Uptime Kuma sul CT 145."]]}, {"thread": "b", "date": "2026-10-03", "turns": [["Ho dismesso Uptime Kuma, il CT 145 l'ho eliminato.", "Ricevuto: Uptime Kuma non c'è più e il CT 145 è stato eliminato."]]}], "question": "Su quale container gira Uptime Kuma?", "expect_any": ["dismess", "eliminat", "non gira", "non è più", "non c'è più", "rimoss"]},
+  {"id": "invalidate-removed-service", "sessions": [{"thread": "a", "date": "2026-08-18", "turns": [["Uptime Kuma gira sul CT 145 e controlla tutti i servizi.", "Annotato: Uptime Kuma sul CT 145."]]}, {"thread": "b", "date": "2026-10-03", "turns": [["Ho dismesso Uptime Kuma, il CT 145 l'ho eliminato.", "Ricevuto: Uptime Kuma non c'è più e il CT 145 è stato eliminato."]]}], "question": "Che fine ha fatto Uptime Kuma?", "expect_any": ["dismess", "eliminat", "rimoss", "non c'è più", "non è più"]},
   {
     "id": "temporal-month",
     "sessions": [

@@ -153,3 +153,19 @@ def test_consolidation_and_restore_api(sandbox):
         assert client.post("/v1/memory/consolidation").status_code == 202
     with patch.object(mc, "run_in_background", return_value=False):
         assert client.post("/v1/memory/consolidation").status_code == 409
+
+
+def test_facts_differing_only_in_identifiers_are_not_duplicates(sandbox):
+    old, _ = facts.add_fact("Pi-hole ha l'IP 192.168.1.53")
+    new, created = facts.add_fact("Pi-hole ha l'IP 192.168.1.250")
+    assert created and new != old
+    assert facts.add_fact("Pi-hole ha l'IP 192.168.1.53.") == (old, False)  # stessa cosa: resta un doppione
+
+
+def test_an_update_creates_the_new_fact_even_if_it_looks_like_the_old_one(sandbox):
+    old, _ = facts.add_fact("Pi-hole ha l'IP 192.168.1.53")
+    _say("b", "2026-10-01", ("Ho cambiato l'IP di Pi-hole: ora è 192.168.1.250.", "Ricevuto."))
+    update = FactOperation(op="update", message=1, fact="Pi-hole ha l'IP 192.168.1.250", replaces=old)
+    with patch.object(mc, "propose_operations", return_value=[update]):
+        assert mc.consolidate_messages()["updated"] == 1
+    assert [f["content"] for f in facts.list_facts()[0]] == ["Pi-hole ha l'IP 192.168.1.250"]

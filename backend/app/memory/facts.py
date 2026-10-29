@@ -287,9 +287,18 @@ def _drop_orphans(conn) -> None:
     conn.execute("DELETE FROM memory_entities WHERE id NOT IN (SELECT entity_id FROM memory_fact_entities)")
 
 
+def _identifiers(text: str) -> set:
+    """Parole con cifre (IP, ID dei container, versioni, orari): l'embedding le distingue poco, ma sono il contenuto."""
+    return set(re.findall(r"[\w.:/-]*\d[\w.:/-]*", text.lower().rstrip(".")))
+
+
 def find_duplicate(content: str) -> Optional[int]:
+    """Fatto valido che dice la stessa cosa: quasi identico per significato e con gli stessi identificatori
+    ("Pi-hole ha IP 192.168.1.53" e "...192.168.1.250" hanno coseno 0,97 ma non sono lo stesso fatto)."""
     hits = vector_store.search_memory(content, k=1, kind="fact")
-    return hits[0]["id"] if hits and hits[0]["score"] >= DUPLICATE_SCORE else None
+    if hits and hits[0]["score"] >= DUPLICATE_SCORE and _identifiers(hits[0]["content"]) == _identifiers(content):
+        return hits[0]["id"]
+    return None
 
 
 def add_fact(
@@ -300,15 +309,17 @@ def add_fact(
     source: str = "manual",
     entities_checked: bool = False,
     created_at: Optional[str] = None,
+    dedupe: bool = True,
 ) -> Tuple[Optional[int], bool]:
     """Salva un fatto con le sue entità. Restituisce (id, creato): un quasi-duplicato non viene riscritto ma
     riceve le entità nuove, e l'id è quello del fatto esistente. `entities_checked` segna che le entità sono già
     state cercate (dall'estrazione), così il fatto non torna tra quelli da analizzare anche se non ne ha.
-    `created_at` è la data da cui il fatto vale (per i fatti consolidati, quella del messaggio da cui vengono)."""
+    `created_at` è la data da cui il fatto vale (per i fatti consolidati, quella del messaggio da cui vengono).
+    `dedupe=False` salta il controllo dei quasi-duplicati (un aggiornamento esplicito del consolidamento)."""
     content = content.strip()
     if not content:
         return None, False
-    duplicate = find_duplicate(content)
+    duplicate = find_duplicate(content) if dedupe else None
     fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata={"source": source}, created_at=created_at)
     if fact_id is None:
         return None, False
