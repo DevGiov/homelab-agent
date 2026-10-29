@@ -37,7 +37,7 @@ intake → recent_turns → mode_router → retrieve_memory → web_prefetch →
 | Automazioni | [automations/](../../backend/app/automations/) ([routes/](../../backend/app/automations/routes/), 41 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
 | Calendario | [calendar_db.py](../../backend/app/calendar/db.py), [calendar_router.py](../../backend/app/calendar/router.py) (~15 route), [calendar_sync.py](../../backend/app/calendar/sync.py) | Import ICS/Google |
 | Sicurezza | [policy.py](../../backend/app/security/policy.py), [approvals.py](../../backend/app/security/approvals.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
-| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py), [profile.py](../../backend/app/memory/profile.py) | Profilo dell'utente, fatti con entità e relazioni in sqlite-vec, knowledge base, thread con messaggi e riassunti, composti per modalità dopo il router; tutto in `checkpoints.db`, nessun servizio esterno |
+| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py), [profile.py](../../backend/app/memory/profile.py), [hybrid_search.py](../../backend/app/memory/hybrid_search.py), [episodes.py](../../backend/app/memory/episodes.py) | Profilo dell'utente, fatti con entità e relazioni in sqlite-vec, episodi di esecuzione, knowledge base, thread con messaggi e riassunti, composti per modalità dopo il router; ricerca ibrida FTS5 + vettori e tool `search_conversations`; tutto in `checkpoints.db`, nessun servizio esterno |
 | Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
 | LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
 | Osservabilità | [observability/](../../backend/app/observability/) | Turni e chiamate LLM in `metrics.db`, salute dei servizi campionata ogni minuto, API `/v1/metrics/*` |
@@ -82,6 +82,14 @@ Dopo E3 (memoria per modalità, fino a 5 fatti datati in ask): ancora **75% (9/1
 fallimento diverso. L'aggregazione ora passa. La preferenza tra thread fallisce a volte, perché il fatto ha
 somiglianza 0,351 con la domanda, sul filo della soglia: ripetuto a parte passa 2 volte su 2. Le due domande
 temporali restano fuori dal contesto: servono la ricerca ibrida (E4) e la validità temporale dei fatti (E6).
+
+Dopo E4 (ricerca ibrida parole + significato, fatti datati): **100% (12/12)**, 12,5 s per caso. Le domande temporali
+passano perché la parola in comune ("installato") porta nel contesto tutti i fatti candidati, e la data permette al
+modello di scegliere; le astensioni restano corrette. Suite `tools`: **100% (17/17)**, compreso il nuovo caso in cui il
+modello deve scegliere `search_conversations`.
+Prima base di Qwen3.6-35B su `planning` (**100%, 4/4**, 27 s per caso) e `rollback` (**67%, 2/3**): nel caso `ip-only`
+il piano di compensazione LLM chiama `release_ip` senza l'indirizzo da rilasciare. Il rollback non usa la memoria; da
+indagare a parte.
 
 ## 4. Deploy (CT 125)
 
