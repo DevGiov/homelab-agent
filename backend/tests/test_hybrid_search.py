@@ -87,6 +87,9 @@ def test_episode_describes_tools_errors_and_outcome():
     assert "exec_lxc_command" in text and "✗ Unit immich.service not found" in text
     assert text.endswith("esito: fallito") and text.count("exec_lxc_command") == 1
     assert episodes.describe("ciao", [{"tool_name": "x", "duplicate_blocked": True}]) is None
+    assert episodes.describe("Ricordati come si riavvia", [{"tool_name": "propose_procedure", "args": {}}]) is None
+    mixed = episodes.describe("Riavvia Immich", [{"tool_name": "recall_memory", "args": {}}, *TRACE[:1]])
+    assert "recall_memory" not in mixed and "get_container_status" in mixed
     assert episodes.remember_episode("Riavvia", "act", [{"tool_name": "exec_lxc_command", "approval_required": True}], "t") is None
 
 

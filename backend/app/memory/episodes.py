@@ -15,6 +15,8 @@ logger = logging.getLogger("episodes")
 MAX_TASK_CHARS = 200
 MAX_ARGS_CHARS = 80
 MAX_ERROR_CHARS = 120
+# Tool del registry 'memory': consultarli o proporre una procedura non è un'esecuzione da ricordare
+MEMORY_TOOLS = frozenset({"recall_memory", "search_conversations", "knowledge_search", "propose_procedure"})
 RELEVANT_SCORE = 0.5  # somiglianza minima con la richiesta
 KEYWORD_RELEVANT_SCORE = 0.35  # per gli episodi trovati per parole in comune
 
@@ -35,7 +37,10 @@ def _step(entry: Dict[str, Any]) -> str:
 
 
 def executed_steps(trace: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [e for e in trace if e.get("tool_name") and not e.get("duplicate_blocked") and not e.get("approval_required")]
+    return [
+        e for e in trace
+        if e.get("tool_name") and e["tool_name"] not in MEMORY_TOOLS and not e.get("duplicate_blocked") and not e.get("approval_required")
+    ]
 
 
 def outcome_of(steps: List[Dict[str, Any]]) -> str:
@@ -51,7 +56,7 @@ def outcome_of(steps: List[Dict[str, Any]]) -> str:
 
 
 def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
-    """Testo dell'episodio; None se il turno non ha eseguito tool (o li ha solo ripetuti)."""
+    """Testo dell'episodio; None se il turno non ha eseguito tool (o li ha solo ripetuti, o ha usato solo la memoria)."""
     steps = executed_steps(trace)
     if not steps:
         return None
