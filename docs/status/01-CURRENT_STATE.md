@@ -37,7 +37,7 @@ intake → recent_turns → mode_router → retrieve_memory → web_prefetch →
 | Automazioni | [automations/](../../backend/app/automations/) ([routes/](../../backend/app/automations/routes/), 41 route) | DB dedicato, scheduler cron, runner, SDK Python, circuit breaker, artefatti |
 | Calendario | [calendar_db.py](../../backend/app/calendar/db.py), [calendar_router.py](../../backend/app/calendar/router.py) (~15 route), [calendar_sync.py](../../backend/app/calendar/sync.py) | Import ICS/Google |
 | Sicurezza | [policy.py](../../backend/app/security/policy.py), [approvals.py](../../backend/app/security/approvals.py), [permissions.py](../../backend/app/security/permissions.py) | Blocco deterministico più approvazione utente (una volta / sessione / sempre) |
-| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py), [profile.py](../../backend/app/memory/profile.py), [hybrid_search.py](../../backend/app/memory/hybrid_search.py), [episodes.py](../../backend/app/memory/episodes.py), [procedures.py](../../backend/app/memory/procedures.py) | Profilo dell'utente, fatti con entità e relazioni in sqlite-vec, episodi di esecuzione, procedure approvate dall'utente (note sui tool e piani modello), knowledge base, thread con messaggi e riassunti, composti per modalità dopo il router; ricerca ibrida FTS5 + vettori e tool `search_conversations`; tutto in `checkpoints.db`, nessun servizio esterno |
+| Memoria | [facts.py](../../backend/app/memory/facts.py), [vector_store.py](../../backend/app/memory/vector_store.py), [knowledge_base.py](../../backend/app/memory/knowledge_base.py), [thread_store.py](../../backend/app/memory/thread_store.py), [profile.py](../../backend/app/memory/profile.py), [hybrid_search.py](../../backend/app/memory/hybrid_search.py), [episodes.py](../../backend/app/memory/episodes.py), [procedures.py](../../backend/app/memory/procedures.py) | Profilo dell'utente, fatti con entità e relazioni in sqlite-vec (con validità temporale, consolidati dai messaggi di notte o su richiesta), episodi di esecuzione, procedure approvate dall'utente (note sui tool e piani modello), knowledge base, thread con messaggi e riassunti, composti per modalità dopo il router; ricerca ibrida FTS5 + vettori e tool `search_conversations`; tutto in `checkpoints.db`, nessun servizio esterno |
 | Streaming | [stream_session.py](../../backend/app/agent/stream_session.py) | Multi-subscriber, riaggancio, pausa/ripresa/stop |
 | LLM | [providers.py](../../backend/app/llm/providers.py) | OpenAI-compatible (LiteLLM CT 149) e Ollama |
 | Osservabilità | [observability/](../../backend/app/observability/) | Turni e chiamate LLM in `metrics.db`, salute dei servizi campionata ogni minuto, API `/v1/metrics/*` |
@@ -95,6 +95,12 @@ Dopo E5: `tools` **100% (17/17)**, `planning` **75% (3/4)**. Nel caso `new-servi
 stabile (3 volte su 3), il tool composito `create_service` (con il dry run) invece dei quattro passi espliciti attesi
 dal caso. Non dipende da E5: lo fa anche togliendo `propose_procedure` dal catalogo. Va deciso se il caso deve accettare
 anche `create_service`.
+
+Dopo E6 (consolidamento al posto dell'estrazione a fine turno, validità temporale, deduplicazione): `recall` **100%
+(13/13)**, compreso il nuovo caso di un servizio dismesso, 15,3 s per caso (il consolidamento si aggiunge alla
+preparazione di ogni caso); `memory` **100% (6/6)**. Il primo run aveva trovato un difetto: il controllo dei
+quasi-duplicati scambiava "Pi-hole ha IP …53" e "…250" per lo stesso fatto (coseno 0,97), quindi gli aggiornamenti non
+sostituivano il valore vecchio; ora due fatti sono duplicati solo se hanno anche gli stessi identificatori con cifre.
 
 ## 4. Deploy (CT 125)
 

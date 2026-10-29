@@ -79,7 +79,7 @@ Dalla [ricerca sulla memoria degli agenti](../memory/MEMORY_RESEARCH.md): una po
 | E3 | ~~**Memoria per modalità**: composizione dopo il routing, budget per modalità in `ModePolicy`, profilo utente precaricato e modificabile, memoria stabile all'inizio del prompt~~ ✅ 2026-10-29 (`recall` 75%: l'aggregazione ora passa, la preferenza tra thread è al limite della soglia di somiglianza; memoria di chat 1–2 ms contro 16 ms di ask) | `recall`, latenza di chat | E1, E2 |
 | E4 | ~~**Episodi di esecuzione** per act e plan, ricavati dalle tracce; ricerca ibrida FTS5 + vettori; tool `search_conversations` per ask, act e plan~~ ✅ 2026-10-29 (`recall` 100%, `tools` 100% con il caso `search_conversations`) | `tools`, `planning`, `rollback`, `recall` | E3 |
 | E5 | ~~**Memoria procedurale**: note sui tool e piani modello, proposti dall'agente e approvati nella UI~~ ✅ 2026-10-29 (proposte dal tool `propose_procedure` e dalle esecuzioni istruttive; scheda Procedure; episodi visibili e cancellabili nella scheda Episodi) | `planning`, `tools` | E4 |
-| E6 | **Consolidamento notturno**: estrazione dei fatti in blocco al posto di quella a ogni turno, deduplicazione, validità temporale dei fatti | `memory`, `recall` | E2 |
+| E6 | ~~**Consolidamento notturno**: estrazione dei fatti in blocco al posto di quella a ogni turno, deduplicazione, validità temporale dei fatti~~ ✅ 2026-10-29 (`recall` 100% su 13 casi, `memory` 100%; turno senza chiamata di estrazione) | `memory`, `recall` | E2 |
 | E7 | **Budget di ragionamento per modello**: i valori per modalità dipendono dal modello (alcuni non ragionano, altri ne hanno bisogno per i tool) | tutte le suite | D4 |
 
 ## Storico
