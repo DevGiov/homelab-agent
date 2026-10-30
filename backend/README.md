@@ -249,7 +249,7 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 
 ## Ragionamento
 
-Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md).
+Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md). Pensiero tra i passi dell'agent loop (non ancora conservato): [docs/reasoning/INTERLEAVED_THINKING.md](../docs/reasoning/INTERLEAVED_THINKING.md).
 
 - **Livelli per fase** (`ThinkingPolicy` in `mode_policy.py`): ogni fase del turno chiede un livello `off`, `low`, `medium` o `high`. Le chiamate di servizio (routing, memoria, titoli, piano strutturato, rollback) non ragionano.
 

@@ -330,8 +330,9 @@ Proposte da validare con le suite (`tools`, `planning`, `rollback`, `recall`), m
 5. **Modelli sempre ragionanti**: non forzare budget 0; usare un budget piccolo ma non nullo.
 6. **Pensieri tra i passi dell'agent loop** (da valutare a parte, cambio più profondo): rimandare il ragionamento del
    passo precedente come messaggio dell'assistente con `reasoning_content`, con `preserve_thinking` per Qwen, per
-   ottenere l'interleaved thinking raccomandato per gli agenti. Va confrontato con l'attuale prompt a messaggio unico,
-   che massimizza il riuso della KV cache.
+   ottenere l'interleaved thinking raccomandato per gli agenti. Approfondito in
+   [INTERLEAVED_THINKING.md](INTERLEAVED_THINKING.md): dentro il turno i template lo conservano senza
+   `preserve_thinking`, e i messaggi riusano la cache meglio del prompt a messaggio unico.
 7. **Matrice di misura**: per ogni modello candidato (Qwen3.6-35B, Qwen3.8-27B in una variante, Gemma-4-26B,
    LFM2.5) le suite con 2–3 configurazioni di budget o livello, per scegliere i valori del profilo con i dati.
 
