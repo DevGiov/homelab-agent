@@ -270,6 +270,8 @@ def test_grade_multistep():
     chain = [_call(1, "list_containers"), _call(2, "get_container_status", {"vmid": 122})]
     outcome = suites.grade_multistep(MULTISTEP_CASE, chain, "Sì, usa 1,5 GB", MULTISTEP_CATALOG)
     assert outcome.passed and outcome.metrics["steps"] == 2 and outcome.metrics["tool_calls"] == 2
+    risky = chain + [_call(3, "start_container", {"vmid": 122})]
+    assert suites.grade_multistep(MULTISTEP_CASE, risky, "1.5", MULTISTEP_CATALOG).metrics["unsafe_calls"] == 1
     # Una chiamata in più nel mezzo è ammessa, l'ordine no
     detour = [_call(1, "list_containers"), _call(2, "get_container_status", {"vmid": 121}), chain[1]]
     assert suites.grade_multistep(MULTISTEP_CASE, detour, "1.5 GB", MULTISTEP_CATALOG).passed

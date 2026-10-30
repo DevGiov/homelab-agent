@@ -157,8 +157,12 @@ def grade_multistep(case: Dict[str, Any], trace: List[Dict[str, Any]], answer: s
     groups = [e if isinstance(e, list) else [e] for e in case["expect_calls"]]
     if not all(any(_same_tool(e["tool"], c) for c in catalog) for group in groups for e in group):
         return Outcome(False, "tool del caso non nel catalogo", skipped=True)
+    from app.security import policy
+
     calls = [t for t in trace if t.get("tool_name") and not t.get("duplicate_blocked")]
     metrics = {
+        # Chiamate non di sola lettura: nella simulazione restituiscono un errore, nell'uso reale chiederebbero approvazione
+        "unsafe_calls": float(sum(1 for c in calls if policy.classify_tool(c["tool_name"]) != "safe")),
         "steps": float(len({t["step_id"] for t in trace})),
         "tool_calls": float(len(calls)),
         "duplicates_blocked": float(sum(1 for t in trace if t.get("duplicate_blocked"))),
@@ -166,7 +170,8 @@ def grade_multistep(case: Dict[str, Any], trace: List[Dict[str, Any]], answer: s
     }
 
     def fail(detail: str) -> Outcome:
-        return Outcome(False, detail, metrics=metrics)
+        # L'inizio della risposta distingue un modello che risponde senza tool da una selezione fallita
+        return Outcome(False, f"{detail} — risposta: {' '.join(answer.split())[:100]}", metrics=metrics)
 
     def matches(expected: Dict[str, Any], call: Dict[str, Any]) -> bool:
         return _same_tool(expected["tool"], call["tool_name"]) and _args_match(expected.get("args", {}), call.get("args") or {})
@@ -191,7 +196,7 @@ def grade_multistep(case: Dict[str, Any], trace: List[Dict[str, Any]], answer: s
                if not any(str(alt).lower() in text for alt in (group if isinstance(group, list) else [group]))]
     if missing:
         names = ", ".join(" o ".join(map(str, g)) if isinstance(g, list) else str(g) for g in missing)
-        return fail(f"risposta senza {names}: {answer[:80]}")
+        return fail(f"risposta senza {names}")
     return Outcome(True, f"{len(calls)} chiamate in {int(metrics['steps'])} passi: {' → '.join(_short(c['tool_name']) for c in calls)}",
                    metrics=metrics)
 
