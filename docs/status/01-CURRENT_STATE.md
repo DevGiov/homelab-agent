@@ -108,6 +108,12 @@ Dopo E7 (profili di ragionamento per modello, livelli per fase, campionamento ra
 `recall` 85% in un run con l'host in swap (un caso in timeout di llama.cpp) e un caso in cui il consolidamento aveva
 solo invalidato il fatto del servizio dismesso senza registrare l'evento: le istruzioni ora chiedono di registrarlo,
 e i due casi rieseguiti passano 2 volte su 2.
+
+Dopo E8 (pensiero tra i passi dell'agent loop, piano strutturato tradotto dalla stesura): nuova suite `multistep` (agent
+loop completo con tool simulati, 10 casi). Qwen3.6-35B **70% (21/30)** con il pensiero conservato contro **63% (19/30)**
+senza, con il 38% di token generati in meno e 65 s di mediana contro 77 s. Il modello fa però più passi (3,4 chiamate
+contro 2,6) e più chiamate che eseguono comandi (0,8 contro 0,37 per esecuzione). La variabilità tra un run e l'altro è
+ampia (57–77% con la stessa configurazione). `tools` 100%, `planning` 100%. Nuovo problema: [ISS-28](02-ISSUES.md#iss-28).
 I profili degli altri modelli (Qwen3.8, Gemma 4, LFM2.5) vengono dalle schede del produttore e non sono ancora misurati.
 
 ## 4. Deploy (CT 125)

@@ -4,7 +4,7 @@ Ricerca e analisi del 2026-10-30, seguito di [REASONING_RESEARCH.md](REASONING_R
 La domanda: il ragionamento che il modello produce a un passo dell'agent loop deve arrivare ai passi successivi? Se sì,
 come, con i modelli dei preset e con llama.cpp? Il documento riassume cosa raccomandano produttori e ricerca, verifica
 cosa fanno davvero i template dei nostri modelli e il server, descrive cosa fa oggi il backend e propone un percorso
-misurabile.
+misurabile. I risultati dell'implementazione (E8) sono nella sezione 9.
 
 ---
 
@@ -371,6 +371,72 @@ libera per caricarli.
 4. **Opzione D da decidere dopo le misure**, possibilmente insieme alla revisione di ProxmoxMcp (ISS-27). Tool composti
    riducono il numero di passi, e quindi quanto conta conservare il pensiero tra un passo e l'altro.
 5. **Niente pensiero tra turni dell'utente** (opzione E) finché la conversazione entra come memoria testuale.
+
+---
+
+## 9. Risultati (E8, 2026-10-30)
+
+Implementazione: punti 1–3 della proposta.
+- `generate_plan_structure` riceve il piano steso, e la stesura vede il catalogo.
+- Suite `multistep`: 10 casi, agent loop completo con i risultati dei tool simulati.
+- `interleaved` nel profilo, acceso per Qwen3.6, Qwen3.8, Qwen3 e LFM2.5.
+- `AGENT_INTERLEAVED_THINKING` e `--interleaved on|off` per i confronti.
+
+### 9.1 `multistep` con Qwen3.6-35B, 10 casi × 3 esecuzioni
+
+| Run | Pensiero spento | Pensiero acceso | Note |
+| :--- | :--- | :--- | :--- |
+| 1 | 57% (17/30) | 53% (16/30) | prima versione dei casi |
+| 2 | 77% (23/30) | 60% (18/30) | regola anti-ripetizione che citava solo lo storico in testo |
+| **3** | **63% (19/30)** | **70% (21/30)** | regola corretta: confronto pulito |
+
+Il run 2 ha mostrato un difetto del prompt di sistema. La regola 7 vietava di ripetere un'azione il cui risultato fosse
+nella sezione "History of actions executed in this turn". Nel loop a messaggi quella sezione non c'è, quindi il modello
+non applicava la regola. Ora la regola copre anche i risultati che arrivano come messaggi.
+
+Misure del run 3, medie per esecuzione:
+
+| | Pensiero spento | Pensiero acceso |
+| :--- | :--- | :--- |
+| successo | 63% | 70% |
+| tempo mediano | 77 s | 65 s |
+| token generati | 2522 | 1573 (−38%) |
+| passi | 2,3 | 3,23 |
+| chiamate | 2,6 | 3,43 |
+| chiamate non di sola lettura (`exec_lxc_command`, `exec_host_command`, `python_interpreter`) | 0,37 | 0,8 |
+
+### 9.2 Lettura
+
+- **Qualità:** la differenza è dentro la varianza tra un run e l'altro. Con il pensiero spento la stessa
+  configurazione ha dato 57%, 77% e 63%. Non c'è un peggioramento, ma nemmeno un guadagno dimostrato su 30 esecuzioni.
+- **Costo:** con il pensiero conservato il modello ragiona meno a ogni passo, perché non ricostruisce da capo il
+  perché delle chiamate precedenti. Genera il 38% di token in meno ed è più rapido, anche facendo più passi. È il
+  vantaggio dichiarato da Qwen ("meno ragionamento ripetuto").
+- **Comportamento:** il modello approfondisce di più. Per esempio controlla lo spazio su disco dopo aver letto un
+  errore "No space left", e usa più spesso tool che eseguono comandi. Nell'uso reale ognuna di queste chiamate chiede
+  un'approvazione nella UI.
+- **Casi che migliorano:** quelli in cui il modello deve ricordare cosa sta cercando:
+  - il confronto tra gli snapshot di due container (8/9 contro 4/9 nei tre run);
+  - lo swap di nextcloud (8/9 contro 6/9).
+- **Casi che restano difficili in entrambe le varianti:**
+  - risposte dall'elenco degli eventi senza aprirne il dettaglio;
+  - date da convertire da un timestamp Unix;
+  - il DNS da collegare al container tramite le prenotazioni IP;
+  - le chiamate inventate scritte in `final_answer` ([ISS-28](../status/02-ISSUES.md#iss-28)).
+
+### 9.3 Decisione
+
+Il pensiero tra i passi resta **acceso** per i profili interleaved. A parità di successo costa meno token e meno
+tempo, ed è la configurazione raccomandata dai produttori. Il controllo da tenere d'occhio è l'aumento delle chiamate
+che eseguono comandi.
+
+Restano da misurare:
+- Qwen3.8, LFM2.5 e Gemma 4: per Gemma 4 l'interleaved resta spento, perché richiederebbe `tool_calls` native;
+- il tool calling nativo (opzione D), con la revisione di ProxmoxMcp.
+
+`planning` con la stesura del piano tradotta resta al 100% (4/4), e `tools` al 100% (17/17, 6,5 s). La durata di
+`planning` sale a 252 s per caso perché ora misura anche la stesura con 8192 token di ragionamento, come avviene in
+plan.
 
 ---
 

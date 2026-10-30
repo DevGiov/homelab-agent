@@ -31,6 +31,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
 | [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | 🟡 Backend risolto, infra aperta |
 | [ISS-27](#iss-27) | Eval `planning/new-service` e `rollback/ip-only` da rivedere insieme a ProxmoxMcp | S3 | evals, ProxmoxMcp | Rimandato |
+| [ISS-28](#iss-28) | La selezione dei tool a volte mette chiamate inventate in `final_answer`, che il loop mostra come risposta | S2 | agent loop | Aperto |
 
 ---
 
@@ -271,4 +272,10 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **`planning/new-service`**: il caso chiede un servizio web con IP, container, DNS e proxy, e si aspetta i quattro tool separati. Da E5 Qwen3.6-35B sceglie in modo stabile il tool composito `create_service`, preceduto dal dry run, che fa lo stesso provisioning in una chiamata. Non dipende dalla memoria. Per l'utente il tool dedicato è la scelta giusta: meno token e meno errori tra un passo e l'altro, se il tool è corretto. Il caso andrà riscritto per accettarlo; nella stessa revisione va controllato che il modello passi gli argomenti giusti (`create_service` di default esegue anche il bootstrap Agy, `skip_agy=false`).
 - **`rollback/ip-only`**: il piano di compensazione chiama `release_ip` senza l'indirizzo da rilasciare.
 - **Quando**: con la revisione di ProxmoxMcp (bug, refactoring, nuove feature), dopo la fase E.
+
+## ISS-28
+
+- **Evidenza**: nella suite `multistep` con Qwen3.6-35B (2026-10-30), circa un'esecuzione su quindici, con il pensiero tra i passi acceso o spento, termina senza alcuna chiamata. La risposta all'utente è testo come ` ```docker_ps``` ` o un JSON di chiamate a tool inesistenti (`zfs_list_snapshots`).
+- **Causa**: il modello restituisce `tool_needed=false` e scrive in `final_answer` le chiamate che intendeva fare. `_final_answer` in [agent_loop.py](../../backend/app/agent/agent_loop.py) accetta come risposta finale qualunque `final_answer` più lungo di 10 caratteri.
+- **Direzione**: riconoscere un `final_answer` che è codice o una lista di chiamate (blocco di codice senza prosa, nomi di tool) e trattarlo come selezione non valida, con un nuovo tentativo che lo spiega al modello.
 
