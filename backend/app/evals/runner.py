@@ -43,6 +43,7 @@ def run_case(run_fn: Callable[[Dict[str, Any], str], Outcome], case: Dict[str, A
         "llm_calls": trace.llm_calls,
         "prompt_tokens": trace.prompt_tokens,
         "completion_tokens": trace.completion_tokens,
+        "metrics": outcome.metrics,
     }
 
 
@@ -59,7 +60,17 @@ def summarize(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         "p50_ms": percentile([r["duration_ms"] for r in runs], 0.5),
         "prompt_tokens": sum(r["prompt_tokens"] for r in runs),
         "completion_tokens": sum(r["completion_tokens"] for r in runs),
+        "metrics": _mean_metrics(runs),
     }
+
+
+def _mean_metrics(runs: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Media di ogni misura sulle esecuzioni che la riportano."""
+    means = {}
+    for name in sorted({n for r in runs for n in r.get("metrics", {})}):
+        values = [r["metrics"][name] for r in runs if name in r.get("metrics", {})]
+        means[name] = round(sum(values) / len(values), 2)
+    return means
 
 
 def evaluate_model(
@@ -68,10 +79,13 @@ def evaluate_model(
     repeat: int = 1,
     case_ids: Optional[List[str]] = None,
     progress: Callable[[str], None] = lambda _: None,
+    variant: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """`variant` distingue nei report una configurazione dello stesso modello (per esempio `interleaved off`)."""
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%S")
-    report: Dict[str, Any] = {"model": model, "started_at": started.isoformat(), "repeat": repeat, "suites": {}}
+    name = f"{model} [{variant}]" if variant else model
+    report: Dict[str, Any] = {"model": name, "started_at": started.isoformat(), "repeat": repeat, "suites": {}}
     for suite in suites:
         cases = []
         for case in load_cases(suite):
@@ -80,7 +94,7 @@ def evaluate_model(
             runs = [run_case(SUITES[suite], case, model, f"eval:{run_id}:{suite}:{case['id']}") for _ in range(repeat)]
             cases.append({"id": case["id"], "runs": runs})
             mark = "–" if runs[0]["skipped"] else f"{sum(r['passed'] for r in runs)}/{repeat}"
-            progress(f"[{model}] {suite}/{case['id']}: {mark} {runs[-1]['detail']}")
+            progress(f"[{name}] {suite}/{case['id']}: {mark} {runs[-1]['detail']}")
         report["suites"][suite] = {**summarize(cases), "results": cases}
     report["duration_s"] = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
     return report
@@ -127,6 +141,15 @@ def compare_markdown(reports: List[Dict[str, Any]]) -> str:
     for suite in suites:
         lines.append(f"| {suite} | " + " | ".join(_cell(r["suites"].get(suite)) for r in reports) + " |")
     lines.append("| **data** | " + " | ".join(r["started_at"][:16].replace("T", " ") for r in reports) + " |")
+    for suite in suites:
+        measured = [(r["model"], r["suites"][suite]) for r in reports if r["suites"].get(suite, {}).get("metrics")]
+        if measured:
+            lines.append("")
+            lines.append(f"Misure medie di `{suite}`, per esecuzione:")
+            for model, summary in measured:
+                tokens = round(summary["completion_tokens"] / max(1, summary["runs"]))
+                values = ", ".join(f"{k} {v:g}" for k, v in summary["metrics"].items())
+                lines.append(f"- {model}: {values}, token generati {tokens}")
     for r in reports:
         failures = [
             f"- `{suite}/{c['id']}`: {next(run['detail'] for run in c['runs'] if not run['passed'] and not run['skipped'])}"

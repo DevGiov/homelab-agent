@@ -154,21 +154,23 @@ make lint
 ## Valutazione dei modelli
 
 `app/evals/` misura quanto bene un modello guida l'agente, senza effetti collaterali: nessun tool eseguito, nessun
-fatto salvato nella memoria reale. Sei suite, con i casi in `app/evals/cases/*.json`:
+fatto salvato nella memoria reale. Sette suite, con i casi in `app/evals/cases/*.json`:
 
 | Suite | Cosa chiama | Superato se |
 | :--- | :--- | :--- |
 | `routing` | `route_turn` | modalità (e, dove indicato, ricerca web) attese |
 | `tools` | prima scelta dell'agent loop in `act` (`AgentLoop.first_selection`) | tool atteso (e argomenti indicati); nessun tool quando non serve; un tool assente dal catalogo salta il caso |
-| `planning` | `generate_plan_structure` | piano valido, solo tool del catalogo, passi richiesti presenti, nessun tool vietato, non troppi passi |
+| `planning` | stesura del piano (`draft_plan`, livello `high`) e sua traduzione in `generate_plan_structure`, come in plan | piano valido, solo tool del catalogo, passi richiesti presenti, nessun tool vietato, non troppi passi |
 | `rollback` | `generate_rollback_plan_with_llm` | compensazioni attese citate (nell'ordine, se richiesto) |
 | `memory` | `propose_operations` del consolidamento su un solo scambio e memoria vuota | fatti con le entità attese; nessun fatto per chiacchiere, nozioni generali o cronaca della conversazione |
 | `recall` | conversazioni datate salvate e consolidate come fa l'agente in un database temporaneo, poi `retrieve_memory` e una risposta strutturata alla domanda | valore atteso nella risposta (il dettaglio dice se era nel contesto); per le domande senza risposta in memoria, ammissione di non sapere. Casi: preferenze e dettagli tra thread, aggregazione su più thread, valori aggiornati, servizio dismesso, domande temporali, astensione, dettaglio iniziale di un thread lungo (riassunto) |
+| `multistep` | agent loop completo in `act`, con i risultati dei tool simulati dal caso (`simulated_tools`: il registry non esegue nulla) su catene in cui un argomento dipende da un risultato precedente | chiamate attese nell'ordine (altre in mezzo ammesse), nessuna vietata, non troppe, valori dei risultati nella risposta. Misure per esecuzione: passi, chiamate, ripetizioni bloccate, argomenti non validi |
 
 Ogni caso può girare più volte (`--repeat`) per misurare la stabilità. Il report di ogni modello (esito,
 durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca, per ogni modello, il
 risultato più recente di ogni suite in una tabella Markdown (un'esecuzione parziale aggiorna solo le sue suite). Le chiamate LLM delle valutazioni compaiono nelle metriche con `turn_key`
-`eval:…`, ma non tra i turni.
+`eval:…`, ma non tra i turni. `--interleaved on|off` forza il pensiero tra i passi dell'agent loop per confrontare le
+due forme dello stesso modello (il report porta la variante nel nome).
 
 ```bash
 # Nel backend avviato su CT 125: i modelli vanno sempre indicati, e devono stare nella VRAM
@@ -249,7 +251,7 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 
 ## Ragionamento
 
-Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md). Pensiero tra i passi dell'agent loop (non ancora conservato): [docs/reasoning/INTERLEAVED_THINKING.md](../docs/reasoning/INTERLEAVED_THINKING.md).
+Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md) e, per il pensiero tra i passi dell'agent loop, [docs/reasoning/INTERLEAVED_THINKING.md](../docs/reasoning/INTERLEAVED_THINKING.md).
 
 - **Livelli per fase** (`ThinkingPolicy` in `mode_policy.py`): ogni fase del turno chiede un livello `off`, `low`, `medium` o `high`. Le chiamate di servizio (routing, memoria, titoli, piano strutturato, rollback) non ragionano.
 
@@ -262,6 +264,8 @@ Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REAS
 
 - **Profilo del modello** (`app/llm/reasoning.py`, scelto con un pattern sull'alias del preset): dice se il modello ragiona sempre (LFM2.5), si accende e spegne (Qwen3.6, Qwen3.8, Gemma 4) o non ragiona (Phi-4), quale `reasoning_effort` del template usare per livello (Qwen3.8: `low`, `medium`, `xhigh`), il budget minimo dei modelli sempre ragionanti (256 token) e il campionamento raccomandato con e senza ragionamento. Un modello senza profilo riceve interruttore e budget e solo la temperatura del chiamante.
 - **Budget**: `low` 512, `medium` 2048, `high` 8192 token, sempre inviati in modo esplicito (`reasoning_budget_tokens`, mai il default del preset) con una frase di transizione per i troncamenti; il budget si somma a `max_tokens`, che resta la lunghezza della risposta. Il budget scelto dall'utente nella chat (`reasoning_budget`) sostituisce quello dei livelli nelle fasi che ragionano (0 le spegne).
+- **Pensiero tra i passi** (`interleaved` nel profilo, `AGENT_INTERLEAVED_THINKING=auto|on|off`): per Qwen3.6, Qwen3.8, Qwen3 e LFM2.5 l'agent loop manda i passi come messaggi dopo il messaggio utente, cioè l'assistente con il suo pensiero (`reasoning_content`) e il JSON di selezione, poi un messaggio `tool` per risultato. Il template conserva il pensiero dei passi del turno e il prompt cresce solo in coda. Per gli altri modelli lo storico resta testo in coda al messaggio utente; Gemma 4 conserva il pensiero solo con `tool_calls` native.
+- **Piano**: la stesura (livello `high`) vede il catalogo dei tool, e il piano strutturato che viene eseguito la traduce invece di ripianificare da capo.
 - **Campionamento**: con il ragionamento attivo vale quello del profilo (i modelli che ragionano degradano a temperature basse); senza, la temperatura del chiamante (bassa per gli output strutturati) o quella del profilo.
 
 ## Memoria

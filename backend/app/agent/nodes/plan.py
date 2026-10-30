@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.agent import llm_calls
 from app.agent.agent_prompts import current_time
@@ -12,16 +12,57 @@ from app.agent.state import AgentState
 logger = logging.getLogger("graph")
 
 
-def generate_plan_structure(task: str, user_prompt: str, model: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Piano strutturato (passi con tool del catalogo, argomenti e dipendenze), o None se il modello non ne produce
-    uno valido: in quel caso il piano resta solo testuale e l'esecuzione passa all'agent loop."""
-    from app.agent.tool_catalog import format_catalog_for_prompt
+def _plan_tools() -> List[Dict[str, Any]]:
+    """Il piano viene eseguito con il catalogo di act."""
     from app.registry.manager import get_registry_manager
+
+    return get_registry_manager().get_tools_for_mode(get_mode_policy("act").allowed_registries)
+
+
+def plan_system_prompt() -> str:
+    """Stesura del piano: con il catalogo, così il ragionamento ad alto budget pianifica con i tool che verranno eseguiti."""
+    from app.agent.tool_catalog import format_catalog_for_prompt
     from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
 
-    tools = get_registry_manager().get_tools_for_mode(get_mode_policy("act").allowed_registries)
+    return (
+        "You are the Homelab AI Management Agent (mode: PLAN).\n"
+        "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
+        "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request.\n"
+        "Each step is one call to a tool of this catalog: name the tool with its exact name and say which arguments it needs.\n"
+        f"Catalog of available tools:\n{format_catalog_for_prompt(_plan_tools())}\n\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}\n"
+        "Reply ONLY with the numbered list of execution steps."
+    )
+
+
+def draft_plan(user_prompt: str, system_prompt: str, model: Optional[str] = None, thinking_budget: Optional[int] = None,
+               images: Optional[List[str]] = None, stream_mode: str = "all") -> Dict[str, Any]:
+    """Piano in testo, al livello di ragionamento `plan` della modalità: è la fase che ragiona di più."""
+    return llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2,
+                              thinking=get_mode_policy("plan").thinking.plan, thinking_budget=thinking_budget, model=model,
+                              stream_mode=stream_mode, reasoning_phase="Pianificazione Strategica", images=images)
+
+
+def generate_plan_structure(task: str, user_prompt: str, plan_text: Optional[str] = None,
+                            model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Piano strutturato (passi con tool del catalogo, argomenti e dipendenze), o None se il modello non ne produce
+    uno valido: in quel caso il piano resta solo testuale e l'esecuzione passa all'agent loop.
+
+    Con `plan_text` (il piano steso con il ragionamento) la chiamata lo traduce invece di ripianificare: il piano
+    eseguito è quello che l'utente ha letto.
+    """
+    from app.agent.tool_catalog import format_catalog_for_prompt
+    from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
+
+    tools = _plan_tools()
+    if plan_text:
+        instruction = (f"Convert the drafted plan at the end of the user message into a structured JSON plan for the user task: '{task}'.\n"
+                       "Keep its steps and their order, one step per tool call; fix a tool name only to match the catalog.\n")
+        user_prompt = f"{user_prompt}\n\nDrafted plan:\n{plan_text}"
+    else:
+        instruction = f"Generate a structured JSON plan for the following user task: '{task}'.\n"
     json_prompt = (
-        f"Generate a structured JSON plan for the following user task: '{task}'.\n"
+        instruction +
         f"{UNTRUSTED_CONTEXT_POLICY}\n"
         "Use ONLY tools from this catalog, with their exact names:\n"
         f"{format_catalog_for_prompt(tools)}\n\n"
@@ -92,8 +133,6 @@ def plan_graph_node(state: AgentState) -> AgentState:
     model = state.get("model")
     prefetch_data = state.get("web_prefetch_data")
 
-    policy = get_mode_policy("plan")
-
     from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY, wrap_untrusted_web_evidence
 
     now_str = current_time()
@@ -140,14 +179,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
             "Inform the user that they can inspect the proposal, run a safe Dry-Run test, or activate the automation with one click."
         )
     else:
-        system_prompt = (
-            "You are the Homelab AI Management Agent (mode: PLAN).\n"
-            "Language Directive: English is your internal instruction language. ALWAYS detect and respond in the language used by the user in their message (e.g. if the user writes in Italian, respond in natural and fluent Italian; if in English, respond in English), unless explicitly instructed otherwise.\n"
-            "Generate a numbered step-by-step action plan (maximum 5 steps) specifically tailored to fulfill the user's request "
-            "using the tools and connected MCP servers available in the system.\n"
-            f"{UNTRUSTED_CONTEXT_POLICY}\n"
-            "Reply ONLY with the numbered list of execution steps."
-        )
+        system_prompt = plan_system_prompt()
 
     prompt_sections = []
     if memory_context:
@@ -165,8 +197,8 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"User Request: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    llm_plan_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2, thinking=policy.thinking.plan,
-                                      thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Pianificazione Strategica", images=state.get("images"))
+    llm_plan_res = draft_plan(user_prompt, system_prompt, model=model, thinking_budget=state.get("reasoning_budget"),
+                              images=state.get("images"))
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -177,7 +209,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
                 if cleaned:
                     plan_steps.append(cleaned)
 
-    plan_structure = generate_plan_structure(task, user_prompt, model=model)
+    plan_structure = generate_plan_structure(task, user_prompt, plan_text=llm_plan, model=model)
 
     if not plan_steps and plan_structure:
         plan_steps = [s.get("description", "") for s in plan_structure["steps"] if s.get("description")]

@@ -1,6 +1,6 @@
 """Valutazione dei modelli su routing, scelta dei tool, piani, rollback ed estrazione dei fatti.
 
-    python -m app.evals run --models A,B [--suites routing,tools] [--repeat 3] [--cases id1,id2]
+    python -m app.evals run --models A,B [--suites routing,tools] [--repeat 3] [--cases id1,id2] [--interleaved on|off]
     python -m app.evals compare [report.json ...]
 
 I modelli vanno sempre indicati: un processo separato non conosce il modello attivo nel backend. Ogni modello
@@ -27,6 +27,8 @@ def main(argv=None) -> int:
     run.add_argument("--suites", default=",".join(SUITES), help=f"suite separate da virgola (default: {','.join(SUITES)})")
     run.add_argument("--repeat", type=int, default=1, help="esecuzioni per caso, per misurare la stabilità")
     run.add_argument("--cases", default="", help="solo questi id di caso")
+    run.add_argument("--interleaved", choices=["auto", "on", "off"], default="auto",
+                     help="pensiero dei passi precedenti nell'agent loop: dal profilo del modello o forzato (variante nel report)")
     compare = sub.add_parser("compare", help="tabella Markdown dei report (default: l'ultimo di ogni modello)")
     compare.add_argument("reports", nargs="*", type=Path)
     args = parser.parse_args(argv)
@@ -51,10 +53,14 @@ def main(argv=None) -> int:
     if missing:
         parser.error(f"modelli non disponibili sul server: {', '.join(missing)}")
 
+    from app.core.config import settings
+
+    settings.agent_interleaved_thinking = args.interleaved
+    variant = None if args.interleaved == "auto" else f"interleaved {args.interleaved}"
     reports = []
     for model in models:
         report = evaluate_model(model, suites, repeat=max(1, args.repeat), case_ids=_split(args.cases),
-                                progress=lambda line: print(line, flush=True))
+                                progress=lambda line: print(line, flush=True), variant=variant)
         path = save_report(report)
         print(f"Report salvato: {path} ({report['duration_s']} s)")
         reports.append(report)

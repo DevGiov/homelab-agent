@@ -3,7 +3,7 @@
 I system prompt sono statici per modalità (niente orario, memoria o risultati dei tool): llama.cpp riusa così
 la parte già elaborata da una chiamata all'altra. Ciò che cambia sta nel messaggio utente: prima la memoria (dal più
 stabile al più variabile, vedi retrieve_memory), poi l'orario e la richiesta, con lo storico dei tool in coda, così
-ogni passo di selezione estende il prompt del precedente.
+ogni passo di selezione estende il prompt del precedente (o, nel loop interleaved, con i passi come messaggi successivi).
 """
 from datetime import datetime
 from typing import Optional
@@ -85,9 +85,12 @@ def tool_selection_prompt(
     memory_context: Optional[str],
     prefetch_block: str,
     image_count: int,
-    history: str,
+    history: Optional[str],
 ) -> str:
-    """Contesto del turno e storico dei tool, in coda perché cresce a ogni passo."""
+    """Contesto del turno e storico dei tool, in coda perché cresce a ogni passo.
+
+    Con `history` None i passi arrivano come messaggi dopo questo (loop interleaved): il messaggio resta identico per
+    tutto il turno."""
     prefetch_guidance = ""
     if prefetch_block:
         prefetch_guidance = (
@@ -106,13 +109,15 @@ def tool_selection_prompt(
             "you can perceive it directly: set `tool_needed=false` and provide your thorough, detailed, and accurate answer in `final_answer`.\n"
             "Only invoke tools if external actions on Homelab/MCP resources, additional web searches, or code execution are needed.\n"
         )
-    return (
+    prompt = (
         f"{_turn_context(now, memory_context)}\n"
         f"{prefetch_guidance}"
         f"{vision_guidance}\n"
-        f"User request: '{task}'\n\n"
-        f"History of actions executed in this turn:\n{history}"
+        f"User request: '{task}'"
     )
+    if history is None:
+        return prompt
+    return f"{prompt}\n\nHistory of actions executed in this turn:\n{history}"
 
 
 def tool_selection_system_prompt(mode: str, catalog: str) -> str:

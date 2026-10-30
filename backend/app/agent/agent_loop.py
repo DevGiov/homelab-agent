@@ -7,9 +7,15 @@ chiamate, anti-loop, ragionamenti accumulati) e ogni fase è un metodo. I testi 
 Ogni risultato di tool è tenuto due volte: intero per la sintesi finale e accorciato a AGENT_OBSERVATION_LIMIT
 nello storico che i passi di selezione rileggono, così un elenco lungo non fa crescere ogni prompt successivo.
 
+Lo storico arriva al modello in due forme, a seconda del profilo del modello (`interleaved`):
+- testo in coda al messaggio utente (`Step N: tool(args) -> risultato`): il pensiero dei passi precedenti si perde;
+- messaggi dopo il messaggio utente: per ogni passo l'assistente con il suo pensiero (`reasoning_content`) e il JSON di
+  selezione, poi un messaggio `tool` per ogni risultato. Il template conserva il pensiero dei passi del turno e il
+  prompt cresce solo in coda (docs/reasoning/INTERLEAVED_THINKING.md).
+
 Funzioni LLM attese dal chiamante:
 - `call_llm_fn(prompt, system_prompt=..., thinking=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
-- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=...)` -> ToolSelection
+- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=..., history=...)` -> ToolSelection
 
 Il livello di ragionamento (`thinking`) è quello della fase nella `ThinkingPolicy` della modalità: `select` per la
 scelta dei tool, `answer` per risposte e sintesi.
@@ -122,6 +128,7 @@ class AgentLoop:
         web_prefetch_data: Optional[Dict[str, Any]],
         images: Optional[List[str]],
         security_mode: str,
+        interleaved: bool = False,
     ):
         self.task = task
         self.mode = mode
@@ -131,6 +138,7 @@ class AgentLoop:
         self.thread_id = thread_id
         self.images = images
         self.security_mode = security_mode
+        self.interleaved = interleaved
         self.now = prompts.current_time()
 
         self.policy = get_mode_policy(mode)
@@ -148,6 +156,8 @@ class AgentLoop:
         # Risultati interi per la sintesi e la loro versione accorciata per i passi di selezione
         self.observations: List[str] = []
         self.history: List[str] = []
+        # Nel loop interleaved lo stesso storico come messaggi, con il pensiero di ogni passo
+        self.turn_messages: List[Dict[str, Any]] = []
         self.history_truncated = False
         self.reasonings: List[Tuple[str, str]] = []
         # Risultati dei tool read-only già eseguiti nel turno, conteggio delle chiamate per l'anti-loop
@@ -174,10 +184,16 @@ class AgentLoop:
             text = text[:settings.truncation_limit] + "\n... [observations truncated for brevity]"
         return text
 
+    def _remember(self, entry: str):
+        """Una voce dello storico dei passi di selezione: riga di testo e risultato di tool."""
+        self.history.append(entry)
+        if self.interleaved:
+            self.turn_messages.append({"role": "tool", "content": entry})
+
     def _note(self, text: str):
         """Annotazione senza risultato di tool (validazione fallita, loop interrotto): uguale nei due storici."""
         self.observations.append(text)
-        self.history.append(text)
+        self._remember(text)
 
     def _observe(self, header: str, tool_name: str, res: Any) -> str:
         full = _serialize(res)
@@ -189,7 +205,7 @@ class AgentLoop:
             short = (f"{full[:limit]}\n... [result truncated to {limit} of {len(full)} characters. The final answer is written "
                      "separately from the full result: do not call the tool again to read the rest, and if no other tool is "
                      "needed set tool_needed=false with final_answer=null]")
-        self.history.append(f"{header} -> {_guarded(tool_name, short)}")
+        self._remember(f"{header} -> {_guarded(tool_name, short)}")
         return full
 
     def _ask_llm(self, prompt: str, system_prompt: str, phase: str) -> str:
@@ -305,7 +321,10 @@ class AgentLoop:
         return sess.is_stopped()
 
     def _select_tool(self, step_id: int, system_prompt: str) -> Optional[ToolSelection]:
-        history = "\n".join(self.history) if self.history else "Nessuna azione eseguita finora."
+        history = None
+        if not self.interleaved:
+            history = "\n".join(self.history) if self.history else "Nessuna azione eseguita finora."
+        extra = {"history": list(self.turn_messages)} if self.interleaved else {}
         selection = self.call_llm_structured_fn(
             prompt=prompts.tool_selection_prompt(self.task, self.now, self.memory_context, self.prefetch_block,
                                                  len(self.images or []), history),
@@ -316,8 +335,17 @@ class AgentLoop:
             max_retries=2,
             thinking=self.policy.thinking.select,
             images=self.images,
+            **extra,
         )
-        reasoning = (getattr(selection, "raw_thinking", "") or "") or ((selection.reasoning if selection else "") or "")
+        thinking = getattr(selection, "raw_thinking", "") or ""
+        if selection and self.interleaved:
+            # Il passo come lo ha scritto il modello: pensiero e JSON (che resta nella forma imposta dalla grammatica)
+            message: Dict[str, Any] = {"role": "assistant",
+                                       "content": json.dumps(selection.model_dump(exclude={"raw_thinking"}), ensure_ascii=False)}
+            if thinking:
+                message["reasoning_content"] = thinking
+            self.turn_messages.append(message)
+        reasoning = thinking or ((selection.reasoning if selection else "") or "")
         if reasoning:
             self.reasonings.append((f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool", reasoning))
         return selection
@@ -488,6 +516,7 @@ def run_agent_loop(
     web_prefetch_data: Optional[Dict[str, Any]] = None,
     images: Optional[List[str]] = None,
     security_mode: str = "normal",
+    interleaved: bool = False,
 ) -> Dict[str, Any]:
     """Esegue il loop ReAct secondo la ModePolicy della modalità.
 
@@ -495,4 +524,4 @@ def run_agent_loop(
     fino a una risposta finale o al limite di passi.
     """
     return AgentLoop(task, mode, memory_context, call_llm_fn, call_llm_structured_fn, thread_id,
-                     web_prefetch_data, images, security_mode).run()
+                     web_prefetch_data, images, security_mode, interleaved).run()

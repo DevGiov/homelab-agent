@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     truncation_limit: int = Field(default=40000, alias="TRUNCATION_LIMIT")
     # Caratteri di ogni risultato di tool ripetuti nei passi di selezione; la sintesi finale li riceve interi
     agent_observation_limit: int = Field(default=4000, alias="AGENT_OBSERVATION_LIMIT")
+    # Pensiero dei passi precedenti nell'agent loop: `auto` segue il profilo del modello (app/llm/reasoning.py), `on` e
+    # `off` lo forzano (confronti nelle valutazioni)
+    agent_interleaved_thinking: str = Field(default="auto", alias="AGENT_INTERLEAVED_THINKING")
 
     # --- Ricerca web ---
     searxng_url: str = Field(default="http://192.168.1.161:8080", alias="SEARXNG_URL")

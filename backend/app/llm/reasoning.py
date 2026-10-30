@@ -43,8 +43,12 @@ class Profile:
     plain: Sampling = field(default_factory=Sampling)  # senza ragionamento
     efforts: Dict[str, str] = field(default_factory=dict)  # livello → valore di `reasoning_effort` del template
     min_budget: int = 0  # per i modelli sempre ragionanti: il budget non scende mai a 0
+    # Il template conserva il pensiero dei messaggi dell'assistente dopo l'ultima domanda dell'utente anche senza
+    # `tool_calls`: l'agent loop può rimandarlo passo dopo passo (docs/reasoning/INTERLEAVED_THINKING.md)
+    interleaved: bool = False
 
 
+# Gemma 4 conserva il pensiero solo nei messaggi con `tool_calls`, che l'agent loop non produce: niente interleaved.
 # Ordine significativo: vince il primo pattern che corrisponde al nome del modello (alias del preset)
 PROFILES = [
     (r"qwen3\.6", Profile(
@@ -52,17 +56,20 @@ PROFILES = [
         # Valori "coding preciso" della scheda: chiamate a tool e piani vogliono precisione più che varietà
         thinking=Sampling(temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repeat_penalty=1.0),
         plain=Sampling(temperature=0.7, top_p=0.8, top_k=20, min_p=0.0, presence_penalty=1.5, repeat_penalty=1.0),
+        interleaved=True,
     )),
     (r"qwen3\.8", Profile(
         "Qwen3.8", "hybrid",
         thinking=Sampling(temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repeat_penalty=1.0),
         plain=Sampling(temperature=0.7, top_p=0.8, top_k=20, min_p=0.0, presence_penalty=1.5, repeat_penalty=1.0),
         efforts={"low": "low", "medium": "medium", "high": "xhigh"},
+        interleaved=True,
     )),
     (r"qwen3", Profile(
         "Qwen3", "hybrid",
         thinking=Sampling(temperature=0.6, top_p=0.95, top_k=20, min_p=0.0),
         plain=Sampling(temperature=0.7, top_p=0.8, top_k=20, min_p=0.0),
+        interleaved=True,
     )),
     (r"gemma-?4", Profile(
         "Gemma 4", "hybrid",
@@ -73,6 +80,7 @@ PROFILES = [
         "LFM2.5", "always",
         thinking=Sampling(temperature=0.1, top_k=50, repeat_penalty=1.05),
         min_budget=256,
+        interleaved=True,
     )),
     (r"phi-?4", Profile("Phi-4", "none")),
 ]
@@ -82,6 +90,16 @@ UNKNOWN = Profile("sconosciuto", "unknown")
 def profile_for(model: Optional[str]) -> Profile:
     name = str(model or "").lower()
     return next((profile for pattern, profile in PROFILES if re.search(pattern, name)), UNKNOWN)
+
+
+def interleaved_for(model: Optional[str]) -> bool:
+    """Se l'agent loop rimanda al modello il pensiero dei passi precedenti: dal profilo, salvo AGENT_INTERLEAVED_THINKING."""
+    from app.core.config import settings
+
+    override = settings.agent_interleaved_thinking.strip().lower()
+    if override in ("on", "off"):
+        return override == "on"
+    return profile_for(model).interleaved
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,196 @@
+[
+  {"id": "nextcloud-swap", "input": "Il container di nextcloud sta usando la swap? Quanta?",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 121, "name": "nextcloud-db", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 905969664, "uptime": 604800},
+       {"vmid": 122, "name": "nextcloud", "status": "running", "cpus": 4, "maxmem": 4294967296, "mem": 3758096384, "uptime": 604800},
+       {"vmid": 123, "name": "nextcloud-test", "status": "stopped", "cpus": 2, "maxmem": 2147483648, "mem": 0, "uptime": 0},
+       {"vmid": 131, "name": "jellyfin", "status": "running", "cpus": 4, "maxmem": 8589934592, "mem": 2147483648, "uptime": 86400}]}],
+     "get_container_status": [
+       {"when": {"vmid": 122}, "result": {"vmid": 122, "name": "nextcloud", "status": "running", "cpu": 0.07, "cpus": 4, "mem": 3758096384, "maxmem": 4294967296, "swap": 402653184, "maxswap": 536870912, "uptime": 604800}},
+       {"when": {"vmid": 121}, "result": {"vmid": 121, "name": "nextcloud-db", "status": "running", "cpu": 0.02, "cpus": 2, "mem": 905969664, "maxmem": 2147483648, "swap": 0, "maxswap": 536870912, "uptime": 604800}},
+       {"result": {"error": "Container non trovato"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_container_status", "args": {"vmid": 122}}],
+   "expect_answer": [["384", "0.375", "0,375", "0.37", "0,37", "0.4", "0,4", "402"]],
+   "max_calls": 5},
+
+  {"id": "jellyfin-diagnosis", "input": "Jellyfin non riesce a riprodurre i film da stamattina, guarda nei log del servizio cosa succede",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 122, "name": "nextcloud", "status": "running", "cpus": 4, "maxmem": 4294967296, "mem": 3758096384, "uptime": 604800},
+       {"vmid": 130, "name": "jellyseerr", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 402653184, "uptime": 86400},
+       {"vmid": 131, "name": "jellyfin", "status": "running", "cpus": 4, "maxmem": 8589934592, "mem": 2147483648, "uptime": 86400},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600}]}],
+     "get_lxc_service_logs": [
+       {"when": {"vmid": 131, "service_name": "jellyfin"}, "result": {"vmid": 131, "service_name": "jellyfin", "exit_code": 0, "logs": "Oct 30 07:12:01 jellyfin jellyfin[412]: [07:12:01] [INF] [12] MediaBrowser.Api.Playback: Starting transcode for 'Dune Part Two'\nOct 30 07:12:02 jellyfin jellyfin[412]: [07:12:02] [ERR] [12] MediaBrowser.MediaEncoding.Transcoding: FFmpeg exited with code 1\nOct 30 07:12:02 jellyfin jellyfin[412]: System.IO.IOException: No space left on device : '/var/lib/jellyfin/transcodes/a81c2f.ts'\nOct 30 07:15:40 jellyfin jellyfin[412]: [07:15:40] [ERR] [8] Emby.Server.Implementations.Session: Error starting playback: transcoding directory is full"}},
+       {"when": {"vmid": 131, "service_name": "jellyfin.service"}, "result": {"vmid": 131, "service_name": "jellyfin.service", "exit_code": 0, "logs": "Oct 30 07:12:02 jellyfin jellyfin[412]: System.IO.IOException: No space left on device : '/var/lib/jellyfin/transcodes/a81c2f.ts'\nOct 30 07:15:40 jellyfin jellyfin[412]: [07:15:40] [ERR] [8] Emby.Server.Implementations.Session: Error starting playback: transcoding directory is full"}},
+       {"result": {"vmid": 0, "service_name": "", "exit_code": 1, "logs": "-- No entries --"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_lxc_service_logs", "args": {"vmid": 131}}],
+   "expect_answer": [["no space left", "spazio"], ["transcod"]],
+   "max_calls": 5},
+
+  {"id": "gitea-dependency", "input": "Gitea da un errore 500 su ogni pagina. Scopri la causa e dimmi quale container devo sistemare",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600},
+       {"vmid": 141, "name": "pg-shared", "status": "stopped", "cpus": 2, "maxmem": 4294967296, "mem": 0, "uptime": 0},
+       {"vmid": 142, "name": "redis-cache", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 134217728, "uptime": 1209600},
+       {"vmid": 150, "name": "grafana", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 402653184, "uptime": 345600}]}],
+     "get_lxc_service_logs": [
+       {"when": {"vmid": 140, "service_name": "gitea"}, "result": {"vmid": 140, "service_name": "gitea", "exit_code": 0, "logs": "Oct 30 09:02:11 gitea gitea[233]: 2026/10/30 09:02:11 routers/web/repo/view.go:812:Home() [E] GetRepository: dial tcp 192.168.1.157:5432: connect: connection refused\nOct 30 09:02:14 gitea gitea[233]: 2026/10/30 09:02:14 ...les/context/context.go:91:func1() [E] InternalServerError: dial tcp 192.168.1.157:5432: connect: connection refused"}},
+       {"when": {"vmid": 140, "service_name": "gitea.service"}, "result": {"vmid": 140, "service_name": "gitea.service", "exit_code": 0, "logs": "Oct 30 09:02:14 gitea gitea[233]: 2026/10/30 09:02:14 ...les/context/context.go:91:func1() [E] InternalServerError: dial tcp 192.168.1.157:5432: connect: connection refused"}},
+       {"result": {"vmid": 0, "service_name": "", "exit_code": 1, "logs": "-- No entries --"}}],
+     "list_ip_reservations": [{"result": [
+       {"ip": "192.168.1.153", "hostname": "pihole", "vmid": 103, "allocated_at": "2026-01-10T10:00:00Z"},
+       {"ip": "192.168.1.156", "hostname": "gitea", "vmid": 140, "allocated_at": "2026-03-02T18:21:00Z"},
+       {"ip": "192.168.1.157", "hostname": "pg-shared", "vmid": 141, "allocated_at": "2026-03-02T18:05:00Z"},
+       {"ip": "192.168.1.158", "hostname": "redis-cache", "vmid": 142, "allocated_at": "2026-03-02T18:07:00Z"},
+       {"ip": "192.168.1.160", "hostname": "grafana", "vmid": 150, "allocated_at": "2026-05-14T08:30:00Z"}]}],
+     "get_container_status": [
+       {"when": {"vmid": 141}, "result": {"vmid": 141, "name": "pg-shared", "status": "stopped", "cpu": 0, "cpus": 2, "mem": 0, "maxmem": 4294967296, "uptime": 0}},
+       {"when": {"vmid": 140}, "result": {"vmid": 140, "name": "gitea", "status": "running", "cpu": 0.01, "cpus": 2, "mem": 536870912, "maxmem": 2147483648, "uptime": 1209600}},
+       {"result": {"error": "Container non trovato"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_lxc_service_logs", "args": {"vmid": 140}}, {"tool": "proxmox-mcp__list_ip_reservations"}],
+   "expect_answer": [["pg-shared", "141"], ["stopped", "fermo", "spento", "arrestato", "non è in esecuzione", "non in esecuzione"]],
+   "max_calls": 7},
+
+  {"id": "dns-to-container", "input": "A quale container punta grafana.home.lab? Quanta CPU sta usando adesso?",
+   "tools": {
+     "list_pihole_dns_records": [{"result": [
+       {"domain": "pihole.home.lab", "ip": "192.168.1.153"},
+       {"domain": "gitea.home.lab", "ip": "192.168.1.156"},
+       {"domain": "grafana-old.home.lab", "ip": "192.168.1.149"},
+       {"domain": "grafana.home.lab", "ip": "192.168.1.160"},
+       {"domain": "jellyfin.home.lab", "ip": "192.168.1.131"}]}],
+     "list_ip_reservations": [{"result": [
+       {"ip": "192.168.1.131", "hostname": "jellyfin", "vmid": 131, "allocated_at": "2026-02-01T12:00:00Z"},
+       {"ip": "192.168.1.149", "hostname": "grafana-legacy", "vmid": 149, "allocated_at": "2025-11-20T09:00:00Z"},
+       {"ip": "192.168.1.153", "hostname": "pihole", "vmid": 103, "allocated_at": "2026-01-10T10:00:00Z"},
+       {"ip": "192.168.1.156", "hostname": "gitea", "vmid": 140, "allocated_at": "2026-03-02T18:21:00Z"},
+       {"ip": "192.168.1.160", "hostname": "monitoring", "vmid": 152, "allocated_at": "2026-05-14T08:30:00Z"}]}],
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600},
+       {"vmid": 149, "name": "grafana-legacy", "status": "stopped", "cpus": 1, "maxmem": 1073741824, "mem": 0, "uptime": 0},
+       {"vmid": 152, "name": "monitoring", "status": "running", "cpus": 2, "maxmem": 4294967296, "mem": 1610612736, "uptime": 345600}]}],
+     "get_container_status": [
+       {"when": {"vmid": 152}, "result": {"vmid": 152, "name": "monitoring", "status": "running", "cpu": 0.37, "cpus": 2, "mem": 1610612736, "maxmem": 4294967296, "uptime": 345600}},
+       {"when": {"vmid": 149}, "result": {"vmid": 149, "name": "grafana-legacy", "status": "stopped", "cpu": 0, "cpus": 1, "mem": 0, "maxmem": 1073741824, "uptime": 0}},
+       {"result": {"error": "Container non trovato"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_pihole_dns_records"}, {"tool": "proxmox-mcp__get_container_status", "args": {"vmid": 152}}],
+   "expect_answer": [["monitoring", "152"], ["37", "0.37", "0,37"]],
+   "max_calls": 6},
+
+  {"id": "latest-snapshot", "input": "Qual è lo snapshot più recente del container di vaultwarden e quando è stato fatto?",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 132, "name": "vaultwarden-backup", "status": "stopped", "cpus": 1, "maxmem": 536870912, "mem": 0, "uptime": 0},
+       {"vmid": 133, "name": "vaultwarden", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 201326592, "uptime": 2419200},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600}]}],
+     "list_lxc_snapshots": [
+       {"when": {"vmid": 133}, "result": [
+         {"name": "pre-upgrade-1-30", "description": "prima dell'aggiornamento a 1.30", "snaptime": 1756720800},
+         {"name": "pre-upgrade-1-32", "description": "prima dell'aggiornamento a 1.32", "snaptime": 1760518800, "parent": "pre-upgrade-1-30"},
+         {"name": "current", "description": "You are here!", "running": 1, "parent": "pre-upgrade-1-32"}]},
+       {"when": {"vmid": 132}, "result": [
+         {"name": "weekly-2025-10-26", "description": "backup settimanale", "snaptime": 1761436800},
+         {"name": "current", "description": "You are here!", "parent": "weekly-2025-10-26"}]},
+       {"result": {"error": "Container non trovato"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__list_lxc_snapshots", "args": {"vmid": 133}}],
+   "expect_answer": [["pre-upgrade-1-32"], ["15 ottobre", "15/10", "2025-10-15", "15 oct", "october 15", "15-10"]],
+   "max_calls": 5},
+
+  {"id": "oldest-snapshot-compare", "input": "Tra gitea e nextcloud, quale ha lo snapshot più vecchio? Dimmi il nome dello snapshot",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 121, "name": "nextcloud-db", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 905969664, "uptime": 604800},
+       {"vmid": 122, "name": "nextcloud", "status": "running", "cpus": 4, "maxmem": 4294967296, "mem": 3758096384, "uptime": 604800},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600},
+       {"vmid": 143, "name": "gitea-runner", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 402653184, "uptime": 1209600}]}],
+     "list_lxc_snapshots": [
+       {"when": {"vmid": 122}, "result": [
+         {"name": "before-nc-32", "description": "prima di Nextcloud 32", "snaptime": 1749110400},
+         {"name": "current", "description": "You are here!", "running": 1, "parent": "before-nc-32"}]},
+       {"when": {"vmid": 140}, "result": [
+         {"name": "initial-setup", "description": "installazione pulita", "snaptime": 1741781400},
+         {"name": "pre-actions", "description": "prima di abilitare Gitea Actions", "snaptime": 1759312800, "parent": "initial-setup"},
+         {"name": "current", "description": "You are here!", "running": 1, "parent": "pre-actions"}]},
+       {"when": {"vmid": 121}, "result": [
+         {"name": "db-2024", "description": "dump iniziale", "snaptime": 1717200000},
+         {"name": "current", "description": "You are here!", "parent": "db-2024"}]},
+       {"result": []}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"},
+                    [{"tool": "proxmox-mcp__list_lxc_snapshots", "args": {"vmid": 140}}, {"tool": "proxmox-mcp__list_lxc_snapshots", "args": {"vmid": 122}}]],
+   "expect_answer": [["initial-setup"]],
+   "max_calls": 6},
+
+  {"id": "calendar-location", "input": "Dove si tiene la riunione con il fornitore della fibra di questa settimana?",
+   "tools": {
+     "calendar_list_events": [{"result": {"status": "success", "count": 4, "events": [
+       {"uid": "evt-11a2", "title": "Dentista", "start": "2026-10-28T09:00:00", "end": "2026-10-28T10:00:00", "calendar_id": "personale"},
+       {"uid": "evt-7f3a", "title": "Riunione fornitore fibra (OpenFiber)", "start": "2026-10-31T15:00:00", "end": "2026-10-31T16:00:00", "calendar_id": "lavoro"},
+       {"uid": "evt-7f3b", "title": "Riunione fornitore UPS", "start": "2026-10-29T11:00:00", "end": "2026-10-29T12:00:00", "calendar_id": "lavoro"},
+       {"uid": "evt-9c10", "title": "Backup mensile NAS", "start": "2026-11-01T03:00:00", "end": "2026-11-01T04:00:00", "calendar_id": "homelab"}]}}],
+     "calendar_get_event": [
+       {"when": {"event_id": "evt-7f3a"}, "result": {"status": "success", "event": {"uid": "evt-7f3a", "title": "Riunione fornitore fibra (OpenFiber)", "start": "2026-10-31T15:00:00", "end": "2026-10-31T16:00:00", "location": "Sala Verdi, Via Roma 12, Bologna", "description": "Portare il contratto e la mappa del cablaggio", "calendar_id": "lavoro"}}},
+       {"when": {"event_id": "evt-7f3b"}, "result": {"status": "success", "event": {"uid": "evt-7f3b", "title": "Riunione fornitore UPS", "start": "2026-10-29T11:00:00", "end": "2026-10-29T12:00:00", "location": "Online (Teams)", "calendar_id": "lavoro"}}},
+       {"result": {"error": "Evento non trovato"}}]},
+   "expect_calls": [{"tool": "calendar_list_events"}, {"tool": "calendar_get_event", "args": {"event_id": "evt-7f3a"}}],
+   "expect_answer": [["sala verdi", "via roma 12"]],
+   "max_calls": 5},
+
+  {"id": "automation-tools", "input": "Quali tool usa l'automazione del backup notturno dei container?",
+   "tools": {
+     "list_automations": [{"result": {"status": "success", "count": 3, "automations": [
+       {"id": "auto_daily_email_briefing", "name": "Briefing email giornaliero", "enabled": true, "cron": "0 8 * * 1-5"},
+       {"id": "auto_nightly_lxc_backup", "name": "Backup notturno container", "enabled": true, "cron": "30 2 * * *"},
+       {"id": "auto_nightly_nas_report", "name": "Report notturno NAS", "enabled": false, "cron": "0 3 * * *"}]}}],
+     "get_automation_details": [
+       {"when": {"automation_id": "auto_nightly_lxc_backup"}, "result": {"status": "success", "automation": {
+         "id": "auto_nightly_lxc_backup", "name": "Backup notturno container", "enabled": true,
+         "workflow": {"initial_step_id": "step_1_snapshot", "steps": [
+           {"step_id": "step_1_snapshot", "name": "Snapshot dei container critici", "type": "deterministic_action", "action_or_tool": "proxmox-mcp__create_lxc_snapshot", "parameters": {"vmid": 133}},
+           {"step_id": "step_2_storage", "name": "Controllo spazio", "type": "deterministic_action", "action_or_tool": "proxmox-mcp__get_storage_status", "parameters": {"storage": "local-lvm"}},
+           {"step_id": "step_3_report", "name": "Report", "type": "deterministic_action", "action_or_tool": "save_artifact", "parameters": {"title": "Backup notturno"}}]}}}},
+       {"result": {"error": "Automazione non trovata"}}]},
+   "expect_calls": [{"tool": "list_automations"}, {"tool": "get_automation_details", "args": {"automation_id": "auto_nightly_lxc_backup"}}],
+   "expect_answer": [["create_lxc_snapshot"], ["get_storage_status"], ["save_artifact"]],
+   "max_calls": 5},
+
+  {"id": "proxy-unit-fallback", "input": "Controlla i log di nginx sul container del reverse proxy, alcuni siti rispondono 504",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 1209600},
+       {"vmid": 105, "name": "npm", "status": "running", "cpus": 2, "maxmem": 1073741824, "mem": 335544320, "uptime": 2419200},
+       {"vmid": 131, "name": "jellyfin", "status": "running", "cpus": 4, "maxmem": 8589934592, "mem": 2147483648, "uptime": 86400},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600}]}],
+     "get_lxc_service_logs": [
+       {"when": {"vmid": 105, "service_name": "openresty"}, "result": {"vmid": 105, "service_name": "openresty", "exit_code": 0, "logs": "Oct 30 10:41:07 npm openresty[311]: 2026/10/30 10:41:07 [error] 311#311: *8812 upstream timed out (110: Connection timed out) while connecting to upstream, client: 192.168.1.20, server: jellyfin.home.lab, upstream: \"http://192.168.1.131:8096/\"\nOct 30 10:42:15 npm openresty[311]: 2026/10/30 10:42:15 [error] 311#311: *8840 upstream timed out (110: Connection timed out) while connecting to upstream, server: jellyfin.home.lab, upstream: \"http://192.168.1.131:8096/web/\""}},
+       {"when": {"vmid": 105, "service_name": "openresty.service"}, "result": {"vmid": 105, "service_name": "openresty.service", "exit_code": 0, "logs": "Oct 30 10:42:15 npm openresty[311]: 2026/10/30 10:42:15 [error] 311#311: *8840 upstream timed out (110: Connection timed out) while connecting to upstream, server: jellyfin.home.lab, upstream: \"http://192.168.1.131:8096/web/\""}},
+       {"when": {"vmid": 105}, "result": {"vmid": 105, "service_name": "nginx", "exit_code": 1, "logs": "-- No entries --\nUnit nginx.service could not be found. Nginx Proxy Manager runs nginx as the unit openresty.service"}},
+       {"result": {"vmid": 0, "service_name": "", "exit_code": 1, "logs": "-- No entries --"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_lxc_service_logs", "args": {"vmid": 105}}, {"tool": "proxmox-mcp__get_lxc_service_logs", "args": {"vmid": 105}}],
+   "expect_answer": [["timed out", "timeout", "scadut", "tempo"], ["jellyfin", "8096", "192.168.1.131"]],
+   "max_calls": 6},
+
+  {"id": "pihole-ftl", "input": "Uptime Kuma dice che il DNS non risponde. Controlla il servizio DNS sul container di pihole",
+   "tools": {
+     "list_containers": [{"result": [
+       {"vmid": 103, "name": "pihole", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 268435456, "uptime": 3600},
+       {"vmid": 104, "name": "pihole-secondary", "status": "stopped", "cpus": 1, "maxmem": 536870912, "mem": 0, "uptime": 0},
+       {"vmid": 110, "name": "uptime-kuma", "status": "running", "cpus": 1, "maxmem": 1073741824, "mem": 301989888, "uptime": 1209600},
+       {"vmid": 140, "name": "gitea", "status": "running", "cpus": 2, "maxmem": 2147483648, "mem": 536870912, "uptime": 1209600}]}],
+     "get_lxc_service_logs": [
+       {"when": {"vmid": 103, "service_name": "pihole-FTL"}, "result": {"vmid": 103, "service_name": "pihole-FTL", "exit_code": 0, "logs": "Oct 30 08:00:03 pihole pihole-FTL[188]: CRIT: Unable to bind to port 53 (TCP): Address already in use\nOct 30 08:00:03 pihole pihole-FTL[188]: CRIT: Port 53 is in use by systemd-resolved (PID 97)\nOct 30 08:00:03 pihole systemd[1]: pihole-FTL.service: Main process exited, code=exited, status=1/FAILURE"}},
+       {"when": {"vmid": 103, "service_name": "pihole-ftl"}, "result": {"vmid": 103, "service_name": "pihole-ftl", "exit_code": 0, "logs": "Oct 30 08:00:03 pihole pihole-FTL[188]: CRIT: Port 53 is in use by systemd-resolved (PID 97)\nOct 30 08:00:03 pihole systemd[1]: pihole-FTL.service: Main process exited, code=exited, status=1/FAILURE"}},
+       {"when": {"vmid": 103, "service_name": "pihole-FTL.service"}, "result": {"vmid": 103, "service_name": "pihole-FTL.service", "exit_code": 0, "logs": "Oct 30 08:00:03 pihole pihole-FTL[188]: CRIT: Port 53 is in use by systemd-resolved (PID 97)\nOct 30 08:00:03 pihole systemd[1]: pihole-FTL.service: Main process exited, code=exited, status=1/FAILURE"}},
+       {"when": {"vmid": 103}, "result": {"vmid": 103, "service_name": "", "exit_code": 1, "logs": "-- No entries --\nThe Pi-hole DNS service unit is pihole-FTL.service"}},
+       {"result": {"vmid": 0, "service_name": "", "exit_code": 1, "logs": "-- No entries --"}}]},
+   "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_lxc_service_logs", "args": {"vmid": 103}}],
+   "expect_answer": [["systemd-resolved"], ["53"]],
+   "max_calls": 6}
+]

@@ -33,8 +33,15 @@ def test_case_files_are_well_formed(suite):
         "rollback": {"task", "steps", "error", "expect_mentions"},
         "memory": {"task", "response", "expect_facts"},
         "recall": {"sessions", "question"},
+        "multistep": {"input", "tools", "expect_calls", "expect_answer"},
     }[suite]
     assert all(required <= set(c) for c in cases)
+    if suite == "multistep":
+        # Ogni chiamata attesa ha un risultato simulato, e le chiamate attese sono più d'una (una catena)
+        assert all(len(c["expect_calls"]) >= 2 for c in cases)
+        for c in cases:
+            expected = [e for g in c["expect_calls"] for e in (g if isinstance(g, list) else [g])]
+            assert all(suites._short(e["tool"]) in c["tools"] for e in expected)
     if suite == "recall":
         assert all(c.get("abstain") or c.get("expect_any") or c.get("expect_all") for c in cases)
         assert all({"thread", "date", "turns"} <= set(s) for c in cases for s in c["sessions"])
@@ -214,3 +221,77 @@ def test_plan_structure_has_no_fabricated_fallback():
     for content in ("non ho capito", '{"steps": []}', '{"steps": [{"id": 1}]}'):
         with patch("app.agent.llm_calls.call_llm", return_value={"content": content}):
             assert generate_plan_structure("crea un servizio", "User Request: 'crea un servizio'") is None
+
+
+def test_plan_structure_translates_the_drafted_plan():
+    from app.agent.nodes.plan import generate_plan_structure
+
+    valid = {"content": '{"steps": [{"id": 1, "description": "Elenca", "tool": "proxmox-mcp__list_containers", "args": {}}]}'}
+    with patch("app.agent.llm_calls.call_llm", return_value=valid) as llm:
+        generate_plan_structure("lista i container", "User Request: 'lista i container'", plan_text="1. list_containers")
+    prompt, system_prompt = llm.call_args.args[0], llm.call_args.kwargs["system_prompt"]
+    assert prompt.endswith("Drafted plan:\n1. list_containers") and system_prompt.startswith("Convert the drafted plan")
+
+
+MULTISTEP_CASE = {
+    "id": "nextcloud", "input": "il container di nextcloud è acceso?",
+    "tools": {
+        "list_containers": [{"result": [{"vmid": 121, "name": "nextcloud-db"}, {"vmid": 122, "name": "nextcloud"}]}],
+        "get_container_status": [{"when": {"vmid": 122}, "result": {"status": "running", "mem": "1.5 GB"}},
+                                 {"result": {"error": "Container non trovato"}}],
+    },
+    "expect_calls": [{"tool": "proxmox-mcp__list_containers"}, {"tool": "proxmox-mcp__get_container_status", "args": {"vmid": 122}}],
+    "expect_answer": [["1.5", "1,5"]],
+    "max_calls": 4,
+}
+MULTISTEP_CATALOG = ["proxmox-mcp__list_containers", "proxmox-mcp__get_container_status"]
+
+
+def _call(step, tool, args=None, **extra):
+    return {"step_id": step, "tool_name": f"proxmox-mcp__{tool}", "args": args or {}, **extra}
+
+
+def test_simulated_result_picks_the_first_matching_entry():
+    assert suites.simulated_result(MULTISTEP_CASE, "proxmox-mcp__get_container_status", {"vmid": "122"})["status"] == "running"
+    assert "error" in suites.simulated_result(MULTISTEP_CASE, "get_container_status", {"vmid": 121})
+    assert "non disponibile" in suites.simulated_result(MULTISTEP_CASE, "proxmox-mcp__exec_lxc_command", {})["error"]
+
+
+def test_simulated_tools_never_reach_the_real_registry():
+    from app.registry.manager import get_registry_manager
+
+    with suites.simulated_tools(MULTISTEP_CASE):
+        manager = get_registry_manager()
+        assert manager.execute_tool("proxmox-mcp__list_containers", {}, ["mcp"])[1]["vmid"] == 122
+        assert manager.execute_tools_parallel([{"tool_name": "proxmox-mcp__get_container_status", "arguments": {"vmid": 122}}], ["mcp"])[0]["status"] == "running"
+
+
+def test_grade_multistep():
+    chain = [_call(1, "list_containers"), _call(2, "get_container_status", {"vmid": 122})]
+    outcome = suites.grade_multistep(MULTISTEP_CASE, chain, "Sì, usa 1,5 GB", MULTISTEP_CATALOG)
+    assert outcome.passed and outcome.metrics["steps"] == 2 and outcome.metrics["tool_calls"] == 2
+    # Una chiamata in più nel mezzo è ammessa, l'ordine no
+    detour = [_call(1, "list_containers"), _call(2, "get_container_status", {"vmid": 121}), chain[1]]
+    assert suites.grade_multistep(MULTISTEP_CASE, detour, "1.5 GB", MULTISTEP_CATALOG).passed
+    assert "manca get_container_status" in suites.grade_multistep(MULTISTEP_CASE, chain[::-1], "1.5", MULTISTEP_CATALOG).detail
+    assert "risposta senza 1.5 o 1,5" in suites.grade_multistep(MULTISTEP_CASE, chain, "acceso", MULTISTEP_CATALOG).detail
+    blocked = chain + [_call(3, "list_containers", duplicate_blocked=True)]
+    assert suites.grade_multistep(MULTISTEP_CASE, blocked, "1.5", MULTISTEP_CATALOG).metrics["duplicates_blocked"] == 1
+    too_many = chain + [_call(3, "get_container_status", {"vmid": i}) for i in range(3)]
+    assert "al massimo 4" in suites.grade_multistep(MULTISTEP_CASE, too_many, "1.5", MULTISTEP_CATALOG).detail
+    assert suites.grade_multistep(MULTISTEP_CASE, chain, "1.5", ["calendar_list_events"]).skipped
+    unordered = {**MULTISTEP_CASE, "expect_calls": [MULTISTEP_CASE["expect_calls"][0],
+                                                    [{"tool": "get_container_status", "args": {"vmid": 122}},
+                                                     {"tool": "get_container_status", "args": {"vmid": 121}}]]}
+    both = [_call(1, "list_containers"), _call(2, "get_container_status", {"vmid": 122}), _call(2, "get_container_status", {"vmid": 121})]
+    assert suites.grade_multistep(unordered, both, "1.5", MULTISTEP_CATALOG).passed
+    assert not suites.grade_multistep(unordered, both[:2], "1.5", MULTISTEP_CATALOG).passed
+
+
+def test_summary_averages_the_case_metrics():
+    runs = [{"passed": True, "skipped": False, "duration_ms": 10, "prompt_tokens": 1, "completion_tokens": 100, "metrics": {"steps": 2.0}},
+            {"passed": False, "skipped": False, "duration_ms": 20, "prompt_tokens": 1, "completion_tokens": 300, "metrics": {"steps": 4.0}}]
+    summary = runner.summarize([{"id": "a", "runs": runs}])
+    assert summary["metrics"] == {"steps": 3.0}
+    text = runner.compare_markdown([{"model": "m [interleaved on]", "started_at": "2026-10-30T10:00", "suites": {"multistep": {**summary, "results": []}}}])
+    assert "- m [interleaved on]: steps 3, token generati 200" in text

@@ -2,6 +2,7 @@
 eseguito, nessun fatto salvato nella memoria reale) e un giudizio puro sul risultato, testabile senza LLM.
 
 La suite `recall` scrive conversazioni e fatti, ma in un database temporaneo per caso (`memory_sandbox`).
+La suite `multistep` esegue l'agent loop completo con i risultati dei tool simulati dal caso (`simulated_tools`).
 
 Un giudizio restituisce `Outcome`: superato o no, con una riga che spiega l'esito; `skipped` quando il caso
 non è valutabile in questo deploy (per esempio il tool atteso non è nel catalogo).
@@ -10,7 +11,7 @@ import json
 import sqlite3
 import tempfile
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional
 from unittest.mock import patch
@@ -25,6 +26,8 @@ class Outcome:
     passed: bool
     detail: str
     skipped: bool = False
+    # Misure numeriche del caso (per esempio i passi del loop), mediate nel riepilogo della suite
+    metrics: Dict[str, float] = field(default_factory=dict)
 
 
 def load_cases(suite: str) -> List[Dict[str, Any]]:
@@ -141,6 +144,58 @@ def grade_recall(case: Dict[str, Any], answer: Optional[Dict[str, Any]], context
     return Outcome(True, f"risposta corretta: {answer['answer'][:80]}")
 
 
+def _args_match(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
+    """Gli argomenti attesi sono un sottoinsieme di quelli usati, confrontati come testo (137 e "137" sono uguali)."""
+    return all(str(actual.get(k, "")).strip().lower() == str(v).strip().lower() for k, v in expected.items())
+
+
+def grade_multistep(case: Dict[str, Any], trace: List[Dict[str, Any]], answer: str, catalog: Iterable[str]) -> Outcome:
+    """Catena di tool del caso: chiamate attese nell'ordine (altre chiamate in mezzo sono ammesse; una voce che è una
+    lista è un gruppo di chiamate in ordine qualsiasi), nessuna vietata, valori attesi nella risposta. Le misure servono
+    a confrontare le varianti del loop anche sui casi superati."""
+    catalog = list(catalog)
+    groups = [e if isinstance(e, list) else [e] for e in case["expect_calls"]]
+    if not all(any(_same_tool(e["tool"], c) for c in catalog) for group in groups for e in group):
+        return Outcome(False, "tool del caso non nel catalogo", skipped=True)
+    calls = [t for t in trace if t.get("tool_name") and not t.get("duplicate_blocked")]
+    metrics = {
+        "steps": float(len({t["step_id"] for t in trace})),
+        "tool_calls": float(len(calls)),
+        "duplicates_blocked": float(sum(1 for t in trace if t.get("duplicate_blocked"))),
+        "invalid_arguments": float(sum(1 for t in trace if str(t.get("error") or "").startswith("Validazione fallita"))),
+    }
+
+    def fail(detail: str) -> Outcome:
+        return Outcome(False, detail, metrics=metrics)
+
+    def matches(expected: Dict[str, Any], call: Dict[str, Any]) -> bool:
+        return _same_tool(expected["tool"], call["tool_name"]) and _args_match(expected.get("args", {}), call.get("args") or {})
+
+    position = 0
+    for group in groups:
+        found = []
+        for expected in group:
+            index = next((i for i in range(position, len(calls)) if i not in found and matches(expected, calls[i])), None)
+            if index is None:
+                args = f" {expected['args']}" if expected.get("args") else ""
+                return fail(f"manca {_short(expected['tool'])}{args} (chiamate: {', '.join(_short(c['tool_name']) for c in calls) or 'nessuna'})")
+            found.append(index)
+        position = max(found) + 1
+    forbidden = [c["tool_name"] for c in calls if any(_same_tool(c["tool_name"], f) for f in case.get("forbid_calls", []))]
+    if forbidden:
+        return fail(f"tool da evitare: {', '.join(_short(f) for f in forbidden)}")
+    if len(calls) > case.get("max_calls", 8):
+        return fail(f"{len(calls)} chiamate, al massimo {case.get('max_calls', 8)}")
+    text = answer.lower()
+    missing = [group for group in case.get("expect_answer", [])
+               if not any(str(alt).lower() in text for alt in (group if isinstance(group, list) else [group]))]
+    if missing:
+        names = ", ".join(" o ".join(map(str, g)) if isinstance(g, list) else str(g) for g in missing)
+        return fail(f"risposta senza {names}: {answer[:80]}")
+    return Outcome(True, f"{len(calls)} chiamate in {int(metrics['steps'])} passi: {' → '.join(_short(c['tool_name']) for c in calls)}",
+                   metrics=metrics)
+
+
 # --- Esecutori: chiamano il modello e passano il risultato al giudizio ---
 
 
@@ -177,9 +232,12 @@ def run_tools(case: Dict[str, Any], model: str) -> Outcome:
 
 
 def run_planning(case: Dict[str, Any], model: str) -> Outcome:
-    from app.agent.nodes.plan import generate_plan_structure
+    from app.agent.nodes.plan import draft_plan, generate_plan_structure, plan_system_prompt
 
-    structure = generate_plan_structure(case["input"], f"User Request: '{case['input']}'", model=model)
+    # Il flusso di plan: stesura con il ragionamento, poi traduzione nel piano strutturato che viene eseguito
+    user_prompt = f"User Request: '{case['input']}'"
+    draft = draft_plan(user_prompt, plan_system_prompt(), model=model, stream_mode="none")
+    structure = generate_plan_structure(case["input"], user_prompt, plan_text=draft.get("content") or None, model=model)
     return grade_plan(case, structure, _catalog())
 
 
@@ -290,6 +348,44 @@ thing, use the most recent one. If the memory does not contain the answer, set f
     return grade_recall(case, answer.model_dump() if answer else None, context)
 
 
+def simulated_result(case: Dict[str, Any], tool_name: str, arguments: Dict[str, Any]) -> Any:
+    """Risultato del tool secondo il caso: la prima voce con `when` compatibile con gli argomenti (o senza `when`)."""
+    for entry in case.get("tools", {}).get(_short(tool_name), []):
+        if _args_match(entry.get("when", {}), arguments or {}):
+            return entry["result"]
+    return {"error": f"Tool '{_short(tool_name)}' non disponibile in questo scenario"}
+
+
+@contextmanager
+def simulated_tools(case: Dict[str, Any]) -> Iterator[None]:
+    """Il registry esegue i tool restituendo i risultati del caso: nessuna chiamata reale, nessuna approvazione."""
+    from app.registry.manager import get_registry_manager
+
+    manager = get_registry_manager()
+
+    def execute_tool(tool_name, args, allowed_registries, **_):
+        return simulated_result(case, tool_name, args)
+
+    def execute_tools_parallel(calls, allowed_registries, **_):
+        return [simulated_result(case, c["tool_name"], c.get("arguments", {})) for c in calls]
+
+    with patch.object(manager, "execute_tool", execute_tool), patch.object(manager, "execute_tools_parallel", execute_tools_parallel):
+        yield
+
+
+def run_multistep(case: Dict[str, Any], model: str) -> Outcome:
+    from app.agent import llm_calls
+    from app.agent.agent_loop import AgentLoop
+
+    fns = llm_calls.agent_loop_llm_fns(None, model, None)
+    with simulated_tools(case):
+        loop = AgentLoop(case["input"], case.get("mode", "act"), None, fns["call_llm_fn"], fns["call_llm_structured_fn"],
+                         None, None, None, "normal", fns["interleaved"])
+        result = loop.run()
+    return grade_multistep(case, result.get("execution_trace", []), result.get("final_response", ""),
+                           [t["name"] for t in loop.available_tools])
+
+
 SUITES: Dict[str, Callable[[Dict[str, Any], str], Outcome]] = {
     "routing": run_routing,
     "tools": run_tools,
@@ -297,4 +393,5 @@ SUITES: Dict[str, Callable[[Dict[str, Any], str], Outcome]] = {
     "rollback": run_rollback,
     "memory": run_memory,
     "recall": run_recall,
+    "multistep": run_multistep,
 }
