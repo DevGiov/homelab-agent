@@ -38,10 +38,9 @@ def test_case_files_are_well_formed(suite):
     assert all(required <= set(c) for c in cases)
     if suite == "multistep":
         # Ogni chiamata attesa ha un risultato simulato, e le chiamate attese sono più d'una (una catena)
-        assert all(len(c["expect_calls"]) >= 2 for c in cases)
         for c in cases:
             expected = [e for g in c["expect_calls"] for e in (g if isinstance(g, list) else [g])]
-            assert all(suites._short(e["tool"]) in c["tools"] for e in expected)
+            assert len(expected) >= 2 and all(suites._short(e["tool"]) in c["tools"] for e in expected)
     if suite == "recall":
         assert all(c.get("abstain") or c.get("expect_any") or c.get("expect_all") for c in cases)
         assert all({"thread", "date", "turns"} <= set(s) for c in cases for s in c["sessions"])
