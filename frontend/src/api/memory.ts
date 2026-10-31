@@ -223,6 +223,8 @@ export function deleteProcedure(id: number): Promise<void> {
 
 export interface ConsolidationResult {
   trigger: string;
+  /** Modello usato: quello scelto, o quello caricato quando l'esecuzione è partita. */
+  model?: string;
   messages?: number;
   added?: number;
   updated?: number;
@@ -232,6 +234,14 @@ export interface ConsolidationResult {
   seconds: number;
 }
 
+/** Consolidamento giornaliero: orario nel fuso indicato e modello (null = default, 'loaded' = quello caricato). */
+export interface ConsolidationSettings {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+  model: string | null;
+}
+
 /** Consolidamento della memoria: dai messaggi delle conversazioni ai fatti. */
 export interface ConsolidationStatus {
   running: boolean;
@@ -239,14 +249,20 @@ export interface ConsolidationStatus {
   last_run: string | null;
   last_result: ConsolidationResult | null;
   pending: { messages: number; threads: number };
-  /** Ora del consolidamento giornaliero, -1 se solo su richiesta. */
-  schedule_hour: number;
+  settings: ConsolidationSettings;
+  /** Prossima esecuzione programmata, null se solo su richiesta. */
+  next_run: string | null;
 }
 
 export function getConsolidation(): Promise<ConsolidationStatus> {
   return http.get('/memory/consolidation');
 }
 
-export function startConsolidation(): Promise<{ started: boolean }> {
-  return http.post('/memory/consolidation');
+/** Senza `model` vale quello delle impostazioni. */
+export function startConsolidation(model?: string | null): Promise<{ started: boolean }> {
+  return http.post('/memory/consolidation', model === undefined ? {} : { model });
+}
+
+export function updateConsolidationSettings(settings: ConsolidationSettings): Promise<ConsolidationSettings> {
+  return http.put('/memory/consolidation/settings', settings);
 }

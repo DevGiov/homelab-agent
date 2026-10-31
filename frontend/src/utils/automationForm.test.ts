@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildAutomation, changeStepType, formFromAutomation, LOADED_MODEL, stepsFromAutomation } from './automationForm';
+import { buildAutomation, changeStepType, formFromAutomation, stepsFromAutomation } from './automationForm';
+import { LOADED_MODEL } from './modelChoice';
 
 const automation = {
   id: 'tpl-github-issue-repair',

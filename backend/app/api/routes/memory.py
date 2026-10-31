@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.agent.fact_extraction import tag_untagged_facts
+from app.agent.memory_consolidation import ConsolidationSettings
 from app.api.deps import verify_api_key
 from app.memory import episodes, facts, procedures, profile
 
@@ -265,11 +266,25 @@ def get_consolidation() -> Dict[str, Any]:
     return memory_consolidation.status()
 
 
+class StartConsolidation(BaseModel):
+    # Senza `model` vale quello delle impostazioni; null = default del server, `loaded` = il modello caricato
+    model: Optional[str] = None
+
+
 @router.post("/consolidation", status_code=202)
-def start_consolidation() -> Dict[str, Any]:
-    """Consolida subito i messaggi nuovi e deduplica i fatti, in background, con il modello attivo."""
+def start_consolidation(req: Optional[StartConsolidation] = None) -> Dict[str, Any]:
+    """Consolida subito i messaggi nuovi e deduplica i fatti, in background."""
     from app.agent import memory_consolidation
 
-    if not memory_consolidation.run_in_background():
+    model = req.model if req and "model" in req.model_fields_set else memory_consolidation.get_settings().model
+    if not memory_consolidation.run_in_background(model):
         raise HTTPException(status_code=409, detail="Consolidamento già in corso.")
     return {"started": True}
+
+
+@router.put("/consolidation/settings")
+def update_consolidation_settings(req: ConsolidationSettings) -> Dict[str, Any]:
+    """Orario, fuso, attivazione e modello del consolidamento giornaliero: valgono dal prossimo controllo."""
+    from app.agent import memory_consolidation
+
+    return memory_consolidation.save_settings(req).model_dump()

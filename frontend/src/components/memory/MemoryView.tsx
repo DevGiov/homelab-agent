@@ -185,7 +185,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
           {tab === 'facts' && (
             <div className="space-y-3">
-              {consolidation.status && <ConsolidationBar status={consolidation.status} onStart={consolidation.start} />}
+              {consolidation.status && (
+                <ConsolidationBar status={consolidation.status} onStart={consolidation.start} onSaveSettings={consolidation.saveSettings} />
+              )}
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">

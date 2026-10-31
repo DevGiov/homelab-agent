@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getConsolidation, startConsolidation, type ConsolidationStatus } from '../api/memory';
+import {
+  getConsolidation,
+  startConsolidation,
+  updateConsolidationSettings,
+  type ConsolidationSettings,
+  type ConsolidationStatus,
+} from '../api/memory';
+import { describeModelChoice } from '../utils/modelChoice';
 import { formatApiError } from '../utils/error';
 import type { Notify } from './useFeedback';
 
@@ -31,15 +38,25 @@ export function useConsolidation(notify: Notify, onDone: () => void) {
     return () => clearInterval(timer);
   }, [status?.running, load]);
 
-  const start = async () => {
+  const start = async (model: string | null) => {
     try {
-      await startConsolidation();
-      notify('success', 'Consolidamento avviato: usa il modello attivo e può richiedere qualche minuto.');
+      await startConsolidation(model);
+      notify('success', `Consolidamento avviato con il ${describeModelChoice(model)}: può richiedere qualche minuto.`);
       await load();
     } catch (err) {
       notify('error', formatApiError(err));
     }
   };
 
-  return { status, start, reload: load };
+  const saveSettings = async (settings: ConsolidationSettings) => {
+    try {
+      await updateConsolidationSettings(settings);
+      notify('success', settings.enabled ? `Consolidamento programmato ogni giorno alle ${settings.time}.` : 'Consolidamento solo su richiesta.');
+      await load();
+    } catch (err) {
+      notify('error', formatApiError(err));
+    }
+  };
+
+  return { status, start, saveSettings, reload: load };
 }

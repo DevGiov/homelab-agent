@@ -1,6 +1,6 @@
 import React from 'react';
-import { useModelCatalog } from '../../../hooks/useModelCatalog';
-import { type AutomationFormState, type Budget, LOADED_MODEL } from '../../../utils/automationForm';
+import type { AutomationFormState, Budget } from '../../../utils/automationForm';
+import { ModelChoiceSelect } from '../../ModelChoiceSelect';
 
 const inputClass = 'w-full bg-panel border border-border rounded-xl px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent';
 const labelClass = 'block text-xs font-semibold text-fg mb-1';
@@ -11,30 +11,16 @@ interface FieldsProps {
 }
 
 /** Modello degli step agentici: default, quello caricato quando lo step parte, o un modello preciso. */
-const ModelField: React.FC<FieldsProps> = ({ form, onChange }) => {
-  const { modelDetails } = useModelCatalog();
-  const ids = modelDetails.map((m) => m.id);
-  // Un modello salvato che il server non elenca più resta visibile e selezionato
-  if (form.model && form.model !== LOADED_MODEL && !ids.includes(form.model)) ids.unshift(form.model);
-  return (
-    <div className="pt-2 border-t border-border/50">
-      <label className={labelClass}>Modello LLM degli step agentici</label>
-      <select value={form.model} onChange={(e) => onChange({ model: e.target.value })} className={`${inputClass} py-1.5`}>
-        <option value="">Default del server</option>
-        <option value={LOADED_MODEL}>Modello caricato al momento dell'esecuzione</option>
-        {ids.map((id) => (
-          <option key={id} value={id}>
-            {id}
-          </option>
-        ))}
-      </select>
-      <p className="text-[11px] text-fg-muted mt-1">
-        Con il modello caricato, ogni step usa quello presente in VRAM quando parte, senza far caricare altri modelli; se
-        nessuno è caricato usa il default. Un modello preciso viene caricato se serve.
-      </p>
-    </div>
-  );
-};
+const ModelField: React.FC<FieldsProps> = ({ form, onChange }) => (
+  <div className="pt-2 border-t border-border/50">
+    <label className={labelClass}>Modello LLM degli step agentici</label>
+    <ModelChoiceSelect value={form.model} onChange={(model) => onChange({ model })} className={`${inputClass} py-1.5`} />
+    <p className="text-[11px] text-fg-muted mt-1">
+      Con il modello caricato, ogni step usa quello presente in VRAM quando parte, senza far caricare altri modelli; se
+      nessuno è caricato usa il default. Un modello preciso viene caricato se serve.
+    </p>
+  </div>
+);
 
 export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
   <div className="space-y-4">

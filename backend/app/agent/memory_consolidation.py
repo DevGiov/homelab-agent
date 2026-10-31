@@ -17,15 +17,15 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.agent import llm_calls
 from app.agent.fact_extraction import ENTITY_GUIDE, ExtractedEntity, entity_refs
-from app.core.config import settings
-from app.llm.providers import LLMUnavailableError
+from app.llm.providers import LLMUnavailableError, get_provider, resolve_model
 from app.memory import facts, thread_store, vector_store
 
 logger = logging.getLogger("consolidation")
@@ -41,7 +41,9 @@ MAX_OPERATIONS = 10
 DEDUP_SCORE = 0.85
 DEDUP_GROUP_MAX = 6
 DEDUP_GROUPS_PER_RUN = 10
-SCHEDULER_CHECK_SECONDS = 300
+SCHEDULER_CHECK_SECONDS = 60
+# Il consolidamento programmato parte entro quest'ora dall'orario scelto: se il backend era spento resta per domani
+SCHEDULE_WINDOW = timedelta(hours=1)
 
 
 class FactOperation(BaseModel):
@@ -93,6 +95,62 @@ def _set_job(key: str, value: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# --- Impostazioni ---
+
+
+class ConsolidationSettings(BaseModel):
+    """Consolidamento giornaliero e modello. `model`: None = default del server, `loaded` = il modello caricato
+    quando l'esecuzione parte (il default se nessuno è caricato), altrimenti il nome del modello."""
+
+    enabled: bool = True
+    time: str = Field(default="03:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    timezone: str = "Europe/Rome"
+    model: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(f"Fuso orario sconosciuto: {v}") from None
+        return v
+
+    @field_validator("model")
+    @classmethod
+    def _empty_is_default(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() or None if v else None
+
+
+def get_settings() -> ConsolidationSettings:
+    raw = _job("settings")
+    return ConsolidationSettings.model_validate_json(raw) if raw else ConsolidationSettings()
+
+
+def save_settings(new: ConsolidationSettings) -> ConsolidationSettings:
+    _set_job("settings", new.model_dump_json())
+    return new
+
+
+def next_scheduled(now: datetime, config: ConsolidationSettings) -> datetime:
+    """Prossimo orario programmato a partire da `now` (con fuso), nel fuso delle impostazioni."""
+    local = now.astimezone(ZoneInfo(config.timezone))
+    hour, minute = (int(x) for x in config.time.split(":"))
+    target = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return target if target > local else target + timedelta(days=1)
+
+
+def is_due(now: datetime, config: ConsolidationSettings, last_scheduled_day: Optional[str]) -> bool:
+    """Se il consolidamento di oggi (nel fuso delle impostazioni) deve partire ora: attivo, dentro la finestra
+    dell'orario e non ancora eseguito oggi."""
+    if not config.enabled:
+        return False
+    local = now.astimezone(ZoneInfo(config.timezone))
+    hour, minute = (int(x) for x in config.time.split(":"))
+    target = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return target <= local < target + SCHEDULE_WINDOW and last_scheduled_day != local.date().isoformat()
 
 
 # --- Consolidamento dei messaggi ---
@@ -293,25 +351,29 @@ _running_since: Optional[str] = None
 
 def status() -> Dict[str, Any]:
     last = _job("last_result")
+    config = get_settings()
     return {
         "running": _running_since is not None,
         "running_since": _running_since,
         "last_run": _job("last_run"),
         "last_result": json.loads(last) if last else None,
         "pending": pending(),
-        "schedule_hour": settings.memory_consolidation_hour,
+        "settings": config.model_dump(),
+        "next_run": next_scheduled(datetime.now().astimezone(), config).isoformat(timespec="minutes") if config.enabled else None,
     }
 
 
 def run(model: Optional[str] = None, trigger: str = "manual") -> Optional[Dict[str, Any]]:
-    """Consolidamento e deduplicazione; None se un'esecuzione è già in corso."""
+    """Consolidamento e deduplicazione; None se un'esecuzione è già in corso. `model` è la scelta (anche `loaded`),
+    risolta qui, all'avvio dell'esecuzione."""
     global _running_since
     if not _lock.acquire(blocking=False):
         return None
     started = time.monotonic()
     _running_since = datetime.now().astimezone().isoformat(timespec="seconds")
     try:
-        result: Dict[str, Any] = {"trigger": trigger}
+        model = resolve_model(model)
+        result: Dict[str, Any] = {"trigger": trigger, "model": model or get_provider().default_model}
         try:
             result.update(consolidate_messages(model))
             result["deduplicated"] = deduplicate(model)
@@ -335,26 +397,29 @@ def run_in_background(model: Optional[str] = None) -> bool:
 
 
 class ConsolidationScheduler:
-    """Thread daemon: una volta al giorno, nell'ora `MEMORY_CONSOLIDATION_HOUR` (fuso del container)."""
+    """Thread daemon: una volta al giorno all'orario delle impostazioni, rilette a ogni controllo (le modifiche dalla
+    UI valgono subito). Un'esecuzione manuale non conta come quella del giorno."""
 
-    def __init__(self, hour: int):
-        self.hour = hour
+    def __init__(self):
         self._stop = threading.Event()
 
     def start(self) -> None:
         threading.Thread(target=self._loop, name="consolidation-scheduler", daemon=True).start()
-        logger.info(f"Consolidamento della memoria ogni giorno alle {self.hour}:00")
+        config = get_settings()
+        logger.info(f"Consolidamento della memoria: {'ogni giorno alle ' + config.time + ' ' + config.timezone if config.enabled else 'solo su richiesta'}")
 
     def stop(self) -> None:
         self._stop.set()
 
     def _loop(self) -> None:
         while not self._stop.wait(SCHEDULER_CHECK_SECONDS):
-            now = datetime.now()
-            if now.hour != self.hour or (_job("last_run") or "")[:10] == now.date().isoformat():
-                continue
             try:
-                run(trigger="schedule")
+                config = get_settings()
+                now = datetime.now().astimezone()
+                if not is_due(now, config, _job("last_scheduled_day")):
+                    continue
+                _set_job("last_scheduled_day", now.astimezone(ZoneInfo(config.timezone)).date().isoformat())
+                run(config.model, trigger="schedule")
             except Exception as e:
                 logger.warning(f"Consolidamento programmato non riuscito: {e}")
 
@@ -364,8 +429,8 @@ _scheduler: Optional[ConsolidationScheduler] = None
 
 def start_scheduler() -> None:
     global _scheduler
-    if settings.memory_consolidation_hour >= 0 and _scheduler is None:
-        _scheduler = ConsolidationScheduler(settings.memory_consolidation_hour)
+    if _scheduler is None:
+        _scheduler = ConsolidationScheduler()
         _scheduler.start()
 
 

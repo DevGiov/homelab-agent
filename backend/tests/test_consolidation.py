@@ -169,3 +169,51 @@ def test_an_update_creates_the_new_fact_even_if_it_looks_like_the_old_one(sandbo
     with patch.object(mc, "propose_operations", return_value=[update]):
         assert mc.consolidate_messages()["updated"] == 1
     assert [f["content"] for f in facts.list_facts()[0]] == ["Pi-hole ha l'IP 192.168.1.250"]
+
+
+def test_settings_are_saved_and_validated(sandbox):
+    from app.api.main import api
+
+    client = TestClient(api)
+    assert client.get("/v1/memory/consolidation").json()["settings"] == {"enabled": True, "time": "03:00", "timezone": "Europe/Rome", "model": None}
+    saved = client.put("/v1/memory/consolidation/settings", json={"enabled": True, "time": "22:30", "timezone": "Europe/Rome", "model": "loaded"})
+    assert saved.status_code == 200 and mc.get_settings().time == "22:30" and mc.get_settings().model == "loaded"
+    assert client.get("/v1/memory/consolidation").json()["next_run"].endswith("22:30+01:00")
+    for bad in ({"time": "25:00"}, {"timezone": "Marte/Olympus"}):
+        assert client.put("/v1/memory/consolidation/settings", json=bad).status_code == 422
+
+
+def test_schedule_runs_once_a_day_within_an_hour_of_the_time():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    rome = ZoneInfo("Europe/Rome")
+    config = mc.ConsolidationSettings(time="22:30", timezone="Europe/Rome")
+    at = lambda h, m: datetime(2026, 10, 31, h, m, tzinfo=rome)  # noqa: E731
+    assert not mc.is_due(at(22, 29), config, None)
+    assert mc.is_due(at(22, 30), config, None)
+    # L'orario è nel fuso delle impostazioni anche se il server è in UTC
+    assert mc.is_due(datetime(2026, 10, 31, 21, 45, tzinfo=ZoneInfo("UTC")), config, None)
+    assert not mc.is_due(at(23, 31), config, None)  # finestra di un'ora: un backend spento non recupera dopo
+    assert not mc.is_due(at(22, 40), config, "2026-10-31")
+    assert not mc.is_due(at(22, 40), config.model_copy(update={"enabled": False}), None)
+    assert mc.next_scheduled(at(23, 0), config) == datetime(2026, 11, 1, 22, 30, tzinfo=rome)
+
+
+@pytest.mark.parametrize("body, saved, expected", [
+    ({}, "loaded", "Qwen3.6-35B"),                         # senza scelta: quella delle impostazioni
+    ({"model": "LFM2.5-24B-A2B-Fast"}, "loaded", "LFM2.5-24B-A2B-Fast"),
+    ({"model": None}, "loaded", None),                       # null esplicito: il default del server
+])
+def test_manual_run_uses_the_requested_or_saved_model(sandbox, body, saved, expected):
+    from app.api.main import api
+
+    mc.save_settings(mc.ConsolidationSettings(model=saved))
+    with patch.object(mc, "run_in_background", return_value=True) as start:
+        assert TestClient(api).post("/v1/memory/consolidation", json=body).status_code == 202
+    chosen = start.call_args.args[0]
+    with patch("app.agent.memory_consolidation.resolve_model", side_effect=lambda m: "Qwen3.6-35B" if m == "loaded" else m):
+        with patch.object(mc, "consolidate_messages", return_value={"messages": 0}) as consolidate, patch.object(mc, "deduplicate", return_value=0):
+            result = mc.run(chosen)
+    assert consolidate.call_args.args[0] == expected
+    assert result["model"] == (expected or mc.get_provider().default_model)

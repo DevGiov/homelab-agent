@@ -55,9 +55,11 @@ function setup() {
           last_run: '2026-10-29T03:00:05+00:00',
           last_result: { trigger: 'schedule', messages: 12, added: 3, updated: 1, invalidated: 0, deduplicated: 0, seconds: 40 },
           pending: { messages: 6, threads: 2 },
-          schedule_hour: 3,
+          settings: { enabled: true, time: '03:00', timezone: 'Europe/Rome', model: 'loaded' },
+          next_run: '2026-10-30T03:00+01:00',
         }),
       'POST /v1/memory/consolidation': () => jsonResponse({ started: true }, 202),
+      'PUT /v1/memory/consolidation/settings': (req) => jsonResponse(req.body),
       'POST /v1/memory/facts/9/restore': () => jsonResponse({ ...superseded, invalid_at: null, superseded_by: null }),
       'GET /v1/memory/profile': () => jsonResponse({ content: '', updated_at: null }),
       'PUT /v1/memory/profile': (req) => jsonResponse({ content: (req.body as { content: string }).content.trim(), updated_at: '2026-10-29T12:00:00+00:00' }),
@@ -262,8 +264,25 @@ describe('MemoryView', () => {
     const bar = await screen.findByLabelText('Consolidamento della memoria');
     expect(within(bar).getByText('6')).toBeTruthy();
     expect(within(bar).getByText(/3 fatti nuovi, 1 aggiornati/)).toBeTruthy();
+    expect(within(bar).getByText(/ogni giorno alle 03:00 \(Europe\/Rome\) con il modello caricato in quel momento/)).toBeTruthy();
+    // L'esecuzione manuale parte dal modello programmato, e si può cambiare per questa volta
+    expect((within(bar).getByLabelText('Modello per consolidare ora') as HTMLSelectElement).value).toBe('loaded');
+    fireEvent.change(within(bar).getByLabelText('Modello per consolidare ora'), { target: { value: '' } });
     fireEvent.click(within(bar).getByRole('button', { name: /Consolida ora/ }));
-    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')).toBe(true));
+    await waitFor(() =>
+      expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')?.body).toEqual({ model: null })
+    );
+
+    fireEvent.click(within(bar).getByTitle('Programmazione del consolidamento'));
+    fireEvent.change(within(bar).getByLabelText('Orario del consolidamento'), { target: { value: '22:30' } });
+    fireEvent.click(within(bar).getByRole('button', { name: 'Salva' }));
+    await waitFor(() =>
+      expect(requests.find((r) => r.method === 'PUT' && r.path === '/v1/memory/consolidation/settings')?.body).toMatchObject({
+        enabled: true,
+        time: '22:30',
+        model: 'loaded',
+      })
+    );
 
     expect(screen.queryByText('Il CT 125 usa Debian 11')).toBeNull();
     fireEvent.click(screen.getByLabelText(/Mostra i 1 superati/));
