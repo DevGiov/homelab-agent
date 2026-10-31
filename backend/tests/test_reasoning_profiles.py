@@ -71,7 +71,7 @@ def test_agent_loop_selects_with_the_select_level_and_answers_with_the_answer_le
 
 
 @pytest.mark.parametrize("alias, interleaved", [
-    ("Qwen3.6-35B", True), ("Qwen3.8-27B-Fast", True), ("LFM2.5-24B-A2B-Balanced", True),
+    ("Qwen3.6-35B", True), ("Qwen3.8-27B-Fast", True), ("LFM2.5-24B-A2B-Balanced", False),
     ("Gemma-4-26B-Q4", False), ("Phi-4-mini-Q8", False), ("Emma-5", False),
 ])
 def test_interleaved_follows_the_template_of_the_family(alias, interleaved):

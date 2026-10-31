@@ -49,6 +49,7 @@ class Profile:
 
 
 # Gemma 4 conserva il pensiero solo nei messaggi con `tool_calls`, che l'agent loop non produce: niente interleaved.
+# LFM2.5 lo conserva, ma misurato rende peggio.
 # Ordine significativo: vince il primo pattern che corrisponde al nome del modello (alias del preset)
 PROFILES = [
     (r"qwen3\.6", Profile(
@@ -80,7 +81,9 @@ PROFILES = [
         "LFM2.5", "always",
         thinking=Sampling(temperature=0.1, top_k=50, repeat_penalty=1.05),
         min_budget=256,
-        interleaved=True,
+        # Il template conserva il pensiero, ma su `multistep` (2026-10-31) con il pensiero conservato il modello fa più
+        # chiamate, più comandi e supera meno casi (35% contro 42%): resta lo storico in testo
+        interleaved=False,
     )),
     (r"phi-?4", Profile("Phi-4", "none")),
 ]

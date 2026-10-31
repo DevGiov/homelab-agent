@@ -431,8 +431,27 @@ tempo, ed è la configurazione raccomandata dai produttori. Il controllo da tene
 che eseguono comandi.
 
 Restano da misurare:
-- Qwen3.8, LFM2.5 e Gemma 4: per Gemma 4 l'interleaved resta spento, perché richiederebbe `tool_calls` native;
+- Qwen3.8 e Gemma 4: per Gemma 4 l'interleaved resta spento, perché richiederebbe `tool_calls` native;
 - il tool calling nativo (opzione D), con la revisione di ProxmoxMcp.
+
+### 9.4 LFM2.5-24B-A2B (2026-10-31)
+
+Preset `LFM2.5-24B-A2B-Fast` con cache `q8_0`. Prima della misura su CT 100 la cache turbo faceva girare la flash
+attention sulla CPU: vedi [llama.cpp su CT 100](../../../../docs/services/llama-cpp/README.md#5-cache-kv-turboquant-head-dim-non-multipla-di-128).
+`multistep` con 20 casi × 2 esecuzioni:
+
+| | Pensiero spento | Pensiero acceso |
+| :--- | :--- | :--- |
+| successo | 42% (17/40) | 35% (14/40) |
+| chiamate | 4,15 | 5,85 |
+| chiamate che eseguono comandi | 0,38 | 0,93 |
+| argomenti non validi | 0,75 | 1,07 |
+| token generati | 6065 | 4154 |
+
+- Con il pensiero conservato LFM2.5 si allunga: più chiamate, più comandi e più argomenti sbagliati.
+- I casi superati calano. La differenza è di tre esecuzioni, ma tutte le misure vanno nella stessa direzione.
+- **`interleaved` è spento per LFM2.5.** Il profilo segue la misura e non il template, che il pensiero lo conserverebbe.
+- Con la cache corretta, `tools` è all'82% (3,4 s per caso) e `planning` al 100% (39 s per caso).
 
 `planning` con la stesura del piano tradotta resta al 100% (4/4), e `tools` al 100% (17/17, 6,5 s). La durata di
 `planning` sale a 252 s per caso perché ora misura anche la stesura con 8192 token di ragionamento, come avviene in
