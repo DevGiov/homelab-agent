@@ -109,6 +109,32 @@ def _guarded(tool_name: str, text: str) -> str:
     return text
 
 
+# Il tag di linguaggio è una parola seguita da un a capo (o `json`): in ```docker_ps``` la parola è il contenuto
+_CODE_BLOCK = re.compile(r"```(?:json\b|[\w-]+\n)?\s*(.*?)\s*(?:```|$)", re.S)
+_CALL_KEYS = {"tool", "tool_name", "function", "arguments", "parameters"}
+_CALL_LIKE = re.compile(r"^[A-Za-z_][\w.-]*(\(.*\))?$", re.S)
+
+
+def is_pseudo_tool_call(text: Optional[str]) -> bool:
+    """`final_answer` che non è una risposta ma le chiamate che il modello voleva fare (ISS-28): solo codice, che è un
+    JSON con chiavi da chiamata (`tool`, `arguments`…) o un nome in stile funzione (`docker_ps`, `list_x(...)`).
+    Una risposta in prosa con comandi o un blocco di comandi shell resta una risposta."""
+    text = (text or "").strip()
+    blocks = _CODE_BLOCK.findall(text)
+    if blocks and _CODE_BLOCK.sub("", text).strip():
+        return False
+    body = "\n".join(blocks).strip() if blocks else text
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        # JSON di chiamate troncato dal limite di token, o un nome di funzione da solo in un blocco
+        if body[:1] in "[{" and re.search(r'"(tool|tool_name|function)"\s*:', body):
+            return True
+        return bool(blocks) and "\n" not in body and bool(_CALL_LIKE.match(body))
+    items = parsed if isinstance(parsed, list) else [parsed]
+    return bool(items) and all(isinstance(i, dict) and _CALL_KEYS & set(i) for i in items)
+
+
 def _content(res: Any) -> Tuple[str, str]:
     """(content, reasoning_content) di una risposta LLM."""
     if isinstance(res, dict):
@@ -164,6 +190,7 @@ class AgentLoop:
         self.call_cache: Dict[str, Any] = {}
         self.call_counts: Dict[str, int] = {}
         self.search_queries: List[str] = []
+        self.pseudo_call_retried = False
 
     # --- risultato ------------------------------------------------------------
 
@@ -259,6 +286,10 @@ class AgentLoop:
 
             selection = self._select_tool(step_id, system_prompt)
             if not selection or (not selection.tool_needed and not selection.parallel_calls) or not selection.tool_name:
+                if selection and is_pseudo_tool_call(selection.final_answer):
+                    if self._retry_pseudo_call(step_id, selection.final_answer):
+                        continue
+                    selection.final_answer = None
                 return self._final_answer(selection)
 
             if self._run_parallel(step_id, selection):
@@ -349,6 +380,17 @@ class AgentLoop:
         if reasoning:
             self.reasonings.append((f"Step {step_id}: Analisi e Selezione Tool" if step_id > 1 else "Analisi e Selezione Tool", reasoning))
         return selection
+
+    def _retry_pseudo_call(self, step_id: int, text: str) -> bool:
+        """Una volta per turno, una risposta finale fatta di chiamate a tool torna al modello come errore del passo."""
+        logger.warning(f"Step {step_id}: final_answer con chiamate a tool invece della risposta: {text[:120]!r}")
+        if self.pseudo_call_retried:
+            return False
+        self.pseudo_call_retried = True
+        self._note(f"Step {step_id}: final_answer rejected: it contains tool calls instead of the answer for the user. "
+                   "To use a tool set tool_needed=true and tool_name to an exact name from the catalog; "
+                   "otherwise write the answer for the user in prose.")
+        return True
 
     def _final_answer(self, selection: Optional[ToolSelection]) -> Dict[str, Any]:
         """Il modello non chiede altri tool: risposta esplicita, sintesi delle osservazioni o risposta diretta.

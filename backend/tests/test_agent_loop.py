@@ -210,3 +210,45 @@ def test_mcp_json_text_is_compacted_for_the_prompt(manager):
 
     assert select.call_args.kwargs["prompt"].rstrip().endswith('[{"vmid": 101, "status": "stopped"}]')
     assert res["execution_trace"][0]["result"] == {"content": containers}
+
+
+@pytest.mark.parametrize("text, pseudo", [
+    ("```docker_ps ```", True),
+    ('```json [ { "tool": "zfs_list_snapshots", "arguments": { "dataset": "gitea" } } ]```', True),
+    ('{"tool_name": "list_containers", "arguments": {}}', True),
+    ('```json [ { "tool": "zfs_list', True),  # troncato dal limite di token
+    ("```list_containers()```", True),
+    ("Ci sono due container attivi: 100 e 101.", False),
+    ("Usa questo comando:\n```bash\napt update\n```", False),
+    ("```bash\napt update && apt full-upgrade\n```", False),
+    ('{"status": "ok"}', False),
+    ("", False),
+])
+def test_pseudo_tool_calls_are_told_apart_from_answers(text, pseudo):
+    from app.agent.agent_loop import is_pseudo_tool_call
+
+    assert is_pseudo_tool_call(text) is pseudo
+
+
+def test_tool_calls_written_as_final_answer_get_one_more_step(manager):
+    manager.execute_tool.return_value = [{"vmid": 101}]
+    select = _selections(ToolSelection(tool_needed=False, final_answer="```docker_ps ```"),
+                         ToolSelection(tool_needed=True, tool_name="list_containers", arguments={}),
+                         _done("C'è un solo container, il 101."))
+
+    res = run_agent_loop("quali container ci sono?", "act", call_llm_fn=_llm(), call_llm_structured_fn=select)
+
+    assert res["final_response"] == "C'è un solo container, il 101."
+    assert "final_answer rejected" in select.call_args_list[1].kwargs["prompt"]
+    manager.execute_tool.assert_called_once()
+
+
+def test_repeated_pseudo_tool_calls_are_never_shown_to_the_user(manager):
+    select = _selections(ToolSelection(tool_needed=False, final_answer="```docker_ps ```"),
+                         ToolSelection(tool_needed=False, final_answer='{"tool": "docker_ps", "arguments": {}}'))
+    llm = _llm("Non ho trovato dati sui container.")
+
+    res = run_agent_loop("quali container ci sono?", "act", call_llm_fn=llm, call_llm_structured_fn=select)
+
+    assert res["final_response"] == "Non ho trovato dati sui container."
+    assert select.call_count == 2

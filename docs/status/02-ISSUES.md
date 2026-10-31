@@ -31,7 +31,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
 | [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | 🟡 Backend risolto, infra aperta |
 | [ISS-27](#iss-27) | Eval `planning/new-service` e `rollback/ip-only` da rivedere insieme a ProxmoxMcp | S3 | evals, ProxmoxMcp | Rimandato |
-| [ISS-28](#iss-28) | La selezione dei tool a volte mette chiamate inventate in `final_answer`, che il loop mostra come risposta | S2 | agent loop | Aperto |
+| [ISS-28](#iss-28) | La selezione dei tool a volte mette chiamate inventate in `final_answer`, che il loop mostra come risposta | S2 | agent loop | ✅ Risolto 2026-10-31 |
 
 ---
 
@@ -278,4 +278,8 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Evidenza**: nella suite `multistep` con Qwen3.6-35B (2026-10-30), circa un'esecuzione su quindici, con il pensiero tra i passi acceso o spento, termina senza alcuna chiamata. La risposta all'utente è testo come ` ```docker_ps``` ` o un JSON di chiamate a tool inesistenti (`zfs_list_snapshots`).
 - **Causa**: il modello restituisce `tool_needed=false` e scrive in `final_answer` le chiamate che intendeva fare. `_final_answer` in [agent_loop.py](../../backend/app/agent/agent_loop.py) accetta come risposta finale qualunque `final_answer` più lungo di 10 caratteri.
 - **Direzione**: riconoscere un `final_answer` che è codice o una lista di chiamate (blocco di codice senza prosa, nomi di tool) e trattarlo come selezione non valida, con un nuovo tentativo che lo spiega al modello.
+- **Soluzione**: `is_pseudo_tool_call` in [agent_loop.py](../../backend/app/agent/agent_loop.py) riconosce un `final_answer` fatto solo di codice che è un JSON con chiavi da chiamata (anche troncato) o un nome in stile funzione. Una risposta in prosa con comandi, o un blocco di comandi shell, resta valida.
+  - La prima volta nel turno il modello riceve una nota con l'errore e ha un altro passo.
+  - La seconda volta il testo viene scartato e la risposta passa dalla sintesi o dalla risposta diretta.
+  - Il caso resta nei log come warning.
 
