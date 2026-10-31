@@ -142,6 +142,7 @@ class AutomationDefinition(BaseModel):
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Parametri e variabili configurabili per l'automazione")
     settings: Dict[str, Any] = Field(default_factory=dict, description="Impostazioni dedicate, override integrazioni e credenziali per l'automazione")
     retention_days: Optional[int] = Field(default=None, ge=1, description="Giorni di retention per le run (default globale se non specificato)")
+    model: Optional[str] = Field(default=None, description="Modello LLM degli step agentici: null = default del provider, 'loaded' = quello caricato quando lo step parte (il default se nessuno), altrimenti il nome del modello")
     input_schema: Optional[Dict[str, Any]] = None
     permission_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     budget: Budget = Field(default_factory=Budget)

@@ -21,11 +21,15 @@ export interface Budget {
   max_retries_per_step: number;
 }
 
+/** Modello degli step agentici: '' = default del provider, LOADED_MODEL = quello caricato quando lo step parte. */
+export const LOADED_MODEL = 'loaded';
+
 export interface AutomationFormState {
   name: string;
   description: string;
   enabled: boolean;
   retentionDays: number | '';
+  model: string;
   budget: Budget;
 }
 
@@ -46,6 +50,7 @@ export function formFromAutomation(automation: any): AutomationFormState {
     description: automation.description || '',
     enabled: automation.enabled ?? true,
     retentionDays: automation.retention_days ?? 14,
+    model: automation.model || '',
     budget: Object.fromEntries(
       Object.entries(DEFAULT_BUDGET).map(([key, fallback]) => [key, budget[key] || fallback])
     ) as unknown as Budget,
@@ -100,6 +105,7 @@ export function buildAutomation(automation: any, form: AutomationFormState, step
     description: form.description,
     enabled: form.enabled,
     retention_days: form.retentionDays === '' ? null : Number(form.retentionDays),
+    model: form.model || null,
     version: (automation.version || 1) + 1,
     workflow: {
       ...automation.workflow,

@@ -562,6 +562,28 @@ def get_active_model_name() -> str:
     return provider.default_model
 
 
+# Scelta del modello che significa "quello caricato sul server quando la richiesta parte"
+LOADED_MODEL = "loaded"
+
+
+def loaded_model() -> Optional[str]:
+    """Il modello caricato sul provider attivo, o None se nessuno lo è (o il provider non lo dice)."""
+    try:
+        details = get_provider().list_models_with_details()
+    except Exception as e:
+        logger.warning(f"Modello caricato non determinabile: {e}")
+        return None
+    return next((d["id"] for d in details if d.get("is_loaded")), None)
+
+
+def resolve_model(model: Optional[str]) -> Optional[str]:
+    """Modello da usare per una richiesta: `loaded` diventa il modello caricato, oppure None (il default del provider)
+    se nessuno è caricato; un nome o None restano invariati."""
+    if model == LOADED_MODEL:
+        return loaded_model()
+    return model
+
+
 def set_active_provider(provider_name: str, model_name: Optional[str] = None) -> Dict[str, Any]:
     global _ACTIVE_PROVIDER_NAME
     if provider_name not in _PROVIDERS:

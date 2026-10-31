@@ -68,6 +68,7 @@ def base_system_prompt(mode: str) -> str:
         "    - `action_or_tool`: exact tool name (e.g. 'web_search', 'save_artifact', 'http_get')\n"
         "    - `parameters`: dictionary containing tool arguments (e.g. `{\"query\": \"trending repositories\"}`). NEVER omit query for web_search!\n"
         "    - `prompt_template`: string template for agentic tasks, e.g. 'Analyze the following search results: {{steps.step_1_search.output.text}}'\n"
+        "  * `model` (optional): LLM for the agentic steps. Omit it for the default model, use 'loaded' for the model loaded on the server when the step runs, or an exact model name only if the user asks for one.\n"
         "  * `permission_policy`: object with `allowed_tools` (list of tool names used in steps) and `security_mode` ('normal' | 'safest' | 'dangerous'). NEVER set permission_policy to a raw string like 'auto_execute'!\n"
         "  * `budget`: execution resource and safety limits per run (can be omitted for safe defaults, NEVER set to null or raw string):\n"
         "    - `max_duration_seconds`: global timeout in seconds (default 300)\n"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAutomation, changeStepType, formFromAutomation, stepsFromAutomation } from './automationForm';
+import { buildAutomation, changeStepType, formFromAutomation, LOADED_MODEL, stepsFromAutomation } from './automationForm';
 
 const automation = {
   id: 'tpl-github-issue-repair',
@@ -32,6 +32,15 @@ describe('automationForm', () => {
     const saved = buildAutomation(automation, form, stepsFromAutomation(automation));
     expect(saved).toMatchObject({ id: automation.id, name: 'Nuovo nome', version: 4, retention_days: null, parameters: { repo: 'a/b' } });
     expect(saved.budget).toEqual({ max_duration_seconds: 300, max_tokens: 1000, max_llm_calls: 10, max_tool_calls: 25, max_retries_per_step: 2 });
+  });
+
+  it('il modello: vuoto è il default (null), poi il modello caricato o uno preciso', () => {
+    const steps = stepsFromAutomation(automation);
+    expect(formFromAutomation(automation).model).toBe('');
+    expect(buildAutomation(automation, formFromAutomation(automation), steps).model).toBeNull();
+    const loaded = { ...formFromAutomation(automation), model: LOADED_MODEL };
+    expect(buildAutomation(automation, loaded, steps).model).toBe('loaded');
+    expect(formFromAutomation({ ...automation, model: 'Qwen3.6-35B' }).model).toBe('Qwen3.6-35B');
   });
 
   it('i task agentici salvano il prompt, le azioni il tool', () => {

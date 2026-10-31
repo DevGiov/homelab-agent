@@ -3,7 +3,7 @@ import { getProviderModelsWithDetails, getProviders, type ModelDetail } from '..
 
 const VISION_NAME = /qwen3\.6|vl|vision|llava|pixtral|gemma-4/i;
 
-/** Modelli del provider attivo, per i selettori della chat. */
+/** Modelli del provider attivo, per i selettori della chat; `loadedModel` è quello caricato sul server, se c'è. */
 export function useModelCatalog() {
   const [activeProvider, setActiveProvider] = useState('llamacpp');
   const [modelDetails, setModelDetails] = useState<ModelDetail[]>([]);
@@ -26,7 +26,9 @@ export function useModelCatalog() {
   const isVisionModel = (modelId: string) =>
     modelDetails.find((d) => d.id === modelId)?.is_vision ?? VISION_NAME.test(modelId);
 
-  return { activeProvider, modelDetails, refreshModels, isVisionModel };
+  const loadedModel = modelDetails.find((d) => d.is_loaded)?.id ?? null;
+
+  return { activeProvider, modelDetails, loadedModel, refreshModels, isVisionModel };
 }
 
 export type ModelCatalog = ReturnType<typeof useModelCatalog>;

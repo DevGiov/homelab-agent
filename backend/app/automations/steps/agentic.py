@@ -1,10 +1,12 @@
 """Step agentico: prompt renderizzato, dati dello step precedente in input, agent loop in modalità act."""
-from typing import Tuple
+from functools import partial
+from typing import Optional, Tuple
 
 from app.agent.agent_loop import run_agent_loop
 from app.agent.llm_calls import call_llm
 from app.automations.steps.base import Outcome, StepContext, completed
 from app.automations.templating import extract_step_content, render_template
+from app.llm.providers import resolve_model
 
 MAX_TOKENS = 2048
 
@@ -26,7 +28,7 @@ def _input_data(ctx: StepContext) -> Tuple[str, str]:
     return "", ""
 
 
-def _call_llm(prompt, system_prompt=None, thinking="off", model=None, reasoning_phase=None):
+def _call_llm(prompt, system_prompt=None, thinking="off", reasoning_phase=None, *, model: Optional[str] = None):
     # Sintesi diretta, senza thinking né streaming verso la UI
     return call_llm(prompt, system_prompt=system_prompt, max_tokens=MAX_TOKENS, model=model, stream_mode="none")
 
@@ -40,14 +42,16 @@ def run(ctx: StepContext) -> Outcome:
     if ctx.run.is_dry_run:
         return completed({"dry_run": True, "prompt_preview": prompt[:500]})
 
+    # Il modello caricato si sceglie ora, all'esecuzione dello step (None = default del provider)
+    model = resolve_model(ctx.automation.model)
     loop_res = run_agent_loop(
         task=prompt,
         mode="act",
         security_mode=ctx.automation.permission_policy.security_mode,
-        call_llm_fn=_call_llm,
+        call_llm_fn=partial(_call_llm, model=model),
         call_llm_structured_fn=None,
     )
     final_text = loop_res.get("final_response", "")
     # Stima: l'agent loop non restituisce il conteggio reale dei token
     estimated_tokens = int(len(prompt.split()) * 1.3) + int(len(final_text.split()) * 1.3)
-    return completed({"text": final_text}, loop_res.get("execution_trace", []), estimated_tokens)
+    return completed({"text": final_text, "model": model}, loop_res.get("execution_trace", []), estimated_tokens)

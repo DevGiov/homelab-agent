@@ -53,8 +53,8 @@ export const Chat: React.FC<ChatProps> = ({
   onOpenMobileToolLog,
   onInspectMessage,
 }) => {
-  const options = useChatOptions();
   const models = useModelCatalog();
+  const options = useChatOptions(currentThreadId, models.loadedModel);
   const attachments = useImageAttachments();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 

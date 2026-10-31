@@ -96,6 +96,7 @@ erDiagram
 
 ### Entità Chiave
 1. **`AutomationDefinition`**: La definizione master (nome, descrizione, versione, abilitazione, spec workflow, policy, budget).
+   Il campo `model` sceglie il modello degli step `agentic_task`: `null` è il default del server, `"loaded"` è il modello caricato quando lo step parte (il default se nessuno è caricato, `resolve_model` in `app/llm/providers.py`), altrimenti è il nome del modello. Il modello usato finisce nell'output dello step (`output.model`).
 2. **`Trigger`**: Configurazione temporale (`cron`), evento esterno (`webhook`), manuale (`manual`) o interno (`event`).
 3. **`WorkflowSpec` & `WorkflowStepDefinition`**: La sequenza ordinata di step. Ogni step può essere:
    - `deterministic_action`: esecuzione diretta di un tool o script sandboxed.
