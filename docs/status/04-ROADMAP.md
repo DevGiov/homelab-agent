@@ -4,7 +4,7 @@ Sostituisce [ROADMAP.md](../../ROADMAP.md) (fasi 0–9, storico). Le fasi sono s
 
 ```
 A. Consolidamento ──► B. Refactor ──► C. Frontend ──► D. Funzionalità ──► E. Memoria ──► F. Agente affidabile ──► G. Rilascio e misure
-       ✅                 🟡             ✅             ✅ (D5 solo se serve)   ✅            ⏳ in corso            da fare
+       ✅                 🟡             ✅             ✅ (D5 solo se serve)   ✅            ✅                    da fare
 ```
 
 Stato al 2026-11-02: fuori dalla roadmap sono stati fatti anche la correzione di [ISS-28](02-ISSUES.md#iss-28), la selezione del modello caricato nelle chat, la scelta del modello nelle automazioni (default, caricato al momento, preciso) e la programmazione del consolidamento dalla UI (orario e modello). Le attività su host e CT 100 stanno nel backlog infrastrutturale delle docs dell'homelab (`docs/infrastructure-backlog.md`).
@@ -89,12 +89,14 @@ Dalla [ricerca sulla memoria degli agenti](../memory/MEMORY_RESEARCH.md): una po
 
 Obiettivo: un compito con tool e approvazioni arriva in fondo, in chat, nei piani e nelle automazioni.
 
-| # | Passo | Issue | Misura |
+Verificata il 2026-11-02 con prove reali su CT 125 (Qwen3.8-27B-Atomic-Vision-64K): chat con approvazione e con rifiuto, piano di tre passi, automazione con step agentico.
+
+| # | Passo | Issue | Stato |
 | :--- | :--- | :--- | :--- |
-| F1 | **Stato del loop salvato**: alla richiesta di approvazione il loop salva il suo stato e riprende da lì, approvata o rifiutata; in chat la ripresa è in streaming | [ISS-30](02-ISSUES.md#iss-30) | test, prova live |
-| F2 | **Piani sospesi**: un'approvazione sospende il piano senza rollback, che riparte dal passo in attesa | [ISS-31](02-ISSUES.md#iss-31) | test, `planning` |
-| F3 | **Step agentici con i tool**: agent loop vero con allowlist, registry e budget dell'automazione; approvazioni dentro lo step | [ISS-29](02-ISSUES.md#iss-29) | test, prova live |
-| F4 | **Run che riprendono**: l'approvazione esegue il tool in attesa e la run continua; richieste legate alla run, con la sua scadenza | [ISS-32](02-ISSUES.md#iss-32) | test, prova live |
+| F1 | **Stato del loop salvato**: alla richiesta di approvazione il loop salva il suo stato e riprende da lì, approvata o rifiutata; in chat la ripresa è in streaming | [ISS-30](02-ISSUES.md#iss-30) | ✅ 2026-11-02 |
+| F2 | **Piani sospesi**: un'approvazione sospende il piano senza rollback, che riparte dal passo in attesa | [ISS-31](02-ISSUES.md#iss-31) | ✅ 2026-11-02 |
+| F3 | **Step agentici con i tool**: agent loop vero con allowlist, registry e budget dell'automazione; approvazioni dentro lo step | [ISS-29](02-ISSUES.md#iss-29) | ✅ 2026-11-02 |
+| F4 | **Run che riprendono**: l'approvazione esegue il tool in attesa e la run continua; richieste legate alla run, con la sua scadenza | [ISS-32](02-ISSUES.md#iss-32) | ✅ 2026-11-02 |
 
 ## Fase G — Rilascio e misure
 

@@ -249,6 +249,16 @@ Il frontend nginx espone la porta 80 e inoltra `/v1/` al backend (nome servizio 
 - **Hub** (`app/mcp/hub.py`): un client per server, catalogo aggregato in parallelo e in cache per 120 s, ricaricato subito a ogni modifica; le chiamate sono instradate per nome del tool. Un server non raggiungibile mantiene gli ultimi tool noti.
 - **Impostazioni per tool**: un tool disattivato esce dal catalogo dell'agente. Il rischio `view`/`confirm` prevale sulla classificazione per nome; `blocked` rifiuta il tool in ogni modalità, `dangerous` compresa.
 
+## Approvazioni e ripresa
+
+Un tool che chiede conferma sospende il lavoro, non lo chiude. Lo stato resta in `turn_checkpoints` (`app/agent/turn_checkpoints.py`), con l'id della richiesta, e riparte alla decisione:
+
+- **Chat, modalità act e ask**: `POST /v1/approvals/{id}/resolve` risponde `resumed: true` e il loop riprende dal passo dopo, con il risultato del tool o il rifiuto; la UI si aggancia a `/v1/threads/{id}/stream`. Con un altro turno in corso sul thread risponde 409.
+- **Piani**: nessun rollback alla richiesta; il piano riparte dal passo in attesa. Un rifiuto annulla i passi già eseguiti.
+- **Automazioni**: la run resta in `waiting_approval` fino a 24 ore, poi riparte dallo step in attesa. Uno step con un tool lo esegue; il rifiuto blocca la run. In uno step agentico il rifiuto arriva al modello, che prosegue senza quel tool.
+
+Non è ancora coperta la ripresa da `ApprovalsPanel` con la chat aperta: il seguito compare riaprendo il thread.
+
 ## Ragionamento
 
 Ricerca alla base: [docs/reasoning/REASONING_RESEARCH.md](../docs/reasoning/REASONING_RESEARCH.md) e, per il pensiero tra i passi dell'agent loop, [docs/reasoning/INTERLEAVED_THINKING.md](../docs/reasoning/INTERLEAVED_THINKING.md).

@@ -7,8 +7,8 @@ Architettura rilevata il 2026-10-26 e aggiornata per fase; sezioni 1, 4 e 5 e ta
 | Voce | Valore |
 | :--- | :--- |
 | Branch attivo | `dev`, 89 commit avanti a `main` (ultimo rilascio: `v0.9.0`, 2026-10-26) |
-| Test | 440 backend in `backend/tests/`, 101 frontend |
-| Roadmap | Fasi A, C, E complete; B quasi; D senza D5; in corso F ([04-ROADMAP.md](04-ROADMAP.md)) |
+| Test | 464 backend in `backend/tests/`, 105 frontend |
+| Roadmap | Fasi A, C, E, F complete; B quasi; D senza D5; prossima G ([04-ROADMAP.md](04-ROADMAP.md)) |
 
 ## 2. Backend (`backend/`)
 
@@ -139,10 +139,10 @@ I profili degli altri modelli (Qwen3.8, Gemma 4, LFM2.5) vengono dalle schede de
 
 ## 5. Quality gate
 
-| Gate | Risultato (2026-10-31) |
+| Gate | Risultato (2026-11-02) |
 | :--- | :--- |
-| `pytest` | ✅ 440 passati (anche in `backend-test` su CT 125) |
-| `vitest` | ✅ 101 passati |
+| `pytest` | ✅ 464 passati (anche in `backend-test` su CT 125) |
+| `vitest` | ✅ 105 passati |
 | `ruff`, `oxlint`, `npm run build` | ✅ puliti |
 | CI su GitHub | Non verificata: `gh run list` non restituisce esecuzioni per `dev` (da controllare in G1) |
 

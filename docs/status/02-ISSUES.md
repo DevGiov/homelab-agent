@@ -32,10 +32,10 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | ✅ Risolto (backend 2026-10-27, cache di LFM2.5 2026-10-31) |
 | [ISS-27](#iss-27) | Eval `planning/new-service` e `rollback/ip-only` da rivedere insieme a ProxmoxMcp | S3 | evals, ProxmoxMcp | Rimandato |
 | [ISS-28](#iss-28) | La selezione dei tool a volte mette chiamate inventate in `final_answer`, che il loop mostra come risposta | S2 | agent loop | ✅ Risolto 2026-10-31 |
-| [ISS-29](#iss-29) | Gli step agentici delle automazioni non usano mai i tool | S1 | automazioni | Aperto |
-| [ISS-30](#iss-30) | In chat il loop non riprende dopo un'approvazione | S1 | agent loop | Aperto |
-| [ISS-31](#iss-31) | Nei piani un'approvazione è trattata come un errore e annulla i passi fatti | S1 | agente/piani | Aperto |
-| [ISS-32](#iss-32) | Nelle run l'approvazione non esegue il tool, o lascia la run ferma | S1 | automazioni | Aperto |
+| [ISS-29](#iss-29) | Gli step agentici delle automazioni non usano mai i tool | S1 | automazioni | ✅ Risolto 2026-11-02 |
+| [ISS-30](#iss-30) | In chat il loop non riprende dopo un'approvazione | S1 | agent loop | ✅ Risolto 2026-11-02 |
+| [ISS-31](#iss-31) | Nei piani un'approvazione è trattata come un errore e annulla i passi fatti | S1 | agente/piani | ✅ Risolto 2026-11-02 |
+| [ISS-32](#iss-32) | Nelle run l'approvazione non esegue il tool, o lascia la run ferma | S1 | automazioni | ✅ Risolto 2026-11-02 |
 
 ---
 
@@ -294,16 +294,19 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 
 - **Evidenza**: [agentic.py](../../backend/app/automations/steps/agentic.py) chiama l'agent loop con `call_llm_structured_fn=None`, e senza output strutturato il loop passa a `_plain_answer`: una sola risposta di testo. La documentazione dice "catalogo tool ristretto", e il template `daily_email_briefing` chiede di usare `email_create_draft`: quella chiamata non può avvenire.
 - **Limiti collegati**: il loop non conosce `allowed_tools` e `allowed_registries` dell'automazione, né `budget.max_tool_calls`; una richiesta di approvazione dentro lo step non è gestita.
+- **Soluzione**: lo step esegue l'agent loop con la selezione dei tool, dentro registry e allowlist dell'automazione e al massimo `budget.max_tool_calls` chiamate. `step.tools` restringe l'allowlist per lo step (`null` = tutti, `[]` = solo testo; nell'editor è la casella "Può usare i tool"). Senza allowlist vale il catalogo dei registry, tranne i tool che gestiscono le automazioni. Se il modello non risponde lo step fallisce, invece di passare un messaggio d'errore allo step dopo.
 
 ## ISS-30
 **In chat il loop non riprende dopo un'approvazione** — S1
 
 - **Evidenza**: `_approval_result` in [agent_loop.py](../../backend/app/agent/agent_loop.py) chiude il turno. [approvals.py](../../backend/app/api/routes/approvals.py) esegue il tool e scrive una sintesi di quel solo risultato: i passi successivi del compito e lo stato del loop (osservazioni, pensiero, anti-loop) si perdono. Un rifiuto termina il turno con un messaggio fisso, anche se il modello aveva già risultati da riferire.
+- **Soluzione**: alla richiesta il loop salva il suo stato con l'id della richiesta ([turn_checkpoints.py](../../backend/app/agent/turn_checkpoints.py), tabella `turn_checkpoints`, così sopravvive a un riavvio). Alla decisione riparte dal passo dopo, con i passi rimasti: il tool approvato, o il rifiuto, è il risultato del passo in attesa. La route risponde subito con `resumed: true` e il seguito arriva nella sessione di streaming del thread, in un messaggio nuovo. Risolvere una richiesta mentre il thread ha un altro turno in corso dà 409; una richiesta scaduta cancella lo stato.
 
 ## ISS-31
 **Nei piani un'approvazione è trattata come un errore e annulla i passi fatti** — S1
 
 - **Evidenza**: in `execute_plan` ([execution_log.py](../../backend/app/agent/execution_log.py)) `approval_required` imposta `has_error=True`: il piano si ferma e parte il rollback dei passi già eseguiti, mentre la richiesta di approvazione resta pendente. Approvarla esegue un tool isolato, fuori dal piano e dopo il rollback.
+- **Soluzione**: il piano si sospende sul passo, senza rollback, e riprende da lì con le variabili dei passi precedenti (`_PlanRun`). Un rifiuto conta come errore del passo: annulla i passi già eseguiti.
 
 ## ISS-32
 **Nelle run l'approvazione non esegue il tool, o lascia la run ferma** — S1
@@ -311,3 +314,4 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Step con `requires_approval` e un tool**: `resume_run` in [runner.py](../../backend/app/automations/runner.py) segna lo step completato con `{"approval": "granted"}` e passa al successivo. Il tool non viene mai eseguito, e gli step dopo ricevono quell'output.
 - **Tool che chiede conferma al guardrail**: la richiesta nasce con `run_id` uguale al thread o a `chat_session`, quindi la route la tratta come approvazione di chat: il tool viene eseguito, ma la run resta in `waiting_approval` per sempre. La scadenza è di 5 minuti anche per le run programmate di notte.
 - **Route asincrona** (`sync=false`): risolve la richiesta e rilancia `execute_run`, che riesegue lo step in attesa e crea una nuova approvazione.
+- **Soluzione**: la run riparte dallo step in attesa (`execute_run(run_id, resume=...)`). Un gate puro è finito; uno step con un tool lo esegue, con l'approvazione già data. Le richieste del guardrail vengono legate alla run con scadenza di 24 ore (`approvals.bind_to_run`), anche se risolte da `/v1/approvals`. Il rifiuto di uno step con un tool blocca la run; dentro uno step agentico arriva al modello, che può proseguire. La UI usa la route asincrona: uno step agentico può durare minuti.

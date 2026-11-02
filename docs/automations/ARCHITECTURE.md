@@ -100,7 +100,7 @@ erDiagram
 2. **`Trigger`**: Configurazione temporale (`cron`), evento esterno (`webhook`), manuale (`manual`) o interno (`event`).
 3. **`WorkflowSpec` & `WorkflowStepDefinition`**: La sequenza ordinata di step. Ogni step può essere:
    - `deterministic_action`: esecuzione diretta di un tool o script sandboxed.
-   - `agentic_task`: invocazione LLM guidata da prompt e catalogo tool ristretto.
+   - `agentic_task`: agent loop guidato dal prompt, con i tool di registry e allowlist della policy, ristretti da `tools` (`[]` = solo testo) e limitati da `budget.max_tool_calls`. Un tool che chiede conferma sospende la run: lo stato del loop resta salvato e riprende alla decisione.
    - `approval_gate`: punto di controllo esplicito che richiede autorizzazione umana prima di procedere.
    - `evaluation_gate`: test, lint, asserzioni o validazioni di schema.
 4. **`ExecutionPolicy`**: Identity dedicata, tool allowlist, target allowlist (container ammessi, repository ammesse, destinatari email autorizzati), modalità di sicurezza (`safest`, `normal`, `dangerous`).
