@@ -10,6 +10,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -25,6 +26,12 @@ StreamCallback = Callable[[Dict[str, str]], None]
 # Tentativi di connessione: si ritenta solo se la richiesta non ha raggiunto il server
 CONNECT_ATTEMPTS = 2
 
+# Secondi di attesa della richiesta che avvia un caricamento: un modello già pronto risponde subito
+LOAD_REQUEST_WAIT = 2.0
+
+# Stati dei processi di llama-swap tradotti nello stato del modello; gli altri valgono `unloaded`
+_MODEL_STATUS_BY_STATE = {"ready": "loaded", "starting": "loading"}
+
 
 class LLMUnavailableError(RuntimeError):
     """Il server LLM non ha completato la richiesta (timeout, errore HTTP, connessione)."""
@@ -32,6 +39,38 @@ class LLMUnavailableError(RuntimeError):
 
 def _failed(reason: str) -> Dict[str, Any]:
     return {"content": "", "reasoning_content": "", "metrics": {}, "error": reason}
+
+
+def server_root(base_url: str) -> str:
+    """URL del server senza il suffisso /v1 dell'API OpenAI."""
+    return re.sub(r'/v1/?$', '', base_url.rstrip('/'))
+
+
+def model_status(state: Optional[str]) -> str:
+    return _MODEL_STATUS_BY_STATE.get(state or "", "unloaded")
+
+
+def model_status_changes(line: str, known: Dict[str, str]) -> List[Dict[str, str]]:
+    """Cambi di stato contenuti in una riga di /api/events di llama-swap, come {'model', 'status'}.
+
+    Ogni evento modelStatus elenca tutti i modelli: `known` ricorda l'ultimo stato per riportare solo le differenze.
+    """
+    if not line.startswith("data:"):
+        return []
+    try:
+        event = json.loads(line[5:])
+        if event.get("type") != "modelStatus":
+            return []
+        models = json.loads(event["data"])
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return []
+    changes = []
+    for m in models:
+        status = model_status(m.get("state"))
+        if status != known.get(m["id"], "unloaded"):
+            known[m["id"]] = status
+            changes.append({"model": m["id"], "status": status})
+    return changes
 
 
 class LLMProvider(ABC):
@@ -171,18 +210,20 @@ class OpenAICompatProvider(LLMProvider):
         return payload
 
     def load_model(self, model: str) -> Dict[str, Any]:
-        """Invia richiesta di caricamento del modello al server llama.cpp."""
-        root_url = re.sub(r'/v1/?$', '', self.base_url)
-        url = f"{root_url}/models/load"
+        """Avvia il caricamento su llama-swap: una richiesta a /upstream carica il modello e resta aperta finché è pronto.
+
+        Non serve attenderla: chiusa la connessione il caricamento prosegue. Solo se la GPU sta servendo un altro
+        modello la richiesta è ancora in coda e decade con la connessione; la chat successiva si accoda comunque.
+        """
+        url = f"{server_root(self.base_url)}/upstream/{quote(model, safe='')}/health"
         try:
-            with httpx.Client(timeout=10.0) as client:
-                res = client.post(url, json={"model": model})
-                if res.status_code == 200:
-                    return {"status": "ok", "detail": res.json()}
-                elif res.status_code == 400 and "already running" in res.text:
-                    return {"status": "ok", "detail": "already_loaded"}
-                else:
-                    return {"status": "error", "code": res.status_code, "detail": res.text}
+            with httpx.Client(timeout=httpx.Timeout(LOAD_REQUEST_WAIT, connect=5.0)) as client:
+                res = client.get(url)
+            if res.status_code == 200:
+                return {"status": "ok", "detail": "already_loaded"}
+            return {"status": "error", "code": res.status_code, "detail": res.text}
+        except httpx.ReadTimeout:
+            return {"status": "ok", "detail": "loading"}
         except Exception as e:
             logger.warning(f"[{self.name}] Failed to load model {model}: {e}")
             return {"status": "error", "detail": str(e)}
@@ -358,50 +399,32 @@ class OpenAICompatProvider(LLMProvider):
             return False
 
     def list_models_with_details(self) -> List[Dict[str, Any]]:
+        """Modelli di llama-swap. Lo stato viene da /running: /models dice `loaded` già durante il caricamento."""
         try:
             with httpx.Client(timeout=5.0) as client:
                 res = client.get(f"{self.base_url}/models")
+                running = client.get(f"{server_root(self.base_url)}/running")
             if res.status_code == 200:
-                data = res.json()
-                raw_list = []
-                if isinstance(data, dict):
-                    if "data" in data and isinstance(data["data"], list):
-                        raw_list = data["data"]
-                    elif "models" in data and isinstance(data["models"], list):
-                        raw_list = data["models"]
-                elif isinstance(data, list):
-                    raw_list = data
+                states = {}
+                if running.status_code == 200:
+                    states = {r["model"]: r.get("state") for r in running.json().get("running", [])}
 
                 details = []
-                for m in raw_list:
-                    if isinstance(m, dict):
-                        m_id = str(m.get("id") or m.get("name", ""))
-                        if not m_id:
-                            continue
-                        status_obj = m.get("status") if isinstance(m.get("status"), dict) else {}
-                        status_val = str(status_obj.get("value", "unloaded"))
-                        status_args = status_obj.get("args", []) if isinstance(status_obj.get("args"), list) else []
-                        arch = m.get("architecture") if isinstance(m.get("architecture"), dict) else {}
-                        input_mods = arch.get("input_modalities") if isinstance(arch.get("input_modalities"), list) else []
-                        has_img_mod = ("image" in input_mods) or ("--mmproj" in status_args)
-                        is_vis = is_vision_model(m_id) or has_img_mod
-                        details.append({
-                            "id": m_id,
-                            "is_vision": is_vis,
-                            "input_modalities": input_mods or (["text", "image"] if is_vis else ["text"]),
-                            "status": status_val,
-                            "is_loaded": (status_val == "loaded"),
-                            "is_loading": (status_val == "loading"),
-                        })
-                    elif isinstance(m, str) and m:
-                        details.append({
-                            "id": m,
-                            "is_vision": is_vision_model(m),
-                            "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"],
-                            "status": "unknown",
-                            "is_loaded": False,
-                            "is_loading": False,
-                        })
+                for m in res.json().get("data", []):
+                    m_id = m.get("id")
+                    if not m_id:
+                        continue
+                    input_mods = (m.get("architecture") or {}).get("input_modalities") or []
+                    is_vis = is_vision_model(m_id) or "image" in input_mods
+                    status_val = model_status(states.get(m_id))
+                    details.append({
+                        "id": m_id,
+                        "is_vision": is_vis,
+                        "input_modalities": input_mods or (["text", "image"] if is_vis else ["text"]),
+                        "status": status_val,
+                        "is_loaded": (status_val == "loaded"),
+                        "is_loading": (status_val == "loading"),
+                    })
                 if details:
                     return details
         except Exception as e:

@@ -1,10 +1,11 @@
+import json
 from unittest.mock import MagicMock, patch
 
 import httpx
 
 from app.agent.stream_session import StreamSession
 from app.core.config import settings
-from app.llm.providers import OllamaProvider, OpenAICompatProvider
+from app.llm.providers import OllamaProvider, OpenAICompatProvider, model_status_changes
 from app.llm.reasoning import LEVEL_BUDGETS, resolve
 from app.memory import thread_store
 
@@ -46,36 +47,70 @@ def test_thread_store_message_model(tmp_path):
 
 def test_openai_compat_list_models_with_details():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="Gemma-4-26B-Q3")
-    fake_response = MagicMock()
-    fake_response.status_code = 200
-    fake_response.json.return_value = {
+    models = MagicMock(status_code=200)
+    models.json.return_value = {
         "data": [
-            {
-                "id": "Gemma-4-26B-Q3",
-                "status": {"value": "loaded", "args": []},
-                "architecture": {"input_modalities": ["text", "image"]}
-            },
-            {
-                "id": "Qwen3.8-27B",
-                "status": {"value": "unloaded", "args": []},
-                "architecture": {"input_modalities": ["text"]}
-            }
+            # /models di llama-swap dice `loaded` anche per un modello che si sta ancora caricando
+            {"id": "Gemma-4-26B-Q3", "status": {"value": "loaded"}, "architecture": {"input_modalities": ["text", "image"]}},
+            {"id": "Andy-4", "status": {"value": "loaded"}},
+            {"id": "Qwen3.8-27B", "status": {"value": "unloaded"}, "architecture": {"input_modalities": ["text"]}},
         ]
     }
+    running = MagicMock(status_code=200)
+    running.json.return_value = {"running": [{"model": "Gemma-4-26B-Q3", "state": "ready"}, {"model": "Andy-4", "state": "starting"}]}
 
-    with patch("httpx.Client.get", return_value=fake_response):
+    with patch("httpx.Client.get", side_effect=lambda url: running if url.endswith("/running") else models) as get:
         details = provider.list_models_with_details()
-        assert len(details) == 2
-        m1 = details[0]
-        assert m1["id"] == "Gemma-4-26B-Q3"
-        assert m1["is_loaded"] is True
-        assert m1["is_loading"] is False
-        assert m1["is_vision"] is True
+    assert get.call_args_list[1].args == ("http://localhost:8080/running",)
+    assert [(d["id"], d["status"], d["is_loaded"], d["is_loading"]) for d in details] == [
+        ("Gemma-4-26B-Q3", "loaded", True, False),
+        ("Andy-4", "loading", False, True),
+        ("Qwen3.8-27B", "unloaded", False, False),
+    ]
+    assert details[0]["is_vision"] is True
+    assert details[2]["is_vision"] is False
 
-        m2 = details[1]
-        assert m2["id"] == "Qwen3.8-27B"
-        assert m2["is_loaded"] is False
-        assert m2["is_loading"] is False
+
+def test_load_model_starts_the_load_through_upstream():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+
+    # Il modello è già pronto: /upstream risponde subito
+    with patch("httpx.Client.get", return_value=MagicMock(status_code=200)) as get:
+        assert provider.load_model("Qwen3.8 27B") == {"status": "ok", "detail": "already_loaded"}
+    assert get.call_args.args == ("http://localhost:8080/upstream/Qwen3.8%2027B/health",)
+
+    # Il caricamento è in corso: la richiesta resta aperta e prosegue anche dopo la disconnessione
+    with patch("httpx.Client.get", side_effect=httpx.ReadTimeout("wait")):
+        assert provider.load_model("m") == {"status": "ok", "detail": "loading"}
+
+    with patch("httpx.Client.get", return_value=MagicMock(status_code=404, text="no router")):
+        assert provider.load_model("nessuno") == {"status": "error", "code": 404, "detail": "no router"}
+
+    with patch("httpx.Client.get", side_effect=httpx.ConnectError("refused")):
+        assert provider.load_model("m")["status"] == "error"
+
+
+def _model_status_event(**states):
+    data = json.dumps([{"id": model, "state": state} for model, state in states.items()])
+    return "data: " + json.dumps({"type": "modelStatus", "data": data})
+
+
+def test_model_status_changes_reports_only_differences():
+    known = {}
+    # L'istantanea iniziale non segnala i modelli fermi
+    assert model_status_changes(_model_status_event(a="stopped", b="stopped"), known) == []
+    assert model_status_changes(_model_status_event(a="starting", b="stopped"), known) == [{"model": "a", "status": "loading"}]
+    assert model_status_changes(_model_status_event(a="starting", b="stopped"), known) == []
+    assert model_status_changes(_model_status_event(a="ready", b="stopped"), known) == [{"model": "a", "status": "loaded"}]
+    assert model_status_changes(_model_status_event(a="stopping", b="stopped"), known) == [{"model": "a", "status": "unloaded"}]
+    assert model_status_changes(_model_status_event(a="stopped", b="stopped"), known) == []
+
+
+def test_model_status_changes_ignores_other_lines():
+    known = {}
+    for line in ["", ": ping", "event: message", "data: non json", 'data: {"type":"logData","data":"x"}', 'data: {"type":"modelStatus"}']:
+        assert model_status_changes(line, known) == []
+    assert known == {}
 
 
 def _sse(lines, status_code=200):

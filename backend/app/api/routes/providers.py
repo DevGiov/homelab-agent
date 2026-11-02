@@ -1,5 +1,5 @@
 """Provider LLM e gestione dei modelli."""
-import re
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -21,6 +21,8 @@ from app.llm.providers import (
     list_provider_models_with_details,
     list_providers_info,
     load_provider_model,
+    model_status_changes,
+    server_root,
     set_active_provider,
 )
 
@@ -73,18 +75,18 @@ async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
 
 @router.get("/v1/models/events")
 async def models_events_endpoint():
-    """Proxy SSE verso llama.cpp /models/sse per monitorare lo stato e la percentuale di caricamento in tempo reale."""
+    """Cambi di stato dei modelli in tempo reale, ricavati dagli eventi di llama-swap (/api/events)."""
     import httpx
-    root_url = re.sub(r'/v1/?$', '', settings.llama_cpp_url.rstrip('/'))
-    url = f"{root_url}/models/sse"
+    url = f"{server_root(settings.llama_cpp_url)}/api/events"
 
     async def sse_stream():
+        known = {}
         try:
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream("GET", url) as resp:
                     async for line in resp.aiter_lines():
-                        if line:
-                            yield f"{line}\n\n"
+                        for change in model_status_changes(line, known):
+                            yield f"data: {json.dumps(change)}\n\n"
         except Exception:
             pass
 

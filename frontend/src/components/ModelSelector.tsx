@@ -28,16 +28,6 @@ function saveFavoriteModels(favs: string[]) {
   } catch {}
 }
 
-function calculateLlamaProgress(progressObj: any): number {
-  if (!progressObj) return 0;
-  const { current, stages = [], value = 0 } = progressObj;
-  const C_e = 0.1;
-  const a = 1 - Math.max(stages.length - 1, 0) * C_e;
-  const s = stages.indexOf(current);
-  const frac = s <= 0 ? value * a : a + (s - 1 + value) * C_e;
-  return Math.min(100, Math.max(0, Math.round(frac * 100)));
-}
-
 interface ModelSelectorProps {
   selectedModel: string;
   onSelectModel: (model: string) => void;
@@ -58,7 +48,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [favorites, setFavorites] = useState<string[]>(getFavoriteModels);
-  const [loadingProgressMap, setLoadingProgressMap] = useState<Record<string, number>>({});
+  const [loadingModels, setLoadingModels] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,38 +66,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Connect to SSE for real-time model loading progress
+  // Connect to SSE for real-time model status
   useEffect(() => {
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource('/v1/models/events');
       eventSource.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data);
-          const modelId = payload.model || payload.id;
-          const statusData = payload.data || payload;
-          const statusVal = statusData.status || statusData.value;
-          const progressObj = statusData.progress;
-
-          if (modelId) {
-            if (statusVal === 'loading') {
-              const pct = calculateLlamaProgress(progressObj);
-              setLoadingProgressMap((prev) => ({ ...prev, [modelId]: pct }));
-            } else if (statusVal === 'loaded') {
-              setLoadingProgressMap((prev) => {
-                const next = { ...prev };
-                delete next[modelId];
-                return next;
-              });
-              onRefreshModels?.();
-            } else if (statusVal === 'unloaded' || statusVal === 'failed') {
-              setLoadingProgressMap((prev) => {
-                const next = { ...prev };
-                delete next[modelId];
-                return next;
-              });
-              onRefreshModels?.();
-            }
+          const { model, status } = JSON.parse(event.data);
+          setLoadingModels((prev) => {
+            const others = prev.filter((id) => id !== model);
+            return status === 'loading' ? [...others, model] : others;
+          });
+          if (status !== 'loading') {
+            onRefreshModels?.();
           }
         } catch {}
       };
@@ -142,12 +114,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       const detail = modelDetails.find((m) => m.id === modelId);
       // Pre-load model in VRAM if not loaded yet
       if (detail && !detail.is_loaded && !detail.is_loading) {
+        setLoadingModels((prev) => [...prev.filter((id) => id !== modelId), modelId]);
         try {
-          setLoadingProgressMap((prev) => ({ ...prev, [modelId]: 5 }));
           await loadModel(activeProvider, modelId);
         } catch (e) {
           console.warn('Richiesta caricamento modello fallita:', e);
         }
+        // Da qui in poi lo stato lo dice il server: se il caricamento non è partito il badge sparisce
+        setLoadingModels((prev) => prev.filter((id) => id !== modelId));
+        onRefreshModels?.();
       }
     }
   };
@@ -155,11 +130,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // Find detail for currently selected model
   const currentDetail = modelDetails.find((m) => m.id === selectedModel);
   const isCurrentLoaded = Boolean(currentDetail?.is_loaded);
-  const isCurrentLoading = Boolean(
-    currentDetail?.is_loading ||
-    (selectedModel !== 'default' && loadingProgressMap[selectedModel] !== undefined)
-  );
-  const currentProgress = selectedModel !== 'default' ? loadingProgressMap[selectedModel] : undefined;
+  const isCurrentLoading = Boolean(currentDetail?.is_loading || loadingModels.includes(selectedModel));
 
   // Filter models based on search term
   const query = search.trim().toLowerCase();
@@ -202,7 +173,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         {isCurrentLoading && (
           <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-sans font-semibold shrink-0">
             <Loader2 size={10} className="animate-spin text-amber-400" />
-            {currentProgress !== undefined ? `${currentProgress}%` : ''}
           </span>
         )}
 
@@ -283,8 +253,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const isSelected = selectedModel === m.id;
     const isFav = favorites.includes(m.id);
     const inVram = Boolean(m.is_loaded);
-    const isLoading = Boolean(m.is_loading || loadingProgressMap[m.id] !== undefined);
-    const progress = loadingProgressMap[m.id];
+    const isLoading = Boolean(m.is_loading || loadingModels.includes(m.id));
 
     return (
       <div
@@ -330,14 +299,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             </span>
           )}
 
-          {/* Loading Progress Badge */}
+          {/* Loading Badge */}
           {isLoading && (
             <span
               className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse"
               title="Caricamento in corso..."
             >
               <Loader2 size={9} className="animate-spin text-amber-400" />
-              <span>{progress !== undefined ? `${progress}%` : 'Caricamento...'}</span>
+              <span>Caricamento...</span>
             </span>
           )}
 
