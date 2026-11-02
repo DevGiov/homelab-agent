@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.agent import turn_checkpoints
 from app.automations.circuit_breaker import CircuitBreakerManager
 from app.automations.db import approvals as approvals_db
 from app.automations.db import definitions as definitions_db
@@ -25,9 +26,10 @@ from app.automations.models import (
     WorkflowStepDefinition,
 )
 from app.automations.run_secrets import collect_secrets
-from app.automations.steps import Outcome, StepContext, select_handler
+from app.automations.steps import Outcome, StepContext, select_handler, select_resume_handler
 from app.observability.turns import observe_turn
 from app.registry.manager import get_registry_manager
+from app.security import approvals
 
 logger = logging.getLogger("automations.runner")
 
@@ -138,15 +140,16 @@ class AutomationRunner:
         runs_db.create_run(run_data, db_path=self.db_path)
         return AutomationRun(**run_data)
 
-    def execute_run(self, run_id: str) -> AutomationRun:
-        """Esegue sequenzialmente gli step della run fino a completamento, blocco o approval, misurandola come un turno."""
+    def execute_run(self, run_id: str, resume: Optional[Dict[str, Any]] = None) -> AutomationRun:
+        """Esegue sequenzialmente gli step della run fino a completamento, blocco o approval, misurandola come un turno.
+        `resume`: la decisione su una richiesta di approvazione dello step corrente, che riparte da lì."""
         with observe_turn(run_id, "automation") as turn:
-            run = self._execute_steps(run_id)
+            run = self._execute_steps(run_id, resume)
             turn.mode = run.automation_id
             turn.status = _TURN_STATUS.get(run.status, "stopped")
             return run
 
-    def _execute_steps(self, run_id: str) -> AutomationRun:
+    def _execute_steps(self, run_id: str, resume: Optional[Dict[str, Any]] = None) -> AutomationRun:
         run = self._load_run(run_id)
         if run.status in FINAL_STATUSES:
             return run
@@ -206,7 +209,8 @@ class AutomationRunner:
                 current_step_id = _next_step_id(auto_def.workflow.steps, current_step_id)
                 continue
 
-            step_run = self._run_step(run, step_def, data, auto_def)
+            step_run = self._run_step(run, step_def, data, auto_def, resume)
+            resume = None
             total_tokens += step_run.tokens_consumed
 
             if step_run.status == RunStatus.WAITING_APPROVAL:
@@ -250,6 +254,7 @@ class AutomationRunner:
         step_def: WorkflowStepDefinition,
         data: Dict[str, Any],
         auto_def: AutomationDefinition,
+        resume: Optional[Dict[str, Any]] = None,
     ) -> StepRun:
         """Esegue uno step registrando su DB lo StepRun prima (RUNNING) e dopo (esito)."""
         step_run = StepRun(
@@ -263,7 +268,7 @@ class AutomationRunner:
         runs_db.update_run_status(run.run_id, RunStatus.RUNNING.value, current_step_id=step_def.step_id, db_path=self.db_path)
 
         try:
-            outcome = self._execute_step(step_def, data, auto_def, run)
+            outcome = self._execute_step(step_def, data, auto_def, run, resume)
         except Exception as e:
             logger.error(f"Errore esecuzione step '{step_def.step_id}': {e}", exc_info=True)
             outcome = {"status": RunStatus.FAILED, "error_message": str(e), "tokens": 0, "output": None}
@@ -284,45 +289,35 @@ class AutomationRunner:
         data: Dict[str, Any],
         auto_def: AutomationDefinition,
         run: AutomationRun,
+        resume: Optional[Dict[str, Any]] = None,
     ) -> Outcome:
         ctx = StepContext(step=step_def, automation=auto_def, run=run, data=data,
-                          registry_manager=self.registry_manager, db_path=self.db_path)
-        return select_handler(step_def)(ctx)
+                          registry_manager=self.registry_manager, db_path=self.db_path, resume=resume)
+        return (select_resume_handler(step_def) if resume else select_handler(step_def))(ctx)
 
     # --- approvazioni e pausa -------------------------------------------------
 
     def resume_run(self, run_id: str, approval_id: str, action: str = "approve", resolved_by: str = "user") -> AutomationRun:
-        """Risolve l'approvazione pendente e riprende l'esecuzione della run."""
-        run = self._load_run(run_id)
+        """Risolve l'approvazione pendente e riprende la run dallo step in attesa."""
+        self._load_run(run_id)
 
         resolved = approvals_db.resolve_automation_approval(approval_id, action, resolved_by=resolved_by, db_path=self.db_path)
         if not resolved:
             raise ValueError(f"Approvazione '{approval_id}' non trovata o già risolta.")
 
-        if action.lower() in ("deny", "false", "refuse"):
+        # Anche la richiesta del guardrail in memoria, se c'è: non deve restare tra le pendenti della chat
+        approvals.resolve_approval(approval_id, action=action, resolved_by=resolved_by)
+
+        denied = action.lower() in ("deny", "false", "refuse")
+        # Uno step agentico sospeso riprende anche dopo un rifiuto: il modello lo vede e può proseguire senza quel tool
+        if denied and not turn_checkpoints.load(approval_id):
             runs_db.update_run_status(
                 run_id, RunStatus.BLOCKED.value, error_message=f"Azione negata dall'utente ({resolved_by})", db_path=self.db_path,
             )
             return self._load_run(run_id)
 
-        # Approvata: lo step in attesa conta come completato e la run riparte dal successivo
-        if run.current_step_id:
-            runs_db.save_step_run({
-                "step_run_id": f"sr_{run_id}_{run.current_step_id}",
-                "run_id": run_id,
-                "step_id": run.current_step_id,
-                "status": RunStatus.COMPLETED.value,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-                "output_payload": {"approval": "granted", "resolved_by": resolved_by},
-            }, db_path=self.db_path)
-
-            auto_def = self._load_definition(run.automation_id)
-            if auto_def:
-                next_step = _next_step_id(auto_def.workflow.steps, run.current_step_id)
-                runs_db.update_run_status(run_id, RunStatus.RUNNING.value, current_step_id=next_step, db_path=self.db_path)
-
-        logger.info(f"Approvazione '{approval_id}' concessa. Ripresa esecuzione run '{run_id}'...")
-        return self.execute_run(run_id)
+        logger.info(f"Approvazione '{approval_id}' {'negata' if denied else 'concessa'}. Ripresa esecuzione run '{run_id}'...")
+        return self.execute_run(run_id, {"request_id": approval_id, "approved": not denied, "resolved_by": resolved_by})
 
     def pause_run(self, run_id: str) -> Dict[str, Any]:
         """Richiede la messa in pausa cooperativa di una run in corso."""

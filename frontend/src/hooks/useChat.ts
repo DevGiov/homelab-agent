@@ -21,6 +21,7 @@ import {
   extractMessageVersion,
   finalizeMessage,
   lastAssistant,
+  markResolvedApprovals,
   mirrorToVersion,
   nowTime,
   webPrefetchFromEvent,
@@ -113,7 +114,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         return;
       }
 
-      const messages = details.messages ?? [];
+      const messages = markResolvedApprovals(details.messages ?? []);
       setCurrentThreadTitle(details.title || null);
       updateThread(threadId, () => messages);
       setDiagnostics(diagnosticsOf(lastAssistant(messages)));
@@ -126,7 +127,15 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       // Turno ancora in esecuzione in background: ci si riaggancia allo stream live
       activeThreadIdRef.current = threadId;
       setIsPaused(Boolean(details.is_paused));
-      const assistantMsgId = lastAssistant(messages)?.id ?? `ast_live_${threadId}`;
+      // Il seguito di un turno sospeso su un'approvazione è un messaggio nuovo, non quello con la richiesta
+      const last = lastAssistant(messages);
+      const assistantMsgId = last && !last.approval_required ? last.id : `ast_live_${threadId}`;
+      if (assistantMsgId !== last?.id) {
+        updateThread(threadId, (msgs) => [
+          ...msgs,
+          { id: assistantMsgId, sender: 'assistant', content: '', reasoning_content: '', timestamp: nowTime() },
+        ]);
+      }
       const update = messageUpdater(threadId, assistantMsgId);
       const signal = startStream();
       attachToThreadStream(
@@ -374,6 +383,41 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     async (action: string, res?: any) => {
       if (!currentThreadId) return;
 
+      // Il turno riprende dopo la decisione: il seguito arriva in streaming in un messaggio nuovo
+      if (res?.resumed) {
+        const threadId = res.thread_id || currentThreadId;
+        activeThreadIdRef.current = threadId;
+        const assistantMsgId = `ast_res_${Date.now()}`;
+        updateThread(threadId, (msgs) => [
+          ...msgs,
+          { id: assistantMsgId, sender: 'assistant', content: '', reasoning_content: '', timestamp: nowTime() },
+        ]);
+        const update = messageUpdater(threadId, assistantMsgId);
+        const signal = startStream();
+        let finished = false;
+        try {
+          await attachToThreadStream(
+            threadId,
+            {
+              ...liveHandlers(update, ''),
+              onFinal: (response) => {
+                finished = true;
+                update((m) => finalizeMessage(response, m.id, m.reasoning_content));
+                setDiagnostics(diagnosticsOf(response));
+              },
+            },
+            signal
+          );
+        } catch (err) {
+          console.error('Errore nello stream della ripresa:', err);
+        } finally {
+          endStream();
+        }
+        // Turno finito prima dell'aggancio, o stream interrotto: fa fede lo stato salvato
+        if (!finished) await loadThreadHistory(threadId);
+        return;
+      }
+
       // Aggiornamento ottimistico se la risoluzione restituisce già la risposta del tool
       if (res?.response) {
         const executionTrace = res.execution_trace || [
@@ -407,7 +451,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       // Sincronizzazione completa con lo stato salvato dal backend
       await loadThreadHistory(currentThreadId);
     },
-    [currentThreadId, updateThread, loadThreadHistory]
+    [currentThreadId, updateThread, messageUpdater, liveHandlers, startStream, endStream, loadThreadHistory]
   );
 
   const currentMessages = currentThreadId ? threadMessagesMap[currentThreadId] || [] : [];

@@ -12,14 +12,17 @@ from typing import List, Optional, Union
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from app.agent import turn_checkpoints
 from app.agent.graph import build_graph
 from app.agent.llm_calls import stream_queue, stream_reasoning_phase_count
+from app.agent.nodes.respond import respond_node
 from app.agent.stream_session import (
     create_session,
     current_session_var,
     get_session,
     remove_session,
 )
+from app.agent.turn_resume import meta_of, resume_checkpoint
 from app.api.schemas import (
     ChatResponse,
 )
@@ -36,6 +39,74 @@ logger = logging.getLogger("api")
 def get_app_graph():
     """Grafo compilato condiviso dalle richieste API."""
     return build_graph()
+
+
+def _chat_response(final_state: dict, thread_id: str, force_mode: Optional[str], model: Optional[str], security_mode: str, sess) -> ChatResponse:
+    plan_dict = final_state.get("plan", {})
+    plan_dict = plan_dict if isinstance(plan_dict, dict) else {}
+    return ChatResponse(
+        thread_id=thread_id,
+        mode=final_state.get("mode", force_mode or "plan"),
+        model=model or get_active_model_name(),
+        response=final_state.get("final_response", ""),
+        tool_used=plan_dict.get("tool_name"),
+        plan_steps=plan_dict.get("plan_steps"),
+        plan_structure=final_state.get("plan_structure") or plan_dict.get("plan_structure"),
+        execution_trace=final_state.get("execution_trace") or plan_dict.get("execution_log"),
+        rollback_trace=final_state.get("rollback_trace"),
+        reasoning_content=final_state.get("reasoning_content"),
+        web_prefetch=final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data"),
+        metrics=sess.get_metrics(),
+        thread_title=thread_store.get_thread_title(thread_id),
+        approval_required=final_state.get("approval_required"),
+        request_id=final_state.get("request_id"),
+        approval_prompt=final_state.get("approval_prompt"),
+        command_preview=final_state.get("command_preview"),
+        command_prefix=final_state.get("command_prefix"),
+        risk_reason=final_state.get("risk_reason"),
+        security_mode=final_state.get("security_mode", security_mode),
+    )
+
+
+def thread_has_active_turn(thread_id: Optional[str]) -> bool:
+    sess = get_session(thread_id) if thread_id else None
+    return bool(sess and sess.is_active())
+
+
+def start_turn_resume(checkpoint: dict, request_id: str, approved: bool) -> str:
+    """Riprende in background il turno sospeso su `request_id`, nella sessione di streaming del suo thread (la UI ci si
+    aggancia con /v1/threads/{id}/stream), e salva la risposta come per un turno normale. Restituisce il thread."""
+    meta = meta_of(checkpoint)
+    thread_id, mode, model = meta["thread_id"], meta.get("mode"), meta.get("model")
+    incognito, security_mode = meta.get("incognito", False), meta.get("security_mode", "normal")
+    turn_checkpoints.delete(request_id)
+    sess = create_session(thread_id, task=meta.get("task", ""), mode=mode)
+
+    def worker():
+        stream_queue.set(sess)
+        stream_reasoning_phase_count.set(0)
+        current_session_var.set(sess)
+        try:
+            with observe_turn(thread_id, "chat", stopped=sess.is_stopped) as turn:
+                turn.mode = mode
+                result = resume_checkpoint(checkpoint, request_id, approved)
+                state = {"task": meta.get("task", ""), "thread_id": thread_id, "mode": mode, "model": model,
+                         "incognito": incognito, "security_mode": security_mode, **result}
+                state.update(respond_node(state))
+            resp = _chat_response(state, thread_id, mode, model, security_mode, sess)
+            if not incognito and not sess.is_stopped():
+                thread_store.save_assistant_message(thread_id, resp.model_dump())
+            sess.put({"type": "final", "response": resp.model_dump()})
+        except Exception as e:
+            logger.error(f"Ripresa del turno dopo l'approvazione '{request_id}' non riuscita: {e}", exc_info=True)
+            if not incognito and not sess.is_stopped():
+                thread_store.save_assistant_message(thread_id, {"response": f"[Errore durante la ripresa: {str(e)}]", "error": True})
+            sess.put({"type": "error", "error": str(e)})
+        finally:
+            sess.put(None)
+
+    threading.Thread(target=contextvars.copy_context().run, args=(worker,), daemon=True).start()
+    return thread_id
 
 
 def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
@@ -82,43 +153,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             final_state = get_app_graph().invoke(initial_state, config=cfg)
             turn.mode = final_state.get("mode")
 
-        mode = final_state.get("mode", force_mode or "plan")
-        response_text = final_state.get("final_response", "")
-        plan_dict = final_state.get("plan", {})
-        tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
-
-        plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
-        plan_structure = final_state.get("plan_structure") or (plan_dict.get("plan_structure") if isinstance(plan_dict, dict) else None)
-        execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
-        rollback_trace = final_state.get("rollback_trace")
-        reasoning_content = final_state.get("reasoning_content")
-        web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
-        metrics = sess.get_metrics()
-
-        t_title = thread_store.get_thread_title(effective_thread_id)
-        effective_model_used = model or get_active_model_name()
-        resp = ChatResponse(
-            thread_id=effective_thread_id,
-            mode=mode,
-            model=effective_model_used,
-            response=response_text,
-            tool_used=tool_used,
-            plan_steps=plan_steps,
-            plan_structure=plan_structure,
-            execution_trace=execution_trace,
-            rollback_trace=rollback_trace,
-            reasoning_content=reasoning_content,
-            web_prefetch=web_prefetch,
-            metrics=metrics,
-            thread_title=t_title,
-            approval_required=final_state.get("approval_required"),
-            request_id=final_state.get("request_id"),
-            approval_prompt=final_state.get("approval_prompt"),
-            command_preview=final_state.get("command_preview"),
-            command_prefix=final_state.get("command_prefix"),
-            risk_reason=final_state.get("risk_reason"),
-            security_mode=final_state.get("security_mode", security_mode),
-        )
+        resp = _chat_response(final_state, effective_thread_id, force_mode, model, security_mode, sess)
 
         # Salva la risposta dell'assistente nello store SQLite solo se non in modalità incognito
         if not incognito:
@@ -195,42 +230,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                 with observe_turn(effective_thread_id, "chat", stopped=sess.is_stopped) as turn:
                     final_state = get_app_graph().invoke(initial_state, config=cfg)
                     turn.mode = final_state.get("mode")
-                mode = final_state.get("mode", force_mode or "plan")
-                response_text = final_state.get("final_response", "")
-                plan_dict = final_state.get("plan", {})
-                tool_used = plan_dict.get("tool_name") if isinstance(plan_dict, dict) else None
-                plan_steps = plan_dict.get("plan_steps") if isinstance(plan_dict, dict) else None
-                plan_structure = final_state.get("plan_structure") or (plan_dict.get("plan_structure") if isinstance(plan_dict, dict) else None)
-                execution_trace = final_state.get("execution_trace") or (plan_dict.get("execution_log") if isinstance(plan_dict, dict) else None)
-                rollback_trace = final_state.get("rollback_trace")
-                reasoning_content = final_state.get("reasoning_content")
-                web_prefetch = final_state.get("web_prefetch_metadata") or final_state.get("web_prefetch_data")
-                metrics = sess.get_metrics()
-
-                t_title = thread_store.get_thread_title(effective_thread_id)
-                effective_model_used = model or get_active_model_name()
-                resp = ChatResponse(
-                    thread_id=effective_thread_id,
-                    mode=mode,
-                    model=effective_model_used,
-                    response=response_text,
-                    tool_used=tool_used,
-                    plan_steps=plan_steps,
-                    plan_structure=plan_structure,
-                    execution_trace=execution_trace,
-                    rollback_trace=rollback_trace,
-                    reasoning_content=reasoning_content,
-                    web_prefetch=web_prefetch,
-                    metrics=metrics,
-                    thread_title=t_title,
-                    approval_required=final_state.get("approval_required"),
-                    request_id=final_state.get("request_id"),
-                    approval_prompt=final_state.get("approval_prompt"),
-                    command_preview=final_state.get("command_preview"),
-                    command_prefix=final_state.get("command_prefix"),
-                    risk_reason=final_state.get("risk_reason"),
-                    security_mode=final_state.get("security_mode", security_mode),
-                )
+                resp = _chat_response(final_state, effective_thread_id, force_mode, model, security_mode, sess)
                 if not incognito and not sess.is_stopped():
                     thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
                     if needs_title_generation:

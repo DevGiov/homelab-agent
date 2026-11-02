@@ -21,6 +21,8 @@ class StepContext:
     data: Dict[str, Any]
     registry_manager: ToolRegistryManager
     db_path: Optional[str] = None
+    # Decisione su una richiesta di approvazione di questo step: {"request_id", "approved", "resolved_by"}
+    resume: Optional[Dict[str, Any]] = None
 
     @property
     def step_run_id(self) -> str:

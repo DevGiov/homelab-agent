@@ -98,7 +98,8 @@ def respond_node(state: AgentState) -> AgentState:
     incognito = state.get("incognito", False)
 
     if not incognito:
-        if state.get("mode") in ("act", "plan") and state.get("execution_trace"):
+        # Un turno sospeso su un'approvazione diventa un episodio quando finisce
+        if state.get("mode") in ("act", "plan") and state.get("execution_trace") and not state.get("approval_required"):
             try:
                 if remember_episode(task, state["mode"], state["execution_trace"], thread_id):
                     logger.info(f"Memoria: episodio di esecuzione salvato dal thread '{thread_id}'")

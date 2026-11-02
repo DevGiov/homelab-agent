@@ -2,6 +2,7 @@ from app.agent import llm_calls
 from app.agent.agent_loop import is_tools_discovery_query, run_agent_loop
 from app.agent.state import AgentState
 from app.agent.tool_catalog import format_available_tools_catalog
+from app.agent.turn_resume import turn_meta
 
 
 def ask_graph_node(state: AgentState) -> AgentState:
@@ -23,6 +24,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
         web_prefetch_data=state.get("web_prefetch_data"),
         images=state.get("images"),
         security_mode=state.get("security_mode") or "normal",
+        meta=turn_meta(state),
         **llm_calls.agent_loop_llm_fns(state.get("reasoning_budget"), model, state.get("images")),
     )
 

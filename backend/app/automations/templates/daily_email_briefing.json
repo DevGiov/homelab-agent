@@ -37,14 +37,18 @@
         "name": "Triage e Classificazione Urgenza",
         "type": "agentic_task",
         "prompt_template": "Analizza il seguente elenco di email ricevute:\n{{steps.fetch_emails.output.emails}}\n\nPer ciascuna email:\n1. Identifica il mittente e l'argomento chiave.\n2. Classifica l'urgenza (ALTA, MEDIA, BASSA).\n3. Determina se richiede una risposta da parte dell'utente.\n4. Estrai eventuali scadenze o richieste d'azione immediate.\n\nFornisci un riepilogo analitico chiaro e organizzato per priorità decrescente.",
-        "timeout_seconds": 90
+        "timeout_seconds": 90,
+        "tools": []
       },
       {
         "step_id": "prepare_drafts",
         "name": "Generazione Bozze di Risposta",
         "type": "agentic_task",
         "prompt_template": "Sulla base del triage precedente:\n{{steps.triage_emails.output}}\n\nPer ogni email con urgenza ALTA o MEDIA che richiede una risposta, genera una bozza di risposta professionale ed esaustiva, mantenendo il tono opportuno.\nUsa il tool 'email_create_draft' per salvare ciascuna bozza nell'account.\nNON tentare in nessun caso di inviare le email: salva solo le bozze.",
-        "timeout_seconds": 120
+        "timeout_seconds": 120,
+        "tools": [
+          "email_create_draft"
+        ]
       },
       {
         "step_id": "generate_report_artifact",

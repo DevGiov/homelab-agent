@@ -12,6 +12,10 @@ def _evaluation_gate(ctx: StepContext) -> Outcome:
     return completed({"evaluation": "passed"})
 
 
+def _approval_granted(ctx: StepContext) -> Outcome:
+    return completed({"approval": "granted", "resolved_by": (ctx.resume or {}).get("resolved_by")})
+
+
 def select_handler(step: WorkflowStepDefinition) -> StepHandler:
     """Gestore dello step. Un'azione deterministica su uno script `.py` o su `calendar_*`
     va ai gestori di codice e calendario; `requires_approval` trasforma qualunque step in un gate."""
@@ -33,4 +37,11 @@ def select_handler(step: WorkflowStepDefinition) -> StepHandler:
     raise NotImplementedError(f"Tipo di step '{step.type}' non supportato.")
 
 
-__all__ = ["Outcome", "StepContext", "StepHandler", "select_handler"]
+def select_resume_handler(step: WorkflowStepDefinition) -> StepHandler:
+    """Gestore dello step dopo l'approvazione: un gate puro è finito, un altro step esegue il lavoro che attendeva."""
+    if step.type == StepType.APPROVAL_GATE:
+        return _approval_granted
+    return select_handler(step.model_copy(update={"requires_approval": False}))
+
+
+__all__ = ["Outcome", "StepContext", "StepHandler", "select_handler", "select_resume_handler"]

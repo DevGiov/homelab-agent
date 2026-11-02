@@ -56,6 +56,18 @@ def get_automation_approval(request_id: str, db_path: Optional[str] = None) -> O
         conn.close()
 
 
+def bind_approval_to_run(request_id: str, run_id: str, step_run_id: str, expires_at: str, db_path: Optional[str] = None) -> bool:
+    """Una richiesta nata dal guardrail durante una run appartiene alla run: la sua risoluzione la riprende."""
+    conn = get_db_connection(db_path)
+    try:
+        cur = conn.execute("UPDATE automation_approvals SET run_id = ?, step_run_id = ?, expires_at = ? WHERE request_id = ?",
+                           (run_id, step_run_id, expires_at, request_id))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def clear_expired_automation_approvals(db_path: Optional[str] = None) -> int:
     """Aggiorna lo stato delle approvazioni scadute a 'expired'."""
     conn = get_db_connection(db_path)

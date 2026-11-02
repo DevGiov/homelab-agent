@@ -2,6 +2,7 @@ from app.agent import llm_calls
 from app.agent.agent_loop import run_agent_loop
 from app.agent.execution_log import execute_plan
 from app.agent.state import AgentState
+from app.agent.turn_resume import turn_meta
 
 PLAN_EXECUTION_KEYWORDS = ("esegui il piano", "esegui piano", "avvia esecuzione", "esecuzione piano")
 
@@ -17,6 +18,7 @@ def execute_plan_node(state: AgentState) -> AgentState:
         thread_id=state.get("thread_id"),
         security_mode=state.get("security_mode") or "normal",
         model=state.get("model"),
+        meta=turn_meta(state),
     )
 
 
@@ -44,6 +46,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         web_prefetch_data=state.get("web_prefetch_data"),
         images=state.get("images"),
         security_mode=state.get("security_mode") or "normal",
+        meta=turn_meta(state),
         **llm_calls.agent_loop_llm_fns(state.get("reasoning_budget"), model, state.get("images")),
     )
 

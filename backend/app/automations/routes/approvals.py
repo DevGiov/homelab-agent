@@ -1,4 +1,5 @@
 """Approvazioni pendenti delle run e delle richieste nate in chat."""
+import asyncio
 import logging
 from typing import Optional
 
@@ -68,20 +69,14 @@ async def resolve_approval(
             }
 
         if sync:
-            resumed_run = runner.resume_run(
-                run_id=run_id,
-                approval_id=approval_id,
-                action=body.action,
-                resolved_by=body.resolved_by,
-            )
+            # Uno step agentico può durare minuti: fuori dall'event loop, che deve restare libero per le altre richieste
+            resumed_run = await asyncio.to_thread(runner.resume_run, run_id, approval_id, body.action, body.resolved_by)
             return {"status": resumed_run.status.value, "run": resumed_run}
-        else:
-            resolved = approvals_db.resolve_automation_approval(approval_id, body.action, resolved_by=body.resolved_by, db_path=settings.automations_db_path)
-            if not resolved:
-                raise HTTPException(status_code=404, detail="Approvazione non trovata o già risolta.")
-            if body.action.lower() in ("approve", "approved", "true"):
-                background_tasks.add_task(runner.execute_run, run_id)
-            return {"status": resolved["status"], "run_id": run_id}
+        pending = approvals_db.get_automation_approval(approval_id, db_path=settings.automations_db_path)
+        if not pending or pending.get("status") != "pending":
+            raise HTTPException(status_code=404, detail="Approvazione non trovata o già risolta.")
+        background_tasks.add_task(runner.resume_run, run_id, approval_id, body.action, body.resolved_by)
+        return {"status": "resuming", "run_id": run_id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

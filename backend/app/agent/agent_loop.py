@@ -13,6 +13,9 @@ Lo storico arriva al modello in due forme, a seconda del profilo del modello (`i
   selezione, poi un messaggio `tool` per ogni risultato. Il template conserva il pensiero dei passi del turno e il
   prompt cresce solo in coda (docs/reasoning/INTERLEAVED_THINKING.md).
 
+Una richiesta di approvazione sospende il loop: `checkpoint` ne salva lo stato con l'id della richiesta (turn_checkpoints) e
+`AgentLoop.restore` + `resume` lo riprendono dal passo dopo, con il tool eseguito o con il rifiuto come risultato del passo.
+
 Funzioni LLM attese dal chiamante:
 - `call_llm_fn(prompt, system_prompt=..., thinking=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
 - `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=..., history=...)` -> ToolSelection
@@ -23,9 +26,10 @@ scelta dei tool, `answer` per risposte e sintesi.
 import json
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Collection, Dict, List, Optional, Tuple
 
 from app.agent import agent_prompts as prompts
+from app.agent import turn_checkpoints
 from app.agent.llm_calls import stream_queue
 from app.agent.mode_policy import get_mode_policy
 from app.agent.stream_session import current_session_var
@@ -36,7 +40,7 @@ from app.core.text_utils import clean_synthesis_content
 from app.llm.providers import LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
-from app.security import policy
+from app.security import approvals, policy
 
 logger = logging.getLogger("agent_loop")
 
@@ -142,6 +146,11 @@ def _content(res: Any) -> Tuple[str, str]:
     return (res or ""), ""
 
 
+# Ciò che il loop ha accumulato: si salva quando si sospende e si ripristina quando riprende
+_PROGRESS_FIELDS = ("now", "prefetch_block", "execution_trace", "observations", "history", "turn_messages", "history_truncated",
+                    "reasonings", "call_cache", "call_counts", "search_queries", "pseudo_call_retried")
+
+
 class AgentLoop:
     def __init__(
         self,
@@ -155,7 +164,16 @@ class AgentLoop:
         images: Optional[List[str]],
         security_mode: str,
         interleaved: bool = False,
+        *,
+        allowed_tools: Optional[Collection[str]] = None,
+        allowed_registries: Optional[List[str]] = None,
+        max_tool_calls: Optional[int] = None,
+        audit: Optional[Dict[str, str]] = None,
+        meta: Optional[Dict[str, Any]] = None,
+        checkpoint_kind: str = "loop",
     ):
+        """`allowed_tools`, `allowed_registries` e `max_tool_calls` restringono il catalogo e i passi della modalità (step
+        delle automazioni). `audit` finisce nelle chiamate ai tool; `meta` serve a chi riprende il loop dopo un'approvazione."""
         self.task = task
         self.mode = mode
         self.memory_context = memory_context
@@ -169,7 +187,13 @@ class AgentLoop:
 
         self.policy = get_mode_policy(mode)
         self.manager = get_registry_manager()
-        self.available_tools = self.manager.get_tools_for_mode(self.policy.allowed_registries)
+        self.allowed_registries = allowed_registries if allowed_registries is not None else self.policy.allowed_registries
+        self.allowed_tools = set(allowed_tools) if allowed_tools is not None else None
+        self.max_tool_calls = self.policy.max_tool_calls if max_tool_calls is None else min(max_tool_calls, self.policy.max_tool_calls)
+        self.audit = audit or {}
+        self.meta = meta or {}
+        self.checkpoint_kind = checkpoint_kind
+        self.available_tools = [t for t in self.manager.get_tools_for_mode(self.allowed_registries) if self._tool_allowed(t["name"])]
         self.prefetch_block = ""
         if web_prefetch_data and web_prefetch_data.get("summary_text"):
             self.prefetch_block = wrap_untrusted_web_evidence(
@@ -191,6 +215,69 @@ class AgentLoop:
         self.call_counts: Dict[str, int] = {}
         self.search_queries: List[str] = []
         self.pseudo_call_retried = False
+        self.pending: Optional[Dict[str, Any]] = None
+
+    def _tool_allowed(self, tool_name: str) -> bool:
+        return self.allowed_tools is None or tool_name in self.allowed_tools
+
+    # --- sospensione e ripresa ------------------------------------------------
+
+    def checkpoint(self, pending: Dict[str, Any]) -> Dict[str, Any]:
+        """Stato del loop sospeso sulla chiamata `pending`, serializzabile in JSON."""
+        return {
+            "pending": pending,
+            "constructor": {
+                "task": self.task, "mode": self.mode, "memory_context": self.memory_context, "thread_id": self.thread_id,
+                "images": self.images, "security_mode": self.security_mode, "interleaved": self.interleaved,
+                "allowed_tools": sorted(self.allowed_tools) if self.allowed_tools is not None else None,
+                "allowed_registries": self.allowed_registries, "max_tool_calls": self.max_tool_calls,
+                "audit": self.audit, "meta": self.meta, "checkpoint_kind": self.checkpoint_kind,
+            },
+            "progress": {name: getattr(self, name) for name in _PROGRESS_FIELDS},
+        }
+
+    @classmethod
+    def restore(cls, state: Dict[str, Any], call_llm_fn: Optional[Callable[..., Any]],
+                call_llm_structured_fn: Optional[Callable[..., Any]]) -> "AgentLoop":
+        args = dict(state["constructor"])
+        positional = [args.pop(name) for name in ("task", "mode", "memory_context")]
+        loop = cls(*positional, call_llm_fn, call_llm_structured_fn, args.pop("thread_id"), None, args.pop("images"),
+                   args.pop("security_mode"), args.pop("interleaved"), **args)
+        for name, value in state["progress"].items():
+            setattr(loop, name, value)
+        loop.reasonings = [tuple(r) for r in loop.reasonings]
+        loop.pending = state["pending"]
+        return loop
+
+    def resume(self, request_id: str, approved: bool) -> Dict[str, Any]:
+        """Riprende dopo la decisione sulla richiesta: il tool approvato è il risultato del passo in attesa, un rifiuto
+        lo è altrettanto; poi il loop continua dal passo successivo."""
+        step_id, tool_name = self.pending["step_id"], self.pending["tool_name"]
+        arguments, reasoning = self.pending["arguments"], self.pending["reasoning"]
+        if self.execution_trace and self.execution_trace[-1].get("approval_required"):
+            self.execution_trace.pop()
+
+        if approved:
+            res = self._execute_approved(step_id, request_id, tool_name, arguments)
+            if isinstance(res, dict) and res.get("approval_required"):
+                return self._approval_result(step_id, tool_name, arguments, res, reasoning)
+            self._record(step_id, tool_name, arguments, res, reasoning, False)
+        else:
+            logger.info(f"Step {step_id}: l'utente ha rifiutato '{tool_name}'")
+            self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "reasoning": reasoning,
+                                         "result": {"denied": True}, "error": "Rifiutato dall'utente"})
+            self._note(f"Step {step_id}: the user DENIED the call to '{tool_name}' with arguments {arguments}: it was not executed. "
+                       "Do not try it again. Continue without it if you can, otherwise tell the user what is done and what is missing.")
+        return self._react_guarded(step_id + 1)
+
+    def _execute_approved(self, step_id: int, request_id: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        request = approvals.approved_request_for(request_id, tool_name, arguments, self.thread_id, self.mode)
+        try:
+            return self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, mode=self.mode,
+                                             security_mode=self.security_mode, task=self.task, approved_request=request, **self.audit)
+        except Exception as e:
+            logger.error(f"Step {step_id}: eccezione esecuzione tool approvato '{tool_name}': {e}")
+            return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}
 
     # --- risultato ------------------------------------------------------------
 
@@ -258,18 +345,22 @@ class AgentLoop:
                 "reasoning_content": f"Elenco dinamico generato con successo per i {len(self.available_tools)} tool attivi.",
             }
 
-        if self.policy.max_tool_calls <= 0 or not self.available_tools:
+        if self.max_tool_calls <= 0 or not self.available_tools:
             return self._answer_without_tools()
 
         if not self.call_llm_structured_fn:
             return self._plain_answer()
 
+        return self._react_guarded()
+
+    def _react_guarded(self, first_step: int = 1) -> Dict[str, Any]:
         try:
-            return self._react()
+            return self._react(first_step)
         except LLMUnavailableError as e:
             # Nessun altro tentativo: il server è occupato o fermo e una nuova richiesta si accoderebbe
             logger.error(f"Agent loop interrotto: il modello non ha completato la richiesta ({e})")
-            return self._result(f"Il modello non ha completato la richiesta ({e}). Riprova tra poco o scegli un modello più leggero.")
+            return {**self._result(f"Il modello non ha completato la richiesta ({e}). Riprova tra poco o scegli un modello più leggero."),
+                    "llm_unavailable": True}
 
     def _selection_system_prompt(self) -> str:
         return prompts.tool_selection_system_prompt(self.mode, format_catalog_for_prompt(self.available_tools))
@@ -278,9 +369,9 @@ class AgentLoop:
         """Prima scelta del modello sul catalogo della modalità, senza eseguire nulla (valutazione dei modelli)."""
         return self._select_tool(1, self._selection_system_prompt())
 
-    def _react(self) -> Dict[str, Any]:
+    def _react(self, first_step: int = 1) -> Dict[str, Any]:
         system_prompt = self._selection_system_prompt()
-        for step_id in range(1, self.policy.max_tool_calls + 1):
+        for step_id in range(first_step, self.max_tool_calls + 1):
             if self._session_stopped():
                 break
 
@@ -296,6 +387,9 @@ class AgentLoop:
                 continue
 
             tool_name, arguments = selection.tool_name, selection.arguments or {}
+            if not self._tool_allowed(tool_name):
+                self._reject_tool(step_id, tool_name, arguments, selection.reasoning)
+                continue
             if not self._arguments_valid(step_id, tool_name, arguments, selection.reasoning):
                 continue
             if self._is_repetition(step_id, tool_name, arguments, selection.reasoning):
@@ -429,13 +523,14 @@ class AgentLoop:
     def _run_parallel(self, step_id: int, selection: ToolSelection) -> bool:
         """Esegue in parallelo le chiamate read-only proposte; False se non ce ne sono almeno due."""
         calls = [c for c in (selection.parallel_calls or [])
-                 if isinstance(c, dict) and c.get("tool_name") and policy.classify_tool(c["tool_name"]) == "safe"]
+                 if isinstance(c, dict) and c.get("tool_name") and policy.classify_tool(c["tool_name"]) == "safe"
+                 and self._tool_allowed(c["tool_name"])]
         if len(selection.parallel_calls or []) <= 1 or len(calls) <= 1:
             return False
 
         logger.info(f"Step {step_id}: esecuzione parallela di {len(calls)} tool read-only")
         results = self.manager.execute_tools_parallel(
-            calls, self.policy.allowed_registries, thread_id=self.thread_id, mode=self.mode, security_mode=self.security_mode,
+            calls, self.allowed_registries, thread_id=self.thread_id, mode=self.mode, security_mode=self.security_mode,
         )
         for i, (call, res) in enumerate(zip(calls, results, strict=True)):
             tool_name, arguments = call["tool_name"], call.get("arguments", {})
@@ -455,6 +550,12 @@ class AgentLoop:
             self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
             self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res)
         return True
+
+    def _reject_tool(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> None:
+        logger.warning(f"Step {step_id}: tool '{tool_name}' fuori dall'allowlist")
+        self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "reasoning": reasoning,
+                                     "error": "Tool non consentito"})
+        self._note(f"Step {step_id}: '{tool_name}' is not allowed here: use only tools from the catalog.")
 
     def _arguments_valid(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
         error = validate_tool_args(tool_name, arguments, self.available_tools)
@@ -500,8 +601,8 @@ class AgentLoop:
             logger.info(f"Step {step_id}: hit cache deduplicazione per '{tool_name}'")
             return self.call_cache[cache_key], True
         try:
-            res = self.manager.execute_tool(tool_name, arguments, self.policy.allowed_registries, thread_id=self.thread_id,
-                                            mode=self.mode, security_mode=self.security_mode, task=self.task)
+            res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id,
+                                            mode=self.mode, security_mode=self.security_mode, task=self.task, **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
@@ -511,7 +612,7 @@ class AgentLoop:
 
     def _approval_result(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Dict[str, Any],
                          reasoning: Optional[str]) -> Dict[str, Any]:
-        """Il guardrail chiede conferma: notifica la UI e chiude il turno in attesa della decisione."""
+        """Il guardrail chiede conferma: salva lo stato del loop, notifica la UI e sospende il turno in attesa della decisione."""
         logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita ({res.get('risk_reason')}).")
         message = res.get("message", "Richiesta di approvazione richiesta.")
         approval = {
@@ -520,6 +621,9 @@ class AgentLoop:
             "command_prefix": res.get("command_prefix"),
             "risk_reason": res.get("risk_reason"),
         }
+        if approval["request_id"]:
+            turn_checkpoints.save(approval["request_id"], self.checkpoint_kind, self.checkpoint(
+                {"step_id": step_id, "tool_name": tool_name, "arguments": arguments, "reasoning": reasoning}))
         q = stream_queue.get()
         if q:
             q.put({"type": "approval_required", "tool_name": tool_name, "arguments": arguments, "message": message, **approval})
@@ -559,11 +663,12 @@ def run_agent_loop(
     images: Optional[List[str]] = None,
     security_mode: str = "normal",
     interleaved: bool = False,
+    **restrictions: Any,
 ) -> Dict[str, Any]:
     """Esegue il loop ReAct secondo la ModePolicy della modalità.
 
     Con max_tool_calls == 0 (es. chat) risponde direttamente; altrimenti cicla Reason -> Act -> Observe
-    fino a una risposta finale o al limite di passi.
+    fino a una risposta finale o al limite di passi. `restrictions`: gli argomenti solo per nome di `AgentLoop`.
     """
     return AgentLoop(task, mode, memory_context, call_llm_fn, call_llm_structured_fn, thread_id,
-                     web_prefetch_data, images, security_mode, interleaved).run()
+                     web_prefetch_data, images, security_mode, interleaved, **restrictions).run()

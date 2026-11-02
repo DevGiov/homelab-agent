@@ -37,6 +37,9 @@ export interface ResolveApprovalResponse {
   tool_name?: string;
   result?: any;
   message?: string;
+  /** Il turno sospeso riprende in streaming: la UI si aggancia allo stream del thread. */
+  resumed?: boolean;
+  thread_id?: string;
 }
 
 export async function listApprovals(threadId?: string): Promise<ApprovalItem[]> {

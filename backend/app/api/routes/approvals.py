@@ -1,12 +1,14 @@
 """Workflow di approvazione dei tool e permessi concessi."""
 import json
 import logging
+import threading
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.agent.llm_calls import call_llm
+from app.agent.turn_resume import meta_of
 from app.api.deps import verify_api_key
 from app.api.schemas import (
     ResolveApprovalRequest,
@@ -20,6 +22,20 @@ router = APIRouter(tags=["approvals"])
 
 
 # --- Approval workflow (Fase 3.2) ---
+
+def _resolve_for_run(request_id: str, action: str, resolved_by: str) -> Optional[Dict[str, Any]]:
+    """Una richiesta che appartiene a una run di automazione la riprende; None se non è di una run."""
+    from app.automations.db import approvals as approvals_db
+    from app.automations.db import runs as runs_db
+    from app.automations.routes.common import get_runner
+
+    pending = approvals_db.get_automation_approval(request_id)
+    if not pending or not runs_db.get_run(pending["run_id"]):
+        return None
+    threading.Thread(target=get_runner().resume_run, args=(pending["run_id"], request_id, action, resolved_by), daemon=True).start()
+    return {"request_id": request_id, "status": "denied" if action in ("deny", "false", "refuse") else "approved", "action": action,
+            "tool_name": pending["tool_name"], "arguments": pending["arguments"], "run_id": pending["run_id"]}
+
 
 @router.get("/v1/approvals", dependencies=[Depends(verify_api_key)])
 async def list_approvals(thread_id: Optional[str] = None):
@@ -36,17 +52,43 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
     - 'approve_thread': autorizza per l'intera sessione/chat
     - 'approve_always': autorizza in modo permanente (tabella tool_permissions)
     """
+    from app.agent import turn_checkpoints
+    from app.api.agent_runner import start_turn_resume, thread_has_active_turn
     from app.registry.manager import get_registry_manager
     from app.security import approvals
 
     action = req_body.action.lower().strip()
+    denied = action in ("deny", "false", "refuse")
+
+    resumed_run = _resolve_for_run(request_id, action, req_body.resolved_by)
+    if resumed_run is not None:
+        return resumed_run
+
+    checkpoint = turn_checkpoints.load(request_id)
+    if checkpoint and thread_has_active_turn(meta_of(checkpoint)["thread_id"]):
+        raise HTTPException(status_code=409, detail="La chat ha un altro turno in corso: fermalo o aspetta che finisca.")
+
     req = approvals.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
     if req is None:
         raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
     if req.status == "expired":
+        turn_checkpoints.delete(request_id)
         raise HTTPException(status_code=410, detail="Richiesta scaduta")
 
-    if action in ("deny", "false", "refuse"):
+    # Il turno che ha chiesto l'approvazione riprende da dove si era fermato, in streaming
+    if checkpoint:
+        thread_id = start_turn_resume(checkpoint, request_id, not denied)
+        return {
+            "request_id": request_id,
+            "status": "denied" if denied else "approved",
+            "action": action,
+            "tool_name": req.tool_name,
+            "arguments": req.arguments,
+            "resumed": True,
+            "thread_id": thread_id,
+        }
+
+    if denied:
         if req.thread_id:
             thread_store.save_assistant_message(req.thread_id, {
                 "response": f"🛑 **Azione annullata**: L'esecuzione del tool `{req.tool_name}` è stata rifiutata dall'utente.",

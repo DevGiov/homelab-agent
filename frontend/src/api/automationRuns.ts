@@ -125,7 +125,8 @@ export function resolveAutomationApproval(
   action: 'approve' | 'deny',
   resolvedBy: string = 'user'
 ): Promise<any> {
-  return http.post(`${runPath(runId)}/approvals/${approvalId}/resolve`, { action, resolved_by: resolvedBy }, { sync: true });
+  // Il backend riprende la run in background: uno step agentico può durare minuti
+  return http.post(`${runPath(runId)}/approvals/${approvalId}/resolve`, { action, resolved_by: resolvedBy });
 }
 
 export function deleteAutomationApproval(approvalId: string): Promise<{ status: string; deleted: string }> {

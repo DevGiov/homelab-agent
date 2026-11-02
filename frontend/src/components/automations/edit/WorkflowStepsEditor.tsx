@@ -175,6 +175,18 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                 <p className="text-[10px] text-fg-muted mt-1">
                   Usa <code>{'{{steps.<step_id>.output.text}}'}</code> per passare i dati elaborati dagli step precedenti.
                 </p>
+                <label className="flex items-center gap-2 mt-2 text-[11px] text-fg cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={step.tools == null || step.tools.length > 0}
+                    onChange={(e) => update(idx, { ...step, tools: e.target.checked ? null : [] })}
+                    className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-0"
+                  />
+                  Può usare i tool consentiti dall'automazione
+                </label>
+                <p className="text-[10px] text-fg-muted mt-1">
+                  Spento, lo step risponde solo con il testo. Un tool che chiede conferma sospende la run fino alla tua decisione.
+                </p>
               </div>
             ) : (
               <ParametersField value={step.parameters || {}} onChange={(parameters) => update(idx, { ...step, parameters })} />

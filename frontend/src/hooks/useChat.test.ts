@@ -216,3 +216,42 @@ describe('useChat — turni in corso', () => {
     expect(result.current.chatError).toBeNull();
   });
 });
+
+describe('useChat — ripresa dopo un\'approvazione', () => {
+  const approval = { id: 'a1', sender: 'assistant', content: 'Confermi?', timestamp: '10:00', approval_required: true, request_id: 'apr_1' };
+
+  it('il seguito arriva in streaming in un messaggio nuovo e la richiesta resta risolta', async () => {
+    const { requests } = mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () => jsonResponse({ thread_id: THREAD, messages: [approval] }),
+      [`GET /v1/threads/${THREAD}/stream`]: () =>
+        sseResponse([{ type: 'content', delta: 'Fatt' }, finalEvent('Fatto: tutti i passi eseguiti.'), '[DONE]']),
+    });
+    const { result } = await renderChat();
+
+    await act(() => result.current.handleApprovalResolved('approve', { resumed: true, thread_id: THREAD }));
+
+    expect(contents(result.current.currentMessages)).toEqual(['assistant: Confermi?', 'assistant: Fatto: tutti i passi eseguiti.']);
+    expect(result.current.currentMessages[0].id).toBe('a1');
+    expect(requests.some((r) => r.path === `/v1/threads/${THREAD}/stream`)).toBe(true);
+    expect(result.current.isLoadingChat).toBe(false);
+  });
+
+  it('dallo storico, una richiesta seguita da altri messaggi non chiede più conferma', async () => {
+    mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () =>
+        jsonResponse({ thread_id: THREAD, messages: [approval, { id: 'a2', sender: 'assistant', content: 'Fatto.', timestamp: '10:01' }] }),
+    });
+    const { result } = await renderChat();
+    expect(result.current.currentMessages[0].approval_resolved).toBe(true);
+    expect(result.current.currentMessages[1].approval_resolved).toBeUndefined();
+  });
+
+  it('riaprendo il thread durante la ripresa non sovrascrive il messaggio con la richiesta', async () => {
+    mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () => jsonResponse({ thread_id: THREAD, messages: [approval], is_active: true }),
+      [`GET /v1/threads/${THREAD}/stream`]: () => sseResponse([finalEvent('Fatto.'), '[DONE]']),
+    });
+    const { result } = renderHook(() => useChat(THREAD));
+    await waitFor(() => expect(contents(result.current.currentMessages)).toEqual(['assistant: Confermi?', 'assistant: Fatto.']));
+  });
+});

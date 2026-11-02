@@ -9,6 +9,8 @@ export interface StepDef {
   type: StepType;
   action_or_tool?: string | null;
   prompt_template?: string | null;
+  /** Tool di uno step agentico, dentro l'allowlist dell'automazione: null = tutti, [] = nessuno (solo testo). */
+  tools?: string[] | null;
   parameters?: Record<string, any>;
   requires_approval?: boolean;
   timeout_seconds?: number;
@@ -63,6 +65,7 @@ export function stepsFromAutomation(automation: any): StepDef[] {
     type: s.type || 'deterministic_action',
     action_or_tool: s.action_or_tool || null,
     prompt_template: s.prompt_template || null,
+    tools: s.tools ?? null,
     parameters: s.parameters || {},
     requires_approval: Boolean(s.requires_approval),
     timeout_seconds: s.timeout_seconds || 60,
@@ -115,6 +118,7 @@ export function buildAutomation(automation: any, form: AutomationFormState, step
         type: s.type,
         action_or_tool: s.type === 'agentic_task' ? null : s.action_or_tool,
         prompt_template: s.type === 'agentic_task' ? s.prompt_template : null,
+        tools: s.type === 'agentic_task' ? (s.tools ?? null) : null,
         parameters: s.parameters || {},
         requires_approval: s.requires_approval,
         timeout_seconds: s.timeout_seconds,

@@ -117,7 +117,7 @@ def test_provider_chat_records_metrics_and_errors():
 )
 def test_automation_run_status_maps_to_turn_status(tmp_path, run_status, expected):
     runner = AutomationRunner(db_path=str(tmp_path / "automations.db"))
-    runner._execute_steps = lambda run_id: SimpleNamespace(automation_id="auto-x", status=run_status)
+    runner._execute_steps = lambda run_id, resume=None: SimpleNamespace(automation_id="auto-x", status=run_status)
     runner.execute_run("run-obs")
     [row] = turns()
     assert (row["turn_key"], row["source"], row["mode"], row["status"]) == ("run-obs", "automation", "auto-x", expected)

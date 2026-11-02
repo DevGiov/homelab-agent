@@ -110,8 +110,10 @@ def test_agentic_step_uses_the_model_chosen_for_the_automation(choice, loaded, e
                                       workflow=WorkflowSpec(initial_step_id="sintesi", steps=[step]))
     ctx = StepContext(step=step, automation=automation, run=unittest.mock.MagicMock(is_dry_run=False), data={},
                       registry_manager=unittest.mock.MagicMock())
-    with _models(*loaded), unittest.mock.patch.object(agentic, "call_llm", return_value={"content": "Fatto."}) as llm, \
-            unittest.mock.patch("app.agent.agent_loop.get_registry_manager"):
+    with _models(*loaded), unittest.mock.patch.object(agentic.llm_calls, "agent_loop_llm_fns") as fns, \
+            unittest.mock.patch("app.agent.agent_loop.get_registry_manager") as manager:
+        manager.return_value.get_tools_for_mode.return_value = []
+        fns.return_value = {"call_llm_fn": unittest.mock.MagicMock(return_value={"content": "Fatto."}), "call_llm_structured_fn": None}
         outcome = agentic.run(ctx)
-    assert llm.call_args.kwargs["model"] == expected
+    assert fns.call_args.args[1] == expected
     assert outcome["output"] == {"text": "Fatto.", "model": expected}

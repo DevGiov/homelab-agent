@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.automations.db import approvals as approvals_db
@@ -21,6 +21,7 @@ from app.security import permissions
 logger = logging.getLogger("approvals")
 
 APPROVAL_TTL_SECONDS = 300  # 5 minuti di validità
+RUN_APPROVAL_TTL_SECONDS = 24 * 3600  # una run può partire di notte: la decisione arriva quando l'utente c'è
 
 
 @dataclass
@@ -37,6 +38,7 @@ class ApprovalRequest:
     created_at: float = field(default_factory=time.time)
     status: str = "pending"  # pending | approved | denied | expired
     resolved_by: Optional[str] = None
+    ttl_seconds: int = APPROVAL_TTL_SECONDS
 
 
 _APPROVALS: Dict[str, ApprovalRequest] = {}
@@ -71,7 +73,7 @@ def create_approval_request(
     with _approval_lock:
         now = time.time()
         expired = [k for k, v in _APPROVALS.items()
-                   if v.status == "pending" and now - v.created_at > APPROVAL_TTL_SECONDS]
+                   if v.status == "pending" and now - v.created_at > v.ttl_seconds]
         for k in expired:
             _APPROVALS[k].status = "expired"
         _APPROVALS[req.request_id] = req
@@ -100,6 +102,24 @@ def create_approval_request(
 def get_approval_request(request_id: str) -> Optional[ApprovalRequest]:
     with _approval_lock:
         return _APPROVALS.get(request_id)
+
+
+def bind_to_run(request_id: str, run_id: str, step_run_id: str, db_path: Optional[str] = None) -> None:
+    """Lega al passo di una run una richiesta nata dal guardrail, con la scadenza delle run."""
+    with _approval_lock:
+        req = _APPROVALS.get(request_id)
+        if req:
+            req.ttl_seconds = RUN_APPROVAL_TTL_SECONDS
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=RUN_APPROVAL_TTL_SECONDS)).isoformat()
+    if not approvals_db.bind_approval_to_run(request_id, run_id, step_run_id, expires_at, db_path=db_path):
+        logger.warning(f"Richiesta '{request_id}' non trovata: non legata alla run '{run_id}'")
+
+
+def approved_request_for(request_id: str, tool_name: str, arguments: Dict[str, Any], thread_id: Optional[str], mode: Optional[str]) -> ApprovalRequest:
+    """La richiesta già approvata con cui eseguire il tool. Dopo un riavvio può non essere più in memoria: la decisione è
+    comunque presa e registrata."""
+    return get_approval_request(request_id) or ApprovalRequest(
+        request_id=request_id, tool_name=tool_name, arguments=arguments, thread_id=thread_id, mode=mode, status="approved")
 
 
 def approval_response(req: ApprovalRequest, message: str, *, security_mode: Optional[str] = None,
@@ -215,7 +235,7 @@ def resolve_approval(
 
         if not req or req.status != "pending":
             return None
-        if time.time() - req.created_at > APPROVAL_TTL_SECONDS:
+        if time.time() - req.created_at > req.ttl_seconds:
             req.status = "expired"
             try:
                 approvals_db.resolve_automation_approval(request_id, "expired", resolved_by=resolved_by)
@@ -263,7 +283,7 @@ def get_pending_approvals(thread_id: Optional[str] = None) -> List[Dict[str, Any
         for req in _APPROVALS.values():
             if req.status != "pending":
                 continue
-            if now - req.created_at > APPROVAL_TTL_SECONDS:
+            if now - req.created_at > req.ttl_seconds:
                 req.status = "expired"
                 continue
             if thread_id and req.thread_id != thread_id:

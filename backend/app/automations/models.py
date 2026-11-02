@@ -117,6 +117,7 @@ class WorkflowStepDefinition(BaseModel):
     type: StepType
     action_or_tool: Optional[str] = None
     prompt_template: Optional[str] = None
+    tools: Optional[List[str]] = Field(default=None, description="Tool di uno step agentico, dentro l'allowlist dell'automazione: null = tutti, [] = nessuno (solo testo)")
     parameters: Dict[str, Any] = Field(default_factory=dict)
     requires_approval: bool = False
     condition: Optional[str] = None

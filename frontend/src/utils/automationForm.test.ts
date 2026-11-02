@@ -44,6 +44,13 @@ describe('automationForm', () => {
     expect(formFromAutomation({ ...automation, model: 'Qwen3.6-35B' }).model).toBe('Qwen3.6-35B');
   });
 
+  it('i tool di uno step agentico: null = tutti, [] = nessuno, le azioni non ne hanno', () => {
+    const steps = stepsFromAutomation(automation).map((s) => (s.step_id === 'think' ? { ...s, tools: [] } : s));
+    const saved = buildAutomation(automation, formFromAutomation(automation), steps);
+    expect(saved.workflow.steps.map((s: any) => s.tools)).toEqual([null, []]);
+    expect(stepsFromAutomation(automation)[1].tools).toBeNull();
+  });
+
   it('i task agentici salvano il prompt, le azioni il tool', () => {
     const saved = buildAutomation(automation, formFromAutomation(automation), stepsFromAutomation(automation));
     expect(saved.workflow.steps.map((s: any) => [s.step_id, s.action_or_tool, s.prompt_template])).toEqual([

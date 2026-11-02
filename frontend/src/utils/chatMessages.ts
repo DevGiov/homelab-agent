@@ -102,3 +102,8 @@ export function webPrefetchFromEvent(
   }
   return current;
 }
+
+/** Dallo storico: una richiesta di approvazione seguita da altri messaggi è già stata decisa (o è superata). */
+export function markResolvedApprovals(messages: FormattedMessage[]): FormattedMessage[] {
+  return messages.map((m, i) => (m.approval_required && i < messages.length - 1 ? { ...m, approval_resolved: true } : m));
+}
