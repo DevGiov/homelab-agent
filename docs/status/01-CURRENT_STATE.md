@@ -1,15 +1,14 @@
 # 01 — Situazione attuale
 
-Rilevata il 2026-10-26 su `dev` @ `4e9f040`.
+Architettura rilevata il 2026-10-26 e aggiornata per fase; sezioni 1, 4 e 5 e tabella dei modelli aggiornate il 2026-11-02 su `dev` @ `f4c0e54`.
 
 ## 1. Repository
 
 | Voce | Valore |
 | :--- | :--- |
-| Branch attivo | `dev` (100 commit avanti a `main`, mai mergiati) |
-| Modifiche locali non committate | 3 file in `docs/` (correzione percorsi `projects/` e `references/`), `.github/` non tracciato |
-| Dimensione | ~41k righe tra backend (Python) e frontend (TS/TSX), test inclusi |
-| File di test | 34 `test_*.py` nella radice di `backend/` |
+| Branch attivo | `dev`, 89 commit avanti a `main` (ultimo rilascio: `v0.9.0`, 2026-10-26) |
+| Test | 440 backend in `backend/tests/`, 101 frontend |
+| Roadmap | Fasi A, C, E complete; B quasi; D senza D5; in corso F ([04-ROADMAP.md](04-ROADMAP.md)) |
 
 ## 2. Backend (`backend/`)
 
@@ -56,6 +55,19 @@ Database SQLite in `DATA_DIR`: `checkpoints.db` (LangGraph, thread, `audit_log`,
 - **Dimensioni**: nessun file sopra le 500 righe (il più grande è `ParametersModal.tsx`, 492). Impostazioni, gestione calendari, integrazioni, artefatti, modifica automazione e trigger sono cartelle per area (`settings/`, `calendar/manage/`, `automations/{integrations,artifacts,edit,triggers}/`), con la logica pura in `utils/` (`automationForm`, `cronSchedule`, `artifactGroups`).
 - **Build**: passa. Code-splitting (C1): chunk iniziale `index.js` 297 kB più `react` 190 kB (490 kB, 144 kB gzip in tutto; prima 947 kB in un chunk unico da 262 kB gzip). Axios rimosso in C2. Automations, Calendar, Knowledge, Settings e la card delle proposte sono chunk lazy; highlight.js (168 kB) si carica solo se un messaggio contiene un blocco di codice.
 - **Lint (oxlint)**: 0 warning con `--deny-warnings` (A4).
+
+### Stato dei modelli (2026-11-02)
+
+Ultimo risultato di ogni suite per modello. `multistep` con il pensiero tra i passi acceso/spento.
+
+| Modello | `tools` | `planning` | `multistep` | `recall` | `rollback` | `memory` | `routing` |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Qwen3.6-35B | 100% | 100% | 70% / 63% (10 casi, prima di ISS-28) | 85% | 67% | 100% | — |
+| LFM2.5-Fast (`q8_0`) | 82% | 100% | 35% / 42% (20 casi, attivo: spento) | — | — | — | — |
+| LFM2.5-HugeCtx (`turbo2`, vecchio) | 71% | 50% | — | — | 33% | 67% | 71% |
+| Qwen3.8, Gemma 4 | profilo dalle schede, mai misurati | | | | | | |
+
+La matrice completa è il passo G2 della roadmap.
 
 ### Valutazione dei modelli (D4)
 
@@ -120,38 +132,23 @@ I profili degli altri modelli (Qwen3.8, Gemma 4, LFM2.5) vengono dalle schede de
 
 | Voce | Stato |
 | :--- | :--- |
-| Codice | `/opt/homelab-agent` @ `4e9f040`, worktree pulito |
-| Container | `agent-backend` Up (healthy), `agent-frontend` Up, `restart: always` |
-| Health | `GET /v1/health` → `{"status":"ok"}` |
-| Errori nei log (24h) | 1 traceback ricorrente: retention delle automazioni (vedi [ISS-01](02-ISSUES.md#iss-01)) |
+| Codice | `/opt/homelab-agent` @ `f4c0e54` |
+| Container | `agent-backend` (healthy), `agent-frontend`, `restart: always` |
+| Consolidamento | Ogni giorno alle 03:00 Europe/Rome con il modello caricato; verificato il 2026-11-02 |
 | Compose | [docker-compose.prod.yml](../../docker-compose.prod.yml): backend con `./backend:/app:ro`, dati in volume `agent_data` |
 
-## 5. Quality gate (eseguiti in locale)
+## 5. Quality gate
 
-> **Aggiornamento 2026-10-27 (C4)**: frontend con Vitest (`npm test`, anche in `make test` e in CI): 81 test su parser SSE, client HTTP, stream della chat, `useChat` (invio, errori, versioni, modifica del prompt, riaggancio, stop), modalità di sicurezza condivisa e funzioni pure (calendario, messaggi, form delle automazioni, cron, gruppi di artefatti). Backend: 300 test pytest.
-
-> **Aggiornamento 2026-10-26 (dopo A1–A4)**: `pytest` → 244 passati, 0 falliti, 0 warning, ~4 s (test in `backend/tests/`, 4 test `live` esclusi di default). `ruff check` → 0 errori, `oxlint --deny-warnings` → 0 warning, tutti bloccanti in [CI](../../.github/workflows/ci.yml). La tabella sotto è lo stato dell'assessment iniziale.
-
-| Gate | Risultato |
+| Gate | Risultato (2026-10-31) |
 | :--- | :--- |
-| `npm run build` | ✅ passa |
-| `oxlint` | ⚠️ 8 warning |
-| `ruff check` | ❌ 208 errori (120 auto-fixabili), di cui 2 `F821` reali |
-| `pytest` (suite completa) | ❌ non termina (blocco > 10 min) |
-| `pytest` per singolo file | 22 file OK · 4 con fallimenti · 7 bloccati · 1 vuoto |
+| `pytest` | ✅ 440 passati (anche in `backend-test` su CT 125) |
+| `vitest` | ✅ 101 passati |
+| `ruff`, `oxlint`, `npm run build` | ✅ puliti |
+| CI su GitHub | Non verificata: `gh run list` non restituisce esecuzioni per `dev` (da controllare in G1) |
 
-Dettaglio per file:
+## 6. Documentazione
 
-| Esito | File |
-| :--- | :--- |
-| ✅ Passano | anti_loop, api_integration, automations_coding_repair, automations_db, automations_governance, automations_runner, automations_scheduler (60 s), automations_sdk, automations_triggers_v2, automations_v2, calendar, calendar_db, calendar_tool, integrations, memory_rag, model_features, stream_controls, streaming_isolation, stream_session, thread_persistence, visual_web_prefetch, web_prefetch |
-| ❌ Falliscono | guardrails (1), modes_and_registries (1), stream_api (2), tool_safety (1) |
-| ⏳ Bloccati (> 90 s) | conversation_length, dynamic_tool_selection, phase4, rollback, memory_api, router_and_prefetch, automations_api (1 test) |
-| ∅ Nessun test | agent_verification |
-
-## 6. Documentazione esistente
-
-- [README.md](../../README.md) e [backend/README.md](../../backend/README.md): descrizione delle funzionalità, aggiornati a settembre.
-- [ROADMAP.md](../../ROADMAP.md): fasi 0–9, ferma ad agosto (non copre automazioni, calendario e selezione del modello).
-- [docs/automations/](../automations/): architettura, specifica e tracker M0–M9 (segnato 100% completato).
-- [docs/calendar/](../calendar/): architettura e walkthrough.
+- [README.md](../../README.md) e [backend/README.md](../../backend/README.md): funzionalità, configurazione, suite di valutazione, ragionamento, memoria.
+- [docs/status/](.): questo stato, problemi, roadmap. [ROADMAP.md](../../ROADMAP.md) resta come storico delle fasi 0–9.
+- [docs/automations/](../automations/), [docs/calendar/](../calendar/), [docs/memory/](../memory/), [docs/reasoning/](../reasoning/): architetture e ricerche.
+- Infrastruttura (CT 100, llama.cpp, host, incidenti): docs dell'homelab, `docs/` nel workspace.

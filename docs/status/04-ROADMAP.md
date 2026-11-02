@@ -3,9 +3,11 @@
 Sostituisce [ROADMAP.md](../../ROADMAP.md) (fasi 0–9, storico). Le fasi sono sequenziali: ognuna parte quando la precedente ha la CI verde ed è verificata su CT 125.
 
 ```
-A. Consolidamento ──► B. Refactor architetturale ──► C. Frontend ──► D. Nuove funzionalità
-   (fix + test + CI)     (pacchetti, no legacy)        (split, perf)    (MCP dinamici, memoria, …)
+A. Consolidamento ──► B. Refactor ──► C. Frontend ──► D. Funzionalità ──► E. Memoria ──► F. Agente affidabile ──► G. Rilascio e misure
+       ✅                 🟡             ✅             ✅ (D5 solo se serve)   ✅            ⏳ in corso            da fare
 ```
+
+Stato al 2026-11-02: fuori dalla roadmap sono stati fatti anche la correzione di [ISS-28](02-ISSUES.md#iss-28), la selezione del modello caricato nelle chat, la scelta del modello nelle automazioni (default, caricato al momento, preciso) e la programmazione del consolidamento dalla UI (orario e modello). Le attività su host e CT 100 stanno nel backlog infrastrutturale delle docs dell'homelab (`docs/infrastructure-backlog.md`).
 
 ## Fase A — Consolidamento
 
@@ -82,6 +84,28 @@ Dalla [ricerca sulla memoria degli agenti](../memory/MEMORY_RESEARCH.md): una po
 | E6 | ~~**Consolidamento notturno**: estrazione dei fatti in blocco al posto di quella a ogni turno, deduplicazione, validità temporale dei fatti~~ ✅ 2026-10-29 (`recall` 100% su 13 casi, `memory` 100%; turno senza chiamata di estrazione) | `memory`, `recall` | E2 |
 | E7 | ~~**Budget di ragionamento per modello**: i valori per modalità dipendono dal modello (alcuni non ragionano, altri ne hanno bisogno per i tool). Ricerca: [REASONING_RESEARCH.md](../reasoning/REASONING_RESEARCH.md)~~ ✅ 2026-10-29 (profili per modello e livelli per fase; Qwen3.6: `tools` 100%, `planning` 100%; matrice sugli altri modelli da fare) | tutte le suite | D4 |
 | E8 | ~~**Pensiero tra i passi dell'agent loop**: piano testuale passato al piano strutturato, suite `multistep`, loop a messaggi con il pensiero dei passi precedenti dietro un interruttore per profilo. Ricerca: [INTERLEAVED_THINKING.md](../reasoning/INTERLEAVED_THINKING.md)~~ ✅ 2026-10-30 (Qwen3.6 `multistep` 70% contro 63% senza, −38% di token generati, più chiamate che eseguono comandi; `tools` e `planning` 100%) | `multistep`, `tools`, `planning` | E7 |
+
+## Fase F — Agente affidabile
+
+Obiettivo: un compito con tool e approvazioni arriva in fondo, in chat, nei piani e nelle automazioni.
+
+| # | Passo | Issue | Misura |
+| :--- | :--- | :--- | :--- |
+| F1 | **Stato del loop salvato**: alla richiesta di approvazione il loop salva il suo stato e riprende da lì, approvata o rifiutata; in chat la ripresa è in streaming | [ISS-30](02-ISSUES.md#iss-30) | test, prova live |
+| F2 | **Piani sospesi**: un'approvazione sospende il piano senza rollback, che riparte dal passo in attesa | [ISS-31](02-ISSUES.md#iss-31) | test, `planning` |
+| F3 | **Step agentici con i tool**: agent loop vero con allowlist, registry e budget dell'automazione; approvazioni dentro lo step | [ISS-29](02-ISSUES.md#iss-29) | test, prova live |
+| F4 | **Run che riprendono**: l'approvazione esegue il tool in attesa e la run continua; richieste legate alla run, con la sua scadenza | [ISS-32](02-ISSUES.md#iss-32) | test, prova live |
+
+## Fase G — Rilascio e misure
+
+| # | Passo | Note |
+| :--- | :--- | :--- |
+| G1 | **Rilascio `dev` → `main`** con un nuovo tag (89 commit dopo `v0.9.0`), verificando la CI | Dopo F |
+| G2 | **Matrice dei modelli**: tutte le suite su Qwen3.8 e Gemma 4, `multistep` a 20 casi su Qwen3.6, le suite vecchie di LFM2.5-Fast | Con Purpur spento (circa 4 ore a modello). Verifica anche ISS-28 sui report |
+| G3 | **Criterio di uscita della fase B**: funzioni sopra le 100 righe ([ISS-09](02-ISSUES.md#iss-09)), a partire da `normalize_proposal` | Le altre quando si toccano quei file |
+| G4 | **`confirm()` nativi** rimasti: migrazione a `ConfirmDialog` | Da contare: la vista Memoria è già migrata |
+
+**Rimandati**: revisione di ProxmoxMcp ([ISS-27](02-ISSUES.md#iss-27), tool composti) e tool calling nativo (opzione D di [INTERLEAVED_THINKING.md](../reasoning/INTERLEAVED_THINKING.md)), da decidere insieme dopo G2.
 
 ## Storico
 

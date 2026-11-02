@@ -12,7 +12,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-06](#iss-06) | CI non versionata e troppo permissiva | S2 | CI | ✅ Risolto (A4) |
 | [ISS-07](#iss-07) | Ambiente locale rotto dopo lo spostamento in `projects/` | S2 | dev env | ✅ Risolto (`b20e63b`) |
 | [ISS-08](#iss-08) | 208 errori ruff | S3 | backend | ✅ Risolto (A4) |
-| [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | Aperto |
+| [ISS-09](#iss-09) | Moduli monolitici, backend non strutturato a pacchetti | S3 | architettura | 🟡 Pacchetti fatti, restano funzioni lunghe |
 | [ISS-10](#iss-10) | Fallback MCP legacy e shim di retrocompatibilità | S3 | backend | ✅ Risolto (B4, B5) |
 | [ISS-11](#iss-11) | Bundle frontend unico da 947 kB | S3 | frontend | ✅ Risolto (Fase C) |
 | [ISS-12](#iss-12) | Warning oxlint (hook deps, catch inutilizzati) | S4 | frontend | ✅ Risolto (A4) |
@@ -29,9 +29,13 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-23](#iss-23) | Il router chiama l'LLM con `requests` diretto, scavalcando i provider | S3 | backend/router | ✅ Risolto in B8 |
 | [ISS-24](#iss-24) | Letta non in esecuzione su CT 102: niente memoria archivistica né summary persistenti | S2 | infra/memoria | ✅ Risolto (Letta rimosso, E1) |
 | [ISS-25](#iss-25) | Recupero dei thread dai checkpoint a ogni apertura; `verify_api_key` triplicata | S3 | backend | ✅ Risolto (B10) |
-| [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | 🟡 Backend risolto, infra aperta |
+| [ISS-26](#iss-26) | Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite | S2 | backend/agent, infra LLM | ✅ Risolto (backend 2026-10-27, cache di LFM2.5 2026-10-31) |
 | [ISS-27](#iss-27) | Eval `planning/new-service` e `rollback/ip-only` da rivedere insieme a ProxmoxMcp | S3 | evals, ProxmoxMcp | Rimandato |
 | [ISS-28](#iss-28) | La selezione dei tool a volte mette chiamate inventate in `final_answer`, che il loop mostra come risposta | S2 | agent loop | ✅ Risolto 2026-10-31 |
+| [ISS-29](#iss-29) | Gli step agentici delle automazioni non usano mai i tool | S1 | automazioni | Aperto |
+| [ISS-30](#iss-30) | In chat il loop non riprende dopo un'approvazione | S1 | agent loop | Aperto |
+| [ISS-31](#iss-31) | Nei piani un'approvazione è trattata come un errore e annulla i passi fatti | S1 | agente/piani | Aperto |
+| [ISS-32](#iss-32) | Nelle run l'approvazione non esegue il tool, o lascia la run ferma | S1 | automazioni | Aperto |
 
 ---
 
@@ -104,6 +108,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 ## ISS-09
 **Moduli monolitici, backend non strutturato a pacchetti** — S3
 
+- **Stato (2026-11-02)**: la struttura a pacchetti è fatta (fase B). Resta il criterio di uscita "nessuna funzione sopra ~100 righe": 18 funzioni lo superano. Alcune sono schemi statici (`get_tools` dei registry, `init_automations_db`); quelle con logica sono `normalize_proposal` (327 righe), `route_turn` (196), `run_script` (182), `execute_search` (171), `run_agent_flow_stream` (150). Si dividono quando si toccano quei file.
 - File oltre le 1000 righe: [graph.py](../../backend/app/agent/graph.py) (1730), `automations/db.py` (1315), [api.py](../../backend/app/api/) (1202).
 - Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
 - La ristrutturazione a pacchetti (Fase 1.5 della vecchia roadmap) era stata rinviata per non rompere CT 112, ora dismesso: il vincolo non esiste più.
@@ -250,6 +255,7 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 ## ISS-26
 **Agent loop lento sui modelli locali: prompt non riusabile dalla cache di llama.cpp e osservazioni senza limite** — S2
 
+- **Parte infra risolta (2026-10-31)**: la lentezza residua di LFM2.5 veniva dalle cache `turbo` con head dim 64, che mandavano la flash attention sulla CPU. I preset LFM2.5 ora usano `q8_0` (circa 105 token/s in generazione, 1100 sul prompt). Dettagli nelle docs dell'homelab: `docs/services/llama-cpp/README.md`.
 - **Evidenza (prova live B12, 2026-10-27, LFM2.5-24B-A2B-HugeCtx)**: "elenca i container LXC" in act. Passo 1: prompt di 7.928 token, 77 s di prompt eval (~100 token/s). `list_containers` restituisce il JSON completo di ~50 container; il passo 2 ha un prompt di ~17.000 token, elaborato a velocità decrescente (da ~400 a 57 token/s) finché il provider va in timeout, ritenta da capo e llama.cpp continua a elaborare la richiesta abbandonata. Il turno non si chiude in 10 minuti.
 - **Cause lato backend**:
   - [agent_prompts.py](../../backend/app/agent/agent_prompts.py) apre ogni system prompt con data e ora al secondo: il prefisso cambia a ogni chiamata e la prompt cache di llama.cpp non viene mai riusata, quindi ogni passo rielabora da zero catalogo, regole e storico.
@@ -283,3 +289,25 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
   - La seconda volta il testo viene scartato e la risposta passa dalla sintesi o dalla risposta diretta.
   - Il caso resta nei log come warning.
 
+## ISS-29
+**Gli step agentici delle automazioni non usano mai i tool** — S1
+
+- **Evidenza**: [agentic.py](../../backend/app/automations/steps/agentic.py) chiama l'agent loop con `call_llm_structured_fn=None`, e senza output strutturato il loop passa a `_plain_answer`: una sola risposta di testo. La documentazione dice "catalogo tool ristretto", e il template `daily_email_briefing` chiede di usare `email_create_draft`: quella chiamata non può avvenire.
+- **Limiti collegati**: il loop non conosce `allowed_tools` e `allowed_registries` dell'automazione, né `budget.max_tool_calls`; una richiesta di approvazione dentro lo step non è gestita.
+
+## ISS-30
+**In chat il loop non riprende dopo un'approvazione** — S1
+
+- **Evidenza**: `_approval_result` in [agent_loop.py](../../backend/app/agent/agent_loop.py) chiude il turno. [approvals.py](../../backend/app/api/routes/approvals.py) esegue il tool e scrive una sintesi di quel solo risultato: i passi successivi del compito e lo stato del loop (osservazioni, pensiero, anti-loop) si perdono. Un rifiuto termina il turno con un messaggio fisso, anche se il modello aveva già risultati da riferire.
+
+## ISS-31
+**Nei piani un'approvazione è trattata come un errore e annulla i passi fatti** — S1
+
+- **Evidenza**: in `execute_plan` ([execution_log.py](../../backend/app/agent/execution_log.py)) `approval_required` imposta `has_error=True`: il piano si ferma e parte il rollback dei passi già eseguiti, mentre la richiesta di approvazione resta pendente. Approvarla esegue un tool isolato, fuori dal piano e dopo il rollback.
+
+## ISS-32
+**Nelle run l'approvazione non esegue il tool, o lascia la run ferma** — S1
+
+- **Step con `requires_approval` e un tool**: `resume_run` in [runner.py](../../backend/app/automations/runner.py) segna lo step completato con `{"approval": "granted"}` e passa al successivo. Il tool non viene mai eseguito, e gli step dopo ricevono quell'output.
+- **Tool che chiede conferma al guardrail**: la richiesta nasce con `run_id` uguale al thread o a `chat_session`, quindi la route la tratta come approvazione di chat: il tool viene eseguito, ma la run resta in `waiting_approval` per sempre. La scadenza è di 5 minuti anche per le run programmate di notte.
+- **Route asincrona** (`sync=false`): risolve la richiesta e rilancia `execute_run`, che riesegue lo step in attesa e crea una nuova approvazione.
