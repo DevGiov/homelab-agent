@@ -192,7 +192,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       {/* Popover Dropdown Menu */}
       {isOpen && (
-        <div className="absolute bottom-full mb-1.5 left-0 z-50 w-72 sm:w-84 max-h-96 glass-panel border border-border/80 shadow-2xl rounded-xl p-2 flex flex-col backdrop-blur-xl bg-panel/95 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute bottom-full mb-1.5 left-0 z-50 w-80 sm:w-[28rem] max-h-96 glass-panel border border-border/80 shadow-2xl rounded-xl p-2 flex flex-col backdrop-blur-xl bg-panel/95 animate-in fade-in zoom-in-95 duration-100">
           {/* Search Header */}
           <div className="relative mb-2 shrink-0">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />
@@ -333,7 +333,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               title={m.availability_note ?? 'Modello non disponibile'}
             >
               <Ban size={9} />
-              <span>Non disponibile</span>
+              <span>Bloccato</span>
             </span>
           )}
           {m.would_block && (
@@ -342,7 +342,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               title={m.availability_note ?? 'Sconsigliato ora'}
             >
               <AlertTriangle size={9} />
-              <span>Usa la RAM</span>
+              <span>Usa RAM</span>
             </span>
           )}
 
