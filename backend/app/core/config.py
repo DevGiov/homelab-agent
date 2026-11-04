@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     default_model: str = Field(default="Qwen3.6-35B-HugeCtx", alias="DEFAULT_MODEL")
     llama_cpp_url: str = Field(default="http://192.168.1.159:8080/v1", alias="LLAMA_CPP_URL")
     ollama_url: str = Field(default="", alias="OLLAMA_URL")
+    # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato
+    watchdog_url: str = Field(default="http://192.168.1.197:8080", alias="WATCHDOG_URL")
 
     # --- Storage ---
     # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).

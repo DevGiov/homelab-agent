@@ -8,6 +8,8 @@ import {
   ChevronDown,
   Loader2,
   Cpu,
+  AlertTriangle,
+  Ban,
 } from 'lucide-react';
 import { type ModelDetail, loadModel } from '../api/providers';
 
@@ -107,6 +109,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   };
 
   const handleSelect = async (modelId: string) => {
+    if (modelDetails.find((m) => m.id === modelId)?.available === false) return;
     onSelectModel(modelId);
     setIsOpen(false);
 
@@ -131,6 +134,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const currentDetail = modelDetails.find((m) => m.id === selectedModel);
   const isCurrentLoaded = Boolean(currentDetail?.is_loaded);
   const isCurrentLoading = Boolean(currentDetail?.is_loading || loadingModels.includes(selectedModel));
+  const isCurrentBlocked = currentDetail?.available === false;
 
   // Filter models based on search term
   const query = search.trim().toLowerCase();
@@ -167,6 +171,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] shrink-0"
             title="Caricato in VRAM"
           />
+        )}
+
+        {/* Il modello scelto è stato bloccato dopo la selezione: la prossima richiesta fallirebbe */}
+        {isCurrentBlocked && (
+          <span title={currentDetail?.availability_note ?? 'Modello non disponibile'} className="shrink-0">
+            <Ban size={11} className="text-red-400" aria-label="Modello non disponibile" />
+          </span>
         )}
 
         {/* Loading spinner with percentage */}
@@ -254,12 +265,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const isFav = favorites.includes(m.id);
     const inVram = Boolean(m.is_loaded);
     const isLoading = Boolean(m.is_loading || loadingModels.includes(m.id));
+    const isBlocked = m.available === false;
 
     return (
       <div
         key={m.id}
         onClick={() => handleSelect(m.id)}
-        className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition ${
+        aria-disabled={isBlocked}
+        title={m.availability_note ?? undefined}
+        className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg transition ${
+          isBlocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+        } ${
           isSelected
             ? 'bg-accent/15 border border-accent/40 text-fg'
             : inVram
@@ -307,6 +323,26 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             >
               <Loader2 size={9} className="animate-spin text-amber-400" />
               <span>Caricamento...</span>
+            </span>
+          )}
+
+          {/* Disponibilità secondo il watchdog */}
+          {isBlocked && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1"
+              title={m.availability_note ?? 'Modello non disponibile'}
+            >
+              <Ban size={9} />
+              <span>Non disponibile</span>
+            </span>
+          )}
+          {m.would_block && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"
+              title={m.availability_note ?? 'Sconsigliato ora'}
+            >
+              <AlertTriangle size={9} />
+              <span>Usa la RAM</span>
             </span>
           )}
 

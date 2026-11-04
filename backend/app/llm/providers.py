@@ -16,6 +16,7 @@ import httpx
 
 from app.agent.stream_session import current_session_var
 from app.core.config import settings
+from app.llm.model_availability import availability_fields, unavailable_reason
 from app.llm.reasoning import Reasoning, resolve
 from app.observability.turns import record_llm_call
 
@@ -215,6 +216,9 @@ class OpenAICompatProvider(LLMProvider):
         Non serve attenderla: chiusa la connessione il caricamento prosegue. Solo se la GPU sta servendo un altro
         modello la richiesta è ancora in coda e decade con la connessione; la chat successiva si accoda comunque.
         """
+        reason = unavailable_reason(model)
+        if reason:
+            return {"status": "error", "code": 409, "detail": reason}
         url = f"{server_root(self.base_url)}/upstream/{quote(model, safe='')}/health"
         try:
             with httpx.Client(timeout=httpx.Timeout(LOAD_REQUEST_WAIT, connect=5.0)) as client:
@@ -277,6 +281,10 @@ class OpenAICompatProvider(LLMProvider):
         e se il client si disconnette il server lo vede al batch successivo e libera lo slot.
         """
         effective_model = model or self.default_model
+        # llama-swap risponderebbe con un 404 generico: qui il motivo arriva fino all'utente
+        reason = unavailable_reason(effective_model)
+        if reason:
+            return _failed(reason)
         self.ensure_model_loaded(effective_model)
         payload = self._build_payload(messages, model, max_tokens, reasoning, json_mode=json_mode,
                                       json_schema=json_schema)
@@ -424,6 +432,7 @@ class OpenAICompatProvider(LLMProvider):
                         "status": status_val,
                         "is_loaded": (status_val == "loaded"),
                         "is_loading": (status_val == "loading"),
+                        **availability_fields(m_id),
                     })
                 if details:
                     return details

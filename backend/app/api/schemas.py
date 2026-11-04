@@ -92,6 +92,11 @@ class ModelDetail(BaseModel):
     status: Optional[str] = None
     is_loaded: bool = False
     is_loading: bool = False
+    # Dal watchdog delle risorse. would_block: in simulazione, il modello sarebbe bloccato
+    available: bool = True
+    would_block: bool = False
+    availability_note: Optional[str] = None
+    memory_class: Optional[str] = None
 
 
 class LoadModelRequest(BaseModel):

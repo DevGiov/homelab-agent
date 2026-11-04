@@ -21,6 +21,10 @@ export interface ModelDetail {
   is_loaded?: boolean;
   is_loading?: boolean;
   load_progress?: number;
+  available?: boolean;
+  would_block?: boolean;
+  availability_note?: string | null;
+  memory_class?: string | null;
 }
 
 interface ProviderModelsResponse {
