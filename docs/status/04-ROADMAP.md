@@ -4,7 +4,7 @@ Sostituisce [ROADMAP.md](../../ROADMAP.md) (fasi 0–9, storico). Le fasi sono s
 
 ```
 A. Consolidamento ──► B. Refactor ──► C. Frontend ──► D. Funzionalità ──► E. Memoria ──► F. Agente affidabile ──► G. Rilascio e misure
-       ✅                 🟡             ✅             ✅ (D5 solo se serve)   ✅            ✅                    da fare
+       ✅                 🟡             ✅             ✅ (D5 solo se serve)   ✅            ✅                    🟡 (G1 ✅)
 ```
 
 Stato al 2026-11-02: fuori dalla roadmap sono stati fatti anche la correzione di [ISS-28](02-ISSUES.md#iss-28), la selezione del modello caricato nelle chat, la scelta del modello nelle automazioni (default, caricato al momento, preciso) e la programmazione del consolidamento dalla UI (orario e modello). Le attività su host e CT 100 stanno nel backlog infrastrutturale delle docs dell'homelab (`docs/infrastructure-backlog.md`).
@@ -102,7 +102,7 @@ Verificata il 2026-11-02 con prove reali su CT 125 (Qwen3.8-27B-Atomic-Vision-64
 
 | # | Passo | Note |
 | :--- | :--- | :--- |
-| G1 | **Rilascio `dev` → `main`** con un nuovo tag (89 commit dopo `v0.9.0`), verificando la CI | Dopo F |
+| G1 | ~~**Rilascio `dev` → `main`** con un nuovo tag, verificando la CI~~ ✅ 2026-11-11 (`v0.10.0`, 98 commit dopo `v0.9.0`, fast-forward; CI verde; in più: `make test` non dipende più dalla cache in `/tmp`) | Dopo F |
 | G2 | **Matrice dei modelli**: tutte le suite su Qwen3.8 e Gemma 4, `multistep` a 20 casi su Qwen3.6, le suite vecchie di LFM2.5-Fast | Con Purpur spento (circa 4 ore a modello). Verifica anche ISS-28 sui report |
 | G3 | **Criterio di uscita della fase B**: funzioni sopra le 100 righe ([ISS-09](02-ISSUES.md#iss-09)), a partire da `normalize_proposal` | Le altre quando si toccano quei file |
 | G4 | **`confirm()` nativi** rimasti: migrazione a `ConfirmDialog` | Da contare: la vista Memoria è già migrata |

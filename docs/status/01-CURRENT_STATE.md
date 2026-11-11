@@ -1,14 +1,14 @@
 # 01 — Situazione attuale
 
-Architettura rilevata il 2026-10-26 e aggiornata per fase; sezioni 1, 4 e 5 e tabella dei modelli aggiornate il 2026-11-02 su `dev` @ `f4c0e54`.
+Architettura rilevata il 2026-10-26 e aggiornata per fase; tabella dei modelli aggiornata il 2026-11-02; sezioni 1, 4 e 5 aggiornate il 2026-11-11 al rilascio `v0.10.0`.
 
 ## 1. Repository
 
 | Voce | Valore |
 | :--- | :--- |
-| Branch attivo | `dev`, 89 commit avanti a `main` (ultimo rilascio: `v0.9.0`, 2026-10-26) |
-| Test | 464 backend in `backend/tests/`, 105 frontend |
-| Roadmap | Fasi A, C, E, F complete; B quasi; D senza D5; prossima G ([04-ROADMAP.md](04-ROADMAP.md)) |
+| Branch attivo | `dev`, allineato a `main` al rilascio `v0.10.0` (2026-11-11); rilascio precedente `v0.9.0` (2026-10-26) |
+| Test | 481 backend in `backend/tests/`, 105 frontend |
+| Roadmap | Fasi A, C, E, F complete; B quasi; D senza D5; G1 fatto, restano G2-G4 ([04-ROADMAP.md](04-ROADMAP.md)) |
 
 ## 2. Backend (`backend/`)
 
@@ -132,19 +132,20 @@ I profili degli altri modelli (Qwen3.8, Gemma 4, LFM2.5) vengono dalle schede de
 
 | Voce | Stato |
 | :--- | :--- |
-| Codice | `/opt/homelab-agent` @ `f4c0e54` |
+| Codice | `/opt/homelab-agent` @ `d5052fa` su `dev`, verificato il 2026-11-11 (`/v1/health` → `ok`). I commit del rilascio successivi toccano solo `Makefile` e documenti |
 | Container | `agent-backend` (healthy), `agent-frontend`, `restart: always` |
 | Consolidamento | Ogni giorno alle 03:00 Europe/Rome con il modello caricato; verificato il 2026-11-02 |
 | Compose | [docker-compose.prod.yml](../../docker-compose.prod.yml): backend con `./backend:/app:ro`, dati in volume `agent_data` |
 
 ## 5. Quality gate
 
-| Gate | Risultato (2026-11-02) |
+| Gate | Risultato (2026-11-11) |
 | :--- | :--- |
-| `pytest` | ✅ 464 passati (anche in `backend-test` su CT 125) |
+| `pytest` | ✅ 481 passati in locale (8 s). `backend-test` su CT 125 non rieseguito per questo rilascio: la CI usa la stessa immagine |
 | `vitest` | ✅ 105 passati |
 | `ruff`, `oxlint`, `npm run build` | ✅ puliti |
-| CI su GitHub | Non verificata: `gh run list` non restituisce esecuzioni per `dev` (da controllare in G1) |
+| CI su GitHub | ✅ verde su `dev` (ultime 5 esecuzioni, fino a `d5052fa`). Letta dalle API pubbliche di GitHub, perché `gh` non è installato sul PC; un rilascio parte solo con la CI verde sul commit da rilasciare |
+| Test in locale | `make test` scarica il modello di embedding in `~/.cache/fastembed` (`make embed-model`). Prima stava in `/tmp`: dopo un riavvio i test che usano gli embedding andavano in timeout, perché la suite blocca la rete |
 
 ## 6. Documentazione
 

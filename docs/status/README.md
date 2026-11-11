@@ -1,6 +1,6 @@
 # Stato del progetto — homelab-agent
 
-Assessment iniziale del 2026-10-26, stato aggiornato al 2026-11-02 (`dev` @ `f4c0e54`, allineato su CT 125). Fase F (agente affidabile) completata, prossima G ([roadmap](04-ROADMAP.md)).
+Assessment iniziale del 2026-10-26, stato aggiornato al 2026-11-11: rilascio `v0.10.0` su `main` (G1), con le fasi B-F. CT 125 resta su `dev`. Prossimi passi: G2-G4 ([roadmap](04-ROADMAP.md)).
 
 > **Aggiornamento 2026-10-26**: Fase A (consolidamento) completata, baseline `v0.9.0` su `main`. Resta solo da osservare il criterio delle 24 ore senza errori nei log di CT 125. Prossima fase: B (refactor architetturale). La sintesi qui sotto descrive lo stato dell'assessment iniziale.
 
