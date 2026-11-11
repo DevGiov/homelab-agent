@@ -32,6 +32,8 @@ env/
 .env.*
 !.env.example
 config.local.yaml
+# Istruzioni valide solo per una installazione (vedi AGENTS.md)
+*.local.md
 
 # Node/Vite (Frontend)
 node_modules/

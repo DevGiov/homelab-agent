@@ -83,7 +83,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           required
-          placeholder="http://192.168.1.189:8000/mcp"
+          placeholder="http://mcp.example.local:8000/mcp"
           className={`${inputClass} font-mono`}
         />
       </div>

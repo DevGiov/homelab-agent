@@ -84,7 +84,7 @@ Vitest con jsdom; i test stanno accanto al modulo che verificano (`*.test.ts`) e
 
 ## 🌐 Deploy in Produzione (Docker & Nginx)
 
-In produzione (container **CT 125** a `192.168.1.185` / `agent-dev.deggio.local`), il frontend è compilato e servito tramite container Nginx dedicato (`agent-frontend`) orchestrato con `docker-compose.prod.yml`.
+In produzione il frontend è compilato e servito tramite container Nginx dedicato (`agent-frontend`) orchestrato con `docker-compose.prod.yml`.
 
 ### Requisiti di Configurazione Nginx (`nginx.conf`):
 1. **Supporto Streaming SSE**:

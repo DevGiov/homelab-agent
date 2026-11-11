@@ -82,7 +82,7 @@ export const INTEGRATION_SPECS: IntegrationSpec[] = [
     saveLabel: 'Salva Configurazione',
     deleteTitle: 'Rimuovi Home Assistant',
     fields: [
-      { key: 'base_url', source: 'config', kind: 'text', label: 'URL Istanza Home Assistant', placeholder: 'http://192.168.1.69:8123', required: true, defaultValue: 'http://192.168.1.69:8123' },
+      { key: 'base_url', source: 'config', kind: 'text', label: 'URL Istanza Home Assistant', placeholder: 'http://homeassistant.local:8123', required: true, defaultValue: 'http://homeassistant.local:8123' },
       { key: 'access_token', source: 'secrets', kind: 'password', label: 'Long-Lived Access Token', placeholder: 'Bearer token generato dal profilo utente HA', required: true },
     ],
   },

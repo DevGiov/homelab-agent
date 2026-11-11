@@ -126,6 +126,7 @@ section "🧠 LLM"
 
 ask DEFAULT_MODEL "DEFAULT_MODEL" "$(read_existing DEFAULT_MODEL "Qwen3.6-35B-HugeCtx")"
 ask LLAMA_CPP_URL "LLAMA_CPP_URL (endpoint OpenAI-compatible)" "$(read_existing LLAMA_CPP_URL "http://llm.example.local:8080/v1")"
+ask WATCHDOG_URL "WATCHDOG_URL (watchdog delle risorse, vuoto = disattivato)" "$(read_existing WATCHDOG_URL "")"
 
 # ── Storage ──
 
@@ -139,13 +140,14 @@ ask AGENT_OBSERVATION_LIMIT "AGENT_OBSERVATION_LIMIT (caratteri per risultato ne
 
 section "🔍 SearXNG (ricerca web)"
 
-ask SEARXNG_URL "SEARXNG_URL" "$(read_existing SEARXNG_URL "http://searxng.example.local:8080")"
+ask SEARXNG_URL "SEARXNG_URL (vuoto = ricerca web disattivata)" "$(read_existing SEARXNG_URL "")"
 
 # ── Firecracker ──
 
 section "🔥 Firecracker (sandbox)"
 
-ask FIRECRACKER_API_URL "FIRECRACKER_API_URL" "$(read_existing FIRECRACKER_API_URL "http://CHANGE_ME:8080")"
+ask FIRECRACKER_API_URL "FIRECRACKER_API_URL (vuoto = sandbox non configurata)" "$(read_existing FIRECRACKER_API_URL "")"
+ask FIRECRACKER_LOG_URL "FIRECRACKER_LOG_URL (console della microVM)" "$(read_existing FIRECRACKER_LOG_URL "")"
 ask FIRECRACKER_KERNEL_PATH "FIRECRACKER_KERNEL_PATH" "$(read_existing FIRECRACKER_KERNEL_PATH "/opt/firecracker/vmlinux.bin")"
 ask FIRECRACKER_ROOTFS_PATH "FIRECRACKER_ROOTFS_PATH" "$(read_existing FIRECRACKER_ROOTFS_PATH "/opt/firecracker/rootfs.ext4")"
 
@@ -174,6 +176,7 @@ METAMCP_API_KEY=${METAMCP_API_KEY}
 # --- LLM ---
 DEFAULT_MODEL=${DEFAULT_MODEL}
 LLAMA_CPP_URL=${LLAMA_CPP_URL}
+WATCHDOG_URL=${WATCHDOG_URL}
 
 # --- Storage ---
 DATA_DIR=${DATA_DIR}
@@ -185,6 +188,7 @@ SEARXNG_URL=${SEARXNG_URL}
 
 # --- Firecracker ---
 FIRECRACKER_API_URL=${FIRECRACKER_API_URL}
+FIRECRACKER_LOG_URL=${FIRECRACKER_LOG_URL}
 FIRECRACKER_KERNEL_PATH=${FIRECRACKER_KERNEL_PATH}
 FIRECRACKER_ROOTFS_PATH=${FIRECRACKER_ROOTFS_PATH}
 EOF

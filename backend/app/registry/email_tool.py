@@ -169,7 +169,7 @@ class EmailRegistry(BaseToolRegistry):
             {
                 "id": "msg_hl_01",
                 "from": "pve-alerts@homelab.local",
-                "subject": "[URGENTE] Proxmox Storage 'local-zfs' 89% full on node DESKTOP-PGMTM0B",
+                "subject": "[URGENTE] Proxmox Storage 'local-zfs' 89% full on node pve",
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
                 "body_snippet": "Allerta spazio disco: lo storage ZFS ha superato la soglia di guardia (89%). Necessario pulire vecchi snapshot o template.",
                 "unread": True,
@@ -184,7 +184,7 @@ class EmailRegistry(BaseToolRegistry):
             },
             {
                 "id": "msg_hl_03",
-                "from": "pihole-admin@deggio.local",
+                "from": "pihole-admin@homelab.local",
                 "subject": "Pi-hole Weekly Telemetry Report & Blocklist Sync",
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
                 "body_snippet": "Riepilogo DNS: 142,500 query totali, 18.4% bloccate. Gravity list aggiornata con successo su CT 137.",

@@ -19,7 +19,9 @@ class FirecrackerSandbox:
         self.rootfs_path = settings.firecracker_rootfs_path
 
     def is_available(self) -> bool:
-        """Verifica se l'API HTTP di Firecracker è raggiungibile."""
+        """Verifica se l'API HTTP di Firecracker è configurata e raggiungibile."""
+        if not self.api_url:
+            return False
         try:
             res = requests.get(f"{self.api_url}/machine-config", timeout=2)
             return res.status_code in [200, 400]  # 200 = ready, 400 = microVM is running
@@ -33,7 +35,8 @@ class FirecrackerSandbox:
         ritorna `sandbox_unavailable=True` e la decisione (approvazione) spetta al chiamante.
         """
         if not self.is_available():
-            return self._unavailable(f"API Firecracker non raggiungibile su {self.api_url}")
+            return self._unavailable(f"API Firecracker non raggiungibile su {self.api_url}" if self.api_url
+                                     else "Sandbox Firecracker non configurata (FIRECRACKER_API_URL vuoto)")
 
         try:
             # 1. Base64 del codice Python per i boot_args del kernel

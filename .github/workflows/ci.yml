@@ -17,7 +17,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      # Stesso stage `test` del Dockerfile usato da `make test-container` su CT 125:
+      # Stesso stage `test` del Dockerfile usato da `make test-container`:
       # Python 3.12, dipendenze dev e modello di embedding inclusi nell'immagine
       - name: Build test image
         uses: docker/build-push-action@v6

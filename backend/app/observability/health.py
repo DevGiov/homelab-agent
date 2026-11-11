@@ -34,7 +34,8 @@ class Target:
 def targets() -> List[Target]:
     return [
         Target("llamacpp", f"{settings.llama_cpp_url.rstrip('/')}/models", require_200=True),
-        Target("searxng", settings.searxng_url),
+        # SearXNG è opzionale: senza URL non c'è niente da controllare
+        *([Target("searxng", settings.searxng_url)] if settings.searxng_url else []),
         *(Target(f"mcp:{s.id}", s.url) for s in get_mcp_hub().servers() if s.enabled),
     ]
 

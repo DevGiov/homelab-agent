@@ -143,7 +143,7 @@ make test                              # suite ermetica
 make test ARGS="-m live"               # solo test live (richiede la LAN homelab)
 make test ARGS="tests/test_router_and_prefetch.py -q"
 
-# Su CT 125: container di test isolato (nessun volume di produzione)
+# Sulla macchina che esegue lo stack: container di test isolato (nessun volume di produzione)
 docker compose -f docker-compose.prod.yml run --rm --build backend-test
 docker compose -f docker-compose.prod.yml run --rm backend-test -m live
 
@@ -173,7 +173,7 @@ risultato più recente di ogni suite in una tabella Markdown (un'esecuzione parz
 due forme dello stesso modello (il report porta la variante nel nome).
 
 ```bash
-# Nel backend avviato su CT 125: i modelli vanno sempre indicati, e devono stare nella VRAM
+# Nel backend dell'istanza in esecuzione: i modelli vanno sempre indicati, e devono stare nella VRAM
 make eval MODELS=LFM2.5-24B-A2B-HugeCtx
 make eval MODELS=LFM2.5-24B-A2B-HugeCtx,Gemma-4-26B-Q3 ARGS="--suites routing,tools --repeat 3"
 make eval-compare

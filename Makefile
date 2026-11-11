@@ -56,7 +56,7 @@ lint: ## Ruff (backend) + oxlint (frontend)
 	cd backend && .venv/bin/python -m ruff check .
 	cd frontend && npm run lint
 
-test-container: ## Esegue pytest nel container di test isolato (CT 125)
+test-container: ## Esegue pytest nel container di test isolato
 	$(COMPOSE_PROD) run --rm --build backend-test $(ARGS)
 
 eval: ## Valuta i modelli nel backend avviato: make eval MODELS=A,B ARGS="--suites routing,tools --repeat 3"

@@ -99,11 +99,11 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 ## 🌐 Deploy, Stato Dev & Ciclo di Validazione E2E
 
 ### Stato Operativo & Filosofia di Sviluppo
-- **Ambiente 'Dev' Attivo**: Ci troviamo in fase di sviluppo attivo sul branch `dev`. L'unica istanza reale in esecuzione è il container Proxmox **CT 125** (`192.168.1.185` / `agent-dev.deggio.local`), che funge da ambiente di test reale.
+- **Ambiente 'Dev' Attivo**: Ci troviamo in fase di sviluppo attivo sul branch `dev`. Il maintainer tiene in esecuzione una sola istanza reale del branch `dev`, che funge da ambiente di test. Questo repository non ne riporta indirizzi né nomi: gli indirizzi dei servizi sono impostazioni in `backend/.env` (vedi [`backend/.env.example`](backend/.env.example)) e le istruzioni valide solo per quell'installazione stanno in `AGENTS.local.md`, non versionato (vedi [AGENTS.md](AGENTS.md)).
 - **Codice Pulito & Nessun Obbligo di Retrocompatibilità Legacy**: L'obiettivo è codice pulito e di alta qualità. Non implementare codice legacy o shim complessi per mantenere la compatibilità all'indietro se non strettamente necessari.
 - **Breaking Changes Ammesse**: Sono consentite modifiche architetturali profonde, re-deploy completi dei container (`docker compose up -d --build`) e l'azzeramento o eliminazione di database SQLite legacy per adeguarsi ai nuovi schemi.
 
-### Componenti Stack su CT 125
+### Componenti dello stack (`docker-compose.prod.yml`)
 - **Backend**: FastAPI su porta interna `8090` (`agent-backend`).
 - **Frontend**: Single Page Application React servita da Nginx su porta `80` (`agent-frontend`), con proxying `/v1/` e disattivazione del buffering SSE (`proxy_buffering off;`).
 - **Nginx Upload Limit**: `client_max_body_size 50M;` per gestire l'upload di immagini ad alta risoluzione senza errori HTTP 413.
@@ -112,22 +112,19 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 ### Workflow di Deploy e Testing E2E
 1. **Validazione Locale**: `make test` (pytest + Vitest), `make lint` (ruff + oxlint) e build frontend (`npm run build`). Gli stessi controlli girano in CI ([ci.yml](.github/workflows/ci.yml)) e sono bloccanti.
 2. **Push Git**: `git push origin dev`
-3. **Pull & Rebuild via MCP**:
-   ```python
-   exec_lxc_command(
-       vmid=125,
-       command="cd /opt/homelab-agent && git pull origin dev"
-   )
+3. **Pull & Rebuild** sulla macchina che esegue lo stack, nella directory del checkout:
+   ```bash
+   git pull origin dev
    ```
    Riavvio o rebuild mirato:
    - Backend: `docker compose -f docker-compose.prod.yml restart backend` (o `up -d --build backend` per modifiche a Dockerfile/dipendenze).
    - Frontend: `docker compose -f docker-compose.prod.yml up -d --build --no-deps frontend` (`--no-deps` evita di ricreare il backend).
 4. **Test in-container & API**:
-   ```python
+   ```bash
    # Mai dentro agent-backend: il suo /data è il dato di produzione
-   exec_lxc_command(vmid=125, command="cd /opt/homelab-agent && docker compose -f docker-compose.prod.yml run --rm --build backend-test")
-   exec_lxc_command(vmid=125, command="curl -s http://localhost:8090/v1/health")
+   docker compose -f docker-compose.prod.yml run --rm --build backend-test
+   curl -s http://localhost:8090/v1/health
    ```
-5. **Test UI Live via Browser Subagent**: Navigazione su `http://agent-dev.deggio.local` con `browser_subagent` per validare UI, streaming SSE, modali e responsività.
-6. **Iterazione**: Se si riscontrano bug, risolverli localmente, pushare, aggiornare CT 125 e ripetere il test fino a validazione completa. Per anomalie gravi o dubbi architetturali, redigere un report dettagliato.
+5. **Test UI Live via Browser Subagent**: Navigazione sull'URL dell'istanza con `browser_subagent` per validare UI, streaming SSE, modali e responsività.
+6. **Iterazione**: Se si riscontrano bug, risolverli localmente, pushare, aggiornare l'istanza e ripetere il test fino a validazione completa. Per anomalie gravi o dubbi architetturali, redigere un report dettagliato.
 

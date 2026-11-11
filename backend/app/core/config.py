@@ -19,16 +19,18 @@ class Settings(BaseSettings):
     )
     rate_limit: str = Field(default="30/minute", alias="RATE_LIMIT")
 
+    # Gli indirizzi dei servizi dipendono dall'installazione: i default qui sono neutri (localhost oppure vuoto =
+    # funzione spenta) e i valori veri stanno in .env. Lo verifica tests/test_config_defaults.py
     # --- MetaMCP ---
-    metamcp_url: str = Field(default="http://192.168.1.175:12008/metamcp/MetaMCP/mcp", alias="METAMCP_URL")
+    metamcp_url: str = Field(default="http://localhost:12008/metamcp/MetaMCP/mcp", alias="METAMCP_URL")
     metamcp_api_key: str = Field(default="", alias="METAMCP_API_KEY")
 
     # --- LLM ---
     default_model: str = Field(default="Qwen3.6-35B-HugeCtx", alias="DEFAULT_MODEL")
-    llama_cpp_url: str = Field(default="http://192.168.1.159:8080/v1", alias="LLAMA_CPP_URL")
+    llama_cpp_url: str = Field(default="http://localhost:8080/v1", alias="LLAMA_CPP_URL")
     ollama_url: str = Field(default="", alias="OLLAMA_URL")
     # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato
-    watchdog_url: str = Field(default="http://192.168.1.197:8080", alias="WATCHDOG_URL")
+    watchdog_url: str = Field(default="", alias="WATCHDOG_URL")
 
     # --- Storage ---
     # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).
@@ -46,15 +48,17 @@ class Settings(BaseSettings):
     agent_interleaved_thinking: str = Field(default="auto", alias="AGENT_INTERLEAVED_THINKING")
 
     # --- Ricerca web ---
-    searxng_url: str = Field(default="http://192.168.1.161:8080", alias="SEARXNG_URL")
+    # Vuoto = ricerca web via SearXNG disattivata
+    searxng_url: str = Field(default="", alias="SEARXNG_URL")
     # Engine abilitati sull'istanza SearXNG (categoria general/web)
     searxng_engines: str = Field(default="google,bing,duckduckgo,brave,startpage", alias="SEARXNG_ENGINES")
     search_primary_lang: str = Field(default="en", alias="SEARCH_PRIMARY_LANG")
     search_fallback_lang: str = Field(default="it", alias="SEARCH_FALLBACK_LANG")
 
     # --- Firecracker ---
-    firecracker_api_url: str = Field(default="http://192.168.1.69:8080", alias="FIRECRACKER_API_URL")
-    firecracker_log_url: str = Field(default="http://192.168.1.69:8081/console.log", alias="FIRECRACKER_LOG_URL")
+    # Vuoto = sandbox non configurata (il codice chiede l'approvazione invece di eseguire)
+    firecracker_api_url: str = Field(default="", alias="FIRECRACKER_API_URL")
+    firecracker_log_url: str = Field(default="", alias="FIRECRACKER_LOG_URL")
     firecracker_kernel_path: str = Field(default="/opt/firecracker/vmlinux.bin", alias="FIRECRACKER_KERNEL_PATH")
     firecracker_rootfs_path: str = Field(default="/opt/firecracker/rootfs.ext4", alias="FIRECRACKER_ROOTFS_PATH")
 

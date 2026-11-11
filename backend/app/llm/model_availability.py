@@ -1,4 +1,4 @@
-"""Quali modelli si possono usare secondo il watchdog (CT 152).
+"""Quali modelli si possono usare secondo il watchdog (WATCHDOG_URL).
 
 Il watchdog non deve mai poter fermare l'agent: se non risponde, o non conosce un modello, non c'è alcuna restrizione.
 """

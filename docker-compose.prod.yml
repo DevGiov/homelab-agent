@@ -1,4 +1,4 @@
-# Docker Compose produzione homelab-agent (CT 125)
+# Docker Compose produzione homelab-agent
 # Backend FastAPI + Frontend statico servito da nginx (con proxy /v1 verso il backend).
 # La API_SECRET_KEY condivisa è letta dal file .env nella root del progetto.
 
