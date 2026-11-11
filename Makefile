@@ -12,7 +12,11 @@ ROOT_ENV       := .env
 
 BACKEND_VENV   := backend/.venv
 
-.PHONY: help setup venv test lint test-container eval eval-compare deploy deploy-backend deploy-frontend dev down logs rotate-key clean
+# Modello di embedding per i test locali. I test bloccano la rete, quindi il modello deve essere già su disco:
+# il default di fastembed è una cartella in /tmp, che si svuota al riavvio e fa andare la suite in timeout
+export FASTEMBED_CACHE_PATH ?= $(HOME)/.cache/fastembed
+
+.PHONY: help setup venv embed-model test lint test-container eval eval-compare deploy deploy-backend deploy-frontend dev down logs rotate-key clean
 
 # ── Default ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +44,11 @@ venv: ## Ricrea backend/.venv (Python 3.12, come Docker e CI) con le dipendenze 
 	uv venv -p 3.12 $(BACKEND_VENV)
 	uv pip install -p $(BACKEND_VENV) -r backend/requirements-dev.txt
 
-test: ## pytest (backend) + Vitest (frontend); ARGS va a pytest: make test ARGS="tests/test_x.py -q"
+embed-model: ## Scarica il modello di embedding in FASTEMBED_CACHE_PATH (rete solo la prima volta)
+	@mkdir -p $(FASTEMBED_CACHE_PATH)
+	@cd backend && .venv/bin/python -c "from app.memory.vector_store import EMBEDDING_MODEL; from fastembed import TextEmbedding; TextEmbedding(EMBEDDING_MODEL)"
+
+test: embed-model ## pytest (backend) + Vitest (frontend); ARGS va a pytest: make test ARGS="tests/test_x.py -q"
 	cd backend && .venv/bin/python -m pytest $(ARGS)
 	cd frontend && npm test
 
