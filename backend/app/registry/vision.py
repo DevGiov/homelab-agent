@@ -94,7 +94,7 @@ class VisionRegistry(BaseToolRegistry):
             headers = {"Content-Type": "application/json"}
 
             from app.llm import providers
-            model_to_use = args.get("model") or providers.get_active_model_name() or settings.default_model
+            model_to_use = args.get("model") or providers.get_active_model_name()
 
             payload = {
                 "model": model_to_use,

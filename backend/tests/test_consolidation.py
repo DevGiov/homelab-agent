@@ -212,8 +212,9 @@ def test_manual_run_uses_the_requested_or_saved_model(sandbox, body, saved, expe
     with patch.object(mc, "run_in_background", return_value=True) as start:
         assert TestClient(api).post("/v1/memory/consolidation", json=body).status_code == 202
     chosen = start.call_args.args[0]
-    with patch("app.agent.memory_consolidation.resolve_model", side_effect=lambda m: "Qwen3.6-35B" if m == "loaded" else m):
+    with patch("app.agent.memory_consolidation.resolve_model", side_effect=lambda m: "Qwen3.6-35B" if m == "loaded" else m), \
+            patch.object(mc.get_provider(), "default_model", "modello-predefinito"):
         with patch.object(mc, "consolidate_messages", return_value={"messages": 0}) as consolidate, patch.object(mc, "deduplicate", return_value=0):
             result = mc.run(chosen)
     assert consolidate.call_args.args[0] == expected
-    assert result["model"] == (expected or mc.get_provider().default_model)
+    assert result["model"] == (expected or "modello-predefinito")

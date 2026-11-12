@@ -30,3 +30,8 @@ def test_defaults_do_not_point_at_a_private_network():
 def test_optional_services_are_off_by_default():
     for name in ("watchdog_url", "searxng_url", "firecracker_api_url", "firecracker_log_url"):
         assert Settings.model_fields[name].default == "", name
+
+
+def test_no_model_name_is_built_in():
+    # I modelli dipendono dal server di chi installa: senza DEFAULT_MODEL li sceglie LLMProvider.effective_model
+    assert Settings.model_fields["default_model"].default == ""

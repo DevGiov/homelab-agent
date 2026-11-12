@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     metamcp_api_key: str = Field(default="", alias="METAMCP_API_KEY")
 
     # --- LLM ---
-    default_model: str = Field(default="Qwen3.6-35B-HugeCtx", alias="DEFAULT_MODEL")
+    # Modello delle richieste che non ne indicano uno. Vuoto = quello caricato sul server, altrimenti il primo della
+    # sua lista (LLMProvider.effective_model): nessun nome nel codice, perché i modelli dipendono dall'installazione
+    default_model: str = Field(default="", alias="DEFAULT_MODEL")
     llama_cpp_url: str = Field(default="http://localhost:8080/v1", alias="LLAMA_CPP_URL")
     ollama_url: str = Field(default="", alias="OLLAMA_URL")
     # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato

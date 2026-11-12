@@ -71,6 +71,45 @@ def test_openai_compat_list_models_with_details():
     assert details[2]["is_vision"] is False
 
 
+def _server(models: dict[str, str | None]):
+    """Server con questi modelli e stati di llama-swap (None = non in esecuzione)."""
+    listed = MagicMock(status_code=200)
+    listed.json.return_value = {"data": [{"id": m} for m in models]}
+    running = MagicMock(status_code=200)
+    running.json.return_value = {"running": [{"model": m, "state": s} for m, s in models.items() if s]}
+    return patch("httpx.Client.get", side_effect=lambda url: running if url.endswith("/running") else listed)
+
+
+def test_without_a_default_model_the_provider_uses_what_the_server_has():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="")
+    with _server({"a": None, "b": "starting", "c": "ready"}):
+        assert provider.effective_model() == "c"            # quello caricato
+        assert provider.effective_model("scelto") == "scelto"
+    with _server({"a": None, "b": "starting"}):
+        assert provider.effective_model() == "b"            # quello che si sta caricando
+    with _server({"a": None, "b": None}):
+        assert provider.effective_model() == "a"            # il primo della lista
+    with _server({"a": None, "b": None}), patch("app.llm.providers.availability_fields",
+                                               side_effect=lambda m: {"available": m != "a"}):
+        assert provider.effective_model() == "b"            # non uno bloccato dal watchdog
+    with patch("httpx.Client.get", side_effect=httpx.ConnectError("down")):
+        assert provider.effective_model() == ""             # server spento: nessun nome inventato
+
+
+def test_a_configured_default_model_wins_without_asking_the_server():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="configurato")
+    with patch("httpx.Client.get") as get:
+        assert provider.effective_model() == "configurato"
+    get.assert_not_called()
+
+
+def test_chat_without_a_model_sends_the_one_found_on_the_server():
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="")
+    with _server({"a": None, "c": "ready"}), patch.object(provider, "_chat", return_value={"content": "ok"}) as chat:
+        provider.chat([{"role": "user", "content": "ciao"}])
+    assert chat.call_args.kwargs["model"] == "c"
+
+
 def test_load_model_starts_the_load_through_upstream():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
 

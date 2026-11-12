@@ -373,7 +373,7 @@ def run(model: Optional[str] = None, trigger: str = "manual") -> Optional[Dict[s
     _running_since = datetime.now().astimezone().isoformat(timespec="seconds")
     try:
         model = resolve_model(model)
-        result: Dict[str, Any] = {"trigger": trigger, "model": model or get_provider().default_model}
+        result: Dict[str, Any] = {"trigger": trigger, "model": get_provider().effective_model(model)}
         try:
             result.update(consolidate_messages(model))
             result["deduplicated"] = deduplicate(model)

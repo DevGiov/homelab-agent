@@ -124,7 +124,7 @@ ask METAMCP_API_KEY "METAMCP_API_KEY" "$(read_existing METAMCP_API_KEY "")" true
 
 section "🧠 LLM"
 
-ask DEFAULT_MODEL "DEFAULT_MODEL" "$(read_existing DEFAULT_MODEL "Qwen3.6-35B-HugeCtx")"
+ask DEFAULT_MODEL "DEFAULT_MODEL (vuoto = il modello caricato sul server)" "$(read_existing DEFAULT_MODEL "")"
 ask LLAMA_CPP_URL "LLAMA_CPP_URL (endpoint OpenAI-compatible)" "$(read_existing LLAMA_CPP_URL "http://llm.example.local:8080/v1")"
 ask WATCHDOG_URL "WATCHDOG_URL (watchdog delle risorse, vuoto = disattivato)" "$(read_existing WATCHDOG_URL "")"
 

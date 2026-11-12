@@ -78,7 +78,18 @@ class LLMProvider(ABC):
     """Interfaccia base per i provider LLM OpenAI-compatible."""
 
     name: str = "base"
+    # DEFAULT_MODEL: il modello delle richieste che non ne indicano uno. Vuoto = lo sceglie `effective_model`
     default_model: str = ""
+
+    def effective_model(self, model: Optional[str] = None) -> str:
+        """Il modello di una richiesta: quello chiesto, altrimenti DEFAULT_MODEL, altrimenti uno di quelli che il
+        server offre (`_server_model`). Stringa vuota se non se ne conosce nessuno: la richiesta parte comunque ed è
+        il server a dire perché fallisce."""
+        return model or self.default_model or self._server_model()
+
+    def _server_model(self) -> str:
+        """Un modello scelto tra quelli del server, per chi non ha configurato DEFAULT_MODEL."""
+        return ""
 
     def chat(
         self,
@@ -102,14 +113,15 @@ class LLMProvider(ABC):
         non ragiona e usa `temperature`.
         """
         start = time.monotonic()
+        model = self.effective_model(model)
         if reasoning is None:
-            reasoning = resolve(model or self.default_model, "off", temperature=temperature)
+            reasoning = resolve(model, "off", temperature=temperature)
         result = self._chat(messages, model=model, max_tokens=max_tokens, reasoning=reasoning,
                             stream_callback=stream_callback, json_mode=json_mode, json_schema=json_schema)
         metrics = result.get("metrics") or {}
         record_llm_call(
             provider=self.name,
-            model=model or self.default_model,
+            model=model,
             duration_ms=int((time.monotonic() - start) * 1000),
             prompt_tokens=metrics.get("prompt_tokens", 0),
             cached_tokens=metrics.get("cached_tokens", 0),
@@ -406,8 +418,17 @@ class OpenAICompatProvider(LLMProvider):
         except Exception:
             return False
 
-    def list_models_with_details(self) -> List[Dict[str, Any]]:
-        """Modelli di llama-swap. Lo stato viene da /running: /models dice `loaded` già durante il caricamento."""
+    def _server_model(self) -> str:
+        """Il modello già caricato, altrimenti il primo utilizzabile della lista: non richiede un nome nel codice."""
+        models = [m for m in self._fetch_models() if m.get("available", True)]
+        chosen = (next((m for m in models if m["is_loaded"]), None)
+                  or next((m for m in models if m["is_loading"]), None)
+                  or (models[0] if models else None))
+        return chosen["id"] if chosen else ""
+
+    def _fetch_models(self) -> List[Dict[str, Any]]:
+        """Modelli di llama-swap, lista vuota se il server non risponde. Lo stato viene da /running: /models dice
+        `loaded` già durante il caricamento."""
         try:
             with httpx.Client(timeout=5.0) as client:
                 res = client.get(f"{self.base_url}/models")
@@ -434,11 +455,16 @@ class OpenAICompatProvider(LLMProvider):
                         "is_loading": (status_val == "loading"),
                         **availability_fields(m_id),
                     })
-                if details:
-                    return details
+                return details
         except Exception as e:
             logger.warning(f"[{self.name}] Failed to list models with details: {e}")
+        return []
 
+    def list_models_with_details(self) -> List[Dict[str, Any]]:
+        """Modelli del server; se non risponde, una sola voce con il modello predefinito."""
+        details = self._fetch_models()
+        if details:
+            return details
         fallback_id = self.default_model or "default"
         return [{
             "id": fallback_id,
@@ -558,6 +584,9 @@ class OllamaProvider(LLMProvider):
             logger.warning(f"[{self.name}] Failed to list models: {e}")
         return [self.default_model] if self.default_model else []
 
+    def _server_model(self) -> str:
+        return next(iter(self.list_models()), "")
+
 
 # --- Registry dei provider configurabili ---
 
@@ -590,8 +619,7 @@ def get_active_provider_name() -> str:
 
 
 def get_active_model_name() -> str:
-    provider = get_provider()
-    return provider.default_model
+    return get_provider().effective_model()
 
 
 # Scelta del modello che significa "quello caricato sul server quando la richiesta parte"

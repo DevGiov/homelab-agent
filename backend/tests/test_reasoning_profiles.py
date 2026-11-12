@@ -40,7 +40,8 @@ def test_unknown_models_keep_the_caller_temperature_and_get_explicit_controls():
 
 
 def test_call_llm_adds_the_reasoning_budget_to_the_answer_length():
-    provider = MagicMock(default_model="Qwen3.6-35B")
+    provider = MagicMock()
+    provider.effective_model.return_value = "Qwen3.6-35B"
     provider.chat.return_value = {"content": "ok"}
     with patch.object(llm_calls, "get_provider", return_value=provider):
         llm_calls.call_llm("ciao", max_tokens=1000, thinking="medium", stream_mode="none")
@@ -86,7 +87,8 @@ def test_interleaved_can_be_forced_for_comparisons():
 
 
 def test_call_llm_sends_the_previous_steps_after_the_user_message():
-    provider = MagicMock(default_model="Qwen3.6-35B")
+    provider = MagicMock()
+    provider.effective_model.return_value = "Qwen3.6-35B"
     provider.chat.return_value = {"content": "{}"}
     steps = [{"role": "assistant", "content": "{}", "reasoning_content": "prima"}, {"role": "tool", "content": "risultato"}]
     with patch.object(llm_calls, "get_provider", return_value=provider):

@@ -7,7 +7,6 @@ from typing import Any, List, Optional
 
 from app.agent.stream_session import current_session_var
 from app.core import image_utils
-from app.core.config import settings
 from app.core.text_utils import strip_thinking
 from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
 from app.llm.reasoning import Level, interleaved_for, resolve
@@ -39,7 +38,7 @@ def call_llm(
     # `thinking` è il livello della fase, tradotto dal profilo del modello (app.llm.reasoning); `thinking_budget` è il
     # budget in token scelto dall'utente per il turno, se c'è
     provider = get_provider()
-    effective_model = model or getattr(provider, "default_model", "") or settings.default_model
+    effective_model = provider.effective_model(model)
     reasoning = resolve(effective_model, thinking, budget_override=thinking_budget, temperature=temperature)
     if reasoning.enabled:
         thinking_instruction = (
@@ -75,7 +74,7 @@ def call_llm(
                 f"{prompt}\n\n"
                 f"[NOTA DI SISTEMA: L'utente ha allegato {len(images)} immagine/i, ma il modello attualmente selezionato "
                 f"('{effective_model}') non supporta la visione multimodale. Informa gentilmente l'utente di selezionare un "
-                f"modello Vision come Qwen3.6-35B per visualizzare ed analizzare le immagini.]"
+                f"modello con supporto alla visione per visualizzare ed analizzare le immagini.]"
             )
             messages.append({"role": "user", "content": fallback_text})
     else:
@@ -120,7 +119,7 @@ def call_llm(
     # `max_tokens` è la lunghezza della risposta: il server conta anche i token di ragionamento, che si aggiungono
     return provider.chat(
         messages,
-        model=model,
+        model=effective_model or None,
         max_tokens=max_tokens + (reasoning.budget if reasoning.enabled else 0),
         reasoning=reasoning,
         stream_callback=stream_callback,
@@ -243,6 +242,6 @@ def agent_loop_llm_fns(thinking_budget: Optional[int], model: Optional[str], sta
                                    thinking_budget=thinking_budget, model=model, reasoning_phase=reasoning_phase,
                                    images=images if images is not None else state_images, history=history)
 
-    effective_model = model or getattr(get_provider(), "default_model", "") or settings.default_model
+    effective_model = get_provider().effective_model(model)
     return {"call_llm_fn": call_llm_fn, "call_llm_structured_fn": call_llm_structured_fn,
             "interleaved": interleaved_for(effective_model)}

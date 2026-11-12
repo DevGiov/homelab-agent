@@ -57,8 +57,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         <div className="max-w-4xl mx-auto w-full px-1 text-[11px] text-amber-400/90 flex items-center gap-1.5">
           <AlertTriangle size={12} className="shrink-0" />
           <span>
-            Il modello selezionato (<strong>{textOnlyModel}</strong>) potrebbe non supportare la visione. Ti consigliamo{' '}
-            <strong>Qwen3.6-35B</strong>.
+            Il modello selezionato (<strong>{textOnlyModel}</strong>) potrebbe non supportare la visione. Scegli un modello che
+            accetta immagini.
           </span>
         </div>
       )}
