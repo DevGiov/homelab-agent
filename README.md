@@ -128,3 +128,6 @@ Sostituito il vecchio sistema di rollback hardcoded con un motore generale e tra
 5. **Test UI Live via Browser Subagent**: Navigazione sull'URL dell'istanza con `browser_subagent` per validare UI, streaming SSE, modali e responsività.
 6. **Iterazione**: Se si riscontrano bug, risolverli localmente, pushare, aggiornare l'istanza e ripetere il test fino a validazione completa. Per anomalie gravi o dubbi architetturali, redigere un report dettagliato.
 
+## Licenza
+
+Copyright 2026 Danilo De Giovanni (DevGiov). Distribuito con licenza [Apache 2.0](LICENSE); vedi anche [NOTICE](NOTICE).
