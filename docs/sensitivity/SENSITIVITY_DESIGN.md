@@ -337,7 +337,7 @@ Un server MCP senza classificazione vale come il più stretto: risultati `privat
 - L'esecuzione di un piano strutturato chiamava i server MCP direttamente, senza il gestore dei tool: niente audit e niente controlli. Ora passa dal gestore. Il rollback dichiarativo chiama ancora il server direttamente (ripete un'operazione sulla stessa destinazione del passo che annulla).
 - `calendar_import_feed` scaricava un URL scelto dal modello senza il controllo di rete di S0: ora segue le stesse regole di `http_get`.
 
-**Effetto pratico atteso, da misurare.** Con il profilo compilato ogni turno con memoria diventa `private` e ogni ricerca del loop chiede conferma; dopo un tool dell'infrastruttura il turno è almeno `internal`, e così la ricerca. La ricerca preventiva continua a girare finché la richiesta e gli ultimi messaggi sono pubblici. Se le conferme risultano troppe, la strada indicata dal design è separare la chiamata che scrive la query (che vedrebbe solo la richiesta) da quella che legge la memoria.
+**Effetto pratico atteso, da misurare.** Con il profilo compilato ogni turno con memoria diventa `private` e ogni ricerca del loop chiede conferma; dopo un tool dell'infrastruttura il turno è almeno `internal`, e così la ricerca. La ricerca preventiva continua a girare finché la richiesta e gli ultimi messaggi sono pubblici. Se le conferme risultano troppe, la strada scelta dal maintainer (13/11/2026, da fare più avanti) è separare la chiamata che scrive la query (che vedrebbe solo la richiesta) da quella che legge la memoria.
 
 ## 10. Decisioni
 
