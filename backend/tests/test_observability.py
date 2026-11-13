@@ -13,6 +13,7 @@ from app.llm.providers import OpenAICompatProvider
 from app.observability import health, report, store
 from app.observability.turns import observe_turn, record_llm_call
 from app.security import audit_log
+from app.security.flows import PUBLIC_TAG
 
 
 @pytest.fixture(autouse=True)
@@ -98,9 +99,9 @@ def test_provider_chat_records_metrics_and_errors():
         "metrics": {"prompt_tokens": 80, "cached_tokens": 30, "completion_tokens": 12, "prompt_ms": 25, "completion_ms": 120},
     }
     with observe_turn("thread-obs-4", "chat"):
-        provider.chat([{"role": "user", "content": "ciao"}])
+        provider.chat([{"role": "user", "content": "ciao"}], tag=PUBLIC_TAG)
         provider._chat = lambda *a, **k: {"content": "", "error": "timeout", "metrics": {}}
-        provider.chat([{"role": "user", "content": "ciao"}], model="altro")
+        provider.chat([{"role": "user", "content": "ciao"}], model="altro", tag=PUBLIC_TAG)
 
     first, second = llm_calls()
     assert (first["model"], first["prompt_tokens"], first["cached_tokens"], first["prompt_ms"], first["completion_ms"]) == (

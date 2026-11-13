@@ -76,8 +76,15 @@ def ingest_document(
     text_content: Optional[str] = None,
     *,
     source: str = "upload",
+    sensitivity: str = "internal",
 ) -> Dict[str, Any]:
-    """Ingesta un documento nella KB. Ritorna stats {doc_id, chunks}."""
+    """Ingesta un documento nella KB. Ritorna stats {doc_id, chunks}.
+
+    `sensitivity`: etichetta del documento (public, internal, private), salvata con ogni pezzo e restituita dalla
+    ricerca: `knowledge_search` porta nel turno la più alta tra quelle dei documenti trovati."""
+    from app.security.flows import USER_LEVELS
+    if sensitivity not in USER_LEVELS:
+        raise ValueError(f"Sensibilità non valida: {sensitivity!r} ({', '.join(USER_LEVELS)})")
     _kb_dir().mkdir(parents=True, exist_ok=True)
     safe_name = Path(filename).name
     suffix = Path(safe_name).suffix.lower()
@@ -115,6 +122,7 @@ def ingest_document(
                 "chunk_index": i,
                 "total_chunks": len(chunks),
                 "source": source,
+                "sensitivity": sensitivity,
             },
         )
         if row:
@@ -144,6 +152,8 @@ def search_knowledge(query: str, k: int = 5) -> List[Dict[str, Any]]:
             results.append({
                 "filename": fname,
                 "doc_id": meta.get("doc_id"),
+                # Documenti caricati prima delle etichette: `internal`, il default del caricamento
+                "sensitivity": meta.get("sensitivity") or "internal",
                 "chunks": [{
                     "content": h["content"],
                     "score": h["score"],

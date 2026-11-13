@@ -9,6 +9,7 @@ from app.agent.llm_calls import call_llm_structured
 from app.agent.tool_schemas import ToolSelection
 from app.core.config import settings
 from app.llm.providers import LLMUnavailableError
+from app.security.flows import PUBLIC_TAG
 
 TOOLS = [
     {"name": "list_containers", "description": "", "parameters": {"type": "object", "properties": {}}},
@@ -177,7 +178,7 @@ def test_structured_call_does_not_retry_a_failed_request():
     provider = MagicMock()
     provider.chat.return_value = {"content": "", "reasoning_content": "", "metrics": {}, "error": "timeout"}
     with patch("app.agent.llm_calls.get_provider", return_value=provider), pytest.raises(LLMUnavailableError):
-        call_llm_structured("prompt", "sys", ToolSelection, max_retries=3)
+        call_llm_structured("prompt", "sys", ToolSelection, max_retries=3, tag=PUBLIC_TAG)
     assert provider.chat.call_count == 1
 
 
@@ -185,7 +186,7 @@ def test_structured_call_constrains_output_to_the_full_schema():
     provider = MagicMock()
     provider.chat.return_value = {"content": '{"tool_needed": false, "final_answer": "ok"}', "reasoning_content": ""}
     with patch("app.agent.llm_calls.get_provider", return_value=provider):
-        call_llm_structured("prompt", "sys", ToolSelection)
+        call_llm_structured("prompt", "sys", ToolSelection, tag=PUBLIC_TAG)
     schema = provider.chat.call_args.kwargs["json_schema"]
     assert "raw_thinking" not in schema["properties"]
     assert {"type": "null"} in schema["properties"]["arguments"]["anyOf"]
@@ -197,7 +198,7 @@ def test_structured_call_reads_only_the_first_json_object():
     provider = MagicMock()
     provider.chat.return_value = {"content": '{"tool_needed": true, "tool_name": "list_containers"}\n{"tool_needed": false}', "reasoning_content": ""}
     with patch("app.agent.llm_calls.get_provider", return_value=provider):
-        selection = call_llm_structured("prompt", "sys", ToolSelection, max_retries=1)
+        selection = call_llm_structured("prompt", "sys", ToolSelection, max_retries=1, tag=PUBLIC_TAG)
     assert selection.tool_name == "list_containers"
 
 

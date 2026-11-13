@@ -5,6 +5,8 @@ from unittest.mock import patch
 from app.agent.execution_log import ExecutionLog, execute_rollback_for_step, generate_rollback_plan_with_llm
 from app.agent.graph import build_graph
 from app.agent.tool_catalog import get_tool_catalog
+from app.security.flows import PUBLIC_TAG
+from app.security.policy import enforce_guardrails
 
 PLAN_WITH_FAILING_LAST_STEP = {
     "steps": [
@@ -67,9 +69,19 @@ def _run_plan(security_mode: str):
         rollback_calls.append((tool_name, arguments))
         return {"status": "success"}
 
+    def manager_execute(tool_name, arguments, allowed_registries, **kw):
+        """I passi del piano passano dal ToolRegistryManager: guardrail veri, poi il server finto."""
+        guard = enforce_guardrails(tool_name, arguments, thread_id=kw.get("thread_id"), mode=kw.get("mode"),
+                                   security_mode=kw.get("security_mode", "normal"), task=kw.get("task"))
+        if guard is not None:
+            return guard if guard.get("approval_required") else {"error": guard["reason"], "blocked_by_guardrail": True}
+        return mock_call_tool(tool_name, arguments)
+
     thread_id = f"test_rollback_{security_mode}_{time.time_ns()}"
-    with patch("app.agent.execution_log.get_mcp_hub") as get_hub:
-        get_hub.return_value.call_tool.side_effect = mock_call_tool
+    with patch("app.agent.execution_log.get_mcp_hub") as get_hub, \
+            patch("app.agent.execution_log.get_registry_manager") as get_manager:
+        get_hub.return_value.call_tool.side_effect = mock_call_tool  # il rollback chiama ancora il server direttamente
+        get_manager.return_value.execute_tool.side_effect = manager_execute
         build_graph().invoke(_plan_state(thread_id, security_mode), config={"configurable": {"thread_id": thread_id}})
     return forward_calls, rollback_calls
 
@@ -102,7 +114,7 @@ def test_non_reversible_tool_is_skipped():
 def test_llm_rollback_plan_uses_model_output():
     log = ExecutionLog({"id": 1}, "proxmox-mcp__exec_lxc_command", {"vmid": 100, "command": "rm -rf /tmp/test"})
     with patch("app.agent.llm_calls.call_llm", return_value={"content": "  1. Ripristina i file da backup  "}) as mock_llm:
-        plan = generate_rollback_plan_with_llm([log], "Pulizia file temporanei", "Comando fallito a metà")
+        plan = generate_rollback_plan_with_llm([log], "Pulizia file temporanei", "Comando fallito a metà", tag=PUBLIC_TAG)
 
     mock_llm.assert_called_once()
     assert plan == "1. Ripristina i file da backup"

@@ -15,6 +15,7 @@ from app.api.schemas import (
 )
 from app.core.text_utils import clean_synthesis_content
 from app.memory import thread_store
+from app.security import flows
 
 logger = logging.getLogger("api")
 
@@ -175,11 +176,15 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
 
     synthesized_text = ""
     try:
+        # La sintesi legge la conversazione (la richiesta) e il risultato del tool
+        syn_tag = flows.join(flows.tag_of(thread_store.thread_label(req.thread_id) or "public", "conversazione")
+                             if req.thread_id else None, flows.result_tag(req.tool_name, req.arguments, result))
         syn_res = call_llm(
             summary_prompt,
             system_prompt=summary_system_prompt,
             max_tokens=4096,
             stream_mode="none",
+            tag=syn_tag,
         )
         raw_ans = syn_res.get("content", "") if syn_res else ""
         synthesized_text = clean_synthesis_content(raw_ans)

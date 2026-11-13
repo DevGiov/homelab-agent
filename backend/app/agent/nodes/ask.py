@@ -25,6 +25,7 @@ def ask_graph_node(state: AgentState) -> AgentState:
         images=state.get("images"),
         security_mode=state.get("security_mode") or "normal",
         meta=turn_meta(state),
+        tag=state.get("tag"),
         **llm_calls.agent_loop_llm_fns(state.get("reasoning_budget"), model, state.get("images")),
     )
 
@@ -32,4 +33,5 @@ def ask_graph_node(state: AgentState) -> AgentState:
     trace = loop_res.get("execution_trace", [])
     reasoning = loop_res.get("reasoning_content")
     plan = {"mode": "ask", "tool_needed": len(trace) > 0, "direct_answer": ans, "execution_log": trace}
-    return {"plan": plan, "execution_trace": trace, "final_response": ans, "reasoning_content": reasoning}
+    return {"plan": plan, "execution_trace": trace, "final_response": ans, "reasoning_content": reasoning,
+            "tag": loop_res.get("tag") or state.get("tag")}

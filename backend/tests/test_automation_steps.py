@@ -116,4 +116,4 @@ def test_agentic_step_uses_the_model_chosen_for_the_automation(choice, loaded, e
         fns.return_value = {"call_llm_fn": unittest.mock.MagicMock(return_value={"content": "Fatto."}), "call_llm_structured_fn": None}
         outcome = agentic.run(ctx)
     assert fns.call_args.args[1] == expected
-    assert outcome["output"] == {"text": "Fatto.", "model": expected}
+    assert {k: outcome["output"][k] for k in ("text", "model")} == {"text": "Fatto.", "model": expected}

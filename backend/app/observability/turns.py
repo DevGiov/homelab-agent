@@ -102,6 +102,8 @@ def record_llm_call(
     prompt_ms: Optional[int] = None,
     completion_ms: Optional[int] = None,
     error: Optional[str] = None,
+    label: Optional[str] = None,
+    destination: Optional[str] = None,
 ) -> None:
     """Registra una chiamata LLM e la somma al turno in corso, se c'è (le chiamate in background non ne hanno)."""
     trace = _current_turn.get()
@@ -127,6 +129,8 @@ def record_llm_call(
                 "completion_ms": completion_ms,
                 "duration_ms": duration_ms,
                 "error": error,
+                "label": label,
+                "destination": destination,
             }
         )
     except Exception as e:

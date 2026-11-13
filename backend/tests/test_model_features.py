@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.llm.providers import OllamaProvider, OpenAICompatProvider, model_status_changes
 from app.llm.reasoning import LEVEL_BUDGETS, resolve
 from app.memory import thread_store
+from app.security.flows import PUBLIC_TAG
 
 
 def test_stream_session_metrics_preserves_tok_per_s():
@@ -106,7 +107,7 @@ def test_a_configured_default_model_wins_without_asking_the_server():
 def test_chat_without_a_model_sends_the_one_found_on_the_server():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="")
     with _server({"a": None, "c": "ready"}), patch.object(provider, "_chat", return_value={"content": "ok"}) as chat:
-        provider.chat([{"role": "user", "content": "ciao"}])
+        provider.chat([{"role": "user", "content": "ciao"}], tag=PUBLIC_TAG)
     assert chat.call_args.kwargs["model"] == "c"
 
 
@@ -171,7 +172,7 @@ def test_openai_compat_chat_without_callback_still_streams():
     ]
     with patch.object(provider, "ensure_model_loaded", return_value=True), \
          patch("httpx.Client.stream", return_value=_sse(lines)) as stream:
-        res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=None)
+        res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=None, tag=PUBLIC_TAG)
     assert res["content"] == "Hello world"
     assert res["metrics"]["tok_per_s"] == 58.7
     assert res["metrics"]["prompt_tokens"] == 10
@@ -184,7 +185,7 @@ def test_read_timeout_is_not_retried():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
     with patch.object(provider, "ensure_model_loaded", return_value=True), \
          patch("httpx.Client.stream", side_effect=httpx.ReadTimeout("read timed out")) as stream:
-        res = provider.chat([{"role": "user", "content": "hi"}])
+        res = provider.chat([{"role": "user", "content": "hi"}], tag=PUBLIC_TAG)
     assert stream.call_count == 1
     assert res["content"] == "" and res["error"] == "timeout"
 
@@ -194,7 +195,7 @@ def test_connect_error_is_retried():
     lines = ['data: {"choices":[{"delta":{"content":"ok"}}]}', 'data: [DONE]']
     with patch.object(provider, "ensure_model_loaded", return_value=True), \
          patch("httpx.Client.stream", side_effect=[httpx.ConnectError("refused"), _sse(lines)]) as stream:
-        res = provider.chat([{"role": "user", "content": "hi"}])
+        res = provider.chat([{"role": "user", "content": "hi"}], tag=PUBLIC_TAG)
     assert stream.call_count == 2
     assert res["content"] == "ok" and "error" not in res
 
@@ -203,7 +204,7 @@ def test_http_error_is_reported():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
     with patch.object(provider, "ensure_model_loaded", return_value=True), \
          patch("httpx.Client.stream", return_value=_sse([], status_code=503)):
-        res = provider.chat([{"role": "user", "content": "hi"}])
+        res = provider.chat([{"role": "user", "content": "hi"}], tag=PUBLIC_TAG)
     assert res["error"] == "HTTP 503"
 
 
@@ -229,7 +230,7 @@ def test_openai_compat_chat_timings_stream():
 
     with patch.object(provider, "ensure_model_loaded", return_value=True):
         with patch("httpx.Client.stream", return_value=fake_stream_context):
-            res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=_cb)
+            res = provider.chat([{"role": "user", "content": "hi"}], stream_callback=_cb, tag=PUBLIC_TAG)
             assert res["content"] == "Hi there"
             assert res["metrics"]["tok_per_s"] == 64.2
             assert res["metrics"]["completion_tokens"] == 5
@@ -292,7 +293,7 @@ def test_json_mode_requests_json_output_from_each_provider():
     reply.json.return_value = {"message": {"content": "{}"}}
     ollama = OllamaProvider("http://localhost:11434", default_model="m")
     with patch("httpx.Client.post", return_value=reply) as post:
-        ollama.chat([{"role": "user", "content": "hi"}], json_mode=True)
+        ollama.chat([{"role": "user", "content": "hi"}], json_mode=True, tag=PUBLIC_TAG)
     assert post.call_args.kwargs["json"]["format"] == "json"
 
 

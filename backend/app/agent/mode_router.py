@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from app.llm.providers import get_provider
+from app.security.flows import Tag
 
 logger = logging.getLogger("router")
 
@@ -107,6 +108,8 @@ def route_turn(
     model: Optional[str] = None,
     has_images: bool = False,
     web_search_override: Optional[Any] = None,
+    *,
+    tag: Tag,
 ) -> RouteDecision:
     """
     Router unificato, intelligente e dinamico:
@@ -231,7 +234,7 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     context_parts.append(f"User Request: '{user_input}'")
     user_prompt = "\n\n".join(context_parts)
 
-    parsed = _ask_router_model(system_prompt, user_prompt, model)
+    parsed = _ask_router_model(system_prompt, user_prompt, model, tag)
     if parsed is not None:
         mode = str(parsed.get("mode", "")).lower().strip()
         if mode not in ["chat", "ask", "act", "plan"]:
@@ -296,10 +299,13 @@ Reply EXCLUSIVELY with a JSON object matching this schema:
     )
 
 
-def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Classificazione via provider LLM attivo (JSON mode, senza thinking). None se il modello non risponde."""
+def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str], tag: Tag) -> Optional[Dict[str, Any]]:
+    """Classificazione via provider LLM attivo (JSON mode, senza thinking). None se il modello non risponde.
+
+    `tag`: il router vede solo la richiesta e gli ultimi messaggi, non la memoria: il suo tag è quello di questi."""
     res = get_provider().chat(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        tag=tag,
         model=model,
         max_tokens=256,
         temperature=0.0,

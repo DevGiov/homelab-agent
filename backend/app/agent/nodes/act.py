@@ -19,6 +19,7 @@ def execute_plan_node(state: AgentState) -> AgentState:
         security_mode=state.get("security_mode") or "normal",
         model=state.get("model"),
         meta=turn_meta(state),
+        tag=state.get("tag"),
     )
 
 
@@ -47,6 +48,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         images=state.get("images"),
         security_mode=state.get("security_mode") or "normal",
         meta=turn_meta(state),
+        tag=state.get("tag"),
         **llm_calls.agent_loop_llm_fns(state.get("reasoning_budget"), model, state.get("images")),
     )
 
@@ -66,4 +68,5 @@ def act_graph_node(state: AgentState) -> AgentState:
         "command_prefix": loop_res.get("command_prefix"),
         "risk_reason": loop_res.get("risk_reason"),
         "security_mode": state.get("security_mode") or "normal",
+        "tag": loop_res.get("tag") or state.get("tag"),
     }

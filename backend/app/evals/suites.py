@@ -18,7 +18,13 @@ from unittest.mock import patch
 
 from pydantic import BaseModel
 
+from app.security.flows import Tag, tag_of
+
 CASES_DIR = Path(__file__).parent / "cases"
+
+
+# Casi di valutazione: dati inventati, mandati al modello locale come dati `internal`
+EVAL_TAG: Tag = tag_of("internal", "valutazione")
 
 
 @dataclass
@@ -214,7 +220,8 @@ def _catalog() -> List[str]:
 def run_routing(case: Dict[str, Any], model: str) -> Outcome:
     from app.agent.mode_router import route_turn
 
-    decision = route_turn(case["input"], previous_mode=case.get("previous_mode"), conversation_context=case.get("context"), model=model)
+    decision = route_turn(case["input"], previous_mode=case.get("previous_mode"), conversation_context=case.get("context"), model=model,
+                          tag=EVAL_TAG)
     return grade_routing(case, decision.mode, decision.web_search_needed)
 
 
@@ -241,8 +248,9 @@ def run_planning(case: Dict[str, Any], model: str) -> Outcome:
 
     # Il flusso di plan: stesura con il ragionamento, poi traduzione nel piano strutturato che viene eseguito
     user_prompt = f"User Request: '{case['input']}'"
-    draft = draft_plan(user_prompt, plan_system_prompt(), model=model, stream_mode="none")
-    structure = generate_plan_structure(case["input"], user_prompt, plan_text=draft.get("content") or None, model=model)
+    draft = draft_plan(user_prompt, plan_system_prompt(), model=model, stream_mode="none", tag=EVAL_TAG)
+    structure = generate_plan_structure(case["input"], user_prompt, plan_text=draft.get("content") or None, model=model,
+                                        tag=EVAL_TAG)
     return grade_plan(case, structure, _catalog())
 
 
@@ -349,6 +357,7 @@ thing, use the most recent one. If the memory does not contain the answer, set f
             max_retries=1,
             model=model,
             reasoning_phase=None,
+            tag=EVAL_TAG,
         )
     return grade_recall(case, answer.model_dump() if answer else None, context)
 

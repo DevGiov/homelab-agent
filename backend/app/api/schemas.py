@@ -14,6 +14,9 @@ class ChatRequest(BaseModel):
     incognito: bool = False
     web_search: Union[Literal["auto", "on", "off"], bool] = "auto"
     security_mode: Optional[Literal["safest", "normal", "dangerous"]] = "normal"
+    # Livello minimo della conversazione (app.security.flows): vale per questo messaggio e per i successivi del thread.
+    # None lascia quello già scelto (public se mai scelto)
+    sensitivity: Optional[Literal["public", "internal", "private"]] = None
 
     @field_validator("web_search", mode="before")
     @classmethod
@@ -38,6 +41,8 @@ class ChatResponse(BaseModel):
     web_prefetch: Optional[Dict[str, Any]] = None
     metrics: Optional[Dict[str, Any]] = None
     thread_title: Optional[str] = None
+    # Sensibilità del turno: {"label", "untrusted", "reasons"} (app.security.flows.Tag)
+    sensitivity: Optional[Dict[str, Any]] = None
     approval_required: Optional[bool] = None
     request_id: Optional[str] = None
     approval_prompt: Optional[str] = None

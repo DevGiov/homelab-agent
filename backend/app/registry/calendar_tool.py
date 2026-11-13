@@ -425,6 +425,15 @@ class CalendarRegistry(BaseToolRegistry):
         url = args.get("url", "").strip()
         if not url:
             return {"error": "URL feed obbligatorio"}
+        # L'indirizzo lo sceglie il modello: stesse regole di http_get (host ammessi, conferma, niente rete locale fuori
+        # lista). Può sollevare ApprovalRequired, gestita dal ToolRegistryManager. I feed aggiunti dall'utente dalla UI
+        # e la loro sincronizzazione periodica non passano di qui
+        from app.security import network
+        check_url = "https://" + url[len("webcal://"):] if url.lower().startswith("webcal://") else url
+        try:
+            network.require_approval_unless_listed("calendar_import_feed", check_url)
+        except network.NetworkBlocked as e:
+            return {"error": str(e), "blocked": True}
         from app.calendar import sync as calendar_sync
         provider = "google" if "google.com" in url.lower() else "webcal"
         name = args.get("name") or ("Google Calendar" if provider == "google" else "Feed Sottoscritto")

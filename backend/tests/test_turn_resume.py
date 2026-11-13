@@ -213,10 +213,10 @@ PLAN = {"steps": [
 def _suspended_plan():
     """Il passo 2 chiede conferma: il passo 1 è fatto, nessun rollback."""
     guard = _approval("proxmox-mcp__create_service")
-    hub = MagicMock()
-    hub.call_tool.side_effect = lambda name, args: {"ip": "192.168.1.50"}
-    with patch("app.agent.execution_log.get_mcp_hub", return_value=hub), \
-            patch("app.agent.execution_log.policy.enforce_guardrails", side_effect=[None, guard]), \
+    registry = MagicMock()
+    # I passi del piano passano dal ToolRegistryManager: il primo riesce, il secondo chiede conferma
+    registry.execute_tool.side_effect = [{"ip": "192.168.1.50"}, guard]
+    with patch("app.agent.execution_log.get_registry_manager", return_value=registry), \
             patch("app.agent.execution_log.execute_rollback_for_step") as rollback:
         res = execute_plan(PLAN, task="nuovo servizio", thread_id="t-1", security_mode="normal", model=None, meta={"thread_id": "t-1"})
     rollback.assert_not_called()
@@ -228,19 +228,17 @@ def _suspended_plan():
 def test_an_approval_suspends_the_plan_and_it_resumes_from_that_step(sandbox):
     request_id, checkpoint = _suspended_plan()
     assert checkpoint["kind"] == "plan"
-    registry, hub = MagicMock(), MagicMock()
-    registry.execute_tool.return_value = {"vmid": 150}
-    hub.call_tool.return_value = {"status": "ok"}
-    with patch("app.agent.execution_log.get_registry_manager", return_value=registry), \
-            patch("app.agent.execution_log.get_mcp_hub", return_value=hub), \
-            patch("app.agent.execution_log.policy.enforce_guardrails", return_value=None):
+    registry = MagicMock()
+    registry.execute_tool.side_effect = [{"vmid": 150}, {"status": "ok"}]
+    with patch("app.agent.execution_log.get_registry_manager", return_value=registry):
         res = resume_plan(checkpoint["state"], request_id, approved=True)
 
     # Il passo approvato usa gli argomenti risolti, il successivo riceve la variabile del primo
-    call = registry.execute_tool.call_args
-    assert call.args[:2] == ("proxmox-mcp__create_service", {"ip": "192.168.1.50"})
-    assert call.kwargs["approved_request"].request_id == request_id
-    assert hub.call_tool.call_args.args == ("proxmox-mcp__add_pihole_dns_record", {"ip": "192.168.1.50"})
+    approved_call, next_call = registry.execute_tool.call_args_list
+    assert approved_call.args[:2] == ("proxmox-mcp__create_service", {"ip": "192.168.1.50"})
+    assert approved_call.kwargs["approved_request"].request_id == request_id
+    assert next_call.args[:2] == ("proxmox-mcp__add_pihole_dns_record", {"ip": "192.168.1.50"})
+    assert "approved_request" not in next_call.kwargs
     assert "Tutti i passaggi" in res["final_response"] and "⏸️" not in res["final_response"]
     assert [t["step_id"] for t in res["execution_trace"]] == [1, 2, 3] and not res.get("approval_required")
 

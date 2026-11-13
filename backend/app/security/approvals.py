@@ -262,6 +262,13 @@ def resolve_approval(
         except Exception:
             pass
 
+        from app.security import flows
+        if normalized_action in ("approve_always", "always") and flows.is_flow_capability(req.command_prefix):
+            # Un'uscita di dati non si autorizza per sempre: vale per questa chat. Il livello ammesso di una
+            # destinazione si alza dalle impostazioni, non da una richiesta
+            logger.info(f"Approval {request_id}: 'sempre' su un'uscita di dati vale solo per questa chat")
+            normalized_action = "approve_thread"
+
         if normalized_action == "approve_thread" and req.thread_id:
             permissions.grant_permission(req.tool_name, "thread", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
             logger.info(f"Approval {request_id}: APPROVATA per l'intero thread '{req.thread_id}'")

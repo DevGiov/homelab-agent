@@ -19,7 +19,8 @@ async def kb_list_documents():
 async def kb_upload_document(request: Request):
     """Upload e indicizzazione di un documento (.md, .txt, .pdf) nella KB.
 
-    Accetta multipart/form-data con campo 'file' oppure JSON {"filename", "content"}.
+    Accetta multipart/form-data con campo 'file' oppure JSON {"filename", "content"}. Campo facoltativo
+    `sensitivity` (public, internal, private; default internal): l'etichetta del documento.
     """
     from app.memory import knowledge_base
     content_type = request.headers.get("content-type", "")
@@ -32,14 +33,16 @@ async def kb_upload_document(request: Request):
                 raise HTTPException(status_code=400, detail="Campo 'file' mancante nel form")
             filename = upload.filename
             content_bytes = await upload.read()
-            stats = knowledge_base.ingest_document(filename, content_bytes=content_bytes)
+            stats = knowledge_base.ingest_document(filename, content_bytes=content_bytes,
+                                                   sensitivity=str(form.get("sensitivity") or "internal"))
         else:
             body = await request.json()
             filename = body.get("filename")
             content = body.get("content")
             if not filename or content is None:
                 raise HTTPException(status_code=400, detail="Servono 'filename' e 'content'")
-            stats = knowledge_base.ingest_document(filename, text_content=content)
+            stats = knowledge_base.ingest_document(filename, text_content=content,
+                                                   sensitivity=str(body.get("sensitivity") or "internal"))
         return {"status": "ingested", **stats}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

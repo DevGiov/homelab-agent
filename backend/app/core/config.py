@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     default_model: str = Field(default="", alias="DEFAULT_MODEL")
     llama_cpp_url: str = Field(default="http://localhost:8080/v1", alias="LLAMA_CPP_URL")
     ollama_url: str = Field(default="", alias="OLLAMA_URL")
+    # Livello di sensibilità più alto che ogni provider può ricevere (public, internal, private): app.security.flows.
+    # Impostazione esplicita, non dedotta dall'indirizzo. `private` vale per un server dei modelli in casa; un
+    # indirizzo che porta a un servizio cloud (anche attraverso un proxy locale) va abbassato a `internal`
+    llama_cpp_clearance: str = Field(default="private", alias="LLAMA_CPP_CLEARANCE")
+    ollama_clearance: str = Field(default="private", alias="OLLAMA_CLEARANCE")
     # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato
     watchdog_url: str = Field(default="", alias="WATCHDOG_URL")
 

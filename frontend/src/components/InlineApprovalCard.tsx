@@ -76,6 +76,8 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
   const displayPrefix = commandPrefix || (previewCmd ? previewCmd.split(/\s+/).slice(0, 2).join(' ') : null);
   const isNetRequest = Boolean(commandPrefix?.startsWith('net:'));
+  // Uscita di dati (sensibilità): si autorizza una volta o per questa chat, mai per sempre
+  const isFlowRequest = Boolean(commandPrefix?.startsWith('flow:'));
   const netHost = isNetRequest ? commandPrefix!.slice(4).trim() : null;
   // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
   const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
@@ -249,11 +251,12 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
                   <MessageSquare size={14} className="text-sky-400 shrink-0" />
                 )}
                 <span className="truncate">
-                  Sì, in questa chat {displayPrefix ? `(${displayPrefix})` : ''}
+                  {isFlowRequest ? 'Sì, in questa chat' : `Sì, in questa chat ${displayPrefix ? `(${displayPrefix})` : ''}`}
                 </span>
               </button>
 
-              {/* Option 4: Sì (Sempre per &cmd / Host ammesso per net:) */}
+              {/* Option 4: Sì (Sempre per &cmd / Host ammesso per net:); assente per le uscite di dati */}
+              {!isFlowRequest && (
               <button
                 onClick={() => handleResolve('approve_always')}
                 disabled={isLoading}
@@ -275,6 +278,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
                     : `Sì, sempre ${displayPrefix ? `(${displayPrefix})` : `(${toolName})`}`}
                 </span>
               </button>
+              )}
             </div>
           </div>
         )}

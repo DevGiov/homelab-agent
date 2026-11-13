@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from app.agent.llm_calls import call_llm, call_llm_structured, stream_queue, stream_reasoning_phase_count
 from app.agent.tool_schemas import ToolSelection
+from app.security.flows import PUBLIC_TAG
 
 
 class TestStreamingIsolation(unittest.TestCase):
@@ -32,7 +33,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        res = call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
+        res = call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG)
         self.assertIn("content", res)
 
         events = []
@@ -63,7 +64,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        call_llm("prompt", stream_mode="none")
+        call_llm("prompt", stream_mode="none", tag=PUBLIC_TAG)
         self.assertTrue(self.q.empty(), "La coda stream deve rimanere completamente vuota")
 
     @patch("app.agent.llm_calls.get_provider")
@@ -88,7 +89,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        selection = call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool")
+        selection = call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool", tag=PUBLIC_TAG)
         self.assertIsNotNone(selection)
         self.assertFalse(selection.tool_needed)
         self.assertEqual(selection.raw_thinking, "pensiero nativo")
@@ -118,10 +119,10 @@ class TestStreamingIsolation(unittest.TestCase):
             return {"content": "step 2", "reasoning_content": "fase 2 thinking"}
 
         mock_provider.chat.side_effect = fake_chat_1
-        call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool")
+        call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG)
 
         mock_provider.chat.side_effect = fake_chat_2
-        call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta")
+        call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta", tag=PUBLIC_TAG)
 
         events = []
         while not self.q.empty():

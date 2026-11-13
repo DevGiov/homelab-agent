@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from app.agent.mode_router import get_dynamic_capabilities_summary, route_turn
 from app.agent.nodes.web_prefetch import should_prefetch_web, web_prefetch_node
 from app.api.schemas import ChatRequest
+from app.security.flows import PUBLIC_TAG
 
 
 class TestRouterAndPrefetch(unittest.TestCase):
@@ -24,7 +25,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "fai un backup del ct 125",
         ]
         for q in act_queries:
-            decision = route_turn(q)
+            decision = route_turn(q, tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "act", f"Expected 'act' for query: '{q}', got: '{decision.mode}'")
             self.assertFalse(decision.web_search_needed, f"Expected web_search_needed=False for query: '{q}'")
 
@@ -39,7 +40,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "thanks!",
         ]
         for q in chat_queries:
-            decision = route_turn(q)
+            decision = route_turn(q, tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "chat", f"Expected 'chat' for query: '{q}', got: '{decision.mode}'")
             self.assertFalse(decision.web_search_needed, f"Expected web_search_needed=False for query: '{q}'")
 
@@ -51,7 +52,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "sviluppa una strategia per il backup",
         ]
         for q in plan_queries:
-            decision = route_turn(q)
+            decision = route_turn(q, tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "plan", f"Expected 'plan' for query: '{q}', got: '{decision.mode}'")
 
     def test_mode_continuity_in_act_thread(self):
@@ -76,7 +77,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
                     user_input=q,
                     previous_mode="act",
                     last_tool_used="calendar_create_event",
-                    conversation_context="User: Crea un evento\nAssistant: Evento creato con id 123"
+                    conversation_context="User: Crea un evento\nAssistant: Evento creato con id 123", tag=PUBLIC_TAG
                 )
                 self.assertEqual(decision.mode, "act", f"Expected 'act' continuity for follow-up: '{q}'")
 
@@ -86,7 +87,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.chat.return_value = {"content": "<think>Let's ponder: this is external question.</think>\n```json\n{\"mode\": \"ask\", \"web_search_needed\": true, \"web_search_query\": \"DLSS 5 features and release\", \"reasoning\": \"Hardware release inquiry\"}\n```"}
         with patch("app.agent.mode_router.get_provider", return_value=mock_response):
-            decision = route_turn("Parlami del DLSS 5")
+            decision = route_turn("Parlami del DLSS 5", tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "ask")
             self.assertTrue(decision.web_search_needed)
             self.assertEqual(decision.web_search_query, "DLSS 5 features and release")
@@ -95,7 +96,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
         mock_raw = MagicMock()
         mock_raw.chat.return_value = {"content": "<think>Thinking about options: chat, ask, act, plan.</think> act"}
         with patch("app.agent.mode_router.get_provider", return_value=mock_raw):
-            decision = route_turn("qualcosa di anomalo 123")
+            decision = route_turn("qualcosa di anomalo 123", tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "act")
 
     def test_router_fallback_when_llm_unavailable(self):
@@ -112,7 +113,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
         with patch("app.agent.mode_router.get_provider") as get_provider:
             get_provider.return_value.chat.return_value = {"content": "", "reasoning_content": ""}
             for query, previous_mode, expected_mode, expected_web in cases:
-                decision = route_turn(query, previous_mode=previous_mode)
+                decision = route_turn(query, previous_mode=previous_mode, tag=PUBLIC_TAG)
                 self.assertEqual(decision.mode, expected_mode, f"mode per '{query}'")
                 self.assertEqual(decision.web_search_needed, expected_web, f"web per '{query}'")
                 self.assertEqual(decision.reasoning, "Fallback decision due to router timeout/offline")
@@ -129,13 +130,13 @@ class TestRouterAndPrefetch(unittest.TestCase):
 
     def test_should_prefetch_web_auto_mode(self):
         # 1. Deterministic local container ops -> False
-        self.assertFalse(should_prefetch_web("elenca i file in /opt del container 125"))
-        self.assertFalse(should_prefetch_web("stato container 125"))
-        self.assertFalse(should_prefetch_web("stop ct 125"))
-        self.assertFalse(should_prefetch_web("riavvia il container 125"))
+        self.assertFalse(should_prefetch_web("elenca i file in /opt del container 125", tag=PUBLIC_TAG))
+        self.assertFalse(should_prefetch_web("stato container 125", tag=PUBLIC_TAG))
+        self.assertFalse(should_prefetch_web("stop ct 125", tag=PUBLIC_TAG))
+        self.assertFalse(should_prefetch_web("riavvia il container 125", tag=PUBLIC_TAG))
 
         # 2. Greetings -> False
-        self.assertFalse(should_prefetch_web("ciao come stai?"))
+        self.assertFalse(should_prefetch_web("ciao come stai?", tag=PUBLIC_TAG))
 
         # 3. External questions with mocked model -> True
         mock_response = MagicMock()
@@ -146,7 +147,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "reasoning": "Comparison of external models"
         })}
         with patch("app.agent.mode_router.get_provider", return_value=mock_response):
-            self.assertTrue(should_prefetch_web("Confronta Claude e GPT-5"))
+            self.assertTrue(should_prefetch_web("Confronta Claude e GPT-5", tag=PUBLIC_TAG))
 
     def test_web_prefetch_node_modes(self):
         mock_search_result = {
@@ -211,12 +212,12 @@ class TestRouterAndPrefetch(unittest.TestCase):
     def test_route_turn_fast_shortcut_when_force_mode_and_web_off(self):
         """Verifica che force_mode con web_search='off' ritorni istantaneamente senza chiamare l'LLM."""
         with patch("app.agent.mode_router.get_provider") as get_provider:
-            decision = route_turn("Spiegami la fisica quantistica", force_mode="chat", web_search_override="off")
+            decision = route_turn("Spiegami la fisica quantistica", force_mode="chat", web_search_override="off", tag=PUBLIC_TAG)
             self.assertEqual(decision.mode, "chat")
             self.assertFalse(decision.web_search_needed)
             self.assertIsNone(decision.web_search_query)
 
-            decision_act = route_turn("Qualunque cosa", force_mode="act", web_search_override=False)
+            decision_act = route_turn("Qualunque cosa", force_mode="act", web_search_override=False, tag=PUBLIC_TAG)
             self.assertEqual(decision_act.mode, "act")
             self.assertFalse(decision_act.web_search_needed)
             get_provider.assert_not_called()
@@ -226,7 +227,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
         provider = MagicMock()
         provider.chat.return_value = {"content": json.dumps({"mode": "ask", "web_search_needed": True, "web_search_query": "test query"})}
         with patch("app.agent.mode_router.get_provider", return_value=provider):
-            route_turn("Spiegami il rendering raster", model="Gemma-4-26B-Q3")
+            route_turn("Spiegami il rendering raster", model="Gemma-4-26B-Q3", tag=PUBLIC_TAG)
         provider.chat.assert_called_once()
         kwargs = provider.chat.call_args.kwargs
         self.assertEqual(kwargs["model"], "Gemma-4-26B-Q3")
@@ -256,6 +257,6 @@ def test_router_reads_fields_from_truncated_json():
     provider = MagicMock()
     provider.chat.return_value = {"content": truncated}
     with patch("app.agent.mode_router.get_provider", return_value=provider):
-        decision = route_turn("Crea un evento domani alle 10 per il dentista")
+        decision = route_turn("Crea un evento domani alle 10 per il dentista", tag=PUBLIC_TAG)
     assert decision.mode == "act"
     assert decision.web_search_needed is False

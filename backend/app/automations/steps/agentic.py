@@ -59,7 +59,8 @@ def _outcome(ctx: StepContext, prompt: str, model: Optional[str], result: Dict[s
         return failed(final_text, {"model": model}, trace)
     # Stima: l'agent loop non restituisce il conteggio reale dei token
     estimated_tokens = int(len((prompt + json.dumps(trace, default=str)).split()) * 1.3) + int(len(final_text.split()) * 1.3)
-    return completed({"text": final_text, "model": model}, trace, estimated_tokens)
+    # L'etichetta della risposta: gli step successivi che la leggono la ereditano (AutomationRunner._step_tag)
+    return completed({"text": final_text, "model": model, "sensitivity": result.get("tag")}, trace, estimated_tokens)
 
 
 def _resume(ctx: StepContext) -> Outcome:
@@ -101,6 +102,7 @@ def run(ctx: StepContext) -> Outcome:
         audit={"automation_id": ctx.automation.id, "run_id": ctx.run.run_id, "step_run_id": ctx.step_run_id},
         meta={"model": model},
         checkpoint_kind="automation_step",
+        tag=ctx.data.get("tag"),
         **llm_calls.agent_loop_llm_fns(None, model, None),
     )
     return _outcome(ctx, prompt, model, result)

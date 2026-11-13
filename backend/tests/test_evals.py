@@ -17,6 +17,7 @@ from app.evals.suites import (
 )
 from app.observability import store
 from app.observability.turns import capture_llm_calls, record_llm_call
+from app.security.flows import PUBLIC_TAG
 
 CATALOG = ["proxmox-mcp__list_containers", "proxmox-mcp__get_container_status", "proxmox-mcp__allocate_ip", "calendar_list_events"]
 
@@ -194,7 +195,7 @@ def test_rollback_plan_is_requested_without_reasoning():
     from app.agent.execution_log import ExecutionLog, generate_rollback_plan_with_llm
 
     with patch("app.agent.llm_calls.call_llm", return_value={"content": "1. release_ip"}) as llm:
-        assert generate_rollback_plan_with_llm([ExecutionLog({"id": 1}, "proxmox-mcp__allocate_ip", {})], "t", "errore") == "1. release_ip"
+        assert generate_rollback_plan_with_llm([ExecutionLog({"id": 1}, "proxmox-mcp__allocate_ip", {})], "t", "errore", tag=PUBLIC_TAG) == "1. release_ip"
     assert llm.call_args.kwargs.get("thinking", "off") == "off"
     # Le compensazioni dichiarate dei passi riusciti sono nel prompt
     assert "`proxmox-mcp__allocate_ip` → `proxmox-mcp__release_ip`" in llm.call_args.args[0]
@@ -212,14 +213,14 @@ def test_plan_structure_has_no_fabricated_fallback():
 
     valid = {"content": '```json\n{"steps": [{"id": 1, "description": "Elenca", "tool": "proxmox-mcp__list_containers", "args": {}}]}\n``` testo dopo'}
     with patch("app.agent.llm_calls.call_llm", return_value=valid) as llm:
-        assert generate_plan_structure("lista i container", "User Request: 'lista i container'")["steps"][0]["tool"] == "proxmox-mcp__list_containers"
+        assert generate_plan_structure("lista i container", "User Request: 'lista i container'", tag=PUBLIC_TAG)["steps"][0]["tool"] == "proxmox-mcp__list_containers"
     # Output vincolato ai tool del catalogo, senza ragionamento
     kwargs = llm.call_args.kwargs
     assert kwargs.get("thinking", "off") == "off"
     assert "web_search" in kwargs["json_schema"]["properties"]["steps"]["items"]["properties"]["tool"]["enum"]
     for content in ("non ho capito", '{"steps": []}', '{"steps": [{"id": 1}]}'):
         with patch("app.agent.llm_calls.call_llm", return_value={"content": content}):
-            assert generate_plan_structure("crea un servizio", "User Request: 'crea un servizio'") is None
+            assert generate_plan_structure("crea un servizio", "User Request: 'crea un servizio'", tag=PUBLIC_TAG) is None
 
 
 def test_plan_structure_translates_the_drafted_plan():
@@ -227,7 +228,7 @@ def test_plan_structure_translates_the_drafted_plan():
 
     valid = {"content": '{"steps": [{"id": 1, "description": "Elenca", "tool": "proxmox-mcp__list_containers", "args": {}}]}'}
     with patch("app.agent.llm_calls.call_llm", return_value=valid) as llm:
-        generate_plan_structure("lista i container", "User Request: 'lista i container'", plan_text="1. list_containers")
+        generate_plan_structure("lista i container", "User Request: 'lista i container'", plan_text="1. list_containers", tag=PUBLIC_TAG)
     prompt, system_prompt = llm.call_args.args[0], llm.call_args.kwargs["system_prompt"]
     assert prompt.endswith("Drafted plan:\n1. list_containers") and system_prompt.startswith("Convert the drafted plan")
 

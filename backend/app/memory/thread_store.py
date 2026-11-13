@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
+from app.core.sqlite_utils import ensure_columns
 
 logger = logging.getLogger("thread_store")
 
@@ -66,6 +67,11 @@ def init_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Sensibilità (app.security.flows): di ogni messaggio, del riassunto (la più alta tra i messaggi che copre) e
+        # il livello minimo scelto dall'utente per la conversazione. NULL = public, come i messaggi nuovi
+        ensure_columns(conn, "thread_messages", {"sensitivity": "TEXT"})
+        ensure_columns(conn, "thread_summaries", {"sensitivity": "TEXT"})
+        ensure_columns(conn, "thread_metadata", {"sensitivity": "TEXT"})
         conn.commit()
     finally:
         conn.close()
@@ -105,8 +111,50 @@ def set_thread_title(thread_id: str, title: str):
         logger.error(f"Errore aggiornamento titolo per thread '{thread_id}': {e}")
 
 
-def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[str] = None) -> str:
-    """Genera via LLM un titolo conciso in italiano (3-5 parole) e lo salva in SQLite."""
+def get_thread_sensitivity(thread_id: str) -> Optional[str]:
+    """Livello minimo della conversazione scelto dall'utente (public, internal, private), None se non l'ha scelto."""
+    if not thread_id:
+        return None
+    conn = _get_conn()
+    try:
+        row = conn.execute("SELECT sensitivity FROM thread_metadata WHERE thread_id = ?", (thread_id,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row and row[0] else None
+
+
+def set_thread_sensitivity(thread_id: str, level: str) -> None:
+    conn = _get_conn()
+    try:
+        conn.execute("""
+            INSERT INTO thread_metadata (thread_id, sensitivity, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(thread_id) DO UPDATE SET sensitivity = excluded.sensitivity, updated_at = CURRENT_TIMESTAMP
+        """, (thread_id, level))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def thread_label(thread_id: str) -> Optional[str]:
+    """L'etichetta più alta tra i messaggi del thread e il suo livello minimo (per le chiamate che li riassumono)."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute("SELECT sensitivity FROM thread_messages WHERE thread_id = ? AND sensitivity IS NOT NULL",
+                            (thread_id,)).fetchall()
+    finally:
+        conn.close()
+    from app.security.flows import Label
+    labels = [Label.parse(r[0], Label.PUBLIC) for r in rows]
+    floor = get_thread_sensitivity(thread_id)
+    if floor:
+        labels.append(Label.parse(floor, Label.PUBLIC))
+    return max(labels).key if labels else None
+
+
+def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[str] = None, tag: Any = None) -> str:
+    """Genera via LLM un titolo conciso in italiano (3-5 parole) e lo salva in SQLite.
+
+    `tag`: sensibilità del testo da cui nasce il titolo; senza, quella del thread."""
     if not thread_id or not user_prompt:
         return "Nuova Conversazione"
     try:
@@ -126,7 +174,9 @@ def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[st
                 "content": f"Title for this initial request:\n{user_prompt[:300]}"
             }
         ]
-        res = provider.chat(prompt_msgs, model=model, max_tokens=25, temperature=0.3)
+        from app.security import flows
+        title_tag = flows.join(tag) if tag else flows.tag_of(thread_label(thread_id) or "public", "titolo")
+        res = provider.chat(prompt_msgs, tag=title_tag, model=model, max_tokens=25, temperature=0.3)
         raw_title = res.get("content", "").strip()
         clean = re.sub(r'["\'`\n#]', '', raw_title).strip()
         if clean.endswith('.'):
@@ -148,9 +198,12 @@ def save_user_message(
     timestamp_str: Optional[str] = None,
     versions: Optional[List[Dict[str, Any]]] = None,
     version_index: int = 0,
-    images: Optional[List[str]] = None
+    images: Optional[List[str]] = None,
+    sensitivity: Optional[str] = None,
 ) -> str:
-    """Salva o aggiorna il messaggio dell'utente in SQLite con supporto a versioni multiple e immagini."""
+    """Salva o aggiorna il messaggio dell'utente in SQLite con supporto a versioni multiple e immagini.
+
+    `sensitivity`: etichetta del messaggio (livello della conversazione e rilevatori)."""
     if not thread_id:
         return ""
     if not user_input and not images:
@@ -165,9 +218,9 @@ def save_user_message(
     try:
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
-            (thread_id, message_id, sender, content, timestamp, versions_json, version_index, images_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (thread_id, msg_id, "user", user_input or "", time_str, versions_json, version_index, images_json))
+            (thread_id, message_id, sender, content, timestamp, versions_json, version_index, images_json, sensitivity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (thread_id, msg_id, "user", user_input or "", time_str, versions_json, version_index, images_json, sensitivity))
         conn.commit()
         return msg_id
     except Exception as e:
@@ -228,13 +281,16 @@ def save_assistant_message(
         web_prefetch = response_data.get("web_prefetch")
         web_prefetch_json = json.dumps(web_prefetch, ensure_ascii=False) if web_prefetch else None
         model = response_data.get("model")
+        # Etichetta del turno che ha scritto la risposta (ChatResponse.sensitivity)
+        sens = response_data.get("sensitivity")
+        sensitivity = sens.get("label") if isinstance(sens, dict) else sens
 
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model, sensitivity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -254,7 +310,8 @@ def save_assistant_message(
             v_idx,
             metrics_json,
             web_prefetch_json,
-            model
+            model,
+            sensitivity,
         ))
         conn.commit()
         return msg_id
@@ -420,7 +477,7 @@ def get_history(thread_id: str) -> List[Dict[str, Any]]:
     conn = _get_conn()
     try:
         rows = conn.execute("""
-            SELECT sender, content, versions_json, version_index, mode, tool_used, created_at
+            SELECT sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity
             FROM thread_messages
             WHERE thread_id = ? AND COALESCE(is_error, 0) = 0
             ORDER BY rowid ASC
@@ -428,10 +485,11 @@ def get_history(thread_id: str) -> List[Dict[str, Any]]:
     finally:
         conn.close()
     history = []
-    for sender, content, versions_json, version_index, mode, tool_used, created_at in rows:
+    for sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity in rows:
         text = _active_content(content, versions_json, version_index).strip()
         if text:
-            history.append({"role": sender, "content": text, "mode": mode, "tool_used": tool_used, "created_at": created_at})
+            history.append({"role": sender, "content": text, "mode": mode, "tool_used": tool_used, "created_at": created_at,
+                            "sensitivity": sensitivity})
     return history
 
 
@@ -445,12 +503,22 @@ def get_summary(thread_id: str) -> Tuple[str, int]:
     return (row[0], row[1]) if row else ("", 0)
 
 
-def save_summary(thread_id: str, summary: str, covered: int) -> None:
+def get_summary_sensitivity(thread_id: str) -> Optional[str]:
+    conn = _get_conn()
+    try:
+        row = conn.execute("SELECT sensitivity FROM thread_summaries WHERE thread_id = ?", (thread_id,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row and row[0] else None
+
+
+def save_summary(thread_id: str, summary: str, covered: int, sensitivity: Optional[str] = None) -> None:
     conn = _get_conn()
     try:
         conn.execute(
-            "INSERT OR REPLACE INTO thread_summaries (thread_id, summary, covered, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-            (thread_id, summary, covered),
+            "INSERT OR REPLACE INTO thread_summaries (thread_id, summary, covered, updated_at, sensitivity) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)",
+            (thread_id, summary, covered, sensitivity),
         )
         conn.commit()
     finally:

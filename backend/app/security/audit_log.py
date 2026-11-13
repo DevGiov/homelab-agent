@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
+from app.core.sqlite_utils import ensure_columns
 
 logger = logging.getLogger("audit_log")
 
@@ -34,6 +35,8 @@ def init_audit_db():
                 step_run_id TEXT
             )
         """)
+        # Sensibilità dei dati (app.security.flows): etichetta degli argomenti, destinazione, esito del controllo
+        ensure_columns(conn, "audit_log", {"label": "TEXT", "destination": "TEXT", "flow": "TEXT"})
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_thread ON audit_log(thread_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_auto ON audit_log(automation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_run ON audit_log(run_id)")
@@ -55,8 +58,11 @@ def log_tool_call(
     automation_id: Optional[str] = None,
     run_id: Optional[str] = None,
     step_run_id: Optional[str] = None,
+    flow: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Registra in modo persistente una chiamata a un tool. Mai bloccante."""
+    """Registra in modo persistente una chiamata a un tool. Mai bloccante.
+
+    `flow`: {"label", "destination", "flow"} del controllo di sensibilità (allow, ask, deny, approved)."""
     try:
         if isinstance(result, (dict, list)):
             result_str = json.dumps(result, ensure_ascii=False, default=str)[:2000]
@@ -66,8 +72,9 @@ def log_tool_call(
         conn = _get_conn()
         conn.execute(
             """INSERT INTO audit_log
-               (timestamp, thread_id, mode, tool_name, registry, arguments_json, result_summary, is_error, duration_ms, automation_id, run_id, step_run_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (timestamp, thread_id, mode, tool_name, registry, arguments_json, result_summary, is_error, duration_ms,
+                automation_id, run_id, step_run_id, label, destination, flow)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 datetime.now(timezone.utc).isoformat(),
                 thread_id,
@@ -81,6 +88,9 @@ def log_tool_call(
                 automation_id,
                 run_id,
                 step_run_id,
+                (flow or {}).get("label"),
+                (flow or {}).get("destination"),
+                (flow or {}).get("flow"),
             ),
         )
         conn.commit()

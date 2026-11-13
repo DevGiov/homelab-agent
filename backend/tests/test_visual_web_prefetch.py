@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from app.agent.mode_router import is_purely_visual_request
 from app.agent.nodes.web_prefetch import formulate_visual_search_query, web_prefetch_node
+from app.security.flows import PUBLIC_TAG
 
 
 class TestVisualWebPrefetch(unittest.TestCase):
@@ -37,7 +38,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         query = formulate_visual_search_query(
             task="Cerca informazioni e prezzo attuale",
             images=["data:image/jpeg;base64,mock123"],
-            model="gemini-2.5-flash"
+            model="gemini-2.5-flash", tag=PUBLIC_TAG
         )
         self.assertEqual(query, "Eachine EV800DM prezzo specifiche")
         # Verify LLM was called with stream_mode='none' and no reasoning for speed
@@ -53,7 +54,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         mock_llm.return_value = "Query: Apple iMac G4 specifiche tecniche"
         query = formulate_visual_search_query(
             task="Dimmi che computer è e le sue specifiche",
-            images=["data:image/jpeg;base64,mock123"]
+            images=["data:image/jpeg;base64,mock123"], tag=PUBLIC_TAG
         )
         self.assertEqual(query, "Apple iMac G4 specifiche tecniche")
 
@@ -63,7 +64,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         mock_llm.side_effect = RuntimeError("API timeout")
         query = formulate_visual_search_query(
             task="Cerca prezzo visore",
-            images=["data:image/jpeg;base64,mock123"]
+            images=["data:image/jpeg;base64,mock123"], tag=PUBLIC_TAG
         )
         self.assertEqual(query, "Cerca prezzo visore")
 
@@ -103,7 +104,8 @@ class TestVisualWebPrefetch(unittest.TestCase):
         mock_formulate.assert_called_once_with(
             "Cerca informazioni e prezzo attuale di questo visore",
             ["data:image/jpeg;base64,mock123"],
-            model=None
+            model=None,
+            tag=PUBLIC_TAG,
         )
         mock_search.assert_called_once()
         _, search_kwargs = mock_search.call_args

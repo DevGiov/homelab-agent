@@ -9,7 +9,8 @@ from app.agent.mode_policy import get_mode_policy
 from app.agent.tool_catalog import get_rollback_info, get_tool_catalog
 from app.mcp.hub import get_mcp_hub
 from app.registry.manager import get_registry_manager
-from app.security import approvals, policy
+from app.security import approvals, flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
 
@@ -188,7 +189,8 @@ def execute_rollback_for_step(log: ExecutionLog, tools_catalog: list[dict]) -> b
         return False
 
 
-def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str, error_context: str, model: Optional[str] = None) -> Optional[str]:
+def generate_rollback_plan_with_llm(execution_log: List[ExecutionLog], task: str, error_context: str, model: Optional[str] = None,
+                                    *, tag: Tag) -> Optional[str]:
     """
     Usa l'LLM per generare un piano di rollback contestuale quando quello dichiarativo non basta.
     """
@@ -218,7 +220,7 @@ the action, the tool (a known compensating tool when listed, otherwise "manual a
 Rollback plan:"""
 
     # Senza ragionamento: con il thinking attivo il modello esauriva i token prima di scrivere il piano
-    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, model=model, stream_mode="none")
+    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, model=model, stream_mode="none", tag=tag)
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 
@@ -231,8 +233,10 @@ class _PlanRun:
     """
 
     def __init__(self, plan_struct: Dict[str, Any], task: str, thread_id: Optional[str], security_mode: str,
-                 model: Optional[str], meta: Optional[Dict[str, Any]] = None):
+                 model: Optional[str], meta: Optional[Dict[str, Any]] = None, tag: Any = None):
         self.plan_struct = plan_struct
+        # Sensibilità del turno: gli argomenti dei passi li ha scritti il modello che ha steso il piano; sale con i risultati
+        self.tag: Tag = flows.join(tag)
         self.task = task
         self.thread_id = thread_id
         self.security_mode = security_mode
@@ -253,11 +257,13 @@ class _PlanRun:
             "plan_struct": self.plan_struct, "task": self.task, "thread_id": self.thread_id, "security_mode": self.security_mode,
             "model": self.model, "meta": self.meta, "index": self.index, "context_vars": self.context_vars,
             "execution_log": [{"step": e.step, **e.to_dict()} for e in self.execution_log], "exec_lines": self.exec_lines,
+            "tag": self.tag.to_dict(),
         }
 
     @classmethod
     def restore(cls, state: Dict[str, Any]) -> "_PlanRun":
-        run = cls(state["plan_struct"], state["task"], state["thread_id"], state["security_mode"], state["model"], state["meta"])
+        run = cls(state["plan_struct"], state["task"], state["thread_id"], state["security_mode"], state["model"], state["meta"],
+                  state.get("tag"))
         run.index, run.context_vars, run.exec_lines = state["index"], state["context_vars"], state["exec_lines"]
         run.execution_log = [ExecutionLog.from_dict(e) for e in state["execution_log"]]
         return run
@@ -290,6 +296,7 @@ class _PlanRun:
             self.exec_lines.append(f"{step_id}. ❌ `{desc}` — Tool `{tool_name}` fallito: `{result['error']}`")
             return False
 
+        self.tag = flows.join(self.tag, flows.result_tag(tool_name, log_entry.args, result))
         output_var = step.get("output_var")
         if output_var:
             extracted_val = extract_output_var(result, output_var, step_id)
@@ -317,7 +324,8 @@ class _PlanRun:
         log_dicts[-1].update(approval)
         answer = "\n".join(self.exec_lines)
         return {"plan": {"mode": "act", "tool_needed": True, "direct_answer": answer, "execution_log": log_dicts},
-                "plan_structure": self.plan_struct, "execution_trace": log_dicts, "final_response": answer, **approval}
+                "plan_structure": self.plan_struct, "execution_trace": log_dicts, "final_response": answer,
+                "tag": self.tag.to_dict(), **approval}
 
     def advance(self) -> Dict[str, Any]:
         """Esegue i passi dall'indice corrente fino alla fine, al primo errore o a una richiesta di approvazione."""
@@ -331,20 +339,20 @@ class _PlanRun:
             log_entry = ExecutionLog(step, tool_name, resolved_args)
             self.execution_log.append(log_entry)
 
-            # Verifica guardrail di sicurezza e autorizzazioni
-            guard = policy.enforce_guardrails(tool_name, resolved_args, thread_id=self.thread_id, mode="plan",
-                                              security_mode=self.security_mode, task=self.task)
-            if guard:
-                if guard.get("blocked"):
-                    self.has_error = True
-                    log_entry.error = guard["reason"]
-                    self.exec_lines.append(f"{step_id}. ⛔ `{desc}` — Bloccato dal guardrail di sicurezza: `{guard['reason']}`")
-                    break
-                if guard.get("approval_required"):
-                    return self._suspend(step, guard)
-
+            # Attraverso il ToolRegistryManager, come ogni altra chiamata: guardrail, approvazioni, controllo
+            # dell'uscita dei dati e audit (prima il piano chiamava il server MCP direttamente, senza audit)
             try:
-                if not self._record_result(step, log_entry, get_mcp_hub().call_tool(tool_name, resolved_args)):
+                result = get_registry_manager().execute_tool(
+                    tool_name, resolved_args, get_mode_policy("act").allowed_registries, thread_id=self.thread_id,
+                    mode="plan", security_mode=self.security_mode, task=self.task, tag=self.tag)
+                if isinstance(result, dict) and result.get("approval_required"):
+                    return self._suspend(step, result)
+                if isinstance(result, dict) and result.get("blocked_by_guardrail"):
+                    self.has_error = True
+                    log_entry.error = result.get("error")
+                    self.exec_lines.append(f"{step_id}. ⛔ `{desc}` — Bloccato dal guardrail di sicurezza: `{result.get('error')}`")
+                    break
+                if not self._record_result(step, log_entry, result):
                     break
             except Exception as e:
                 self.has_error = True
@@ -372,7 +380,7 @@ class _PlanRun:
         request = approvals.approved_request_for(request_id, log_entry.tool_name, log_entry.args, self.thread_id, "plan")
         result = get_registry_manager().execute_tool(
             log_entry.tool_name, log_entry.args, get_mode_policy("act").allowed_registries, thread_id=self.thread_id, mode="plan",
-            security_mode=self.security_mode, task=self.task, approved_request=request)
+            security_mode=self.security_mode, task=self.task, approved_request=request, tag=self.tag)
         if isinstance(result, dict) and result.get("approval_required"):
             return self._suspend(step, result)
         if self._record_result(step, log_entry, result):
@@ -400,7 +408,7 @@ class _PlanRun:
             if failed_rollbacks:
                 self.exec_lines.append("\n### 🤖 LLM-based Rollback Planning:\n")
                 error_ctx = "Step non reversibili o rollback dichiarativo non completato"
-                llm_plan = generate_rollback_plan_with_llm(self.execution_log, self.task, error_ctx, model=self.model)
+                llm_plan = generate_rollback_plan_with_llm(self.execution_log, self.task, error_ctx, model=self.model, tag=self.tag)
                 if llm_plan:
                     self.exec_lines.append(f"```\n{llm_plan}\n```")
                     self.exec_lines.append("\n⚠️ **Piano LLM generato: esegui manualmente i passaggi sopra se necessario.**")
@@ -413,7 +421,8 @@ class _PlanRun:
         ans = "\n".join(self.exec_lines)
         log_dicts = [log.to_dict() for log in self.execution_log]
         plan = {"mode": "act", "tool_needed": True, "direct_answer": ans, "execution_log": log_dicts}
-        return {"plan": plan, "plan_structure": self.plan_struct, "execution_trace": log_dicts, "final_response": ans}
+        return {"plan": plan, "plan_structure": self.plan_struct, "execution_trace": log_dicts, "final_response": ans,
+                "tag": self.tag.to_dict()}
 
 
 def execute_plan(
@@ -424,10 +433,11 @@ def execute_plan(
     security_mode: str,
     model: Optional[str],
     meta: Optional[Dict[str, Any]] = None,
+    tag: Any = None,
 ) -> Dict[str, Any]:
     """Esegue in sequenza gli step di plan_struct sui tool MetaMCP: al primo errore annulla gli step completati, a una richiesta
-    di approvazione si sospende (`resume_plan`)."""
-    return _PlanRun(plan_struct, task, thread_id, security_mode, model, meta).advance()
+    di approvazione si sospende (`resume_plan`). `tag`: sensibilità del turno (app.security.flows)."""
+    return _PlanRun(plan_struct, task, thread_id, security_mode, model, meta, tag).advance()
 
 
 def resume_plan(state: Dict[str, Any], request_id: str, approved: bool) -> Dict[str, Any]:

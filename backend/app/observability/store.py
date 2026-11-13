@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from app.core.config import settings
+from app.core.sqlite_utils import ensure_columns
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS llm_calls (
@@ -79,6 +80,8 @@ def init_metrics_db() -> None:
     with _connect() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        # Sensibilità del prompt e destinazione (app.security.flows), per controllare a posteriori dove è andato cosa
+        ensure_columns(conn, "llm_calls", {"label": "TEXT", "destination": "TEXT"})
 
 
 def _insert(table: str, row: Dict[str, Any]) -> None:

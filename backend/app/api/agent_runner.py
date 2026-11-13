@@ -31,6 +31,8 @@ from app.llm.providers import (
 )
 from app.memory import thread_store
 from app.observability.turns import observe_turn
+from app.security import detectors, flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("api")
 
@@ -65,7 +67,33 @@ def _chat_response(final_state: dict, thread_id: str, force_mode: Optional[str],
         command_prefix=final_state.get("command_prefix"),
         risk_reason=final_state.get("risk_reason"),
         security_mode=final_state.get("security_mode", security_mode),
+        sensitivity=flows.join(final_state.get("tag")).to_dict(),
     )
+
+
+def _input_tag(thread_id: str, task: str, images: Optional[List[str]], sensitivity: Optional[str], incognito: bool) -> Tag:
+    """Tag del messaggio dell'utente: il livello della conversazione (salvato con il thread se l'utente lo sceglie
+    ora), alzato dai rilevatori; le immagini allegate possono contenere testo scritto da altri.
+
+    Un segreto che l'utente scrive lui stesso resta `private` (lo vede il modello locale, non esce): `secret` è per i
+    segreti che il codice tiene fuori da ogni prompt."""
+    if sensitivity and not incognito:
+        previous = thread_store.get_thread_sensitivity(thread_id)
+        if previous != sensitivity:
+            thread_store.set_thread_sensitivity(thread_id, sensitivity)
+            logger.info(f"Livello del thread '{thread_id}': {previous or 'public'} -> {sensitivity}")
+    level = sensitivity or thread_store.get_thread_sensitivity(thread_id) or "public"
+    floor = flows.tag_of(level, f"conversazione:{level}") if level != "public" else flows.PUBLIC_TAG
+    try:
+        from app.memory import facts
+        persons = [e["name"] for e in facts.list_entities(entity_type="person") if e.get("name")]
+    except Exception:
+        persons = []
+    found = detectors.tag_for(task or "", "messaggio", persons)
+    if found.label == flows.Label.SECRET:
+        found = flows.Tag(flows.Label.PRIVATE, found.untrusted, found.reasons)
+    image_tag = flows.tag_of(flows.Label.PUBLIC, "immagine", untrusted=True) if images else None
+    return flows.join(floor, found, image_tag)
 
 
 def thread_has_active_turn(thread_id: Optional[str]) -> bool:
@@ -109,7 +137,7 @@ def start_turn_resume(checkpoint: dict, request_id: str, approved: bool) -> str:
     return thread_id
 
 
-def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal") -> ChatResponse:
+def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal", sensitivity: Optional[str] = None) -> ChatResponse:
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -134,12 +162,14 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
         "incognito": incognito,
         "security_mode": security_mode,
     }
+    input_tag = _input_tag(effective_thread_id, graph_task, images, sensitivity, incognito)
+    initial_state["tag"] = input_tag.to_dict()
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
     needs_title_generation = False
     if not incognito:
-        thread_store.save_user_message(effective_thread_id, task, images=images)
+        thread_store.save_user_message(effective_thread_id, task, images=images, sensitivity=input_tag.label.key)
         if not thread_store.get_thread_title(effective_thread_id):
             provisional_title = task.strip()[:35] if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
             thread_store.set_thread_title(effective_thread_id, provisional_title)
@@ -161,7 +191,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
             if needs_title_generation:
                 threading.Thread(
                     target=thread_store.generate_and_save_title,
-                    args=(effective_thread_id, title_prompt, model),
+                    args=(effective_thread_id, title_prompt, model, input_tag),
                     daemon=True
                 ).start()
 
@@ -178,7 +208,7 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
 
 
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal"):
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal", sensitivity: Optional[str] = None):
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -203,12 +233,14 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "incognito": incognito,
         "security_mode": security_mode,
     }
+    input_tag = _input_tag(effective_thread_id, graph_task, images, sensitivity, incognito)
+    initial_state["tag"] = input_tag.to_dict()
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
     title_prompt = task.strip() if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
     needs_title_generation = False
     if not incognito:
-        thread_store.save_user_message(effective_thread_id, task, images=images)
+        thread_store.save_user_message(effective_thread_id, task, images=images, sensitivity=input_tag.label.key)
         if not thread_store.get_thread_title(effective_thread_id):
             provisional_title = task.strip()[:35] if (task and task.strip()) else ("Analisi immagine" if images else "Nuova conversazione")
             thread_store.set_thread_title(effective_thread_id, provisional_title)
@@ -236,7 +268,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                     if needs_title_generation:
                         threading.Thread(
                             target=thread_store.generate_and_save_title,
-                            args=(effective_thread_id, title_prompt, model),
+                            args=(effective_thread_id, title_prompt, model, input_tag),
                             daemon=True
                         ).start()
                 sess.put({"type": "final", "response": resp.model_dump()})
@@ -259,7 +291,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
                         if needs_title_generation:
                             threading.Thread(
                                 target=thread_store.generate_and_save_title,
-                                args=(effective_thread_id, title_prompt, model),
+                                args=(effective_thread_id, title_prompt, model, input_tag),
                                 daemon=True
                             ).start()
                 sess.put(None)

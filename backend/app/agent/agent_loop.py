@@ -40,7 +40,8 @@ from app.core.text_utils import clean_synthesis_content
 from app.llm.providers import LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
-from app.security import approvals, policy
+from app.security import approvals, detectors, flows, policy
+from app.security.flows import Tag
 
 logger = logging.getLogger("agent_loop")
 
@@ -180,9 +181,12 @@ class AgentLoop:
         audit: Optional[Dict[str, str]] = None,
         meta: Optional[Dict[str, Any]] = None,
         checkpoint_kind: str = "loop",
+        tag: Optional[Any] = None,
     ):
         """`allowed_tools`, `allowed_registries` e `max_tool_calls` restringono il catalogo e i passi della modalità (step
-        delle automazioni). `audit` finisce nelle chiamate ai tool; `meta` serve a chi riprende il loop dopo un'approvazione."""
+        delle automazioni). `audit` finisce nelle chiamate ai tool; `meta` serve a chi riprende il loop dopo un'approvazione.
+        `tag`: sensibilità di ciò che il turno ha già in contesto (richiesta, memoria, prefetch); sale con ogni risultato
+        letto e accompagna ogni chiamata a un modello e a un tool (app.security.flows)."""
         self.task = task
         self.mode = mode
         self.memory_context = memory_context
@@ -203,8 +207,12 @@ class AgentLoop:
         self.meta = meta or {}
         self.checkpoint_kind = checkpoint_kind
         self.available_tools = [t for t in self.manager.get_tools_for_mode(self.allowed_registries) if self._tool_allowed(t["name"])]
+        self.tag: Tag = flows.join(tag) if tag else flows.PUBLIC_TAG
+        self._mcp_flows = flows.mcp_flow_settings()
+        self._person_names: Optional[List[str]] = None
         self.prefetch_block = ""
         if web_prefetch_data and web_prefetch_data.get("summary_text"):
+            self.tag = flows.join(self.tag, flows.tag_of(flows.Label.PUBLIC, "web_prefetch", untrusted=True))
             self.prefetch_block = wrap_untrusted_web_evidence(
                 query=web_prefetch_data.get("query", task),
                 formatted_content=web_prefetch_data.get("summary_text", ""),
@@ -241,6 +249,8 @@ class AgentLoop:
                 "allowed_tools": sorted(self.allowed_tools) if self.allowed_tools is not None else None,
                 "allowed_registries": self.allowed_registries, "max_tool_calls": self.max_tool_calls,
                 "audit": self.audit, "meta": self.meta, "checkpoint_kind": self.checkpoint_kind,
+                # Il tag di questo momento, già alzato dai risultati letti: il loop ripreso parte da qui
+                "tag": self.tag.to_dict(),
             },
             "progress": {name: getattr(self, name) for name in _PROGRESS_FIELDS},
         }
@@ -283,7 +293,8 @@ class AgentLoop:
         request = approvals.approved_request_for(request_id, tool_name, arguments, self.thread_id, self.mode)
         try:
             return self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, mode=self.mode,
-                                             security_mode=self.security_mode, task=self.task, approved_request=request, **self.audit)
+                                             security_mode=self.security_mode, task=self.task, approved_request=request,
+                                             tag=self.tag, **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool approvato '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}
@@ -299,7 +310,7 @@ class AgentLoop:
 
     def _result(self, final_response: str) -> Dict[str, Any]:
         return {"final_response": final_response, "execution_trace": self.execution_trace,
-                "reasoning_content": self._reasoning_content()}
+                "reasoning_content": self._reasoning_content(), "tag": self.tag.to_dict()}
 
     def _observation_text(self) -> str:
         text = "\n".join(self.observations)
@@ -318,8 +329,27 @@ class AgentLoop:
         self.observations.append(text)
         self._remember(text)
 
-    def _observe(self, header: str, tool_name: str, res: Any) -> str:
-        full = _serialize(res)
+    def _flow_allowed(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
+        """I dati del turno possono andare alla destinazione del tool senza chiedere (chiamate in parallelo)."""
+        dest = flows.destination_for_tool(tool_name, arguments, self._mcp_flows)
+        return dest is None or flows.can_flow(self.tag, dest).allowed
+
+    def _persons(self) -> List[str]:
+        if self._person_names is None:
+            try:
+                from app.memory import facts
+                self._person_names = [e["name"] for e in facts.list_entities(entity_type="person") if e.get("name")]
+            except Exception as e:
+                logger.warning(f"Nomi delle persone per i rilevatori non disponibili: {e}")
+                self._person_names = []
+        return self._person_names
+
+    def _observe(self, header: str, tool_name: str, res: Any, arguments: Optional[Dict[str, Any]] = None) -> str:
+        # Prima di entrare nel contesto: via i segreti; poi l'etichetta del turno sale con quella del risultato
+        full, _ = detectors.redact_secrets(_serialize(res))
+        if not _pending_or_blocked(res):
+            self.tag = flows.join(self.tag, flows.result_tag(tool_name, arguments, res, self._mcp_flows),
+                                  detectors.tag_for(full, f"risultato:{tool_name}", self._persons(), detectors.RESULT_KINDS))
         self.observations.append(f"{header} -> {_guarded(tool_name, full)}")
         limit = settings.agent_observation_limit
         short = full
@@ -333,7 +363,8 @@ class AgentLoop:
 
     def _ask_llm(self, prompt: str, system_prompt: str, phase: str) -> str:
         """Risposta testuale (fase `answer`); il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
-        res = self.call_llm_fn(prompt, system_prompt=system_prompt, thinking=self.policy.thinking.answer, reasoning_phase=phase)
+        res = self.call_llm_fn(prompt, system_prompt=system_prompt, thinking=self.policy.thinking.answer, reasoning_phase=phase,
+                               tag=self.tag)
         if isinstance(res, dict) and res.get("error"):
             raise LLMUnavailableError(res["error"])
         content, reasoning = _content(res)
@@ -421,11 +452,14 @@ class AgentLoop:
                 system_prompt=prompts.no_tools_system_prompt(self.mode),
                 thinking=self.policy.thinking.answer,
                 reasoning_phase=None,
+                tag=self.tag,
             )
             if res:
                 raw, reasoning = _content(res)
-                return {"final_response": clean_synthesis_content(raw) or raw, "execution_trace": [], "reasoning_content": reasoning}
-        return {"final_response": f"Ho ricevuto la tua richiesta: '{self.task}'.", "execution_trace": [], "reasoning_content": None}
+                return {"final_response": clean_synthesis_content(raw) or raw, "execution_trace": [], "reasoning_content": reasoning,
+                        "tag": self.tag.to_dict()}
+        return {"final_response": f"Ho ricevuto la tua richiesta: '{self.task}'.", "execution_trace": [], "reasoning_content": None,
+                "tag": self.tag.to_dict()}
 
     def _plain_answer(self) -> Dict[str, Any]:
         """Chiamante senza output strutturato (es. step agentici delle automazioni): risposta diretta."""
@@ -436,10 +470,11 @@ class AgentLoop:
             system_prompt=prompts.plain_answer_system_prompt(self.mode),
             thinking=self.policy.thinking.answer,
             reasoning_phase="Elaborazione Risposta Finale",
+            tag=self.tag,
         )
         content, reasoning = _content(res)
         return {"final_response": content or "Richiesta completata.", "execution_trace": self.execution_trace,
-                "reasoning_content": reasoning}
+                "reasoning_content": reasoning, "tag": self.tag.to_dict()}
 
     # --- fasi di un passo -----------------------------------------------------
 
@@ -469,6 +504,7 @@ class AgentLoop:
             max_retries=2,
             thinking=self.policy.thinking.select,
             images=self.images,
+            tag=self.tag,
             **extra,
         )
         thinking = getattr(selection, "raw_thinking", "") or ""
@@ -534,14 +570,15 @@ class AgentLoop:
         # I tool che possono chiedere un'approvazione durante l'esecuzione restano sequenziali: qui non si sospende
         calls = [c for c in (selection.parallel_calls or [])
                  if isinstance(c, dict) and c.get("tool_name") and policy.classify_tool(c["tool_name"]) == "safe"
-                 and c["tool_name"] not in SEQUENTIAL_ONLY_TOOLS and self._tool_allowed(c["tool_name"])]
+                 and c["tool_name"] not in SEQUENTIAL_ONLY_TOOLS and self._tool_allowed(c["tool_name"])
+                 and self._flow_allowed(c["tool_name"], c.get("arguments") or {})]
         if len(selection.parallel_calls or []) <= 1 or len(calls) <= 1:
             return False
 
         logger.info(f"Step {step_id}: esecuzione parallela di {len(calls)} tool read-only")
         results = self.manager.execute_tools_parallel(
             calls, self.allowed_registries, thread_id=self.thread_id, mode=self.mode, security_mode=self.security_mode,
-            task=self.task, **self.audit,
+            task=self.task, tag=self.tag, **self.audit,
         )
         for i, (call, res) in enumerate(zip(calls, results, strict=True)):
             tool_name, arguments = call["tool_name"], call.get("arguments", {})
@@ -559,7 +596,7 @@ class AgentLoop:
                 self.search_queries.append(str(arguments.get("query", "")).strip())
             sig = _normalize_call_signature(tool_name, arguments)
             self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
-            self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res)
+            self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res, arguments)
         return True
 
     def _reject_tool(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> None:
@@ -612,7 +649,7 @@ class AgentLoop:
             logger.info(f"Step {step_id}: hit cache deduplicazione per '{tool_name}'")
             return self.call_cache[cache_key], True
         try:
-            res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id,
+            res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, tag=self.tag,
                                             mode=self.mode, security_mode=self.security_mode, task=self.task, **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
@@ -643,10 +680,10 @@ class AgentLoop:
         self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
                                      "reasoning": reasoning, "approval_required": True, "approval_prompt": message, **approval})
         return {"final_response": message, "execution_trace": self.execution_trace, "reasoning_content": reasoning,
-                "approval_required": True, "approval_prompt": message, **approval}
+                "approval_required": True, "approval_prompt": message, "tag": self.tag.to_dict(), **approval}
 
     def _record(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Any, reasoning: Optional[str], cached: bool):
-        observation = self._observe(f"Step {step_id}: {tool_name}({arguments})", tool_name, res)
+        observation = self._observe(f"Step {step_id}: {tool_name}({arguments})", tool_name, res, arguments)
         logger.info(f"Step {step_id}: Risultato tool '{tool_name}' ({len(observation)} caratteri): {observation[:200]}...")
         self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
                                      "reasoning": reasoning, "cached": cached,

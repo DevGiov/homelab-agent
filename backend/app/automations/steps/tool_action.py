@@ -51,6 +51,7 @@ def run(ctx: StepContext) -> Outcome:
         run_id=run_.run_id,
         step_run_id=ctx.step_run_id,
         approved_request=approved_request,
+        tag=ctx.data.get("tag"),
     )
     tool_calls = [{"tool_name": tool_name, "args": params, "result": res}]
 

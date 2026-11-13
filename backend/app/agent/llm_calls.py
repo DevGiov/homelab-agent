@@ -10,6 +10,7 @@ from app.core import image_utils
 from app.core.text_utils import strip_thinking
 from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
 from app.llm.reasoning import Level, interleaved_for, resolve
+from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
 
@@ -30,9 +31,13 @@ def call_llm(
     images: Optional[List[str]] = None,
     json_schema: Optional[dict] = None,
     history: Optional[List[dict]] = None,
+    *,
+    tag: Tag,
 ) -> dict:
     """`history`: messaggi dei passi precedenti del turno (assistente con `reasoning_content`, risultati dei tool), dopo
-    il messaggio utente: il template li rende nel formato del modello e ne conserva il pensiero."""
+    il messaggio utente: il template li rende nel formato del modello e ne conserva il pensiero.
+
+    `tag`: sensibilità di tutto ciò che va nel prompt (app.security.flows), obbligatoria come in LLMProvider.chat."""
     messages = []
 
     # `thinking` è il livello della fase, tradotto dal profilo del modello (app.llm.reasoning); `thinking_budget` è il
@@ -119,6 +124,7 @@ def call_llm(
     # `max_tokens` è la lunghezza della risposta: il server conta anche i token di ragionamento, che si aggiungono
     return provider.chat(
         messages,
+        tag=tag,
         model=effective_model or None,
         max_tokens=max_tokens + (reasoning.budget if reasoning.enabled else 0),
         reasoning=reasoning,
@@ -145,6 +151,8 @@ def call_llm_structured(
     reasoning_phase: Optional[str] = "Analisi e Selezione Tool",
     images: Optional[List[str]] = None,
     history: Optional[List[dict]] = None,
+    *,
+    tag: Tag,
 ) -> Optional[Any]:
     """
     Chiama l'LLM richiedendo output conforme allo schema Pydantic.
@@ -189,6 +197,7 @@ def call_llm_structured(
             images=images,
             json_schema=_grammar_schema(schema_cls),
             history=history,
+            tag=tag,
         )
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
@@ -232,15 +241,16 @@ def agent_loop_llm_fns(thinking_budget: Optional[int], model: Optional[str], sta
     """Argomenti LLM per run_agent_loop: risposta in streaming, selezione tool strutturata e se rimandare il pensiero dei
     passi precedenti (profilo del modello). Il livello di ragionamento lo sceglie il loop per fase; `thinking_budget` è
     l'eventuale budget dell'utente per il turno."""
-    def call_llm_fn(p, system_prompt=None, thinking="off", reasoning_phase=None):
+    # `tag`: il loop passa il proprio, che sale a ogni risultato letto
+    def call_llm_fn(p, system_prompt=None, thinking="off", reasoning_phase=None, *, tag: Tag):
         return call_llm(p, system_prompt=system_prompt, max_tokens=4096, thinking=thinking, thinking_budget=thinking_budget,
-                        model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images)
+                        model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images, tag=tag)
 
     def call_llm_structured_fn(prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, thinking="off",
-                               reasoning_phase="Analisi e Selezione Tool", images=None, history=None):
+                               reasoning_phase="Analisi e Selezione Tool", images=None, history=None, *, tag: Tag):
         return call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, thinking=thinking,
                                    thinking_budget=thinking_budget, model=model, reasoning_phase=reasoning_phase,
-                                   images=images if images is not None else state_images, history=history)
+                                   images=images if images is not None else state_images, history=history, tag=tag)
 
     effective_model = get_provider().effective_model(model)
     return {"call_llm_fn": call_llm_fn, "call_llm_structured_fn": call_llm_structured_fn,

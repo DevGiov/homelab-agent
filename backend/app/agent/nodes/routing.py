@@ -2,6 +2,7 @@ import logging
 
 from app.agent import mode_router as router
 from app.agent.state import AgentState
+from app.security import flows
 
 logger = logging.getLogger("graph")
 
@@ -26,7 +27,8 @@ def mode_router_node(state: AgentState) -> AgentState:
         force_mode=force_mode,
         model=model,
         has_images=has_images,
-        web_search_override=web_search_val
+        web_search_override=web_search_val,
+        tag=flows.join(state.get("routing_tag") or state.get("tag")),
     )
     logger.info(f"Mode Router decision: mode='{decision.mode}', web_search_needed={decision.web_search_needed}, query='{decision.web_search_query}' (has_images={has_images}, prev_mode={previous_mode})")
     return {

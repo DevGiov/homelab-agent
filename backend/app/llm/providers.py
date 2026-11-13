@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.llm.model_availability import availability_fields, unavailable_reason
 from app.llm.reasoning import Reasoning, resolve
 from app.observability.turns import record_llm_call
+from app.security.flows import FlowDenied, Tag, can_flow, provider_destination
 
 logger = logging.getLogger("providers")
 
@@ -95,6 +96,7 @@ class LLMProvider(ABC):
         self,
         messages: List[Dict[str, str]],
         *,
+        tag: Tag,
         model: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: Optional[float] = None,
@@ -111,7 +113,16 @@ class LLMProvider(ABC):
 
         `reasoning` (vedi app.llm.reasoning) dice se e quanto ragionare e con che campionamento; senza, la richiesta
         non ragiona e usa `temperature`.
+
+        `tag` (obbligatorio): la sensibilità del prompt (app.security.flows). Ogni chiamata dichiara cosa sta inviando;
+        se il provider non può riceverlo la richiesta non parte (FlowDenied). Con i provider locali capita solo con un
+        segreto: le scelte vere si fanno prima, scegliendo il provider.
         """
+        destination = provider_destination(self.name)
+        decision = can_flow(tag, destination)
+        if not decision.allowed:
+            logger.warning(f"Chiamata a {destination.id} negata: {decision.reason}")
+            raise FlowDenied(decision)
         start = time.monotonic()
         model = self.effective_model(model)
         if reasoning is None:
@@ -129,6 +140,8 @@ class LLMProvider(ABC):
             prompt_ms=metrics.get("prompt_ms"),
             completion_ms=metrics.get("completion_ms"),
             error=result.get("error"),
+            label=tag.label.key,
+            destination=destination.id,
         )
         return result
 

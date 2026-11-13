@@ -5,11 +5,13 @@ from typing import Any, Dict, List, Optional
 from app.agent import llm_calls
 from app.agent import mode_router as router
 from app.agent.state import AgentState
+from app.security import flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
 
 
-def formulate_visual_search_query(task: str, images: List[str], model: Optional[str] = None) -> str:
+def formulate_visual_search_query(task: str, images: List[str], model: Optional[str] = None, *, tag: Tag) -> str:
     """
     Executes a fast and silent vision micro-pass (without SSE streaming) to extract
     the subject (brand, model, code, component) from the image and formulate a concise search query.
@@ -33,7 +35,8 @@ def formulate_visual_search_query(task: str, images: List[str], model: Optional[
             temperature=0.0,
             model=model,
             stream_mode="none",
-            images=images
+            images=images,
+            tag=tag,
         )
         raw_content = res.get("content", "") if isinstance(res, dict) else (res or "")
         clean_q = re.sub(r'["\'`\n]', ' ', raw_content).strip()
@@ -52,6 +55,8 @@ def should_prefetch_web(
     images: Optional[List[str]] = None,
     conversation_context: Optional[str] = None,
     model: Optional[str] = None,
+    *,
+    tag: Tag,
 ) -> bool:
     """
     Determines whether deterministic web prefetch should run in 'auto' mode.
@@ -66,6 +71,7 @@ def should_prefetch_web(
         conversation_context=conversation_context,
         has_images=has_images,
         model=model,
+        tag=tag,
     )
     return decision.web_search_needed
 
@@ -102,7 +108,8 @@ def web_prefetch_node(state: AgentState) -> AgentState:
                 task,
                 images=images,
                 conversation_context=state.get("routing_context"),
-                model=state.get("model")
+                model=state.get("model"),
+                tag=flows.join(state.get("routing_tag") or state.get("tag")),
             )
 
         if not should_run:
@@ -112,15 +119,30 @@ def web_prefetch_node(state: AgentState) -> AgentState:
         effective_query = route_decision.get("web_search_query") or task
         logger.info(f"Web prefetch [AUTO]: activated for query '{effective_query}' (task: '{task}')")
 
+    # Tag della query: scritta dal router (che vede la richiesta e gli ultimi messaggi) o la richiesta stessa
+    query_tag = flows.join(state.get("routing_tag") or state.get("tag")) if route_decision.get("web_search_query") \
+        else flows.join(state.get("tag"))
+
     # If images are present and no search query was formulated, ground query with vision
     if images and len(images) > 0 and (not route_decision.get("web_search_query")):
-        effective_query = formulate_visual_search_query(task, images, model=state.get("model"))
+        effective_query = formulate_visual_search_query(task, images, model=state.get("model"), tag=query_tag)
 
     q = llm_calls.stream_queue.get()
 
     def emit_event(ev_name: str, data: Dict[str, Any]):
         if q:
             q.put({"type": "retrieval", "event": ev_name, "data": data})
+
+    # La ricerca preventiva non chiede conferme: con dati che non possono andare ai motori pubblici non parte. Il loop
+    # dell'agente può ancora cercare, chiedendo conferma con la query davanti
+    decision = flows.can_flow(query_tag, flows.SEARCH_DESTINATION)
+    if not decision.allowed:
+        logger.info(f"Web prefetch saltato: {decision.reason}")
+        reason = "La conversazione contiene dati riservati: ricerca preventiva non eseguita."
+        emit_event("web_prefetch.skipped", {"query": None, "reason": reason, "label": query_tag.label.key})
+        meta = {"query": None, "success": False, "provider_used": "Web", "latency_ms": 0, "sources": [],
+                "error": "sensitive", "skipped_reason": reason, "label": query_tag.label.key}
+        return {"web_prefetch_data": None, "web_prefetch_metadata": meta}
 
     emit_event("web_prefetch.started", {"query": effective_query})
     logger.info(f"Avvio web prefetch per query: '{effective_query}' (task originale: '{task}')")
@@ -139,6 +161,7 @@ def web_prefetch_node(state: AgentState) -> AgentState:
             mode=state.get("mode"),
             security_mode=state.get("security_mode") or "normal",
             task=task,
+            tag=query_tag,
         )
         if not isinstance(search_res, dict) or search_res.get("approval_required") or search_res.get("blocked_by_guardrail"):
             # Il prefetch non chiede conferme: senza via libera la ricerca non parte
@@ -191,10 +214,11 @@ def web_prefetch_node(state: AgentState) -> AgentState:
                 "provider": provider
             })
 
-        return {
-            "web_prefetch_data": internal_data,
-            "web_prefetch_metadata": public_meta
-        }
+        result = {"web_prefetch_data": internal_data, "web_prefetch_metadata": public_meta}
+        if internal_data["success"] and clean_sources:
+            # Il contenuto delle pagine entra nel contesto: pubblico e non attendibile
+            result["tag"] = flows.join(state.get("tag"), flows.tag_of(flows.Label.PUBLIC, "web_prefetch", untrusted=True)).to_dict()
+        return result
     except Exception as e:
         logger.warning(f"Web prefetch non riuscito (non bloccante): {e}", exc_info=True)
         public_err_msg = "Ricerca web non disponibile al momento."

@@ -5,6 +5,7 @@ from typing import Any
 from app.agent.procedure_distillation import distill
 from app.agent.state import AgentState
 from app.memory.episodes import remember_episode
+from app.security import flows
 
 logger = logging.getLogger("graph")
 
@@ -101,9 +102,10 @@ def respond_node(state: AgentState) -> AgentState:
         # Un turno sospeso su un'approvazione diventa un episodio quando finisce
         if state.get("mode") in ("act", "plan") and state.get("execution_trace") and not state.get("approval_required"):
             try:
-                if remember_episode(task, state["mode"], state["execution_trace"], thread_id):
+                turn_tag = flows.join(state.get("tag"))
+                if remember_episode(task, state["mode"], state["execution_trace"], thread_id, sensitivity=turn_tag.label.key):
                     logger.info(f"Memoria: episodio di esecuzione salvato dal thread '{thread_id}'")
-                    if distill(task, state["execution_trace"], thread_id, model=state.get("model")):
+                    if distill(task, state["execution_trace"], thread_id, model=state.get("model"), tag=turn_tag):
                         logger.info(f"Memoria: procedura proposta dall'esecuzione nel thread '{thread_id}'")
             except Exception as e:
                 logger.warning(f"Salvataggio dell'episodio non riuscito (non bloccante): {e}")
@@ -121,4 +123,5 @@ def respond_node(state: AgentState) -> AgentState:
         "command_prefix": state.get("command_prefix"),
         "risk_reason": state.get("risk_reason"),
         "security_mode": state.get("security_mode") or "normal",
+        "tag": flows.join(state.get("tag")).to_dict(),
     }

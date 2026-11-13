@@ -27,27 +27,27 @@ router = APIRouter(tags=["chat"])
 @router.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
 
 @router.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
+    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
 
 @router.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
+    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
 
 @router.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
+    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
 
 @router.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal")
+    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
 
 @router.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @rate_limited
@@ -64,6 +64,7 @@ async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
         request=request,
         images=req.images,
         security_mode=req.security_mode or "normal",
+        sensitivity=req.sensitivity,
     )
 
 @router.get("/v1/threads/{thread_id}/stream", dependencies=[Depends(verify_api_key)])

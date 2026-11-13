@@ -63,8 +63,11 @@ def describe(task: str, trace: List[Dict[str, Any]]) -> Optional[str]:
     return f"Richiesta: «{_clip(task, MAX_TASK_CHARS)}» → " + "; ".join(_step(e) for e in steps) + f" → esito: {outcome_of(steps)}"
 
 
-def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_id: Optional[str]) -> Optional[int]:
-    """Salva l'episodio del turno; turni in attesa di approvazione esclusi (si concludono in un turno successivo)."""
+def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_id: Optional[str],
+                     sensitivity: Optional[str] = None) -> Optional[int]:
+    """Salva l'episodio del turno; turni in attesa di approvazione esclusi (si concludono in un turno successivo).
+
+    `sensitivity`: etichetta del turno, che l'episodio conserva (contiene richiesta e argomenti dei tool)."""
     if any(e.get("approval_required") for e in trace):
         return None
     text = describe(task, trace)
@@ -75,6 +78,7 @@ def remember_episode(task: str, mode: str, trace: List[Dict[str, Any]], thread_i
         "mode": mode,
         "task": _clip(task, MAX_TASK_CHARS),
         "outcome": outcome_of(steps),
+        "sensitivity": sensitivity,
         "steps": [
             {
                 "tool": e["tool_name"],
@@ -101,6 +105,7 @@ def _rows(conn, where: str, params: list) -> List[Dict[str, Any]]:
             "task": metadata.get("task"),
             "outcome": metadata.get("outcome"),
             "steps": metadata.get("steps", []),
+            "sensitivity": metadata.get("sensitivity"),
             # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
             "created_at": f"{str(created_at).replace(' ', 'T')}+00:00" if created_at else None,
         })

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.agent import llm_calls
 from app.memory import episodes, procedures
+from app.security import flows
 
 logger = logging.getLogger("procedures")
 
@@ -37,8 +38,11 @@ def worth_distilling(trace: List[Dict[str, Any]]) -> bool:
     return outcome == "riuscito" and len(steps) >= 2 and any(not is_view_tool(s["tool_name"]) for s in steps)
 
 
-def distill(task: str, trace: List[Dict[str, Any]], thread_id: Optional[str], model: Optional[str] = None) -> Optional[int]:
-    """Propone una procedura dall'esecuzione, se ne vale la pena; id della nuova proposta o None."""
+def distill(task: str, trace: List[Dict[str, Any]], thread_id: Optional[str], model: Optional[str] = None,
+            tag: Any = None) -> Optional[int]:
+    """Propone una procedura dall'esecuzione, se ne vale la pena; id della nuova proposta o None.
+
+    `tag`: quello del turno, perché la chiamata ne legge richiesta e risultati (`private` se manca)."""
     if not worth_distilling(trace):
         return None
     episode = episodes.describe(task, trace)
@@ -62,6 +66,7 @@ Write title and content in Italian."""
         max_retries=1,
         model=model,
         reasoning_phase=None,
+        tag=flows.join(tag) if tag else flows.tag_of(flows.Label.PRIVATE, "memoria:esecuzione"),
     )
     if proposal is None or proposal.kind == "none":
         return None

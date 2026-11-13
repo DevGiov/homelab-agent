@@ -29,7 +29,8 @@ from app.automations.run_secrets import collect_secrets
 from app.automations.steps import Outcome, StepContext, select_handler, select_resume_handler
 from app.observability.turns import observe_turn
 from app.registry.manager import get_registry_manager
-from app.security import approvals
+from app.security import approvals, flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("automations.runner")
 
@@ -68,6 +69,24 @@ def _next_step_id(steps: List[WorkflowStepDefinition], current_step_id: str) -> 
     idx = ids.index(current_step_id)
     return ids[idx + 1] if idx + 1 < len(ids) else None
 
+
+
+def _trigger_tag(run: AutomationRun) -> Tag:
+    """Un webhook porta dati scritti da altri: `internal` e non attendibili (design, tabella 4.1)."""
+    trigger = str(getattr(run.trigger_type, "value", run.trigger_type) or "")
+    if trigger == "webhook" and run.trigger_payload:
+        return flows.tag_of(flows.Label.INTERNAL, "automazione:webhook", untrusted=True)
+    return flows.PUBLIC_TAG
+
+
+def _step_tag(step_run: Any) -> Tag:
+    """Tag di uno step completato, ricavato da ciò che è salvato: i tool chiamati e l'etichetta della risposta."""
+    tags = [flows.result_tag(c.get("tool_name", ""), c.get("args") or {}, c.get("result"))
+            for c in (step_run.tool_calls or []) if isinstance(c, dict) and c.get("tool_name") and not c.get("dry_run")]
+    output = step_run.output_payload if isinstance(step_run.output_payload, dict) else {}
+    if output.get("sensitivity"):
+        tags.append(flows.join(output["sensitivity"]))
+    return flows.join(*tags)
 
 class AutomationRunner:
     def __init__(self, db_path: Optional[str] = None):
@@ -171,6 +190,10 @@ class AutomationRunner:
             "run_id": run_id,
             "automation_id": run.automation_id,
         }
+        # Sensibilità della run: i valori scritti nella definizione sono una scelta dell'autore (public); salgono i
+        # dati letti dagli step (risultati dei tool, risposte degli step agentici) e il payload di un webhook
+        data["tag"] = flows.join(_trigger_tag(run), *(_step_tag(s) for s in run.step_runs
+                                                      if s.status == RunStatus.COMPLETED)).to_dict()
         steps_map = {s.step_id: s for s in auto_def.workflow.steps}
         current_step_id = run.current_step_id or auto_def.workflow.initial_step_id
         start_time = time.monotonic()
@@ -235,6 +258,7 @@ class AutomationRunner:
                 return self._load_run(run_id)
 
             data["steps"][current_step_id] = {"output": step_run.output_payload}
+            data["tag"] = flows.join(data["tag"], _step_tag(step_run)).to_dict()
             current_step_id = _next_step_id(auto_def.workflow.steps, current_step_id)
 
         if run.status not in (RunStatus.FAILED, RunStatus.EXHAUSTED, RunStatus.BLOCKED):

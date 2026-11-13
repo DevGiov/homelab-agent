@@ -20,6 +20,8 @@ from app.agent import llm_calls
 from app.agent.mode_policy import MemoryPolicy, get_mode_policy
 from app.agent.state import AgentState
 from app.memory import episodes, facts, procedures, profile, thread_store
+from app.security import flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
 
@@ -38,7 +40,11 @@ def _transcript(messages: List[Dict[str, Any]]) -> str:
     return "\n".join(f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in messages)
 
 
-def _update_summary(previous: str, messages: List[Dict[str, Any]], model: Optional[str]) -> str:
+def _messages_tag(messages: List[Dict[str, Any]]) -> Tag:
+    return flows.join(*(flows.message_tag(m.get("sensitivity"), m["role"]) for m in messages))
+
+
+def _update_summary(previous: str, messages: List[Dict[str, Any]], model: Optional[str], tag: Tag) -> str:
     """Il riassunto precedente esteso con i messaggi indicati; stringa vuota se il modello non risponde."""
     previous_block = f"Current summary:\n{previous}\n\n" if previous else ""
     prompt = f"""{previous_block}Messages to add:
@@ -54,6 +60,7 @@ When a later message changes something, keep only the current value."""
         temperature=0.2,
         model=model,
         stream_mode="none",
+        tag=tag,
     )
     return (result.get("content") or "").strip() if isinstance(result, dict) else ""
 
@@ -72,10 +79,13 @@ def conversation_window(thread_id: str, history: List[Dict[str, Any]], model: Op
         keep = max(4, keep // 2)
     folded = window[:-keep]
     if folded:
-        updated = _update_summary(summary, folded, model)
+        # Il riassunto contiene i messaggi che copre: ne prende l'etichetta più alta
+        summary_tag = flows.join(flows.message_tag(thread_store.get_summary_sensitivity(thread_id), "riassunto"),
+                                 _messages_tag(folded))
+        updated = _update_summary(summary, folded, model, summary_tag)
         if updated:
             summary, covered = updated, covered + len(folded)
-            thread_store.save_summary(thread_id, summary, covered)
+            thread_store.save_summary(thread_id, summary, covered, summary_tag.label.key)
             logger.info(f"Riassunto del thread '{thread_id}' aggiornato: copre {covered} messaggi")
         else:
             logger.warning(f"Riassunto del thread '{thread_id}' non aggiornato: {len(folded)} messaggi fuori dalla finestra")
@@ -102,62 +112,73 @@ def _tail_within(messages: List[Dict[str, Any]], tokens: int) -> List[Dict[str, 
     return kept[::-1]
 
 
-def _recalled_facts(task: str, thread_id: str, policy: MemoryPolicy) -> str:
-    """Fatti di altri thread pertinenti alla richiesta (quelli del thread sono già nella conversazione), con la data."""
+def _recalled_facts(task: str, thread_id: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
+    """Fatti di altri thread pertinenti alla richiesta (quelli del thread sono già nella conversazione), con la data,
+    e il loro tag: `private` salvo un'etichetta diversa data al fatto."""
     if not policy.facts_k:
-        return ""
+        return "", flows.PUBLIC_TAG
     try:
         hits = facts.search_facts(task, k=policy.facts_k * 2, min_score=RECALL_MIN_SCORE)
     except Exception as e:
         logger.warning(f"Recall semantico non riuscito (non bloccante): {e}")
-        return ""
+        return "", flows.PUBLIC_TAG
     relevant = [h for h in hits if h["thread_id"] != thread_id][:policy.facts_k]
     if not relevant:
-        return ""
+        return "", flows.PUBLIC_TAG
     header = "### Fatti ricordati da altre conversazioni"
     if policy.verify_facts:
         header += " (possono essere superati: verificali con i tool prima di agire)"
     lines = [f"- [{(h['created_at'] or '')[:10]}] {h['content']}" for h in relevant]
-    return f"{header}:\n" + "\n".join(lines)
+    tag = flows.join(*(flows.memory_item_tag("fatto", h) for h in relevant))
+    return f"{header}:\n" + "\n".join(lines), tag
 
 
-def _past_executions(task: str, policy: MemoryPolicy) -> str:
-    """Episodi di esecuzione simili alla richiesta: tool usati, errori ed esito."""
+def _past_executions(task: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
+    """Episodi di esecuzione simili alla richiesta: tool usati, errori ed esito. Un episodio porta l'etichetta del
+    turno da cui nasce (`private` per quelli salvati prima delle etichette)."""
     if not policy.episodes_k:
-        return ""
+        return "", flows.PUBLIC_TAG
     try:
         similar = episodes.similar_episodes(task, policy.episodes_k)
     except Exception as e:
         logger.warning(f"Ricerca degli episodi non riuscita (non bloccante): {e}")
-        return ""
+        return "", flows.PUBLIC_TAG
     if not similar:
-        return ""
-    return "### Esecuzioni simili passate (tool usati ed esito):\n" + "\n".join(f"- [{(e['created_at'] or '')[:10]}] {e['content']}" for e in similar)
+        return "", flows.PUBLIC_TAG
+    tag = flows.join(*(flows.memory_item_tag("episodio", e) for e in similar))
+    return ("### Esecuzioni simili passate (tool usati ed esito):\n"
+            + "\n".join(f"- [{(e['created_at'] or '')[:10]}] {e['content']}" for e in similar)), tag
 
 
-def _plan_templates(task: str, policy: MemoryPolicy) -> str:
-    """Piani modello approvati dall'utente pertinenti alla richiesta."""
+def _plan_templates(task: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
+    """Piani modello approvati dall'utente pertinenti alla richiesta (`internal`: procedure generiche approvate)."""
     if not policy.templates_k:
-        return ""
+        return "", flows.PUBLIC_TAG
     try:
         templates = procedures.relevant_templates(task, policy.templates_k)
     except Exception as e:
         logger.warning(f"Ricerca dei piani modello non riuscita (non bloccante): {e}")
-        return ""
+        return "", flows.PUBLIC_TAG
     if not templates:
-        return ""
+        return "", flows.PUBLIC_TAG
     blocks = [f"**{t['title']}**\n{t['content']}" for t in templates]
-    return "### Procedure approvate dall'utente per richieste simili (seguile, adattando i valori):\n" + "\n\n".join(blocks)
+    tag = flows.join(*(flows.memory_item_tag("procedura", t, flows.Label.INTERNAL) for t in templates))
+    return ("### Procedure approvate dall'utente per richieste simili (seguile, adattando i valori):\n"
+            + "\n\n".join(blocks)), tag
 
 
 def recent_turns_node(state: AgentState) -> AgentState:
     """Prima del router: ultimi messaggi e modalità dell'ultima risposta, senza chiamate al modello."""
+    input_tag = flows.join(state.get("tag"))
     if not state.get("thread_id") or state.get("incognito"):
-        return {"routing_context": None}
+        return {"routing_context": None, "routing_tag": input_tag.to_dict()}
     history = _history(state)
     last_assistant = next((m for m in reversed(history) if m["role"] == "assistant"), None)
+    recent = history[-ROUTING_MESSAGES:]
     return {
-        "routing_context": _transcript(history[-ROUTING_MESSAGES:]) or None,
+        "routing_context": _transcript(recent) or None,
+        # Il router vede la richiesta e questi messaggi, non la memoria: è il tag della query che scrive
+        "routing_tag": flows.join(input_tag, _messages_tag(recent)).to_dict(),
         "previous_mode": last_assistant["mode"] if last_assistant else None,
         "last_tool_used": last_assistant["tool_used"] if last_assistant else None,
     }
@@ -178,26 +199,34 @@ def retrieve_memory_node(state: AgentState) -> AgentState:
     recent = _tail_within(window, max(policy.context_tokens - len(summary) // 4, 0))
 
     parts = []
+    tags = [state.get("tag"), state.get("routing_tag")]
     user_profile = profile.get_profile()["content"]
     if user_profile:
         parts.append(f"### Profilo dell'utente (scritto dall'utente):\n{user_profile}")
+        tags.append(flows.tag_of(flows.Label.PRIVATE, "memoria:profilo"))
     if summary:
         parts.append(f"### Riepilogo conversazione precedente:\n{summary}")
+        tags.append(flows.message_tag(thread_store.get_summary_sensitivity(thread_id), "riassunto"))
     if recent:
         parts.append("### Messaggi recenti:\n" + _transcript(recent))
-    recalled = _recalled_facts(task, thread_id, policy)
+        tags.append(_messages_tag(recent))
+    recalled, facts_tag = _recalled_facts(task, thread_id, policy)
     if recalled:
         parts.append(recalled)
-    executions = _past_executions(task, policy)
+        tags.append(facts_tag)
+    executions, episodes_tag = _past_executions(task, policy)
     if executions:
         parts.append(executions)
-    templates = _plan_templates(task, policy)
+        tags.append(episodes_tag)
+    templates, templates_tag = _plan_templates(task, policy)
     if templates:
         parts.append(templates)
+        tags.append(templates_tag)
+    turn_tag = flows.join(*tags)
 
     logger.info(
         f"Memoria [{mode}] del thread '{thread_id}': {len(history)} messaggi, profilo={'sì' if user_profile else 'no'}, "
         f"riassunto={'sì' if summary else 'no'}, finestra={len(recent)}/{len(window)}, "
         f"fatti={max(len(recalled.splitlines()) - 1, 0)}, episodi={max(len(executions.splitlines()) - 1, 0)}, piani={templates.count("**") // 2}, {(time.monotonic() - started) * 1000:.0f} ms"
     )
-    return {"memory_context": "\n\n".join(parts)}
+    return {"memory_context": "\n\n".join(parts), "tag": turn_tag.to_dict()}

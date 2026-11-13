@@ -1,11 +1,15 @@
-"""Host ammessi: dove `http_get` e `inspect_image` possono andare senza chiedere conferma (app.security.network)."""
+"""Impostazioni di sicurezza dei dati.
+
+- Host ammessi: dove `http_get` e `inspect_image` possono andare senza chiedere conferma (app.security.network).
+- Classificazione dei server MCP: etichetta dei risultati e livello ammesso per gli argomenti (app.security.flows).
+"""
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.deps import verify_api_key
-from app.security import network
+from app.security import flows, network
 
 router = APIRouter()
 
@@ -39,3 +43,35 @@ async def remove_allowed_host(host: str) -> Dict[str, Any]:
 async def restore_default_hosts() -> Dict[str, Any]:
     added = network.restore_default_hosts()
     return {"added": added, "hosts": network.list_allowed_hosts()}
+
+
+class McpFlowIn(BaseModel):
+    result_label: str = Field(..., description="Etichetta dei risultati: public, internal, private")
+    clearance: str = Field(..., description="Etichetta più alta che gli argomenti possono avere: public, internal, private")
+    result_untrusted: bool = Field(default=False, description="I risultati contengono testo scritto da altri")
+
+
+@router.get("/v1/security/mcp-flows", dependencies=[Depends(verify_api_key)])
+async def list_mcp_flows() -> Dict[str, Any]:
+    """Classificazione per server (prefisso dei tool, es. `files` per `files__read`) o per singolo tool. Un server non
+    classificato vale come il più stretto: risultati private, argomenti solo public."""
+    table = flows.mcp_flow_settings()
+    return {"scopes": [{"scope": scope, "result_label": s.result.key, "result_untrusted": s.untrusted,
+                        "clearance": s.clearance.key} for scope, s in sorted(table.items())],
+            "default": {"result_label": "private", "result_untrusted": False, "clearance": "public"}}
+
+
+@router.put("/v1/security/mcp-flows/{scope}", dependencies=[Depends(verify_api_key)])
+async def save_mcp_flow(scope: str, body: McpFlowIn) -> Dict[str, Any]:
+    try:
+        s = flows.save_mcp_flow_setting(scope, body.result_label, body.clearance, body.result_untrusted)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"scope": scope, "result_label": s.result.key, "result_untrusted": s.untrusted, "clearance": s.clearance.key}
+
+
+@router.delete("/v1/security/mcp-flows/{scope}", dependencies=[Depends(verify_api_key)])
+async def delete_mcp_flow(scope: str) -> Dict[str, Any]:
+    if not flows.delete_mcp_flow_setting(scope):
+        raise HTTPException(status_code=404, detail=f"Nessuna classificazione per '{scope}'.")
+    return {"removed": scope}

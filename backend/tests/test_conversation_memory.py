@@ -147,7 +147,7 @@ def test_act_facts_are_marked_to_verify(thread):
 
 
 def test_incognito_skips_memory():
-    assert recent_turns_node({"thread_id": "x", "task": "ciao", "incognito": True}) == {"routing_context": None}
+    assert recent_turns_node({"thread_id": "x", "task": "ciao", "incognito": True})["routing_context"] is None
     assert retrieve_memory_node({"thread_id": "x", "task": "ciao", "incognito": True}) == {"memory_context": None}
 
 

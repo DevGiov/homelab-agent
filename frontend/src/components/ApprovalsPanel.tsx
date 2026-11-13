@@ -80,6 +80,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
         <div className="space-y-2">
           {pending.map((item) => {
             const isNet = Boolean(item.command_prefix?.startsWith('net:'));
+            const isFlow = Boolean(item.command_prefix?.startsWith('flow:'));
             return (
               <div
                 key={item.request_id}
@@ -121,6 +122,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       <Check size={11} />
                       Sì
                     </button>
+                    {!isFlow && (
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'approve_always')}
                       disabled={busyId === item.request_id}
@@ -134,6 +136,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       <ShieldCheck size={11} />
                       Sempre
                     </button>
+                    )}
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'deny')}
                       disabled={busyId === item.request_id}

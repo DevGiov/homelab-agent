@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.agent import llm_calls
 from app.llm.providers import LLMUnavailableError
 from app.memory import facts
+from app.security import flows
 
 logger = logging.getLogger("fact_extraction")
 
@@ -64,6 +65,7 @@ Answer with one item per fact, using the id in brackets.
                 max_retries=1,
                 model=model,
                 reasoning_phase=None,
+                tag=flows.MEMORY_MAINTENANCE_TAG,
             )
         except LLMUnavailableError as e:
             logger.warning(f"Assegnazione entità interrotta, LLM non disponibile: {e}")

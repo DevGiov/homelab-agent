@@ -5,6 +5,7 @@ from app.agent.mode_policy import get_mode_policy
 from app.agent.state import AgentState
 from app.agent.tool_catalog import format_available_tools_catalog
 from app.core.text_utils import clean_synthesis_content
+from app.security import flows
 
 
 def chat_graph_node(state: AgentState) -> AgentState:
@@ -56,7 +57,8 @@ def chat_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"Richiesta Utente: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
-    ans_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, thinking=policy.thinking.answer, thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"))
+    ans_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, thinking=policy.thinking.answer, thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"),
+                                tag=flows.join(state.get("tag")))
     raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
     reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
     ans = clean_synthesis_content(raw_ans) or raw_ans

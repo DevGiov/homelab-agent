@@ -8,6 +8,8 @@ from app.agent.agent_prompts import current_time
 from app.agent.mode_policy import get_mode_policy
 from app.agent.nodes.act import execute_plan_node
 from app.agent.state import AgentState
+from app.security import flows
+from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
 
@@ -36,15 +38,15 @@ def plan_system_prompt() -> str:
 
 
 def draft_plan(user_prompt: str, system_prompt: str, model: Optional[str] = None, thinking_budget: Optional[int] = None,
-               images: Optional[List[str]] = None, stream_mode: str = "all") -> Dict[str, Any]:
+               images: Optional[List[str]] = None, stream_mode: str = "all", *, tag: Tag) -> Dict[str, Any]:
     """Piano in testo, al livello di ragionamento `plan` della modalità: è la fase che ragiona di più."""
     return llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2,
                               thinking=get_mode_policy("plan").thinking.plan, thinking_budget=thinking_budget, model=model,
-                              stream_mode=stream_mode, reasoning_phase="Pianificazione Strategica", images=images)
+                              stream_mode=stream_mode, reasoning_phase="Pianificazione Strategica", images=images, tag=tag)
 
 
 def generate_plan_structure(task: str, user_prompt: str, plan_text: Optional[str] = None,
-                            model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                            model: Optional[str] = None, *, tag: Tag) -> Optional[Dict[str, Any]]:
     """Piano strutturato (passi con tool del catalogo, argomenti e dipendenze), o None se il modello non ne produce
     uno valido: in quel caso il piano resta solo testuale e l'esecuzione passa all'agent loop.
 
@@ -106,7 +108,7 @@ def generate_plan_structure(task: str, user_prompt: str, plan_text: Optional[str
         "required": ["steps"],
     }
     res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=2048, temperature=0.1,
-                             model=model, stream_mode="none", json_schema=schema)
+                             model=model, stream_mode="none", json_schema=schema, tag=tag)
     content = res.get("content", "") if isinstance(res, dict) else ""
     clean = re.sub(r"```(?:json)?", "", content).strip()
     start = clean.find("{")
@@ -197,8 +199,9 @@ def plan_graph_node(state: AgentState) -> AgentState:
     prompt_sections.append(f"User Request: '{task}'")
     user_prompt = "\n\n".join(prompt_sections)
 
+    turn_tag = flows.join(state.get("tag"))
     llm_plan_res = draft_plan(user_prompt, system_prompt, model=model, thinking_budget=state.get("reasoning_budget"),
-                              images=state.get("images"))
+                              images=state.get("images"), tag=turn_tag)
     llm_plan = llm_plan_res.get("content", "") if isinstance(llm_plan_res, dict) else ""
     plan_steps = []
     if llm_plan:
@@ -209,7 +212,7 @@ def plan_graph_node(state: AgentState) -> AgentState:
                 if cleaned:
                     plan_steps.append(cleaned)
 
-    plan_structure = generate_plan_structure(task, user_prompt, plan_text=llm_plan, model=model)
+    plan_structure = generate_plan_structure(task, user_prompt, plan_text=llm_plan, model=model, tag=turn_tag)
 
     if not plan_steps and plan_structure:
         plan_steps = [s.get("description", "") for s in plan_structure["steps"] if s.get("description")]

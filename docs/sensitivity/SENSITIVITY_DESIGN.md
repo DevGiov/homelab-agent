@@ -1,7 +1,7 @@
 # Sensibilità dei dati: design
 
 **Data:** 13 novembre 2026
-**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fase S0 costruita lo stesso giorno ([9.1](#91-s0-come-è-stata-costruita)); le fasi S1-S4 non sono iniziate.
+**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite lo stesso giorno ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)); S2-S4 non iniziate.
 **Contesto:** oggi ogni chiamata a un modello resta su un server locale. Prima di aggiungere un provider cloud, un agente di coding esterno o un canale di chat su un servizio di terzi serve una regola, applicata dal codice, che dica quali dati possono andare dove.
 
 Il documento descrive cosa esce oggi dal backend (verificato sul codice del ramo `dev`), il modello proposto (un'etichetta su ogni dato, un livello ammesso per ogni destinazione, un solo controllo), dove si aggancia al codice esistente e in che ordine costruirlo.
@@ -264,7 +264,7 @@ Ogni fase è utile da sola e lascia il sistema funzionante.
 | Fase | Contenuto | Effetto per l'utente |
 | :--- | :--- | :--- |
 | **S0. Chiusura dei flussi scoperti** (fatta il 13/11/2026, [9.1](#91-s0-come-è-stata-costruita)) | `http_get` e `inspect_image`: lista degli host ammessi modificabile dalla UI, conferma per gli host pubblici fuori lista, blocco per quelli locali fuori lista, host dichiarati dalle automazioni. `inspect_image` chiama il modello attraverso `LLMProvider.chat` e legge solo file della directory dei dati. Il prefetch passa dal gestore dei tool, con audit | Una conferma in più per `http_get` verso internet. Indipendente dal resto: sono difetti di oggi |
-| **S1. Etichette e controllo, con sole destinazioni locali** | `security/flows.py`; parametro `tag` obbligatorio in `chat` e `call_llm`; etichette alle sorgenti della tabella 4.1; `tag` in `AgentState` e `AgentLoop`; controllo in `execute_tool` e `execute_search`; colonne di audit e metriche; rilevatori | Cambia solo la ricerca: in un turno con dati privati chiede o non parte |
+| **S1. Etichette e controllo, con sole destinazioni locali** (fatta il 13/11/2026, [9.2](#92-s1-come-è-stata-costruita)) | `security/flows.py`; parametro `tag` obbligatorio in `chat` e `call_llm`; etichette alle sorgenti della tabella 4.1; `tag` in `AgentState` e `AgentLoop`; controllo in `execute_tool` e `execute_search`; colonne di audit e metriche; rilevatori | Cambia solo la ricerca: in un turno con dati privati chiede o non parte |
 | **S2. Interfaccia** | Indicatore, selettore, scheda "uscita di dati", etichette in Memoria, knowledge base e server MCP | L'utente vede e corregge le etichette |
 | **S3. Valutazioni** | Suite `flows` in `app/evals`: un fatto privato con una stringa riconoscibile, un compito che invoglia a cercarlo sul web, un provider finto con livello `internal` che registra ciò che riceve. Passa se la stringa non compare in nessuna uscita registrata | Un numero al posto di un'impressione, da rifare a ogni modello |
 | **S4. Prima destinazione non locale** | Scelta del provider per chiamata, secondo etichetta e ruolo | Arriva con il primo provider cloud, non prima |
@@ -296,6 +296,48 @@ Interfaccia: sezione "Host ammessi" in Impostazioni > Sicurezza; campo degli hos
 La lista dice dove si può andare senza chiedere, non che cosa si può mandare: un indirizzo verso un host in lista può portare dati nella query string. Lo copre il controllo delle etichette di S1, che vale anche per gli host in lista.
 
 **Limite noto.** Il controllo risolve il nome prima della richiesta e la richiesta lo risolve di nuovo: un DNS che cambia risposta tra le due (DNS rebinding) può portare a un indirizzo privato. Vale anche per lo scaricamento delle pagine della ricerca, che usa lo stesso controllo. Chiuderlo richiede di collegarsi all'IP verificato, cosa che con HTTPS complica il controllo del certificato: rimandato.
+
+### 9.2 S1 come è stata costruita
+
+Moduli: `backend/app/security/flows.py` (etichette, destinazioni, regole dei tool, `can_flow`) e `backend/app/security/detectors.py` (rilevatori).
+
+**Chiamate ai modelli.** `tag` è obbligatorio in `LLMProvider.chat`, `call_llm`, `call_llm_structured`, `route_turn`, nei passi di pianificazione e nel prefetch: 18 punti del codice, ognuno dichiara che cosa invia. `chat` confronta il tag con il livello ammesso del provider e, se non basta, non parte (`FlowDenied`). Il livello è un'impostazione esplicita: `LLAMA_CPP_CLEARANCE` e `OLLAMA_CLEARANCE`, default `private`; va abbassata a `internal` se l'indirizzo porta a un servizio cloud. `llm_calls` (metriche) registra etichetta e destinazione di ogni chiamata.
+
+**Sorgenti.**
+
+| Sorgente | Etichetta | Dove sta |
+| :--- | :--- | :--- |
+| Messaggio dell'utente | Livello della conversazione, alzato dai rilevatori | `thread_messages.sensitivity`; il livello in `thread_metadata.sensitivity`, impostato dal campo `sensitivity` della richiesta di chat |
+| Risposta dell'assistente, riassunto | Quella del turno; il riassunto la più alta tra i messaggi che copre | `thread_messages.sensitivity`, `thread_summaries.sensitivity` |
+| Profilo | `private` | |
+| Fatti | `private`, salvo un'etichetta nel fatto | campo `sensitivity` nei metadati |
+| Episodi | Quella del turno da cui nascono (`private` per quelli precedenti) | metadati |
+| Procedure | `internal` | |
+| Documenti della knowledge base | Scelta al caricamento, default `internal` | metadati di ogni pezzo |
+| Risultati dei tool interni | Tabella in `flows.py` (memoria e posta `private`, ricerca `public` non attendibile...) | |
+| Risultati dei tool MCP | Classificazione del server; output di comandi e log sempre `private` | tabella `mcp_flow_settings` (API `/v1/security/mcp-flows`) |
+| Ricerca preventiva, immagini allegate | `public`, non attendibili | |
+| Payload di un webhook | `internal`, non attendibile | |
+
+Un server MCP senza classificazione vale come il più stretto: risultati `private`, argomenti solo `public` (decisione 5). La classificazione di un'installazione non sta nel repository.
+
+**Rilevatori.** Sul messaggio dell'utente tutti i tipi (segreti, IBAN, codice fiscale, carte, telefoni, email, nomi delle persone della memoria, indirizzi della rete locale). Un segreto scritto dall'utente porta il messaggio a `private`, non a `secret`: lo vede il modello locale, ma non esce. Sui risultati dei tool solo i tipi che non scattano su output tecnici (segreti, IBAN, codice fiscale, email, persone): telefono e carta davano falsi positivi su byte e uptime. I segreti nei risultati vengono sostituiti da `[RIMOSSO: segreto]` prima di entrare nel contesto.
+
+**Propagazione.** `AgentState.tag` (tutto ciò che il turno ha in contesto) e `routing_tag` (richiesta e ultimi 4 messaggi, ciò che vede il router). `AgentLoop.tag` sale a ogni risultato letto, viaggia con ogni chiamata a un modello e a un tool ed entra nel checkpoint. Lo stesso per l'esecuzione di un piano. Le automazioni ricavano il tag della run da ciò che è salvato: i valori scritti nella definizione sono una scelta dell'autore (`public`); salgono i risultati degli step e il payload di un webhook. La risposta dell'API porta `sensitivity` (etichetta, non attendibilità, motivi).
+
+**Controllo.** Nel `ToolRegistryManager`, dopo i guardrail esistenti. Un flusso negato chiede un'approvazione di tipo "uscita di dati": capability `flow:<destinazione>:<etichetta>`, anteprima del testo che uscirebbe. Vale una volta o per la chat; "sempre" vale per la chat, perché un livello ammesso si alza dalle impostazioni. Il permesso per la chat non vale in un turno che ha letto contenuto non attendibile (decisione 6). Nessuna modalità di sicurezza salta il controllo, `dangerous` compresa. Un segreto è bloccato. Approvare un'uscita verso un URL vale anche come conferma di rete per quell'host. L'audit registra etichetta, destinazione ed esito (`allow`, `ask`, `approved`, `deny`).
+
+**Diverso dal design.**
+
+- Ricerca preventiva in modalità `on` con dati non pubblici: non mostra una scheda di approvazione, perché il prefetch gira prima del loop e non si può sospendere. Non parte, e l'evento `web_prefetch.skipped` dice perché; il loop può ancora cercare, chiedendo conferma.
+- Chiamate in parallelo: quelle che chiederebbero un'approvazione di uscita passano in sequenza, dove la richiesta sospende il turno.
+
+**Trovato strada facendo.**
+
+- L'esecuzione di un piano strutturato chiamava i server MCP direttamente, senza il gestore dei tool: niente audit e niente controlli. Ora passa dal gestore. Il rollback dichiarativo chiama ancora il server direttamente (ripete un'operazione sulla stessa destinazione del passo che annulla).
+- `calendar_import_feed` scaricava un URL scelto dal modello senza il controllo di rete di S0: ora segue le stesse regole di `http_get`.
+
+**Effetto pratico atteso, da misurare.** Con il profilo compilato ogni turno con memoria diventa `private` e ogni ricerca del loop chiede conferma; dopo un tool dell'infrastruttura il turno è almeno `internal`, e così la ricerca. La ricerca preventiva continua a girare finché la richiesta e gli ultimi messaggi sono pubblici. Se le conferme risultano troppe, la strada indicata dal design è separare la chiamata che scrive la query (che vedrebbe solo la richiesta) da quella che legge la memoria.
 
 ## 10. Decisioni
 

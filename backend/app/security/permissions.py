@@ -219,10 +219,12 @@ def grant_permission(
                 if clean_name and clean_name != tool_name:
                     _SESSION_PERMISSIONS[thread_id].add(f"{clean_name}:{normalized_prefix}")
 
-            # Salva anche il permesso a livello tool (per sbloccare comandi safe-read)
-            _SESSION_PERMISSIONS[thread_id].add(tool_name)
-            if clean_name and clean_name != tool_name:
-                _SESSION_PERMISSIONS[thread_id].add(clean_name)
+            # Salva anche il permesso a livello tool (per sbloccare comandi safe-read). Non per le uscite di dati e di
+            # rete (capability "flow:" e "net:"): autorizzare un invio non autorizza le azioni del tool
+            if not (normalized_prefix and normalized_prefix.startswith(("flow:", "net:"))):
+                _SESSION_PERMISSIONS[thread_id].add(tool_name)
+                if clean_name and clean_name != tool_name:
+                    _SESSION_PERMISSIONS[thread_id].add(clean_name)
 
         logger.info(f"Permesso concesso: tool='{tool_name}' scope=thread thread_id='{thread_id}' prefix='{normalized_prefix}'")
         return {"tool_name": tool_name, "scope": "thread", "thread_id": thread_id, "command_prefix": normalized_prefix}

@@ -33,3 +33,7 @@ class AgentState(TypedDict, total=False):
     command_prefix: Optional[str]
     risk_reason: Optional[str]
     security_mode: Optional[str]
+    # Sensibilità (app.security.flows, Tag.to_dict): di tutto ciò che il turno ha in contesto, e della parte che vede
+    # il router (richiesta e ultimi messaggi, senza la memoria)
+    tag: Optional[Dict[str, Any]]
+    routing_tag: Optional[Dict[str, Any]]

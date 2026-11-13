@@ -97,6 +97,8 @@ def _fact_rows(conn, rows: List[tuple], scores: Optional[Dict[int, float]] = Non
             "content": content,
             "thread_id": thread_id,
             "source": metadata.get("source", "manual"),
+            # Etichetta data dall'utente al fatto (app.security.flows); senza, un fatto è `private`
+            "sensitivity": metadata.get("sensitivity"),
             # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
             "created_at": _iso(created_at),
             "invalid_at": _iso(invalid_at),
