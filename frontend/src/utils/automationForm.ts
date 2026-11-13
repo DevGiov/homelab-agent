@@ -32,6 +32,17 @@ export interface AutomationFormState {
   /** Modello degli step agentici, come scelta del form (utils/modelChoice). */
   model: string;
   budget: Budget;
+  allowedHosts: string;
+}
+
+/** Divide su spazi, a capo e virgole, toglie i vuoti, converte in minuscolo e toglie i doppioni preservando l'ordine. */
+export function parseHostList(text: string): string[] {
+  if (!text) return [];
+  const tokens = text
+    .split(/[,\s]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set(tokens));
 }
 
 const DEFAULT_BUDGET: Budget = {
@@ -46,6 +57,9 @@ export const DEFAULT_AGENTIC_PROMPT = 'Analizza i risultati: {{steps.step_1.outp
 
 export function formFromAutomation(automation: any): AutomationFormState {
   const budget = automation.budget ?? {};
+  const allowedHostsList = Array.isArray(automation.permission_policy?.allowed_hosts)
+    ? automation.permission_policy.allowed_hosts
+    : [];
   return {
     name: automation.name || '',
     description: automation.description || '',
@@ -55,6 +69,7 @@ export function formFromAutomation(automation: any): AutomationFormState {
     budget: Object.fromEntries(
       Object.entries(DEFAULT_BUDGET).map(([key, fallback]) => [key, budget[key] || fallback])
     ) as unknown as Budget,
+    allowedHosts: allowedHostsList.join('\n'),
   };
 }
 
@@ -125,5 +140,9 @@ export function buildAutomation(automation: any, form: AutomationFormState, step
       })),
     },
     budget: Object.fromEntries(Object.entries(form.budget).map(([key, value]) => [key, Number(value)])),
+    permission_policy: {
+      ...(automation.permission_policy ?? {}),
+      allowed_hosts: parseHostList(form.allowedHosts),
+    },
   };
 }

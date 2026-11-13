@@ -153,12 +153,12 @@ class TestIntegrationsAndParameters(unittest.TestCase):
     def test_http_get_tool(self):
         reg_mgr = get_registry_manager()
         # Test con un endpoint mock o httpbin/arxiv
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("app.security.network._open") as mock_open:
             mock_resp = MagicMock()
             mock_resp.status = 200
             mock_resp.headers = {"Content-Type": "application/json"}
             mock_resp.read.return_value = b'{"status": "ok", "items": [1, 2, 3]}'
-            mock_urlopen.return_value.__enter__.return_value = mock_resp
+            mock_open.return_value.__enter__.return_value = mock_resp
 
             res = reg_mgr.execute_tool(
                 "http_get",

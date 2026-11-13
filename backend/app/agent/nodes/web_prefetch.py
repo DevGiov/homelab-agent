@@ -126,12 +126,25 @@ def web_prefetch_node(state: AgentState) -> AgentState:
     logger.info(f"Avvio web prefetch per query: '{effective_query}' (task originale: '{task}')")
 
     try:
-        from app.registry.web_search_service import execute_search
-        search_res = execute_search(
-            query=effective_query,
-            count=8,
-            event_callback=emit_event
+        # Attraverso il ToolRegistryManager, come il tool web_search: guardrail, impostazioni del tool e audit
+        from app.registry.manager import get_registry_manager
+        from app.registry.web_search_service import run_with_event_sink
+        search_res = run_with_event_sink(
+            emit_event,
+            get_registry_manager().execute_tool,
+            "web_search",
+            {"query": effective_query, "count": 8, "detail": "full"},
+            ["web"],
+            thread_id=state.get("thread_id"),
+            mode=state.get("mode"),
+            security_mode=state.get("security_mode") or "normal",
+            task=task,
         )
+        if not isinstance(search_res, dict) or search_res.get("approval_required") or search_res.get("blocked_by_guardrail"):
+            # Il prefetch non chiede conferme: senza via libera la ricerca non parte
+            raise RuntimeError(f"ricerca non eseguita: {(search_res or {}).get('error') or 'richiede conferma'}")
+        if "sources" not in search_res:
+            raise RuntimeError(search_res.get("error") or "risposta della ricerca senza sorgenti")
 
         clean_sources = [
             {

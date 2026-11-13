@@ -6,11 +6,12 @@ budget, run, step ed esecuzioni.
 
 import json
 import logging
+import re
 import secrets
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 logger = logging.getLogger("automations.models")
 
@@ -86,7 +87,28 @@ class ExecutionPolicy(BaseModel):
         description="Perimetrazione di sicurezza per container, repository e destinatari autorizzati"
     )
     secrets_whitelist: List[str] = Field(default_factory=list, description="Nomi dei secret accessibili")
+    allowed_hosts: List[str] = Field(
+        default_factory=list,
+        description="Host che http_get e inspect_image possono contattare senza conferma durante le run, oltre alla "
+                    "lista generale degli host ammessi (nome, '*.dominio' o indirizzo IP)",
+    )
     dry_run_supported: bool = Field(default=True, description="Indica se l'automazione supporta la modalità anteprima")
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def _normalize_hosts(cls, value: Any) -> List[str]:
+        from app.security.network import normalize_pattern
+
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [part for part in re.split(r"[\s,]+", value) if part]
+        hosts: List[str] = []
+        for raw in value:
+            host = normalize_pattern(raw)  # ValueError -> errore di validazione con il motivo
+            if host not in hosts:
+                hosts.append(host)
+        return hosts
 
 
 class NotificationPolicy(BaseModel):

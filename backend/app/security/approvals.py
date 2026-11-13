@@ -266,7 +266,14 @@ def resolve_approval(
             permissions.grant_permission(req.tool_name, "thread", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
             logger.info(f"Approval {request_id}: APPROVATA per l'intero thread '{req.thread_id}'")
         elif normalized_action in ("approve_always", "always"):
-            permissions.grant_permission(req.tool_name, "always", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
+            from app.security import network
+            host = network.host_from_capability(req.command_prefix)
+            if host:
+                # Un host contattato da http_get / inspect_image: "sempre" lo mette nella lista degli host ammessi,
+                # che l'utente vede e modifica dalle impostazioni
+                network.add_allowed_host(host, note=f"Approvato da una richiesta di {req.tool_name}", origin="approval")
+            else:
+                permissions.grant_permission(req.tool_name, "always", thread_id=req.thread_id, command_prefix=req.command_prefix, created_by=resolved_by)
             logger.info(f"Approval {request_id}: APPROVATA SEMPRE (persistente)")
         else:
             logger.info(f"Approval {request_id}: APPROVATA (singola esecuzione)")

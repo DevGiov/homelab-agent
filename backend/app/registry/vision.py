@@ -1,15 +1,37 @@
 import base64
 import logging
 import os
-from typing import Any, Dict, List
-
-import requests
+import urllib.error
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from app.core import image_utils
 from app.core.config import settings
+from app.llm import providers
+from app.llm.reasoning import resolve
 from app.registry.base import BaseToolRegistry
+from app.security import network
 
 logger = logging.getLogger("vision_registry")
+
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
+UPLOADS_URL_PREFIX = "/v1/uploads/"
+
+
+def _local_image_path(raw: str) -> Optional[Path]:
+    """Il file indicato, solo se sta nella directory dei dati (upload, artefatti); None altrimenti.
+
+    Accetta anche l'indirizzo con cui il frontend mostra un upload (`/v1/uploads/<nome>`)."""
+    if raw.startswith(UPLOADS_URL_PREFIX):
+        candidate = Path(settings.uploads_dir) / Path(raw[len(UPLOADS_URL_PREFIX):]).name
+    else:
+        candidate = Path(os.path.expanduser(raw))
+        if not candidate.is_absolute():
+            candidate = Path(settings.uploads_dir) / candidate
+    root = Path(settings.data_dir).resolve()
+    resolved = candidate.resolve()
+    return resolved if resolved.is_relative_to(root) else None
+
 
 class VisionRegistry(BaseToolRegistry):
     """
@@ -52,82 +74,60 @@ class VisionRegistry(BaseToolRegistry):
         if tool_name != "inspect_image":
             return {"error": f"Tool '{tool_name}' non supportato dal registry Vision"}
 
-        image_path_or_url = args.get("image_path_or_url", "").strip()
+        image_path_or_url = str(args.get("image_path_or_url", "")).strip()
         prompt = args.get("prompt") or "Analizza dettagliatamente l'immagine fornita e descrivi ogni elemento rilevante, testo, dati o grafici presenti."
 
         if not image_path_or_url:
             return {"error": "Il parametro 'image_path_or_url' è obbligatorio."}
 
+        if image_path_or_url.startswith(("http://", "https://")):
+            try:
+                # Può sollevare ApprovalRequired: la gestisce il ToolRegistryManager
+                network.require_approval_unless_listed("inspect_image", image_path_or_url)
+                res = network.fetch(image_path_or_url, timeout=15.0, max_bytes=MAX_IMAGE_BYTES)
+            except network.NetworkBlocked as e:
+                return {"error": str(e), "blocked": True}
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                return {"error": f"Download dell'immagine da '{image_path_or_url}' non riuscito: {e}"}
+            if res.status != 200:
+                return {"error": f"Errore HTTP {res.status} durante il download dell'immagine da '{image_path_or_url}'"}
+            raw_bytes, source_desc = res.body, res.final_url
+        else:
+            local_path = _local_image_path(image_path_or_url)
+            if local_path is None:
+                return {"error": f"Percorso non ammesso: '{image_path_or_url}'. Si possono ispezionare solo le immagini caricate "
+                                 "e gli artefatti dell'agente."}
+            if not local_path.is_file():
+                return {"error": f"File immagine locale non trovato: '{image_path_or_url}'"}
+            raw_bytes, source_desc = local_path.read_bytes(), str(local_path)
+
+        if not raw_bytes:
+            return {"error": "Il contenuto dell'immagine è vuoto."}
+
         try:
-            raw_bytes = None
-            source_desc = image_path_or_url
-
-            if image_path_or_url.startswith("http://") or image_path_or_url.startswith("https://"):
-                logger.info(f"Download immagine remota da URL: {image_path_or_url}")
-                resp = requests.get(image_path_or_url, timeout=15, headers={"User-Agent": "Homelab-Agent/1.0"})
-                if resp.status_code != 200:
-                    return {"error": f"Errore HTTP {resp.status_code} durante il download dell'immagine da '{image_path_or_url}'"}
-                raw_bytes = resp.content
-            else:
-                local_path = os.path.abspath(os.path.expanduser(image_path_or_url))
-                if not os.path.exists(local_path):
-                    return {"error": f"File immagine locale non trovato: '{local_path}'"}
-                with open(local_path, "rb") as f:
-                    raw_bytes = f.read()
-                source_desc = local_path
-
-            if not raw_bytes or len(raw_bytes) == 0:
-                return {"error": "Il contenuto dell'immagine è vuoto."}
-
             # Ottimizza e transcodifica forzando JPEG per garantire compatibilità con llama.cpp / stb_image
-            opt_bytes, mime, w, h = image_utils.optimize_image_bytes(
-                raw_bytes,
-                max_dimension=1920,
-                quality=85,
-                force_jpeg=True
-            )
-            b64_data = base64.b64encode(opt_bytes).decode("utf-8")
-            data_url = f"data:image/jpeg;base64,{b64_data}"
-
-            # Inoltra all'endpoint multimodale llama.cpp
-            llama_url = f"{settings.llama_cpp_url.rstrip('/')}/chat/completions"
-            headers = {"Content-Type": "application/json"}
-
-            from app.llm import providers
-            model_to_use = args.get("model") or providers.get_active_model_name()
-
-            payload = {
-                "model": model_to_use,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": data_url}}
-                        ]
-                    }
-                ],
-                "max_tokens": 4096,
-                "temperature": 0.2,
-                "chat_template_kwargs": {"enable_thinking": True}
-            }
-
-            logger.info(f"Invio immagine ({w}x{h}, {len(opt_bytes)} bytes) a {llama_url} per ispezione visiva on-demand")
-            llm_res = requests.post(llama_url, json=payload, headers=headers, timeout=60)
-            if llm_res.status_code != 200:
-                return {"error": f"Errore dall'endpoint multimodale (status {llm_res.status_code}): {llm_res.text}"}
-
-            res_json = llm_res.json()
-            choice = res_json["choices"][0]["message"]
-            analysis = choice.get("content", "").strip()
-
-            return {
-                "success": True,
-                "image_source": source_desc,
-                "dimensions": f"{w}x{h}",
-                "analysis": analysis
-            }
-
+            opt_bytes, _mime, w, h = image_utils.optimize_image_bytes(raw_bytes, max_dimension=1920, quality=85, force_jpeg=True)
         except Exception as e:
-            logger.error(f"Errore durante l'ispezione dell'immagine '{image_path_or_url}': {e}", exc_info=True)
-            return {"error": f"Eccezione durante l'analisi visiva: {str(e)}"}
+            return {"error": f"Il file non è un'immagine leggibile: {e}"}
+        data_url = f"data:image/jpeg;base64,{base64.b64encode(opt_bytes).decode('utf-8')}"
+
+        provider = providers.get_provider()
+        model = provider.effective_model(args.get("model"))
+        messages = [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]}]
+        logger.info(f"Ispezione visiva di {source_desc} ({w}x{h}, {len(opt_bytes)} byte) con '{model}'")
+        reasoning = resolve(model, "medium", temperature=0.2)
+        # Come call_llm: il server conta nei max_tokens anche il ragionamento
+        result = provider.chat(messages, model=model, max_tokens=4096 + (reasoning.budget if reasoning.enabled else 0),
+                               reasoning=reasoning)
+        if result.get("error"):
+            return {"error": f"Errore dal modello multimodale: {result['error']}"}
+
+        return {
+            "success": True,
+            "image_source": source_desc,
+            "dimensions": f"{w}x{h}",
+            "analysis": (result.get("content") or "").strip(),
+        }

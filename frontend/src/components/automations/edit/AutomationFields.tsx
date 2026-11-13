@@ -112,5 +112,19 @@ export const BudgetFields: React.FC<FieldsProps> = ({ form, onChange }) => (
         </div>
       ))}
     </div>
+
+    <div className="pt-2 border-t border-border/50">
+      <label className={labelClass}>Host ammessi per http_get e inspect_image</label>
+      <textarea
+        value={form.allowedHosts}
+        onChange={(e) => onChange({ allowedHosts: e.target.value })}
+        rows={3}
+        className={`${inputClass} font-mono p-2.5`}
+        placeholder="api.github.com&#10;*.example.com"
+      />
+      <p className="text-[11px] text-fg-muted mt-1">
+        Valgono solo durante le run di questa automazione, si sommano alla lista generale in Impostazioni &gt; Sicurezza, una voce per riga.
+      </p>
+    </div>
   </div>
 );

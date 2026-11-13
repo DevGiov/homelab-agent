@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAutomation, changeStepType, formFromAutomation, stepsFromAutomation } from './automationForm';
+import { buildAutomation, changeStepType, formFromAutomation, parseHostList, stepsFromAutomation } from './automationForm';
 import { LOADED_MODEL } from './modelChoice';
 
 const automation = {
@@ -64,5 +64,61 @@ describe('automationForm', () => {
     const [fetch, think] = stepsFromAutomation(automation);
     expect(changeStepType(fetch, 'agentic_task')).toMatchObject({ action_or_tool: null, prompt_template: expect.any(String) });
     expect(changeStepType(think, 'deterministic_action')).toMatchObject({ action_or_tool: 'llm_call', prompt_template: null });
+  });
+
+  it('parseHostList divide su spazi, a capo e virgole, toglie vuoti, converte in minuscolo e toglie i doppioni mantenendo l\'ordine', () => {
+    const raw = 'API.EXAMPLE.COM, test.com\n*.OTHER.ORG, api.example.com  TEST.COM\n, \t ';
+    expect(parseHostList(raw)).toEqual(['api.example.com', 'test.com', '*.other.org']);
+    expect(parseHostList('')).toEqual([]);
+    expect(parseHostList('   , \n\t ')).toEqual([]);
+  });
+
+  it('legge allowed_hosts da permission_policy e gestisce automazioni senza permission_policy', () => {
+    const withPolicy = {
+      ...automation,
+      permission_policy: {
+        allowed_hosts: ['api.example.com', 'test.com'],
+        custom_rule: 'keep',
+      },
+    };
+    expect(formFromAutomation(withPolicy).allowedHosts).toBe('api.example.com\ntest.com');
+
+    const withoutPolicy = { ...automation };
+    delete (withoutPolicy as any).permission_policy;
+    expect(formFromAutomation(withoutPolicy).allowedHosts).toBe('');
+  });
+
+  it('buildAutomation scrive permission_policy.allowed_hosts e conserva gli altri campi della policy', () => {
+    const withPolicy = {
+      ...automation,
+      permission_policy: {
+        allowed_hosts: ['old.com'],
+        allowed_tools: ['http_get'],
+        extra_flag: true,
+      },
+    };
+    const form = {
+      ...formFromAutomation(withPolicy),
+      allowedHosts: 'API.GITHUB.COM, *.example.com\napi.github.com',
+    };
+    const saved = buildAutomation(withPolicy, form, stepsFromAutomation(withPolicy));
+    expect(saved.permission_policy).toEqual({
+      allowed_hosts: ['api.github.com', '*.example.com'],
+      allowed_tools: ['http_get'],
+      extra_flag: true,
+    });
+  });
+
+  it('buildAutomation crea permission_policy se assente nell\'automazione di partenza', () => {
+    const withoutPolicy = { ...automation };
+    delete (withoutPolicy as any).permission_policy;
+    const form = {
+      ...formFromAutomation(withoutPolicy),
+      allowedHosts: 'api.example.com\n*.test.com',
+    };
+    const saved = buildAutomation(withoutPolicy, form, stepsFromAutomation(withoutPolicy));
+    expect(saved.permission_policy).toEqual({
+      allowed_hosts: ['api.example.com', '*.test.com'],
+    });
   });
 });

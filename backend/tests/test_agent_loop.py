@@ -252,3 +252,41 @@ def test_repeated_pseudo_tool_calls_are_never_shown_to_the_user(manager):
 
     assert res["final_response"] == "Non ho trovato dati sui container."
     assert select.call_count == 2
+
+
+HTTP_GET = {"name": "http_get", "description": "",
+            "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}
+
+
+def test_network_tools_never_run_in_parallel(manager):
+    """http_get può chiedere un'approvazione durante l'esecuzione: in parallelo il turno non si sospenderebbe."""
+    manager.get_tools_for_mode.return_value = TOOLS + [HTTP_GET]
+    manager.execute_tool.return_value = {"status": 200, "content": "ok"}
+    parallel = [{"tool_name": "http_get", "arguments": {"url": "https://a.example.org/"}},
+                {"tool_name": "http_get", "arguments": {"url": "https://b.example.org/"}}]
+    select = _selections(
+        ToolSelection(tool_needed=True, tool_name="http_get", arguments={"url": "https://a.example.org/"}, parallel_calls=parallel),
+        _done())
+
+    run_agent_loop("scarica due pagine", "act", call_llm_fn=_llm(), call_llm_structured_fn=select)
+
+    manager.execute_tools_parallel.assert_not_called()
+    assert manager.execute_tool.call_count == 1
+
+
+@pytest.mark.parametrize("outcome", [
+    {"approval_required": True, "request_id": "req_net"},
+    {"error": "bloccato dal guardrail", "blocked_by_guardrail": True},
+    {"error": "host interno", "blocked": True},
+])
+def test_pending_or_blocked_results_are_not_cached(manager, outcome):
+    from app.agent.agent_loop import AgentLoop
+
+    manager.get_tools_for_mode.return_value = TOOLS + [HTTP_GET]
+    manager.execute_tool.return_value = outcome
+    loop = AgentLoop("scarica", "act", None, _llm(), _selections(), None, None, None, "normal")
+
+    res, cached = loop._execute(1, "http_get", {"url": "https://a.example.org/"})
+
+    assert res == outcome and cached is False
+    assert loop.call_cache == {}

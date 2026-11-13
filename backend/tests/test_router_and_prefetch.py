@@ -155,7 +155,7 @@ class TestRouterAndPrefetch(unittest.TestCase):
             "mode": "live"
         }
 
-        with patch("app.registry.web_search_service.execute_search", return_value=mock_search_result):
+        with patch("app.registry.web_search.execute_search", return_value=mock_search_result):
             # 1. Mode OFF: should skip
             s_off = {"task": "quali sono le novità di debian 13?", "web_search": "off"}
             res_off = web_prefetch_node(s_off)

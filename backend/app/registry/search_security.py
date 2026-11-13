@@ -91,6 +91,31 @@ def resolve_hostname_ips(hostname: str) -> List[ipaddress._BaseAddress]:
     return out
 
 
+def internal_host_reason(host: str) -> Optional[str]:
+    """None se `host` è pubblico; altrimenti perché è interno (nome locale, IP privato o riservato, nome non risolvibile).
+
+    Un nome che risolve anche su un solo indirizzo privato conta come interno."""
+    host = (host or "").strip().lower().rstrip(".")
+    if not host:
+        return "host vuoto"
+    if host in _BLOCKED_HOSTNAMES:
+        return "nome locale o di metadati cloud"
+    if any(host.endswith(suffix) for suffix in _BLOCKED_SUFFIXES):
+        return "nome della rete locale"
+    try:
+        direct_ip = ipaddress.ip_address(host.strip("[]"))
+        return "indirizzo privato o riservato" if is_private_address(direct_ip) else None
+    except ValueError:
+        pass
+    resolved_ips = resolve_hostname_ips(host)
+    if not resolved_ips:
+        return "nome non risolvibile"
+    if any(is_private_address(ip) for ip in resolved_ips):
+        logger.warning(f"SSRF block: hostname '{host}' risolve su IP privato/riservato: {resolved_ips}")
+        return "risolve su un indirizzo privato o riservato"
+    return None
+
+
 def is_safe_url(url: str, allowed_internal_hosts: Optional[List[str]] = None) -> bool:
     """Verifica se un URL è sicuro per il fetch HTTP outbound (protezione SSRF).
 
@@ -116,30 +141,7 @@ def is_safe_url(url: str, allowed_internal_hosts: Optional[List[str]] = None) ->
         if allowed_internal_hosts and host in allowed_internal_hosts:
             return True
 
-        if host in _BLOCKED_HOSTNAMES:
-            return False
-
-        if any(host.endswith(suffix) for suffix in _BLOCKED_SUFFIXES):
-            return False
-
-        # Verifica se host è già un IP letterale
-        try:
-            direct_ip = ipaddress.ip_address(host)
-            return not is_private_address(direct_ip)
-        except ValueError:
-            pass
-
-        # Risoluzione DNS e verifica di tutti gli IP associati
-        resolved_ips = resolve_hostname_ips(host)
-        if not resolved_ips:
-            # Fallimento risoluzione DNS: URL non raggiungibile o non valido
-            return False
-
-        if any(is_private_address(ip) for ip in resolved_ips):
-            logger.warning(f"SSRF block: hostname '{host}' risolve su IP privato/riservato: {resolved_ips}")
-            return False
-
-        return True
+        return internal_host_reason(host) is None
     except Exception as e:
         logger.warning(f"Errore durante validazione URL '{url}': {e}")
         return False

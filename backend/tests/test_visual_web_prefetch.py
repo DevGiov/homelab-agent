@@ -67,7 +67,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         )
         self.assertEqual(query, "Cerca prezzo visore")
 
-    @patch("app.registry.web_search_service.execute_search")
+    @patch("app.registry.web_search.execute_search")
     def test_web_prefetch_skips_purely_visual(self, mock_search):
         """Purely visual request with image should skip prefetch entirely."""
         state = {
@@ -80,7 +80,7 @@ class TestVisualWebPrefetch(unittest.TestCase):
         self.assertNotIn("web_prefetch_data", res_state)
 
     @patch("app.agent.nodes.web_prefetch.formulate_visual_search_query")
-    @patch("app.registry.web_search_service.execute_search")
+    @patch("app.registry.web_search.execute_search")
     def test_web_prefetch_executes_grounded_query(self, mock_search, mock_formulate):
         """Search-oriented request with image should ground query and search with it."""
         mock_formulate.return_value = "Eachine EV800DM prezzo specifiche"

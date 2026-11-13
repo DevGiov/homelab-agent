@@ -119,6 +119,15 @@ _CALL_KEYS = {"tool", "tool_name", "function", "arguments", "parameters"}
 _CALL_LIKE = re.compile(r"^[A-Za-z_][\w.-]*(\(.*\))?$", re.S)
 
 
+# Tool di sola lettura che possono chiedere un'approvazione a runtime (host non ammesso): mai in parallelo
+SEQUENTIAL_ONLY_TOOLS = frozenset({"http_get", "inspect_image"})
+
+
+def _pending_or_blocked(res: Any) -> bool:
+    # "blocked": host rifiutato dal controllo di rete; può cambiare se l'utente lo aggiunge alla lista durante il turno
+    return isinstance(res, dict) and bool(res.get("approval_required") or res.get("blocked_by_guardrail") or res.get("blocked"))
+
+
 def is_pseudo_tool_call(text: Optional[str]) -> bool:
     """`final_answer` che non è una risposta ma le chiamate che il modello voleva fare (ISS-28): solo codice, che è un
     JSON con chiavi da chiamata (`tool`, `arguments`…) o un nome in stile funzione (`docker_ps`, `list_x(...)`).
@@ -522,15 +531,17 @@ class AgentLoop:
 
     def _run_parallel(self, step_id: int, selection: ToolSelection) -> bool:
         """Esegue in parallelo le chiamate read-only proposte; False se non ce ne sono almeno due."""
+        # I tool che possono chiedere un'approvazione durante l'esecuzione restano sequenziali: qui non si sospende
         calls = [c for c in (selection.parallel_calls or [])
                  if isinstance(c, dict) and c.get("tool_name") and policy.classify_tool(c["tool_name"]) == "safe"
-                 and self._tool_allowed(c["tool_name"])]
+                 and c["tool_name"] not in SEQUENTIAL_ONLY_TOOLS and self._tool_allowed(c["tool_name"])]
         if len(selection.parallel_calls or []) <= 1 or len(calls) <= 1:
             return False
 
         logger.info(f"Step {step_id}: esecuzione parallela di {len(calls)} tool read-only")
         results = self.manager.execute_tools_parallel(
             calls, self.allowed_registries, thread_id=self.thread_id, mode=self.mode, security_mode=self.security_mode,
+            task=self.task, **self.audit,
         )
         for i, (call, res) in enumerate(zip(calls, results, strict=True)):
             tool_name, arguments = call["tool_name"], call.get("arguments", {})
@@ -606,7 +617,8 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
-        if policy.classify_tool(tool_name) == "safe":
+        # Solo i risultati veri: un'approvazione in attesa o un blocco non sono il risultato del tool
+        if policy.classify_tool(tool_name) == "safe" and not _pending_or_blocked(res):
             self.call_cache[cache_key] = res
         return res, False
 

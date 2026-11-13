@@ -109,7 +109,7 @@ Verificata il 2026-11-02 con prove reali su CT 125 (Qwen3.8-27B-Atomic-Vision-64
 
 **Rimandati**: revisione di ProxmoxMcp ([ISS-27](02-ISSUES.md#iss-27), tool composti) e tool calling nativo (opzione D di [INTERLEAVED_THINKING.md](../reasoning/INTERLEAVED_THINKING.md)), da decidere insieme dopo G2.
 
-**In design**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), 2026-11-13). Nessuna modifica al codice finché le decisioni della sua sezione 10 non sono prese. La fase S0 del documento (tre flussi oggi senza controllo) è indipendente dal resto.
+**In costruzione**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)). Decisioni prese il 2026-11-13; la fase S0 (host ammessi per `http_get` e `inspect_image`, prefetch attraverso il gestore dei tool) è fatta lo stesso giorno. Prossima: S1, etichette e controllo con le sole destinazioni locali.
 
 ## Storico
 

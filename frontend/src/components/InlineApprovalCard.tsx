@@ -75,6 +75,8 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
     null;
 
   const displayPrefix = commandPrefix || (previewCmd ? previewCmd.split(/\s+/).slice(0, 2).join(' ') : null);
+  const isNetRequest = Boolean(commandPrefix?.startsWith('net:'));
+  const netHost = isNetRequest ? commandPrefix!.slice(4).trim() : null;
   // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
   const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
 
@@ -184,8 +186,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs font-medium text-emerald-300">
                 <ShieldCheck size={16} className="shrink-0 text-emerald-400" />
                 <span>
-                  Tool autorizzato permanentemente
-                  {displayPrefix ? ` per "${displayPrefix}"` : ''} (salvato nei permessi globali).
+                  {isNetRequest
+                    ? `Host ${netHost} aggiunto agli host ammessi (modificabili in Impostazioni > Sicurezza).`
+                    : `Tool autorizzato permanentemente${displayPrefix ? ` per "${displayPrefix}"` : ''} (salvato nei permessi globali).`}
                 </span>
               </div>
             )}
@@ -250,12 +253,16 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
                 </span>
               </button>
 
-              {/* Option 4: Sì (Sempre per &cmd) */}
+              {/* Option 4: Sì (Sempre per &cmd / Host ammesso per net:) */}
               <button
                 onClick={() => handleResolve('approve_always')}
                 disabled={isLoading}
                 className="flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-3 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-600/35 hover:border-emerald-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
-                title="Salva autorizzazione persistente: non verrà mai più richiesta per questo comando"
+                title={
+                  isNetRequest
+                    ? "Aggiungi l'host alla lista degli host ammessi"
+                    : "Salva autorizzazione persistente: non verrà mai più richiesta per questo comando"
+                }
               >
                 {isLoading && activeAction === 'approve_always' ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -263,7 +270,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
                   <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
                 )}
                 <span className="truncate">
-                  Sì, sempre {displayPrefix ? `(${displayPrefix})` : `(${toolName})`}
+                  {isNetRequest
+                    ? `Sì, aggiungi ${netHost} agli ammessi`
+                    : `Sì, sempre ${displayPrefix ? `(${displayPrefix})` : `(${toolName})`}`}
                 </span>
               </button>
             </div>

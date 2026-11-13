@@ -1,7 +1,7 @@
 # Sensibilità dei dati: design
 
 **Data:** 13 novembre 2026
-**Stato:** design, nessuna modifica al codice. Le scelte della [sezione 10](#10-decisioni-da-prendere) aspettano il maintainer.
+**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fase S0 costruita lo stesso giorno ([9.1](#91-s0-come-è-stata-costruita)); le fasi S1-S4 non sono iniziate.
 **Contesto:** oggi ogni chiamata a un modello resta su un server locale. Prima di aggiungere un provider cloud, un agente di coding esterno o un canale di chat su un servizio di terzi serve una regola, applicata dal codice, che dica quali dati possono andare dove.
 
 Il documento descrive cosa esce oggi dal backend (verificato sul codice del ramo `dev`), il modello proposto (un'etichetta su ogni dato, un livello ammesso per ogni destinazione, un solo controllo), dove si aggancia al codice esistente e in che ordine costruirlo.
@@ -62,7 +62,7 @@ Non sono uscite di dati: gli embedding (calcolati nel processo, `memory/vector_s
 | La modalità `safest` esenta `web_search` dalla conferma (`security/policy.py`, `enforce_guardrails`) | Coerente con il rischio di danno, non con il rischio di uscita dei dati |
 | `GET /v1/uploads/{filename}` non chiede la chiave API (`api/routes/uploads.py`) | Le immagini caricate sono leggibili da chi conosce il nome del file (un identificatore casuale). Da tenere presente quando un'immagine sarà etichettata `private` |
 
-I primi tre vanno corretti comunque, prima e a prescindere dalle etichette ([fase S0](#9-ordine-di-costruzione)).
+I primi tre vanno corretti comunque, prima e a prescindere dalle etichette ([fase S0](#9-ordine-di-costruzione)). **Chiusi dalla fase S0 il 13/11/2026**, insieme a un quarto trovato strada facendo: `inspect_image` leggeva qualunque file locale del container ([9.1](#91-s0-come-è-stata-costruita)).
 
 ### 2.4 Ordine del grafo, rilevante per le etichette
 
@@ -246,9 +246,9 @@ La combinazione pericolosa è un agente che ha dati privati, legge contenuto scr
 
 - la scheda di approvazione avverte quando il testo da inviare è stato scritto dopo la lettura di contenuto non attendibile;
 - le autorizzazioni "per questa conversazione" e "sempre" di tipo "uscita di dati" **non valgono** in un turno che ha letto contenuto non attendibile: si chiede di nuovo;
-- lo stesso vale per i comandi pre-approvati che modificano qualcosa: dopo aver letto una pagina web o un'email, un comando di scrittura torna a chiedere conferma anche se il suo prefisso era nella lista dei permessi.
+- per i comandi pre-approvati che modificano qualcosa, l'idea era la stessa: dopo aver letto una pagina web o un'email, un comando di scrittura torna a chiedere conferma anche se il suo prefisso era nella lista dei permessi.
 
-Il terzo punto ha un costo (una conferma in più nei turni che mescolano ricerca e azione) e si può attivare in un secondo momento.
+Il terzo punto **resta da valutare** (decisione 6). L'obiezione del maintainer: lo stesso comando può essere innocuo il 99% delle volte; bloccarlo moltiplica le richieste senza garantire che il caso pericoloso venga riconosciuto, perché finisce sommerso tra le altre. Una conferma utile deve essere rara: serve un criterio più stretto del solo "ha letto contenuto non attendibile" (per esempio il comando o i suoi argomenti contengono testo che viene da quel contenuto).
 
 ## 8. Cosa vede l'utente
 
@@ -263,7 +263,7 @@ Ogni fase è utile da sola e lascia il sistema funzionante.
 
 | Fase | Contenuto | Effetto per l'utente |
 | :--- | :--- | :--- |
-| **S0. Chiusura dei flussi scoperti** | `http_get` e `inspect_image`: controllo SSRF con lista di host locali ammessi, e conferma quando l'host non è nella lista. `inspect_image` chiama il modello attraverso `LLMProvider.chat`. Il prefetch passa dal gestore dei tool, con audit | Una conferma in più per `http_get` verso internet. Indipendente dal resto: sono difetti di oggi |
+| **S0. Chiusura dei flussi scoperti** (fatta il 13/11/2026, [9.1](#91-s0-come-è-stata-costruita)) | `http_get` e `inspect_image`: lista degli host ammessi modificabile dalla UI, conferma per gli host pubblici fuori lista, blocco per quelli locali fuori lista, host dichiarati dalle automazioni. `inspect_image` chiama il modello attraverso `LLMProvider.chat` e legge solo file della directory dei dati. Il prefetch passa dal gestore dei tool, con audit | Una conferma in più per `http_get` verso internet. Indipendente dal resto: sono difetti di oggi |
 | **S1. Etichette e controllo, con sole destinazioni locali** | `security/flows.py`; parametro `tag` obbligatorio in `chat` e `call_llm`; etichette alle sorgenti della tabella 4.1; `tag` in `AgentState` e `AgentLoop`; controllo in `execute_tool` e `execute_search`; colonne di audit e metriche; rilevatori | Cambia solo la ricerca: in un turno con dati privati chiede o non parte |
 | **S2. Interfaccia** | Indicatore, selettore, scheda "uscita di dati", etichette in Memoria, knowledge base e server MCP | L'utente vede e corregge le etichette |
 | **S3. Valutazioni** | Suite `flows` in `app/evals`: un fatto privato con una stringa riconoscibile, un compito che invoglia a cercarlo sul web, un provider finto con livello `internal` che registra ciò che riceve. Passa se la stringa non compare in nessuna uscita registrata | Un numero al posto di un'impressione, da rifare a ogni modello |
@@ -273,17 +273,43 @@ Test deterministici di S1, oltre a quelli di `can_flow`: ogni tool del catalogo 
 
 **Costo permanente.** Ogni nuova sorgente e ogni nuova destinazione vanno classificate, per sempre. Il design lo rende obbligatorio invece che facoltativo: una sorgente senza etichetta o una chiamata senza `tag` non passa i test.
 
-## 10. Decisioni da prendere
+### 9.1 S0 come è stata costruita
 
-| # | Domanda | Proposta | Alternativa |
+Il modulo è `backend/app/security/network.py`; la lista sta nella tabella `allowed_hosts` di `checkpoints.db`.
+
+| Regola | Dettaglio |
+| :--- | :--- |
+| Schemi | Solo `http` e `https` |
+| Host in lista | Parte senza chiedere, anche se è nella rete locale. Una voce è un nome (`example.com`, solo quello), `*.example.com` (dominio e sottodomini, almeno due livelli) o un indirizzo IP |
+| Host della policy dell'automazione | `permission_policy.allowed_hosts`: valgono come in lista, solo durante le run di quell'automazione. Il gestore dei tool li legge dalla definizione a ogni chiamata |
+| Host locale fuori lista | Bloccato in ogni modalità, `dangerous` compresa: è la protezione SSRF. Locale = nome di rete locale, IP privato o riservato, o nome che risolve anche su un solo IP privato. Un nome che non si risolve è bloccato |
+| Host pubblico fuori lista | Richiesta di approvazione con capability `net:<host>` e anteprima della richiesta (indirizzo completo, intestazioni; i valori di quelle di accesso sono coperti). "Una volta" e "per questa chat" come per gli altri tool; "sempre" aggiunge l'host alla lista (origine "approvazione"). In modalità `dangerous` parte senza chiedere |
+| Redirect | Seguiti a mano, al massimo 5. Ogni passo rifà il controllo SSRF; un passo verso un host pubblico fuori lista è ammesso, perché lo sceglie il server. Le intestazioni scelte dal modello non passano a un host diverso |
+| Lista predefinita | 18 servizi pubblici usati in lettura (Wikipedia, GitHub, registri di pacchetti, arXiv, documentazione, Open-Meteo...), inseriti una volta sola: una voce tolta non torna, salvo "Ripristina predefiniti". Nessun host di un'installazione |
+| `inspect_image` locale | Solo file sotto `DATA_DIR` (upload, artefatti), anche nella forma `/v1/uploads/<nome>`. Prima leggeva qualunque percorso del container |
+| Agent loop | `http_get` e `inspect_image` non entrano più nelle chiamate in parallelo (lì un'approvazione non sospende il turno). Un'approvazione in attesa o un blocco non finiscono nella cache dei risultati |
+| Prefetch | Passa da `ToolRegistryManager.execute_tool("web_search", …)` con l'argomento interno `detail: "full"`: guardrail, impostazione del tool (un `web_search` bloccato blocca anche il prefetch) e riga di audit. Gli eventi di avanzamento arrivano con `run_with_event_sink` |
+| Audit | Le chiamate in parallelo ora portano `automation_id`, `run_id` e `step_run_id` come le altre |
+
+Interfaccia: sezione "Host ammessi" in Impostazioni > Sicurezza; campo degli host nella scheda "Budget & Guardrail" dell'automazione; nelle schede di approvazione di rete il pulsante "sempre" dice che aggiunge l'host. API: `GET/POST /v1/security/allowed-hosts`, `DELETE /v1/security/allowed-hosts/{host}`, `POST /v1/security/allowed-hosts/defaults`.
+
+La lista dice dove si può andare senza chiedere, non che cosa si può mandare: un indirizzo verso un host in lista può portare dati nella query string. Lo copre il controllo delle etichette di S1, che vale anche per gli host in lista.
+
+**Limite noto.** Il controllo risolve il nome prima della richiesta e la richiesta lo risolve di nuovo: un DNS che cambia risposta tra le due (DNS rebinding) può portare a un indirizzo privato. Vale anche per lo scaricamento delle pagine della ricerca, che usa lo stesso controllo. Chiuderlo richiede di collegarsi all'IP verificato, cosa che con HTTPS complica il controllo del certificato: rimandato.
+
+## 10. Decisioni
+
+Prese dal maintainer il 13/11/2026.
+
+| # | Domanda | Decisione | Note |
 | :--- | :--- | :--- | :--- |
-| 1 | Etichetta predefinita di ciò che l'utente scrive | `public`, con il livello della conversazione per alzarla e i rilevatori come rete | `internal`: più prudente, ma ogni ricerca web chiederebbe conferma, e la protezione verrebbe spenta |
-| 2 | Stato dell'infrastruttura (nomi, indirizzi, stato dei servizi) | `internal`; output di comandi e log `private` | Tutto `private`: nessun dato dell'infrastruttura a un provider cloud, neanche per pianificare |
-| 3 | Un provider cloud senza conservazione dei dati può ricevere `private`? | No in partenza. Si alza a mano, per provider | Sì per contratto: più capacità sui dati privati, fiducia in una promessa non verificabile |
-| 4 | Quando mostrare l'etichetta | Da `internal` in su, e sempre quando impedisce qualcosa | Sempre: più trasparente, più rumore |
-| 5 | Un server MCP nuovo | Parte dal più stretto e lo classifica chi lo aggiunge | Parte come locale: comodo, e un server che inoltra altrove riceverebbe dati privati senza che nessuno l'abbia deciso |
-| 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile), terzo punto) | Attiva per le uscite di dati da subito; per i comandi in un secondo momento | Tutto subito, o mai per i comandi |
-| 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano gli host nella loro policy | Lasciarlo senza conferma e affidarsi solo all'etichetta degli argomenti |
+| 1 | Etichetta predefinita di ciò che l'utente scrive | `public`, alzata dal livello della conversazione e dai rilevatori | Con `internal` ogni ricerca web chiederebbe conferma |
+| 2 | Stato dell'infrastruttura (nomi, indirizzi, stato dei servizi) | `internal`; output di comandi e log `private` | |
+| 3 | Un provider cloud senza conservazione dei dati può ricevere `private`? | No. `private` si concede solo a mano, provider per provider | |
+| 4 | Quando mostrare l'etichetta | Da `internal` in su, e sempre quando impedisce qualcosa | |
+| 5 | Un server MCP nuovo | Parte dal livello più stretto; lo classifica chi lo aggiunge | |
+| 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile)) | Per le uscite di dati: attiva da subito (in S1). Per i comandi: da valutare | Il motivo è in 7.3: troppe conferme nascondono quella che conta |
+| 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano i loro host nella policy; lista base di host sicuri da subito, tutto modificabile dalla UI | Fatto in S0 ([9.1](#91-s0-come-è-stata-costruita)) |
 
 ## 11. Alternative scartate
 

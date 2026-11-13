@@ -9,6 +9,7 @@ Handles:
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,6 +37,19 @@ from app.registry.search_security import is_safe_url, sanitize_source_url
 logger = logging.getLogger("web_search_service")
 
 _MAX_FETCH_PAGES = 3
+# Eventi di avanzamento per chi chiama la ricerca attraverso il ToolRegistryManager (il prefetch del grafo), dove una
+# funzione non può passare negli argomenti del tool
+_event_sink: contextvars.ContextVar[Optional[Callable[[str, Dict[str, Any]], None]]] = contextvars.ContextVar(
+    "search_event_sink", default=None)
+
+
+def run_with_event_sink(callback: Callable[[str, Dict[str, Any]], None], fn, *args, **kwargs):
+    token = _event_sink.set(callback)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        _event_sink.reset(token)
+
 _MAX_CONTENT_CHARS = 2000
 _MAX_TOTAL_CONTENT_CHARS = 8000
 _MAX_WORKERS = 4
@@ -157,6 +171,7 @@ def execute_search(
 
     Guaranteed to return a structured dictionary, never raising uncaught exceptions.
     """
+    event_callback = event_callback or _event_sink.get()
     raw_query = query.strip()
     clean_query = normalize_search_query(raw_query) or raw_query
     if not clean_query:

@@ -17,7 +17,7 @@ from app.memory import facts, hybrid_search, procedures, profile, thread_store, 
 from app.observability import health
 from app.observability.store import init_metrics_db
 from app.registry.manager import get_registry_manager
-from app.security import audit_log, permissions
+from app.security import audit_log, network, permissions
 
 logger = logging.getLogger("startup")
 
@@ -39,6 +39,7 @@ def init_storage() -> None:
     memory_consolidation.init_consolidation_db()
     audit_log.init_audit_db()
     permissions.init_permissions_db()
+    network.init_network_db()
     vector_store.init_vector_db()
     facts.init_facts_db()
     hybrid_search.init_search_indexes()

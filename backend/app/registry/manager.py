@@ -13,7 +13,7 @@ from app.registry.mcp import MCPRegistry
 from app.registry.memory import MemoryRegistry
 from app.registry.vision import VisionRegistry
 from app.registry.web_search import WebSearchRegistry
-from app.security import approvals, audit_log, permissions, policy
+from app.security import approvals, audit_log, network, permissions, policy
 
 logger = logging.getLogger("registry_manager")
 
@@ -91,12 +91,14 @@ class ToolRegistryManager:
 
                 logger.info(f"Esecuzione tool '{tool_name}' tramite registry '{reg_name}'")
                 approved_capability = approved_request.command_prefix if approved_request else None
+                # Host che la policy dell'automazione in corso dichiara: per http_get e inspect_image valgono come ammessi
+                scope_hosts = self._automation_hosts(automation_id)
                 try:
-                    result = approvals.run_with_approved_capability(approved_capability, reg.execute_tool, tool_name, args)
+                    result = self._run(reg, tool_name, args, approved_capability, scope_hosts)
                 except approvals.ApprovalRequired as needed:
                     if self._capability_preapproved(tool_name, needed.capability, thread_id, security_mode, approved_request):
                         logger.info(f"Capability '{needed.capability}' per '{tool_name}' già autorizzata: esecuzione")
-                        result = approvals.run_with_approved_capability(needed.capability, reg.execute_tool, tool_name, args)
+                        result = self._run(reg, tool_name, args, needed.capability, scope_hosts)
                     else:
                         guard = approvals.request_runtime_approval(
                             tool_name, args, needed, thread_id=thread_id, mode=mode, task=task
@@ -125,6 +127,28 @@ class ToolRegistryManager:
         return {"error": f"Tool '{tool_name}' non trovato o non consentito nei registry: {allowed_registries}"}
 
     @staticmethod
+    def _run(reg: BaseToolRegistry, tool_name: str, args: Dict[str, Any], capability: Optional[str],
+             scope_hosts: List[str]) -> Any:
+        """Il tool, con la capability autorizzata (se c'è) e gli host ammessi in più della policy dell'automazione."""
+        return network.run_with_scope_hosts(
+            scope_hosts, approvals.run_with_approved_capability, capability, reg.execute_tool, tool_name, args)
+
+    @staticmethod
+    def _automation_hosts(automation_id: Optional[str]) -> List[str]:
+        """`allowed_hosts` della policy dell'automazione, letti a ogni chiamata: una modifica vale dal passo successivo."""
+        if not automation_id:
+            return []
+        try:
+            from app.automations.db.definitions import get_definition
+            definition = get_definition(automation_id) or {}
+        except Exception as e:
+            logger.warning(f"Policy dell'automazione '{automation_id}' non leggibile: {e}")
+            return []
+        policy_def = definition.get("permission_policy") or {}
+        hosts = policy_def.get("allowed_hosts") if isinstance(policy_def, dict) else None
+        return list(hosts) if isinstance(hosts, list) else []
+
+    @staticmethod
     def _capability_preapproved(tool_name: str, capability: str, thread_id: Optional[str],
                                 security_mode: str, approved_request: Optional[approvals.ApprovalRequest]) -> bool:
         # Un'approvazione emessa per l'esecuzione normale del tool non vale per la capability runtime
@@ -151,12 +175,16 @@ class ToolRegistryManager:
 
     def execute_tools_parallel(self, calls: List[Dict[str, Any]], allowed_registries: List[str],
                                thread_id: Optional[str] = None, mode: Optional[str] = None,
-                               security_mode: str = "normal", max_workers: int = 4) -> List[Any]:
-        """Esegue in parallelo più tool read-only (Fase 3.3). Ordine dei risultati = ordine delle chiamate."""
+                               security_mode: str = "normal", max_workers: int = 4, task: Optional[str] = None,
+                               **audit: Optional[str]) -> List[Any]:
+        """Esegue in parallelo più tool read-only (Fase 3.3). Ordine dei risultati = ordine delle chiamate.
+
+        `audit`: automation_id, run_id, step_run_id, come per execute_tool."""
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [
                 pool.submit(self.execute_tool, c["tool_name"], c.get("arguments", {}),
-                            allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode)
+                            allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode,
+                            task=task, **audit)
                 for c in calls
             ]
             return [f.result() for f in futures]
