@@ -157,7 +157,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               >
                 {label}
                 {id === 'procedures' && !!stats?.procedures_proposed && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-xs tabular-nums">{stats.procedures_proposed}</span>
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-xs tabular-nums">{stats.procedures_proposed}</span>
                 )}
               </button>
             ))}

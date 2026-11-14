@@ -53,7 +53,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
         <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-sm">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5 pb-3 border-b border-border/60">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center">
                 <Shield size={16} />
               </div>
               <div>

@@ -90,7 +90,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
       {/* Header bar */}
       <div className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
             <ShieldAlert size={16} />
           </div>
           <div className="min-w-0">
@@ -228,7 +228,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <button
                 onClick={() => handleResolve('deny')}
                 disabled={isLoading}
-                className="flex items-center justify-center gap-2 rounded-lg border border-rose-500/50 bg-rose-600/20 px-3 py-2.5 text-xs font-semibold text-rose-200 hover:bg-rose-600/35 hover:border-rose-500 transition disabled:opacity-50 cursor-pointer shadow-sm"
+                className="flex items-center justify-center gap-2 rounded-lg border border-rose-500/50 bg-rose-600/20 px-3 py-2.5 text-xs font-semibold text-rose-200 hover:bg-rose-600/30 hover:border-rose-500 transition disabled:opacity-50 cursor-pointer shadow-sm"
               >
                 {isLoading && activeAction === 'deny' ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -256,7 +256,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <button
                 onClick={() => handleResolve('approve_thread')}
                 disabled={isLoading}
-                className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/50 bg-sky-600/20 px-3 py-2.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/35 hover:border-sky-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
+                className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/50 bg-sky-600/20 px-3 py-2.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/30 hover:border-sky-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
                 title="Consenti per tutti i turni di questa conversazione senza chiedere altre conferme"
               >
                 {isLoading && activeAction === 'approve_thread' ? (
@@ -274,7 +274,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <button
                 onClick={() => handleResolve('approve_always')}
                 disabled={isLoading}
-                className="flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-3 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-600/35 hover:border-emerald-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
+                className="flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-3 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-600/30 hover:border-emerald-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
                 title={
                   isNetRequest
                     ? "Aggiungi l'host alla lista degli host ammessi"

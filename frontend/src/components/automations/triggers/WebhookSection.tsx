@@ -61,7 +61,7 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
                 type="button"
                 onClick={regenerate}
                 disabled={isRegenerating}
-                className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition"
               >
                 <RefreshCw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
                 <span>Rigenera Token Segreto</span>
@@ -72,12 +72,12 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
                 type="text"
                 readOnly
                 value={url}
-                className="flex-1 bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-sky-500 font-mono truncate select-all"
+                className="flex-1 bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-sky-400 font-mono truncate select-all"
               />
               <button
                 type="button"
                 onClick={() => urlCopy.copy(url)}
-                className="p-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-500 border border-sky-500/30 transition flex items-center gap-1.5"
+                className="p-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition flex items-center gap-1.5"
               >
                 {urlCopy.copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 <span className="text-xs">{urlCopy.copied ? 'Copiato' : 'Copia'}</span>

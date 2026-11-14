@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import palette from 'tailwindcss/colors';
-import tailwindConfig from '../../tailwind.config.js';
+import tailwindConfig, { lightThemeStatusColors } from '../../tailwind.config.js';
+import { LABEL_CHIPS } from '../utils/sensitivity';
 import { STATUS_BUTTON, STATUS_FILL } from './statusFill';
 import { THEME_LIST } from './themes';
 import type { ThemeColors } from './types';
@@ -136,6 +137,76 @@ describe('fondi di stato pieni con testo bianco', () => {
   it('nel codice nessun testo bianco su fondi di stato chiari, traslucidi o 900/950', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(50);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('testo di stato su fondi di stato tinti', () => {
+  // Regole del plugin dei temi chiari (tailwind.config.js): colore di una classe di stato quando il body non è `.dark`
+  const lightRules: Record<string, { color?: string; backgroundColor?: string }> = {};
+  const pluginApi = {
+    addComponents: (rules: typeof lightRules) => Object.assign(lightRules, rules),
+    theme: (path: string) => path.split('.').slice(1).reduce<unknown>((o, key) => (o as Record<string, unknown>)[key], palette),
+  };
+  lightThemeStatusColors.handler(pluginApi as unknown as Parameters<typeof lightThemeStatusColors.handler>[0]);
+
+  const TEXT = new RegExp(`^text-(${STATUS_HUES.join('|')})-(\\d{2,3})$`);
+  const hueColor = (hue: string, shade: string) => palette[hue as Hue][Number(shade) as 500] as string;
+  const lightRule = (utility: string) => lightRules[`body:not(.dark) .${utility.replace('/', '\\/')}`];
+
+  /** Colore del testo nel tema: quello della palette, o quello del plugin nei temi chiari. */
+  const textColor = (utility: string, isDark: boolean) => {
+    const rule = isDark ? undefined : lightRule(utility);
+    if (rule?.color) return rule.color;
+    const [, hue, shade] = TEXT.exec(utility)!;
+    return hueColor(hue, shade);
+  };
+  /** Il fondo composto sopra la superficie, con la sua opacità o con la tinta del plugin nei temi chiari. */
+  const fillOver = (utility: string, isDark: boolean, surface: string) => {
+    const rule = isDark ? undefined : lightRule(utility);
+    if (rule?.backgroundColor) {
+      const [, color, percent] = /^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, transparent\)$/.exec(rule.backgroundColor)!;
+      return over(color, surface, Number(percent) / 100);
+    }
+    const [, hue, shade, opacity] = FILL.exec(utility)!;
+    return over(hueColor(hue, shade), surface, opacity ? Number(opacity.slice(1)) / 100 : 1);
+  };
+
+  // Ogni stringa di classi con testo e fondo di stato (distintivi, chip, avvisi), stato per stato
+  const badges = CLASS_STRINGS.flatMap(({ file, classes }) =>
+    statesOf(classes, (u) => TEXT.test(u), (u) => FILL.test(u)).map((state) => ({ file, classes, ...state })),
+  );
+
+  it('i distintivi si trovano nel codice, chip della sensibilità e stati delle esecuzioni compresi', () => {
+    expect(Object.keys(lightRules).length).toBeGreaterThan(100);
+    expect(badges.length).toBeGreaterThan(50);
+    expect(badges.some((b) => b.classes === LABEL_CHIPS.private)).toBe(true);
+    expect(badges.some((b) => b.file.endsWith('RunsTab.tsx') && b.fill === 'bg-emerald-500/20')).toBe(true);
+  });
+
+  it('il testo di stato usa i gradi 100-400, gli unici che i temi chiari rimappano', () => {
+    const off = CLASS_STRINGS.flatMap(({ file, classes }) =>
+      tokensOf(classes)
+        .filter((token) => /^[1-4]00$/.test(TEXT.exec(token.split(':').pop() ?? '')?.[2] ?? '100') === false)
+        .map((token) => `${file}: ${token}`),
+    );
+    expect(off).toEqual([]);
+  });
+
+  // Una regola sola per i distintivi: sulle tinte (fondi 400-600 traslucidi) il testo di stato è 100-300 nei temi scuri,
+  // e diventa 800 in quelli chiari. Il 400 sulle tinte scendeva sotto 4.5:1 sulle superfici più chiare di Claude Warm.
+  it('sulle tinte di stato il testo di stato usa i gradi 100-300', () => {
+    const off = badges.filter((b) => /-[456]00\/\d+$/.test(b.fill) && Number(TEXT.exec(b.text)![2]) > 300);
+    expect(off.map((b) => `${b.file}: ${b.variant}${b.text} su ${b.fill}`)).toEqual([]);
+  });
+
+  describe.each(THEME_LIST)('tema $id', ({ isDark, colors }) => {
+    it.each(SURFACES)('almeno 4.5:1 sopra %s, in ogni stato', (surface) => {
+      const failures = badges.flatMap((b) => {
+        const ratio = contrast(textColor(b.text, isDark), fillOver(b.fill, isDark, colors[surface]));
+        return ratio < 4.5 ? [`${b.file}: ${b.variant}${b.text} su ${b.variant}${b.fill} = ${ratio.toFixed(2)}`] : [];
+      });
+      expect([...new Set(failures)]).toEqual([]);
+    });
   });
 });
 

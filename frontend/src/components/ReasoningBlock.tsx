@@ -99,7 +99,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
         </div>
         <div className="flex items-center gap-2">
           {phases.length > 1 && (
-            <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
               {phases.length} fasi
             </span>
           )}

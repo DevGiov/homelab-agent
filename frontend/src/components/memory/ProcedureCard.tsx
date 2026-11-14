@@ -17,8 +17,8 @@ interface ProcedureCardProps {
 }
 
 const STATUS: Record<Procedure['status'], { label: string; className: string }> = {
-  proposed: { label: 'da approvare', className: 'text-amber-400 border-amber-400/30 bg-amber-400/10' },
-  approved: { label: 'in uso', className: 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10' },
+  proposed: { label: 'da approvare', className: 'text-amber-300 border-amber-400/30 bg-amber-400/10' },
+  approved: { label: 'in uso', className: 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10' },
   rejected: { label: 'rifiutata', className: 'text-fg-muted border-border bg-panel' },
 };
 

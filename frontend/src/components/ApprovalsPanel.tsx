@@ -59,7 +59,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
           <span className="font-medium text-fg">
             Approvazioni in attesa
             {pending.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
+              <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold">
                 {pending.length}
               </span>
             )}
@@ -116,7 +116,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'approve')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/40 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       title="Approva per una sola esecuzione"
                     >
                       <Check size={11} />
@@ -126,7 +126,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'approve_always')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/50 transition text-xs font-bold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/25 border border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/30 transition text-xs font-bold disabled:opacity-50 cursor-pointer"
                       title={
                         isNet
                           ? "Aggiungi l'host alla lista degli host ammessi"
@@ -140,7 +140,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'deny')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/40 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/30 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       title="Rifiuta richiesta"
                     >
                       <X size={11} />
@@ -155,7 +155,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       <button
                         onClick={() => handleResolveAction(item.request_id, 'approve_thread')}
                         disabled={busyId === item.request_id}
-                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/40 text-sky-200 hover:bg-sky-600/35 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/40 text-sky-200 hover:bg-sky-600/30 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       >
                         <MessageSquare size={11} />
                         Approva per tutta questa chat

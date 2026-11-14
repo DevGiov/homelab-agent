@@ -13,10 +13,10 @@ interface EpisodeCardProps {
 
 const outcomeClass = (outcome: string | null) =>
   outcome?.startsWith('fallito')
-    ? 'text-rose-400 border-rose-400/30 bg-rose-400/10'
+    ? 'text-rose-300 border-rose-400/30 bg-rose-400/10'
     : outcome?.includes('errori') || outcome?.includes('rollback')
-      ? 'text-amber-400 border-amber-400/30 bg-amber-400/10'
-      : 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10';
+      ? 'text-amber-300 border-amber-400/30 bg-amber-400/10'
+      : 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10';
 
 /** Un'esecuzione passata: richiesta, tool chiamati con esito ed eventuale errore. */
 export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, onOpenThread, onDelete }) => (

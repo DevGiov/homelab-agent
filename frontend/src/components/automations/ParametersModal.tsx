@@ -457,7 +457,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="checkbox"
                 checked={isDryRun}
                 onChange={(e) => setIsDryRun(e.target.checked)}
-                className="rounded border-border text-purple-500 cursor-pointer w-4 h-4"
+                className="rounded border-border cursor-pointer w-4 h-4"
               />
             </div>
           )}

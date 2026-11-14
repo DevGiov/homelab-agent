@@ -60,7 +60,7 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
                 onClick={() => onChange({ frequency: value })}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                   frequency === value
-                    ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/40 shadow-sm'
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm'
                     : 'bg-panel-header/50 text-fg-muted hover:text-fg border border-border/60'
                 }`}
               >
@@ -130,11 +130,11 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
           )}
 
           <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-emerald-500">
+            <div className="flex items-center gap-2 text-emerald-400">
               <Calendar className="w-4 h-4 shrink-0" />
               <span>{describeSchedule(schedule, timezone)}</span>
             </div>
-            <span className="font-mono text-xs bg-bg/80 px-2 py-0.5 rounded text-emerald-500 border border-emerald-500/30">
+            <span className="font-mono text-xs bg-bg/80 px-2 py-0.5 rounded text-emerald-400 border border-emerald-500/30">
               {toCron(schedule)}
             </span>
           </div>

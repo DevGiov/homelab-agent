@@ -164,7 +164,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               onClick={isPaused ? onResume : onPause}
               className={`p-1.5 sm:p-2 rounded-lg transition active:scale-95 shadow-md cursor-pointer ${
                 isPaused
-                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 shadow-amber-500/20'
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-amber-500/20'
                   : 'glass-card border border-border text-fg-muted hover:text-fg hover:border-accent/40'
               }`}
               title={isPaused ? 'Riprendi esecuzione' : 'Metti in pausa'}

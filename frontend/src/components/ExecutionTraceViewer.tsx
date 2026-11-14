@@ -138,8 +138,8 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         <span
                           className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                             tr.error
-                              ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-                              : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                              ? 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                              : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
                           }`}
                         >
                           {tr.error ? 'ERRORE' : 'OK'}

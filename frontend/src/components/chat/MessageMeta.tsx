@@ -124,13 +124,13 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         </span>
       )}
       {msg.tool_used && (
-        <span className={`${badge} bg-emerald-500/10 border border-emerald-500/20 text-emerald-400`}>
+        <span className={`${badge} bg-emerald-500/10 border border-emerald-500/20 text-emerald-300`}>
           <Wrench size={10} />
           <span className="font-mono">{msg.tool_used}</span>
         </span>
       )}
       {sourcesCount > 0 && (
-        <span className={`${badge} bg-cyan-500/10 border border-cyan-500/20 text-cyan-400`}>
+        <span className={`${badge} bg-cyan-500/10 border border-cyan-500/20 text-cyan-300`}>
           <Globe size={10} />
           {sourcesCount} fonti web
         </span>

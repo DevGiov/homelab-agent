@@ -71,7 +71,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
 
         <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar text-sm">
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-rose-500 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>

@@ -307,7 +307,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Loaded in VRAM Badge */}
           {inVram && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"
               title="Caricato in VRAM"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
@@ -318,7 +318,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Loading Badge */}
           {isLoading && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 animate-pulse"
               title="Caricamento in corso..."
             >
               <Loader2 size={9} className="animate-spin text-amber-400" />
@@ -329,7 +329,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Disponibilità secondo il watchdog */}
           {isBlocked && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-red-500/10 text-red-300 border border-red-500/20 flex items-center gap-1"
               title={m.availability_note ?? 'Modello non disponibile'}
             >
               <Ban size={9} />
@@ -338,7 +338,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           )}
           {m.would_block && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1"
               title={m.availability_note ?? 'Sconsigliato ora'}
             >
               <AlertTriangle size={9} />
@@ -349,7 +349,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Vision Modality Badge */}
           {m.is_vision && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 flex items-center gap-0.5"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 flex items-center gap-0.5"
               title="Supporta visione multimodale"
             >
               <Eye size={9} />

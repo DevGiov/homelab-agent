@@ -65,7 +65,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
               </span>
             )}
             {isImportant && (
-              <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-xs font-medium border border-rose-500/30">
+              <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 text-xs font-medium border border-rose-500/30">
                 {ev.importance}
               </span>
             )}

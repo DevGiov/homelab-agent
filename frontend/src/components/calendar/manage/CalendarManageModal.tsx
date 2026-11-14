@@ -98,8 +98,8 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
           <div
             className={`px-5 py-2.5 border-b text-xs flex items-center justify-between ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/25 text-rose-300'
             }`}
           >
             <span>{feedback.text}</span>

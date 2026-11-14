@@ -76,7 +76,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
               <div key={apr.request_id} className="p-4 rounded-xl bg-panel border border-amber-500/40 shadow-md space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+                    <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300">
                       <Shield size={16} />
                     </span>
                     <div>
@@ -84,7 +84,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                         <h4 className="text-xs font-bold text-fg">Azione Richiesta: {apr.tool_name}</h4>
                         <span
                           className={`px-2 py-0.5 rounded text-xs font-semibold border ${
-                            isWorkflow ? 'bg-accent/15 text-accent border-accent/30' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                            isWorkflow ? 'bg-accent/15 text-accent border-accent/30' : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                           }`}
                         >
                           {isWorkflow ? 'Workflow' : 'Conversazione'}

@@ -13,16 +13,17 @@ const OPACITIES = ['', ...Array.from({ length: 19 }, (_, i) => `/${(i + 1) * 5}`
 
 /**
  * I colori di stato sono scritti per sfondi scuri (testi 100-400, fondi 900-950, bordi 700-900).
- * Sui temi chiari (body senza `.dark`) diventano testi 700, fondi tenui e bordi 300. Tailwind genera
- * solo le regole delle classi effettivamente usate nel codice, varianti (`hover:`…) comprese.
+ * Sui temi chiari (body senza `.dark`) diventano testi 800, fondi tenui e bordi 300. Il grado 800 tiene il testo ad
+ * almeno 4.5:1 anche sulle tinte del suo colore (`bg-amber-500/20 text-amber-300`), dove il 700 scendeva a 4.2.
+ * Tailwind genera solo le regole delle classi effettivamente usate nel codice, varianti (`hover:`…) comprese.
  */
-const lightThemeStatusColors = plugin(({ addComponents, theme }) => {
+export const lightThemeStatusColors = plugin(({ addComponents, theme }) => {
   const esc = (cls) => cls.replace('/', '\\/');
   const rules = {};
   for (const hue of STATUS_HUES) {
     const shade = (n) => theme(`colors.${hue}.${n}`);
     for (const n of [100, 200, 300, 400]) {
-      rules[`body:not(.dark) .text-${hue}-${n}`] = { color: shade(700) };
+      rules[`body:not(.dark) .text-${hue}-${n}`] = { color: shade(800) };
     }
     for (const opacity of OPACITIES) {
       for (const n of [900, 950]) {
