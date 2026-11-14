@@ -14,11 +14,14 @@ interface ConfirmDialogProps {
   onAnswer: (confirmed: boolean) => void;
 }
 
-/** Conferma di un'azione distruttiva dentro l'app: il `confirm()` nativo può essere soppresso dal browser senza avvisi. */
+/**
+ * Conferma di un'azione distruttiva dentro l'app: il `confirm()` nativo può essere soppresso dal browser senza avvisi.
+ * All'apertura il focus va su Annulla: un Invio dato di slancio, o già premuto, non deve eliminare nulla.
+ */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
-  useModalFocus(dialogRef, { active: request !== null, onClose: () => onAnswer(false), initialFocus: confirmRef });
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useModalFocus(dialogRef, { active: request !== null, onClose: () => onAnswer(false), initialFocus: cancelRef });
 
   if (!request) return null;
   return (
@@ -36,10 +39,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
           <p className="text-xs text-fg leading-relaxed">{request.message}</p>
         </div>
         <div className="flex justify-end gap-1.5">
-          <button onClick={() => onAnswer(false)} className="px-3 py-1.5 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
+          <button ref={cancelRef} onClick={() => onAnswer(false)} className="px-3 py-1.5 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
             Annulla
           </button>
-          <button ref={confirmRef} onClick={() => onAnswer(true)} className={`px-3 py-1.5 rounded-lg ${STATUS_BUTTON.danger} text-xs font-semibold cursor-pointer`}>
+          <button onClick={() => onAnswer(true)} className={`px-3 py-1.5 rounded-lg ${STATUS_BUTTON.danger} text-xs font-semibold cursor-pointer`}>
             {request.confirmLabel ?? 'Elimina'}
           </button>
         </div>

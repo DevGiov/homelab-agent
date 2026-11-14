@@ -144,17 +144,19 @@ describe('ConfirmDialog', () => {
     );
   };
 
-  it('mette a fuoco la conferma, tiene il Tab dentro, Escape annulla e il focus torna indietro', () => {
+  it('mette a fuoco Annulla, non il pulsante distruttivo; tiene il Tab dentro, Escape annulla e il focus torna indietro', () => {
     const onAnswer = vi.fn();
     render(<ConfirmHarness onAnswer={onAnswer} />);
     const opener = openWithKeyboard('Elimina conversazione');
 
+    const cancel = screen.getByRole('button', { name: 'Annulla' });
     const confirm = screen.getByRole('button', { name: 'Elimina' });
-    expect(document.activeElement).toBe(confirm);
-    tab();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Annulla' }));
+    // Un Invio appena aperta la finestra va ad Annulla. Il Tab tra i due pulsanti lo fa il browser; la finestra fa girare i bordi
+    expect(document.activeElement).toBe(cancel);
     tab(true);
     expect(document.activeElement).toBe(confirm);
+    tab();
+    expect(document.activeElement).toBe(cancel);
 
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
     expect(onAnswer).toHaveBeenCalledWith(false);
