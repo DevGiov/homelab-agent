@@ -12,7 +12,8 @@ import { ChatOptionsBar } from './ChatOptionsBar';
 import { ImageLightbox } from './ImageLightbox';
 import { MessageList } from './MessageList';
 import { ConfirmDialog } from '../ConfirmDialog';
-import { SensitivityBar } from '../sensitivity/SensitivityBar';
+import { SensitivityBar, SensitivityHeaderChip } from '../sensitivity/SensitivityBar';
+import { useSensitivityBarVisibility } from '../sensitivity/useSensitivityBarVisibility';
 import { useConversationLevel } from '../sensitivity/useConversationLevel';
 import { lastAssistant } from '../../utils/chatMessages';
 import { joinTags, type SensitivityLevel } from '../../utils/sensitivity';
@@ -72,6 +73,7 @@ export const Chat: React.FC<ChatProps> = ({
     ? null
     : { label: conversation.level, untrusted: false, reasons: [`conversazione:${conversation.level}`] };
   const conversationTag = joinTags(levelTag, lastAssistant(messages)?.sensitivity);
+  const sensitivityBar = useSensitivityBarVisibility(conversationTag);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const title = currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'Nuova Sessione');
@@ -137,9 +139,12 @@ export const Chat: React.FC<ChatProps> = ({
         onExecuteChange={options.setExecute}
         onOpenMobileSidebar={onOpenMobileSidebar}
         onOpenMobileToolLog={onOpenMobileToolLog}
+        status={sensitivityBar.hidden ? <SensitivityHeaderChip tag={conversationTag} onShow={sensitivityBar.show} /> : null}
       />
 
-      <SensitivityBar tag={conversationTag} />
+      {!sensitivityBar.hidden && (
+        <SensitivityBar tag={conversationTag} chosen={conversation.level} onHide={sensitivityBar.hide} />
+      )}
       <ConfirmDialog request={conversation.confirmRequest} onAnswer={conversation.answer} />
 
       {(error || conversation.error) && (

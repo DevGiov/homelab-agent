@@ -4,7 +4,9 @@ import { jsonResponse, mockBackend } from '../../test/backend';
 import { InlineApprovalCard } from '../InlineApprovalCard';
 import { McpFlowsSection } from '../settings/mcp/McpFlowsSection';
 import type { MCPTool } from '../../api/mcp';
-import { SensitivityBar } from './SensitivityBar';
+import { SensitivityBar, SensitivityHeaderChip } from './SensitivityBar';
+import { hiddenCovers, useSensitivityBarVisibility } from './useSensitivityBarVisibility';
+import type { SensitivityTag } from '../../utils/sensitivity';
 import { useConversationLevel } from './useConversationLevel';
 
 afterEach(() => {
@@ -21,6 +23,91 @@ describe('fascia della conversazione', () => {
     expect(bar.textContent).toContain('Dati privati');
     expect(bar.textContent).toContain('un fatto della memoria');
     expect(bar.textContent).toContain('non attendibile');
+  });
+
+  it('su una riga: cosa cambia e il livello scelto solo nei dettagli', () => {
+    render(<SensitivityBar tag={{ label: 'private', untrusted: true, reasons: ['memoria:fatto', 'untrusted:web_prefetch'] }} chosen="internal" />);
+    const bar = screen.getByTestId('sensitivity-bar');
+    expect(bar.textContent).not.toContain('chiedono conferma');
+    const toggle = screen.getByRole('button', { name: 'Dettagli' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(bar.textContent).toContain('chiedono conferma');
+    expect(bar.textContent).toContain('Livello scelto per la conversazione: interni');
+    expect(bar.textContent).toContain('pagine web della ricerca preventiva');
+  });
+
+  it('il livello scelto non compare se coincide con quello effettivo', () => {
+    render(<SensitivityBar tag={{ label: 'private', reasons: ['conversazione:private'] }} chosen="private" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dettagli' }));
+    expect(screen.getByTestId('sensitivity-bar').textContent).not.toContain('Livello scelto');
+  });
+
+  it('il pulsante per nasconderla c\'è solo se qualcuno la può nascondere', () => {
+    const onHide = vi.fn();
+    const { rerender } = render(<SensitivityBar tag={{ label: 'internal', reasons: [] }} />);
+    expect(screen.queryByRole('button', { name: "Nascondi l'avviso" })).toBeNull();
+    rerender(<SensitivityBar tag={{ label: 'internal', reasons: [] }} onHide={onHide} />);
+    fireEvent.click(screen.getByRole('button', { name: "Nascondi l'avviso" }));
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  it('la chip dell\'intestazione riapre la fascia', () => {
+    const onShow = vi.fn();
+    const { rerender } = render(<SensitivityHeaderChip tag={{ label: 'public' }} onShow={onShow} />);
+    expect(screen.queryByTestId('sensitivity-header-chip')).toBeNull();
+    rerender(<SensitivityHeaderChip tag={{ label: 'private', untrusted: true }} onShow={onShow} />);
+    const chip = screen.getByRole('button', { name: "Dati privati, contenuto non attendibile: mostra l'avviso" });
+    fireEvent.click(chip);
+    expect(onShow).toHaveBeenCalledOnce();
+  });
+});
+
+describe('fascia nascosta', () => {
+  afterEach(() => localStorage.clear());
+  const privateTag: SensitivityTag = { label: 'private', reasons: [] };
+
+  it('resta nascosta allo stesso livello o più in basso', () => {
+    const hidden = { label: 'private' as const, untrusted: false };
+    expect(hiddenCovers(null, privateTag)).toBe(false);
+    expect(hiddenCovers(hidden, privateTag)).toBe(true);
+    expect(hiddenCovers(hidden, { label: 'internal' })).toBe(true);
+    expect(hiddenCovers(hidden, { label: 'secret' })).toBe(false);
+    expect(hiddenCovers(hidden, { label: 'internal', untrusted: true })).toBe(false);
+    expect(hiddenCovers({ label: 'private', untrusted: true }, { label: 'internal', untrusted: true })).toBe(true);
+  });
+
+  it('nasconderla vale anche dopo un ricaricamento e ricompare se il livello sale', () => {
+    const { result, rerender } = renderHook(({ tag }) => useSensitivityBarVisibility(tag), { initialProps: { tag: privateTag } });
+    expect(result.current.hidden).toBe(false);
+    act(() => result.current.hide());
+    expect(result.current.hidden).toBe(true);
+    rerender({ tag: { label: 'private', untrusted: true, reasons: [] } });
+    expect(result.current.hidden).toBe(false);
+
+    const reloaded = renderHook(() => useSensitivityBarVisibility(privateTag));
+    expect(reloaded.result.current.hidden).toBe(true);
+    act(() => reloaded.result.current.show());
+    expect(reloaded.result.current.hidden).toBe(false);
+    expect(localStorage.getItem('sensitivity_bar_hidden')).toBeNull();
+  });
+
+  it('dopo un ricaricamento ricorda anche il contenuto non attendibile', () => {
+    const untrustedTag: SensitivityTag = { label: 'private', untrusted: true, reasons: [] };
+    const first = renderHook(() => useSensitivityBarVisibility(untrustedTag));
+    act(() => first.result.current.hide());
+    const reloaded = renderHook(() => useSensitivityBarVisibility(untrustedTag));
+    expect(reloaded.result.current.hidden).toBe(true);
+  });
+
+  it('senza storage funziona lo stesso, per la pagina aperta', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('bloccato'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('bloccato'); });
+    const { result } = renderHook(() => useSensitivityBarVisibility(privateTag));
+    expect(result.current.hidden).toBe(false);
+    act(() => result.current.hide());
+    expect(result.current.hidden).toBe(true);
   });
 });
 

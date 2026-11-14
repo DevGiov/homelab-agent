@@ -13,6 +13,8 @@ interface ChatHeaderProps {
   onExecuteChange: (execute: boolean) => void;
   onOpenMobileSidebar?: () => void;
   onOpenMobileToolLog?: () => void;
+  /** Stato accanto al titolo, visibile a ogni larghezza (la chip dei dati quando l'avviso è nascosto). */
+  status?: React.ReactNode;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -23,6 +25,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onExecuteChange,
   onOpenMobileSidebar,
   onOpenMobileToolLog,
+  status,
 }) => (
   <div className="h-14 border-b border-border glass-header px-2.5 sm:px-6 flex items-center justify-between z-10 shrink-0 gap-2">
     <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
@@ -36,10 +39,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </button>
       )}
 
-      {/* Logo Bot: visibile solo da sm in su per risparmiare spazio su mobile */}
-      <div className="hidden sm:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
-        <Bot size={18} />
-      </div>
+      {/* Logo Bot: solo da sm in su, e lascia il posto allo stato quando c'è (l'intestazione stretta non li tiene tutti) */}
+      {!status && (
+        <div className="hidden sm:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
+          <Bot size={18} />
+        </div>
+      )}
+      {status}
 
       {/* Titolo Thread: visibile solo da md in su su desktop */}
       <div className="hidden md:block truncate max-w-xs">
@@ -53,12 +59,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     {/* Mode Selector & Controls */}
     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
       {/* Desktop Mode Pills */}
-      <div className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs shrink-0">
-        <span className="text-fg-muted text-[11px] px-2 font-medium">Mode:</span>
+      <div
+        role="group"
+        aria-label="Modalità"
+        className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs shrink-0"
+      >
         {MODES.map((modeOption) => (
           <button
             key={modeOption}
+            type="button"
             onClick={() => onModeChange(modeOption)}
+            aria-pressed={mode === modeOption}
             className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition cursor-pointer ${
               mode === modeOption
                 ? 'bg-accent text-white shadow-md shadow-accent/25'
