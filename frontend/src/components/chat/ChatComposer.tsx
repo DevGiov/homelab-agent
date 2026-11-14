@@ -43,13 +43,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   const openFilePicker = () => fileInputRef.current?.click();
 
+  // Brevi: a 16 px (schermi piccoli) un testo più lungo va a capo e la casella di una riga lo taglia
   const placeholder = isLoading
     ? isPaused
       ? 'Esecuzione in pausa...'
       : 'Generazione in corso...'
     : images.length > 0
-    ? "Aggiungi istruzioni per l'immagine o premi Invia per descriverla..."
-    : 'Scrivi un messaggio (incolla immagini con Ctrl+V)...';
+    ? "Istruzioni per l'immagine (facoltative)..."
+    : 'Scrivi un messaggio...';
 
   return (
     <>
