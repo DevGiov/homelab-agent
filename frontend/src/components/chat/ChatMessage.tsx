@@ -97,7 +97,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           ))}
         </div>
       )}
-      <div className="whitespace-pre-wrap font-sans break-words pr-12">{msg.content}</div>
+      <div className="whitespace-pre-wrap font-sans pr-12">{msg.content}</div>
       <div className="absolute top-0 right-0 flex items-center gap-0.5 can-hover:opacity-0 group-hover/userbubble:opacity-100 focus-within:opacity-100 transition-opacity">
         <button
           type="button"
@@ -140,8 +140,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         {isUser ? <User size={14} /> : <Bot size={14} />}
       </div>
 
-      <div className="flex flex-col space-y-1.5 max-w-[85vw] sm:max-w-xl">
-        <div className={`px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed ${bubbleClass(msg)}`}>
+      {/* min-w-0: la colonna si stringe fino alla riga anche con un URL lungo, che va a capo (overflow-wrap:anywhere) */}
+      <div className="flex flex-col space-y-1.5 min-w-0 max-w-[85vw] sm:max-w-xl">
+        <div className={`px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed [overflow-wrap:anywhere] ${bubbleClass(msg)}`}>
           {isUser ? (
             userContent
           ) : (

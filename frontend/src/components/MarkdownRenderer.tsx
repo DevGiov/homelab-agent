@@ -56,7 +56,9 @@ interface MarkdownRendererProps {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
   const rehypePlugins = useHighlightPlugins(content);
   return (
-    <div className={`markdown-body space-y-2 text-fg ${className}`}>
+    // overflow-wrap:anywhere: URL e parole senza spazi vanno a capo dentro il fumetto; i blocchi di codice no (white-space: pre),
+    // scorrono nel loro riquadro
+    <div className={`markdown-body space-y-2 text-fg [overflow-wrap:anywhere] ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypePlugins}
@@ -112,14 +114,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               );
             }
             return (
+              // In linea, non inline-flex: un link lungo va a capo come il testo invece di allargare il fumetto
               <a
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-accent hover:underline underline-offset-2 transition font-medium"
+                className="text-accent hover:underline underline-offset-2 transition font-medium"
               >
-                <span>{children}</span>
-                <ExternalLink size={11} className="inline shrink-0" />
+                {children}
+                <ExternalLink size={11} className="inline ml-0.5 align-[-1px]" aria-hidden="true" />
               </a>
             );
           },
@@ -267,9 +270,16 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
         </button>
       </div>
 
-      {/* Code Body */}
-      <pre className="p-3 overflow-x-auto text-fg leading-relaxed font-mono text-xs whitespace-pre hljs bg-bg/40">
-        <code className={`hljs ${language ? `language-${language}` : ''}`}>{children}</code>
+      {/* Il codice scorre in orizzontale nel suo riquadro, raggiungibile col Tab per scorrerlo da tastiera */}
+      <pre className="p-3 text-fg leading-relaxed font-mono text-xs whitespace-pre hljs bg-bg/40">
+        <code
+          tabIndex={0}
+          role="group"
+          aria-label={language ? `Codice ${language}` : 'Codice'}
+          className={`hljs block overflow-x-auto ${language ? `language-${language}` : ''}`}
+        >
+          {children}
+        </code>
       </pre>
     </div>
   );

@@ -22,4 +22,20 @@ describe('titoli del testo', () => {
     const { getByRole } = render(<MarkdownRenderer content={'| a | b |\n| - | - |\n| 1 | 2 |'} />);
     expect(getByRole('group', { name: 'Tabella' }).getAttribute('tabindex')).toBe('0');
   });
+
+  it('rende i blocchi di codice, che scorrono in orizzontale, raggiungibili da tastiera', () => {
+    const { getByRole } = render(<MarkdownRenderer content={'```bash\necho una-riga-molto-lunga\n```'} />);
+    const code = getByRole('group', { name: 'Codice bash' });
+    expect(code.tagName).toBe('CODE');
+    expect(code.getAttribute('tabindex')).toBe('0');
+    expect(code.className.split(/\s+/)).toEqual(expect.arrayContaining(['block', 'overflow-x-auto']));
+  });
+
+  it('URL e parole lunghe vanno a capo: link in linea e overflow-wrap:anywhere sul testo', () => {
+    const url = 'https://esempio.invalid/percorso/molto/lungo/senza/spazi';
+    const { container, getByRole } = render(<MarkdownRenderer content={`[${url}](${url}) e \`codice_senza_spazi\``} />);
+    expect((container.firstElementChild as HTMLElement).className.split(/\s+/)).toContain('[overflow-wrap:anywhere]');
+    const link = getByRole('link', { name: url });
+    expect(link.className.split(/\s+/)).not.toContain('inline-flex');
+  });
 });
