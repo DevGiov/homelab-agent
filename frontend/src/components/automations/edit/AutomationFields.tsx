@@ -55,7 +55,7 @@ export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
             id="enable-auto-toggle"
             checked={form.enabled}
             onChange={(e) => onChange({ enabled: e.target.checked })}
-            className="w-4 h-4 rounded border-border text-accent"
+            className="w-4 h-4 rounded border-border text-accent-text"
           />
           <label htmlFor="enable-auto-toggle" className="text-xs text-fg cursor-pointer select-none">
             {form.enabled ? 'Abilitata (schedulazione e trigger attivi)' : 'Disabilitata (nessuna esecuzione automatica)'}

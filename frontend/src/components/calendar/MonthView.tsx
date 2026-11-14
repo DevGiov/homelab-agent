@@ -146,7 +146,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
               <button
                 type="button"
                 onClick={() => onNewEvent(mobileSelectedDate)}
-                className="text-xs text-accent font-medium hover:underline flex items-center gap-1"
+                className="text-xs text-accent-text font-medium hover:underline flex items-center gap-1"
               >
                 <Plus size={12} /> Aggiungi
               </button>

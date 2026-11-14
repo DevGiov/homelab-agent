@@ -43,7 +43,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
         title={isCollapsed ? 'Mostra ragionamento e dettagli dei tool eseguiti' : 'Nascondi i dettagli'}
       >
         <div className="flex items-center gap-2 text-xs font-medium min-w-0">
-          <div className="flex items-center gap-1 text-accent">
+          <div className="flex items-center gap-1 text-accent-text">
             <Brain size={15} />
           </div>
           <span className="text-fg font-semibold">
@@ -51,7 +51,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           </span>
 
           {hasTrace && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent tabular-nums whitespace-nowrap shrink-0">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent-text tabular-nums whitespace-nowrap shrink-0">
               <Wrench size={10} />
               {stepsCount} {stepsCount === 1 ? 'tool eseguito' : 'tool eseguiti'}
             </span>
@@ -75,8 +75,8 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           {/* Global or Step-level Reasoning Block */}
           {reasoning && (
             <div className="glass-card border border-border/80 rounded-xl p-3 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-accent font-semibold">
-                <Brain size={14} className="text-accent" />
+              <div className="flex items-center gap-1.5 text-xs text-accent-text font-semibold">
+                <Brain size={14} className="text-accent-text" />
                 <span>Ragionamento del modello</span>
               </div>
               <div className="pl-4 border-l-2 border-accent/40 font-sans">
@@ -103,7 +103,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-xs text-fg truncate">
-                        <span className="text-accent font-bold tabular-nums">Step {idx + 1}:</span>
+                        <span className="text-accent-text font-bold tabular-nums">Step {idx + 1}:</span>
                         <span className="truncate font-semibold font-mono">{tr.tool_name}</span>
                       </div>
 
@@ -163,7 +163,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                     {/* Step-level Reasoning if present */}
                     {tr.reasoning && (
                       <div className="text-xs text-fg bg-accent/10 p-2 rounded-lg border border-accent/20 flex items-start gap-2">
-                        <Brain size={13} className="text-accent shrink-0 mt-0.5" />
+                        <Brain size={13} className="text-accent-text shrink-0 mt-0.5" />
                         <span className="italic leading-relaxed">{tr.reasoning}</span>
                       </div>
                     )}

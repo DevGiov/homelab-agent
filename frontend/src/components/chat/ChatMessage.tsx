@@ -46,7 +46,7 @@ const avatarClass = (msg: FormattedMessage) =>
     ? 'bg-accent text-accent-contrast shadow-md shadow-accent/25'
     : msg.isError
     ? STATUS_FILL.danger
-    : 'bg-panel border border-border text-accent';
+    : 'bg-panel border border-border text-accent-text';
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
   message: msg,

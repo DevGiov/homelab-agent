@@ -21,7 +21,7 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
   failed: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
   waiting_approval: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-tint-pulse',
-  running: 'bg-accent/20 text-accent border border-accent/40 animate-tint-pulse',
+  running: 'bg-accent/20 text-accent-text border border-accent/40 animate-tint-pulse',
   paused: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
 };
 
@@ -127,7 +127,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="rounded bg-input-bg border-border text-accent cursor-pointer"
+                    className="rounded bg-input-bg border-border text-accent-text cursor-pointer"
                     aria-label="Seleziona tutte le esecuzioni visibili"
                     title="Seleziona tutte le esecuzioni visibili"
                   />
@@ -160,7 +160,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       type="checkbox"
                       checked={selected.has(r.run_id)}
                       onChange={() => toggleRun(r.run_id)}
-                      className="rounded bg-input-bg border-border text-accent cursor-pointer"
+                      className="rounded bg-input-bg border-border text-accent-text cursor-pointer"
                       aria-label={`Seleziona l'esecuzione ${r.run_id}`}
                       title="Seleziona l'esecuzione"
                     />
@@ -187,7 +187,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       )}
                     </button>
                   </td>
-                  <td className="p-3 font-mono font-medium text-accent">{r.run_id}</td>
+                  <td className="p-3 font-mono font-medium text-accent-text">{r.run_id}</td>
                   <td className="p-3 font-semibold text-fg">{r.automation_id}</td>
                   <td className="p-3">
                     <StatusBadge run={r} />
@@ -200,7 +200,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                           e.stopPropagation();
                           onOpenArtifacts();
                         }}
-                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent text-xs font-medium flex items-center gap-1 transition"
+                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent-text text-xs font-medium flex items-center gap-1 transition"
                       >
                         <FileText size={11} /> {r.artifacts_count}
                       </button>
@@ -232,7 +232,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       )}
                       <button
                         onClick={() => onInspect(r.run_id)}
-                        className="p-1.5 text-fg-muted hover:text-accent rounded-lg hover:bg-panel transition"
+                        className="p-1.5 text-fg-muted hover:text-accent-text rounded-lg hover:bg-panel transition"
                         title="Ispeziona dettagli run"
                       >
                         <Eye size={15} />

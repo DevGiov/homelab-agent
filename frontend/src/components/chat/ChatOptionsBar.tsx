@@ -60,7 +60,7 @@ const BUDGETS = [
   { value: '32768', label: '32768 token' },
 ];
 
-const NEUTRAL_ACTIVE = 'bg-accent/15 border-accent/40 text-accent';
+const NEUTRAL_ACTIVE = 'bg-accent/15 border-accent/40 text-accent-text';
 const NEUTRAL_CHIP = 'bg-panel/60 border-border text-fg-muted';
 
 function Segmented<T extends string>({ label, choices, value, onChange }: {
@@ -208,7 +208,7 @@ export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models,
                 type="checkbox"
                 checked={options.incognito}
                 onChange={(e) => options.setIncognito(e.target.checked)}
-                className="mt-0.5 rounded border-border bg-input-bg text-accent"
+                className="mt-0.5 rounded border-border bg-input-bg text-accent-text"
               />
               <span>
                 <span className="block text-xs font-semibold text-fg-muted">Incognito</span>

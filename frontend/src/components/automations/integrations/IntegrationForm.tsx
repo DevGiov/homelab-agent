@@ -43,7 +43,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
           id={id}
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="rounded border-border text-accent cursor-pointer"
+          className="rounded border-border text-accent-text cursor-pointer"
         />
         <label htmlFor={id} className="text-fg-muted text-xs cursor-pointer">
           {field.label}
@@ -56,7 +56,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
       <label className="text-fg-muted text-xs font-medium flex items-center justify-between">
         <span>{field.label}</span>
         {field.source === 'secrets' && (
-          <span className="text-xs text-accent flex items-center gap-1">
+          <span className="text-xs text-accent-text flex items-center gap-1">
             <Lock size={10} /> Cifrato AES
           </span>
         )}
@@ -160,7 +160,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
                   disabled={actions.testingId === spec.id}
                   className="px-3 py-1.5 bg-panel border border-border hover:border-accent/40 text-fg rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <RefreshCw size={12} className={actions.testingId === spec.id ? 'animate-spin text-accent' : ''} />
+                  <RefreshCw size={12} className={actions.testingId === spec.id ? 'animate-spin text-accent-text' : ''} />
                   Testa Connessione
                 </button>
               )}

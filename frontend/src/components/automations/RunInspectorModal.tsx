@@ -101,7 +101,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-text">
               <Layers size={20} />
             </div>
             <div>
@@ -153,7 +153,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             <span className="text-fg-muted flex items-center justify-center gap-1 mb-1">
               <FileText size={12} /> Artefatti
             </span>
-            <span className="font-semibold text-accent">
+            <span className="font-semibold text-accent-text">
               {run.artifacts?.length || 0}
             </span>
           </div>
@@ -165,7 +165,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             onClick={() => setActiveTab('timeline')}
             className={`py-2.5 px-4 text-xs font-medium border-b-2 transition ${
               activeTab === 'timeline'
-                ? 'border-accent text-accent'
+                ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
@@ -175,13 +175,13 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             onClick={() => setActiveTab('artifacts')}
             className={`py-2.5 px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'artifacts'
-                ? 'border-accent text-accent'
+                ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
             Report & Artefatti
             {run.artifacts?.length ? (
-              <span className="px-1.5 py-0.2 rounded-full text-xs bg-accent/20 text-accent">
+              <span className="px-1.5 py-0.2 rounded-full text-xs bg-accent/20 text-accent-text">
                 {run.artifacts.length}
               </span>
             ) : null}
@@ -190,7 +190,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             onClick={() => setActiveTab('raw')}
             className={`py-2.5 px-4 text-xs font-medium border-b-2 transition ${
               activeTab === 'raw'
-                ? 'border-accent text-accent'
+                ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
@@ -220,7 +220,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                         className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-panel/60 select-none"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-full bg-accent/15 text-accent text-xs flex items-center justify-center font-bold">
+                          <span className="w-6 h-6 rounded-full bg-accent/15 text-accent-text text-xs flex items-center justify-center font-bold">
                             {idx + 1}
                           </span>
                           <div>
@@ -263,7 +263,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                                     key={tcIdx}
                                     className="p-2 rounded bg-bg/60 border border-border/60 font-mono text-xs"
                                   >
-                                    <div className="text-accent font-semibold">
+                                    <div className="text-accent-text font-semibold">
                                       {tc.tool_name}
                                     </div>
                                     {tc.args && (
@@ -311,7 +311,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-border/60">
                       <div className="flex items-center gap-2">
-                        <FileText size={16} className="text-accent" />
+                        <FileText size={16} className="text-accent-text" />
                         <h3 className="text-xs font-semibold text-fg">{art.title}</h3>
                         <span className="text-xs px-2 py-0.5 rounded bg-panel border border-border text-fg-muted uppercase">
                           {art.type}

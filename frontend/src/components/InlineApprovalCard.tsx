@@ -132,7 +132,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
           <div className="rounded-lg border border-border/80 bg-bg/60 p-3 font-mono text-xs text-emerald-400 overflow-x-auto shadow-inner">
             <div className="flex items-center justify-between gap-2 mb-1.5 text-xs text-fg-muted select-none">
               <span className="flex items-center gap-1.5">
-                <Terminal size={12} className="text-accent" />
+                <Terminal size={12} className="text-accent-text" />
                 {flow ? 'Testo che uscirebbe:' : isCodePreview ? 'Codice proposto:' : 'Comando shell proposto:'}
               </span>
               {displayPrefix && !flow && (

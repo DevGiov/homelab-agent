@@ -222,7 +222,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   <Cpu size={13} className="text-fg-muted shrink-0" />
                   <span className="truncate">Modello: predefinito</span>
                 </div>
-                {selectedModel === 'default' && <Check size={14} className="text-accent shrink-0" />}
+                {selectedModel === 'default' && <Check size={14} className="text-accent-text shrink-0" />}
               </div>
             )}
 
@@ -358,7 +358,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           )}
 
           {/* Checkmark if selected */}
-          {isSelected && <Check size={13} className="text-accent ml-1" />}
+          {isSelected && <Check size={13} className="text-accent-text ml-1" />}
         </div>
       </div>
     );

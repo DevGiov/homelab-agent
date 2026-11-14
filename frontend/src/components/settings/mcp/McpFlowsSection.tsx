@@ -125,7 +125,7 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
               <button
                 onClick={() => save(scope)}
                 disabled={!dirty(scope)}
-                className="p-1 rounded-md text-accent hover:bg-accent/10 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                className="p-1 rounded-md text-accent-text hover:bg-accent/10 disabled:opacity-30 cursor-pointer disabled:cursor-default"
                 title="Salva la classificazione"
               >
                 <Save size={13} />

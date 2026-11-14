@@ -72,7 +72,7 @@ export const ThemeQuickSelector: React.FC = () => {
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-accent/15 flex items-center justify-center text-accent">
+              <div className="w-6 h-6 rounded-md bg-accent/15 flex items-center justify-center text-accent-text">
                 <Palette size={13} />
               </div>
               <span className="font-semibold text-xs text-fg tracking-wide uppercase">Temi & Aspetto</span>
@@ -109,7 +109,7 @@ export const ThemeQuickSelector: React.FC = () => {
                       <span className="h-full flex-1" style={{ backgroundColor: t.swatch[2] }} />
                       <span className="h-full flex-1" style={{ backgroundColor: t.swatch[3] }} />
                     </div>
-                    {isActive && <Check size={12} className="text-accent shrink-0" />}
+                    {isActive && <Check size={12} className="text-accent-text shrink-0" />}
                   </div>
                   <span className="text-xs font-medium text-fg truncate">{t.name}</span>
                 </button>
@@ -122,7 +122,7 @@ export const ThemeQuickSelector: React.FC = () => {
             {/* Frosted Glass Toggle */}
             <div className="flex items-center justify-between p-2 rounded-xl bg-panel-header/40 border border-border/50">
               <div className="flex items-center gap-2">
-                <Sparkles size={13} className={isFrosted ? 'text-accent' : 'text-fg-muted'} />
+                <Sparkles size={13} className={isFrosted ? 'text-accent-text' : 'text-fg-muted'} />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-fg">Trasparenze</span>
                   <span className="text-xs text-fg-muted">Trasparenze & blur pannelli</span>
@@ -149,7 +149,7 @@ export const ThemeQuickSelector: React.FC = () => {
             {/* Ambient Glow Toggle */}
             <div className="flex items-center justify-between p-2 rounded-xl bg-panel-header/40 border border-border/50">
               <div className="flex items-center gap-2">
-                <SunMedium size={13} className={hasGlow ? 'text-accent' : 'text-fg-muted'} />
+                <SunMedium size={13} className={hasGlow ? 'text-accent-text' : 'text-fg-muted'} />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-fg">Bagliore di sfondo</span>
                   <span className="text-xs text-fg-muted">Bagliori colorati di sfondo</span>

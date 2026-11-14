@@ -1,6 +1,128 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+@import "./palette.css";
+
+/* Dove cercare le classi: come nella configurazione di prima, `index.html` e i sorgenti JS/TS (test compresi) */
+@source "../index.html";
+@source "./**/*.{js,ts,jsx,tsx}";
+
+/* Tema scuro: la classe `.dark` sul body (ThemeContext), non la preferenza del sistema */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * `hover:` come in Tailwind 3: vale anche sui dispositivi touch (dove resta attivo dopo il tocco). Tailwind 4 lo
+ * limiterebbe ai dispositivi col passaggio del mouse.
+ */
+@custom-variant hover (&:hover);
+
+/*
+ * `can-hover:` vale solo sui dispositivi col passaggio del mouse. Un controllo che compare al passaggio del mouse si
+ * nasconde con `can-hover:opacity-0`: su telefoni e tablet, dove il passaggio non esiste, resta sempre visibile.
+ */
+@custom-variant can-hover (@media (hover: hover));
+
+/*
+ * Colori del tema: leggono le variabili CSS che imposta theme/ThemeContext.tsx. `inline` scrive `var(--accent)` dove la
+ * classe è usata, non sul :root: il tema imposta le variabili sul body e la lettura deve avvenire lì. I modificatori di
+ * opacità (`bg-accent/15`) funzionano anche se le variabili sono esadecimali (Tailwind li compone con color-mix).
+ * Container query (`@container/chat`, `@xl/chat:flex`): sono integrate in Tailwind 4 e le soglie (`--container-*`) sono
+ * quelle del plugin di prima. La colonna della chat cambia larghezza con le barre laterali, la finestra no.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-secondary: var(--bg-secondary);
+
+  --color-panel: var(--panel);
+  --color-panel-header: var(--panel-header);
+  /* Superficie al passaggio del mouse: il pannello spostato di poco verso il colore del testo */
+  --color-panel-hover: var(--panel-hover);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  /* Testo sopra `bg-accent`: chiaro o scuro secondo il tema, per il contrasto 4.5:1 */
+  --color-accent-contrast: var(--accent-contrast);
+  /*
+   * Testo d'accento (`text-accent-text`): ogni tema lo tiene leggibile anche sulle tinte dell'accento; fondi, bordi e
+   * anelli restano sull'accento (`--accent`). In Tailwind 3 la classe era `text-accent-text`: in 4 un colore ha una sola
+   * variabile per tutte le proprietà, quindi il testo ha un nome suo.
+   */
+  --color-accent-text: var(--accent-text);
+
+  --color-userBubble: var(--user-bubble-bg);
+  --color-userBubble-text: var(--user-bubble-fg);
+
+  --color-agentBubble: var(--agent-bubble-bg);
+
+  --color-input: var(--input-bg);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+}
+
+@theme {
+  /* Font serviti in locale (@fontsource-variable, importati in main.tsx), con le pile di sistema come riserva */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0effe;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-900: #1e3a8a;
+
+  --animate-ambient-slow: ambient-slow 24s ease-in-out infinite;
+  --animate-ambient-reverse: ambient-reverse 28s ease-in-out infinite;
+  --animate-ambient-pulse: ambient-pulse 16s ease-in-out infinite;
+  /* Distintivi "in corso": pulsa la tinta, non il testo. `animate-pulse` dimezza l'opacità del testo, che a metà ciclo
+     scende sotto 4.5:1; svanendo la tinta il contrasto può solo salire. */
+  --animate-tint-pulse: tint-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes ambient-slow {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(60px, 40px, 0) scale(1.08);
+    }
+  }
+
+  @keyframes ambient-reverse {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(-50px, -30px, 0) scale(1.12);
+    }
+  }
+
+  @keyframes ambient-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.95);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes tint-pulse {
+    50% {
+      background-color: transparent;
+    }
+  }
+}
 
 :root {
   /* Default to Midnight theme values */
@@ -57,10 +179,29 @@ body:not(.dark) {
 }
 
 @layer base {
+  /* Colore di default dei bordi (`border` senza colore esplicito, `divide-*`): Tailwind 4 userebbe currentColor */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+
+  /* Il preflight di Tailwind 4 lascia il cursore di default sui pulsanti: qui resta la manina di Tailwind 3 */
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: default;
+  }
+
   body {
     background-color: var(--bg);
     color: var(--fg);
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -111,6 +252,88 @@ body:not(.dark) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * I colori di stato sono scritti per sfondi scuri (testi 100-400, fondi 900-950, bordi 700-900). Sui temi chiari (body senza
+ * `.dark`) diventano testi 800, fondi tenui e bordi 300. Il grado 800 tiene il testo ad almeno 4.5:1 anche sulle tinte
+ * del suo colore (`bg-amber-500/20 text-amber-300`), dove il 700 scendeva a 4.2.
+ * Sono regole a mano per le sole classi usate nel codice (Tailwind non genera regole con un selettore del genere): una
+ * classe di stato nuova ne richiede una qui, e lo ricorda il test in themes.test.ts. Stanno nel livello `utilities`, dopo
+ * le utility, e la specificità del selettore le fa vincere.
+ */
+@layer utilities {
+  /* `selection:` colora la selezione: gli pseudo-elementi non possono stare dentro `:is()`, hanno la regola a parte */
+  body:not(.dark) .selection\:text-blue-200::selection,
+  body:not(.dark) .selection\:text-blue-200 ::selection {
+    color: var(--color-blue-800);
+  }
+  body:not(.dark) :is(.hover\:text-emerald-400:hover, .text-emerald-200, .text-emerald-300, .text-emerald-400) {
+    color: var(--color-emerald-800);
+  }
+  body:not(.dark) :is(.bg-emerald-950\/30, .bg-emerald-950\/40, .bg-emerald-950\/60, .bg-emerald-950\/70, .bg-emerald-950\/90) {
+    background-color: color-mix(in srgb, var(--color-emerald-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-emerald-800, .border-emerald-800\/40, .border-emerald-800\/60, .border-emerald-800\/80) {
+    border-color: var(--color-emerald-300);
+  }
+  body:not(.dark) :is(.text-cyan-300, .text-cyan-400) {
+    color: var(--color-cyan-800);
+  }
+  body:not(.dark) :is(.bg-cyan-950\/60) {
+    background-color: color-mix(in srgb, var(--color-cyan-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-cyan-800\/50) {
+    border-color: var(--color-cyan-300);
+  }
+  body:not(.dark) :is(.text-sky-200, .text-sky-300, .text-sky-400) {
+    color: var(--color-sky-800);
+  }
+  body:not(.dark) :is(.bg-sky-950\/10, .bg-sky-950\/60) {
+    background-color: color-mix(in srgb, var(--color-sky-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-sky-800\/50) {
+    border-color: var(--color-sky-300);
+  }
+  body:not(.dark) :is(.text-blue-300) {
+    color: var(--color-blue-800);
+  }
+  body:not(.dark) :is(.hover\:text-indigo-400:hover, .text-indigo-300, .text-indigo-400) {
+    color: var(--color-indigo-800);
+  }
+  body:not(.dark) :is(.hover\:text-purple-400:hover, .text-purple-200, .text-purple-300, .text-purple-400) {
+    color: var(--color-purple-800);
+  }
+  body:not(.dark) :is(.bg-purple-950\/40, .bg-purple-950\/70) {
+    background-color: color-mix(in srgb, var(--color-purple-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-purple-800\/50) {
+    border-color: var(--color-purple-300);
+  }
+  body:not(.dark) :is(.hover\:text-rose-100:hover, .hover\:text-rose-200:hover, .hover\:text-rose-300:hover, .hover\:text-rose-400:hover, .text-rose-200, .text-rose-300, .text-rose-400) {
+    color: var(--color-rose-800);
+  }
+  body:not(.dark) :is(.bg-rose-950\/20, .bg-rose-950\/40, .bg-rose-950\/60, .bg-rose-950\/70, .bg-rose-950\/80, .bg-rose-950\/85, .bg-rose-950\/90, .hover\:bg-rose-900\/60:hover, .hover\:bg-rose-950\/30:hover, .hover\:bg-rose-950\/40:hover) {
+    background-color: color-mix(in srgb, var(--color-rose-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-rose-800, .border-rose-800\/40, .border-rose-800\/50, .border-rose-800\/60, .border-rose-800\/80, .border-rose-900\/50, .border-rose-900\/60, .hover\:border-rose-700:hover) {
+    border-color: var(--color-rose-300);
+  }
+  body:not(.dark) :is(.text-red-300, .text-red-400) {
+    color: var(--color-red-800);
+  }
+  body:not(.dark) :is(.hover\:text-amber-300:hover, .hover\:text-amber-400:hover, .text-amber-200, .text-amber-300, .text-amber-400) {
+    color: var(--color-amber-800);
+  }
+  body:not(.dark) :is(.bg-amber-950\/20, .bg-amber-950\/40, .bg-amber-950\/60) {
+    background-color: color-mix(in srgb, var(--color-amber-500) 12%, transparent);
+  }
+  body:not(.dark) :is(.border-amber-800\/50, .border-amber-800\/60, .border-amber-900\/40) {
+    border-color: var(--color-amber-300);
+  }
+  body:not(.dark) :is(.text-zinc-300) {
+    color: var(--color-zinc-800);
   }
 }
 
@@ -183,157 +406,164 @@ body.theme-frosted .glass-card {
   border-color: color-mix(in srgb, var(--fg) 12%, transparent) !important;
 }
 
-/* Fallbacks when frosted glass is disabled (opaque modern theme look) */
-.glass-panel {
-  background-color: var(--panel);
-  border-color: var(--border);
-}
+/*
+ * Fallback del vetro, blocchi di codice e barre di scorrimento stanno nel livello `utilities`, dopo le utility di Tailwind:
+ * come in Tailwind 3, a parità di specificità vincono sulle classi dello stesso elemento (fuori dai livelli vincerebbero
+ * anche su quelle più specifiche, come `hover:`).
+ */
+@layer utilities {
+  /* Fallbacks when frosted glass is disabled (opaque modern theme look) */
+  .glass-panel {
+    background-color: var(--panel);
+    border-color: var(--border);
+  }
 
-.glass-header {
-  background-color: var(--panel-header);
-  border-bottom-color: var(--border);
-}
+  .glass-header {
+    background-color: var(--panel-header);
+    border-bottom-color: var(--border);
+  }
 
-.glass-bubble-agent {
-  background-color: var(--agent-bubble-bg);
-  border-color: var(--border);
-}
+  .glass-bubble-agent {
+    background-color: var(--agent-bubble-bg);
+    border-color: var(--border);
+  }
 
-.glass-bubble-user {
-  background-color: var(--user-bubble-bg);
-}
+  .glass-bubble-user {
+    background-color: var(--user-bubble-bg);
+  }
 
-.glass-input-bar {
-  background-color: var(--panel);
-  border-top-color: var(--border);
-}
+  .glass-input-bar {
+    background-color: var(--panel);
+    border-top-color: var(--border);
+  }
 
-.glass-card {
-  background-color: var(--bg-secondary);
-  border-color: var(--border);
-}
+  .glass-card {
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+  }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Blocchi di codice (highlight.js): i gruppi di token di GitHub Dark/Light, con i colori dalle variabili --code-* che il
-   tema imposta (theme/codeColors.ts, controllati in themes.test.ts). Fuori da @layer: le classi `hljs-*` le aggiunge
-   rehype-highlight a runtime e Tailwind non le troverebbe nel codice.
-   ───────────────────────────────────────────────────────────────────────────── */
-.hljs {
-  color: var(--code-fg);
-  background-color: var(--code-bg);
-}
+  /* ─────────────────────────────────────────────────────────────────────────────
+     Blocchi di codice (highlight.js): i gruppi di token di GitHub Dark/Light, con i colori dalle variabili --code-* che il
+     tema imposta (theme/codeColors.ts, controllati in themes.test.ts). Le classi `hljs-*` le aggiunge rehype-highlight a
+     runtime e Tailwind non le troverebbe nel codice.
+     ───────────────────────────────────────────────────────────────────────────── */
+  .hljs {
+    color: var(--code-fg);
+    background-color: var(--code-bg);
+  }
 
-pre code.hljs {
-  padding: 1em;
-}
+  pre code.hljs {
+    padding: 1em;
+  }
 
-.hljs-doctag,
-.hljs-keyword,
-.hljs-meta .hljs-keyword,
-.hljs-template-tag,
-.hljs-template-variable,
-.hljs-type,
-.hljs-variable.language_ {
-  color: var(--code-keyword);
-}
+  .hljs-doctag,
+  .hljs-keyword,
+  .hljs-meta .hljs-keyword,
+  .hljs-template-tag,
+  .hljs-template-variable,
+  .hljs-type,
+  .hljs-variable.language_ {
+    color: var(--code-keyword);
+  }
 
-.hljs-title,
-.hljs-title.class_,
-.hljs-title.class_.inherited__,
-.hljs-title.function_ {
-  color: var(--code-title);
-}
+  .hljs-title,
+  .hljs-title.class_,
+  .hljs-title.class_.inherited__,
+  .hljs-title.function_ {
+    color: var(--code-title);
+  }
 
-.hljs-attr,
-.hljs-attribute,
-.hljs-literal,
-.hljs-meta,
-.hljs-number,
-.hljs-operator,
-.hljs-variable,
-.hljs-selector-attr,
-.hljs-selector-class,
-.hljs-selector-id {
-  color: var(--code-constant);
-}
+  .hljs-attr,
+  .hljs-attribute,
+  .hljs-literal,
+  .hljs-meta,
+  .hljs-number,
+  .hljs-operator,
+  .hljs-variable,
+  .hljs-selector-attr,
+  .hljs-selector-class,
+  .hljs-selector-id {
+    color: var(--code-constant);
+  }
 
-.hljs-regexp,
-.hljs-string,
-.hljs-meta .hljs-string {
-  color: var(--code-string);
-}
+  .hljs-regexp,
+  .hljs-string,
+  .hljs-meta .hljs-string {
+    color: var(--code-string);
+  }
 
-.hljs-built_in,
-.hljs-symbol {
-  color: var(--code-builtin);
-}
+  .hljs-built_in,
+  .hljs-symbol {
+    color: var(--code-builtin);
+  }
 
-.hljs-comment,
-.hljs-code,
-.hljs-formula {
-  color: var(--code-comment);
-}
+  .hljs-comment,
+  .hljs-code,
+  .hljs-formula {
+    color: var(--code-comment);
+  }
 
-.hljs-name,
-.hljs-quote,
-.hljs-selector-tag,
-.hljs-selector-pseudo {
-  color: var(--code-tag);
-}
+  .hljs-name,
+  .hljs-quote,
+  .hljs-selector-tag,
+  .hljs-selector-pseudo {
+    color: var(--code-tag);
+  }
 
-.hljs-subst,
-.hljs-emphasis,
-.hljs-strong {
-  color: var(--code-fg);
-}
+  .hljs-subst,
+  .hljs-emphasis,
+  .hljs-strong {
+    color: var(--code-fg);
+  }
 
-.hljs-section {
-  color: var(--code-section);
-  font-weight: bold;
-}
+  .hljs-section {
+    color: var(--code-section);
+    font-weight: bold;
+  }
 
-.hljs-bullet {
-  color: var(--code-bullet);
-}
+  .hljs-bullet {
+    color: var(--code-bullet);
+  }
 
-.hljs-emphasis {
-  font-style: italic;
-}
+  .hljs-emphasis {
+    font-style: italic;
+  }
 
-.hljs-strong {
-  font-weight: bold;
-}
+  .hljs-strong {
+    font-weight: bold;
+  }
 
-.hljs-addition {
-  color: var(--code-addition-fg);
-  background-color: var(--code-addition-bg);
-}
+  .hljs-addition {
+    color: var(--code-addition-fg);
+    background-color: var(--code-addition-bg);
+  }
 
-.hljs-deletion {
-  color: var(--code-deletion-fg);
-  background-color: var(--code-deletion-bg);
-}
+  .hljs-deletion {
+    color: var(--code-deletion-fg);
+    background-color: var(--code-deletion-bg);
+  }
 
-/* Custom Themed Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+  /* Custom Themed Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: 4px;
-}
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: 4px;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--accent) 50%, var(--border));
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--accent) 50%, var(--border));
+  }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
 }

@@ -1,7 +1,7 @@
 /**
  * Fondi pieni con colore di stato e testo bianco: conferme distruttive, approvazioni, pausa, badge di conteggio.
  * Ogni tonalità dà almeno 4.5:1 col bianco, anche al passaggio del mouse, che scurisce di un grado. Sono uguali in ogni
- * tema: il plugin dei temi chiari (tailwind.config.js) cambia solo i fondi 900 e 950. Controllati in themes.test.ts.
+ * tema: le regole dei temi chiari (index.css) cambiano solo i fondi 900 e 950. Controllati in themes.test.ts.
  */
 export const STATUS_FILL = {
   danger: 'bg-rose-600 text-white',

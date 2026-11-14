@@ -227,7 +227,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-border bg-panel-header/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
+            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
               <Sliders size={16} />
             </div>
             <div>
@@ -235,7 +235,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 <h2 id={titleId} className="text-sm font-bold text-fg">
                   {mode === 'run' ? 'Esegui con Parametri' : 'Configura Parametri'}
                 </h2>
-                {isLoading && <RefreshCw size={12} className="animate-spin text-accent" />}
+                {isLoading && <RefreshCw size={12} className="animate-spin text-accent-text" />}
               </div>
               <p className="text-xs text-fg-muted">{automation.name} (<span className="font-mono">{automation.id}</span>)</p>
             </div>
@@ -254,7 +254,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         {/* Content */}
         <div className="p-5 overflow-y-auto space-y-5 text-xs">
           <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-xs text-fg-muted">
-            <Info size={14} className="text-accent shrink-0 mt-0.5" />
+            <Info size={14} className="text-accent-text shrink-0 mt-0.5" />
             <span>
               {mode === 'run'
                 ? 'I valori inseriti qui sovrascriveranno i parametri predefiniti esclusivamente per questa esecuzione manuale.'
@@ -267,7 +267,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-fg flex items-center gap-1.5">
-                  <Code2 size={13} className="text-accent" />
+                  <Code2 size={13} className="text-accent-text" />
                   Parametri Rilevati dal Workflow ({detectedParamsList.length})
                 </label>
                 <span className="text-xs text-fg-muted">Rilevamento AST automatico</span>
@@ -286,7 +286,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-accent font-semibold">
+                          <span className="font-mono text-xs text-accent-text font-semibold">
                             {param.name}
                           </span>
                           <span
@@ -317,7 +317,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                               onChange={(e) =>
                                 handleUpdateDetectedValue(param.name, e.target.checked)
                               }
-                              className="rounded border-border text-accent w-4 h-4 cursor-pointer"
+                              className="rounded border-border text-accent-text w-4 h-4 cursor-pointer"
                             />
                             <span className="text-xs text-fg">
                               {val ? 'Attivato (true)' : 'Disattivato (false)'}
@@ -387,7 +387,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 {paramsList.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-bg border border-border/80">
                     <div className="w-1/3">
-                      <span className="font-mono text-xs text-accent font-semibold block truncate" title={item.key}>
+                      <span className="font-mono text-xs text-accent-text font-semibold block truncate" title={item.key}>
                         {item.key}
                       </span>
                     </div>

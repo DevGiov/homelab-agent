@@ -106,7 +106,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="checkbox"
           checked={execute}
           onChange={(e) => onExecuteChange(e.target.checked)}
-          className="rounded bg-input-bg border-border text-accent sr-only @xl/chat:not-sr-only"
+          className="rounded bg-input-bg border-border text-accent-text sr-only @xl/chat:not-sr-only"
         />
         <Play size={12} className={execute ? 'text-emerald-400' : 'text-fg-muted'} />
         <span className="text-xs hidden @xl/chat:inline">Execute</span>
@@ -121,7 +121,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {onOpenMobileToolLog && (
         <button
           onClick={onOpenMobileToolLog}
-          className="md:hidden p-1.5 text-accent hover:text-accent-contrast bg-accent/15 hover:bg-accent border border-accent/30 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer shadow-sm"
+          className="md:hidden p-1.5 text-accent-text hover:text-accent-contrast bg-accent/15 hover:bg-accent border border-accent/30 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer shadow-sm"
           title="Apri Diagnostica"
           aria-label="Apri Diagnostica"
         >

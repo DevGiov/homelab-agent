@@ -36,7 +36,7 @@ function useHighlightPlugins(content: string): RehypePlugins | undefined {
 const HEADING_STYLES: Record<number, string> = {
   1: 'text-base sm:text-lg font-bold text-fg mt-3 mb-2 pb-1 border-b border-border',
   2: 'text-sm sm:text-base font-semibold text-fg/90 mt-2.5 mb-1.5 pb-0.5 border-b border-border/60',
-  3: 'text-xs sm:text-sm font-semibold text-accent mt-2 mb-1',
+  3: 'text-xs sm:text-sm font-semibold text-accent-text mt-2 mb-1',
 };
 
 /**
@@ -109,7 +109,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                     e.preventDefault();
                     navigate(route);
                   }}
-                  className="inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 transition font-medium cursor-pointer"
+                  className="inline-flex items-center gap-1 text-accent-text hover:underline underline-offset-2 transition font-medium cursor-pointer"
                   title="Apri nel Calendario"
                 >
                   <Calendar size={12} className="inline shrink-0" aria-hidden="true" />
@@ -123,7 +123,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline underline-offset-2 transition font-medium"
+                className="text-accent-text hover:underline underline-offset-2 transition font-medium"
               >
                 {children}
                 <ExternalLink size={11} className="inline ml-0.5 align-[-1px]" aria-hidden="true" />
@@ -160,7 +160,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </tr>
           ),
           th: ({ children }) => (
-            <th className="px-3 py-2 font-medium text-accent">
+            <th className="px-3 py-2 font-medium text-accent-text">
               {children}
             </th>
           ),
@@ -179,7 +179,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               // Inline code snippet
               return (
                 <code
-                  className="bg-panel/80 border border-border text-accent px-1.5 py-0.5 rounded font-mono text-xs"
+                  className="bg-panel/80 border border-border text-accent-text px-1.5 py-0.5 rounded font-mono text-xs"
                   {...props}
                 >
                   {children}
@@ -252,7 +252,7 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
     <div className="my-3 rounded-xl border border-border/80 bg-panel/70 backdrop-blur-md overflow-hidden shadow-sm font-mono text-xs">
       {/* Header bar */}
       <div className="bg-panel/90 border-b border-border/60 px-3 py-1.5 flex items-center justify-between text-fg-muted">
-        <span className="text-xs font-semibold uppercase text-accent tracking-wider">
+        <span className="text-xs font-semibold uppercase text-accent-text tracking-wider">
           {language || 'codice'}
         </span>
         <button

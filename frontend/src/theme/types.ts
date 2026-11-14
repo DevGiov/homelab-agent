@@ -22,7 +22,7 @@ export interface ThemeColors {
   /** Testo e icone sopra lo sfondo d'accento pieno: almeno 4.5:1 sia su accent sia su accentHover. */
   accentContrast: string;
   /**
-   * Testo e icone nel colore d'accento (`text-accent`): almeno 4.5:1 su ogni superficie e sulle tinte dell'accento che gli
+   * Testo e icone nel colore d'accento (`text-accent-text`): almeno 4.5:1 su ogni superficie e sulle tinte dell'accento che gli
    * stanno dietro (`bg-accent/10`…`/25`). Uguale ad `accent` dove l'accento basta, più chiaro o più scuro dove non basta.
    */
   accentText: string;

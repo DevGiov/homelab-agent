@@ -33,7 +33,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           </button>
         )}
         {/* Il logo cede il posto al titolo quando l'intestazione ha meno di 24rem di contenuto (@sm, padding escluso) */}
-        <div className="hidden @sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 items-center justify-center text-accent shadow-sm shrink-0">
+        <div className="hidden @sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 items-center justify-center text-accent-text shadow-sm shrink-0">
           <Workflow size={18} />
         </div>
         <div>
@@ -46,7 +46,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
 
       <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 py-0.5">
         <div className={pill}>
-          <Layers size={12} className="text-accent" />
+          <Layers size={12} className="text-accent-text" />
           <span className={pillLabel}>Auto:</span>
           <span className="font-bold text-fg">{counts.automations}</span>
         </div>
@@ -78,7 +78,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           title="Aggiorna dati"
           aria-label="Aggiorna dati"
         >
-          <RefreshCw size={15} className={isLoading ? 'animate-spin text-accent' : ''} />
+          <RefreshCw size={15} className={isLoading ? 'animate-spin text-accent-text' : ''} />
         </button>
       </div>
     </div>

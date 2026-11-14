@@ -93,7 +93,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             </div>
           ))}
           {isProcessing && (
-            <div className="h-14 sm:h-16 px-3 rounded-xl border border-dashed border-accent/40 bg-accent/10 flex items-center gap-2 text-accent text-xs shrink-0 animate-tint-pulse">
+            <div className="h-14 sm:h-16 px-3 rounded-xl border border-dashed border-accent/40 bg-accent/10 flex items-center gap-2 text-accent-text text-xs shrink-0 animate-tint-pulse">
               <Loader2 size={16} className="animate-spin" />
               <span>Ottimizzazione...</span>
             </div>
@@ -101,7 +101,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           <button
             type="button"
             onClick={openFilePicker}
-            className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl border border-dashed border-border hover:border-accent flex flex-col items-center justify-center text-fg-muted hover:text-accent transition shrink-0 bg-panel/40 cursor-pointer"
+            className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl border border-dashed border-border hover:border-accent flex flex-col items-center justify-center text-fg-muted hover:text-accent-text transition shrink-0 bg-panel/40 cursor-pointer"
             title="Aggiungi altra immagine"
           >
             <Paperclip size={16} />
@@ -111,7 +111,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       )}
 
       {isProcessing && images.length === 0 && (
-        <div className="max-w-4xl mx-auto w-full mb-2 flex items-center gap-2 text-xs text-accent px-2">
+        <div className="max-w-4xl mx-auto w-full mb-2 flex items-center gap-2 text-xs text-accent-text px-2">
           <Loader2 size={14} className="animate-spin" />
           <span>Elaborazione e ottimizzazione foto in corso...</span>
         </div>
@@ -136,7 +136,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           type="button"
           onClick={openFilePicker}
           disabled={isLoading}
-          className="absolute left-2 sm:left-2.5 p-1.5 text-fg-muted hover:text-accent hover:bg-panel rounded-lg transition cursor-pointer z-10 disabled:opacity-40"
+          className="absolute left-2 sm:left-2.5 p-1.5 text-fg-muted hover:text-accent-text hover:bg-panel rounded-lg transition cursor-pointer z-10 disabled:opacity-40"
           title="Allega immagine (o trascina/incolla con Ctrl+V)"
         >
           <ImageIcon size={17} />

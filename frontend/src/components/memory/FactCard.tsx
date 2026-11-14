@@ -69,7 +69,7 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-fg-muted">
         {fact.thread_id ? (
           threadTitle && onOpenThread ? (
-            <button onClick={() => onOpenThread(fact.thread_id as string)} className="flex items-center gap-1 hover:text-accent truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
+            <button onClick={() => onOpenThread(fact.thread_id as string)} className="flex items-center gap-1 hover:text-accent-text truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
               <MessageSquare size={11} className="shrink-0" />
               <span className="truncate">{threadTitle}</span>
             </button>

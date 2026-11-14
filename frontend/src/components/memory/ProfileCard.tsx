@@ -35,7 +35,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
     <section className="rounded-xl border border-border bg-panel/60 p-3 space-y-2" aria-label="Profilo dell'utente">
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-xs font-semibold text-fg">
-          <UserRound size={13} className="text-accent" /> Profilo
+          <UserRound size={13} className="text-accent-text" /> Profilo
         </h3>
         {!isEditing && content !== null && (
           <button

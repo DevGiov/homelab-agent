@@ -88,7 +88,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                         <h4 className="text-xs font-bold text-fg">Azione Richiesta: {apr.tool_name}</h4>
                         <span
                           className={`px-2 py-0.5 rounded text-xs font-semibold border ${
-                            isWorkflow ? 'bg-accent/15 text-accent border-accent/30' : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                            isWorkflow ? 'bg-accent/15 text-accent-text border-accent/30' : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                           }`}
                         >
                           {isWorkflow ? 'Workflow' : 'Conversazione'}

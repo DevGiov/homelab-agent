@@ -85,8 +85,8 @@ export const AssistantDetails: React.FC<AssistantDetailsProps> = ({
 
       {sources.length > 0 && (
         <div className="mt-3 pt-2.5 border-t border-border/60">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-accent mb-1.5">
-            <Globe size={12} className="text-accent" />
+          <div className="flex items-center gap-1.5 text-xs font-medium text-accent-text mb-1.5">
+            <Globe size={12} className="text-accent-text" />
             <span>Fonti web consultate:</span>
           </div>
           <div className="flex flex-wrap gap-1.5">

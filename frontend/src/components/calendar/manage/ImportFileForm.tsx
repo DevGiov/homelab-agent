@@ -40,7 +40,7 @@ export const ImportFileForm: React.FC<ManageFormProps & { calendars: CalendarIte
       <div>
         <label className={labelClass}>Seleziona file .ICS esportato da Google Calendar, Outlook o Apple Calendar</label>
         <div className="border-2 border-dashed border-border/80 hover:border-accent/60 rounded-xl p-5 text-center bg-input-bg transition cursor-pointer flex flex-col items-center justify-center gap-2">
-          <Upload size={24} className="text-accent" />
+          <Upload size={24} className="text-accent-text" />
           <input
             type="file"
             accept=".ics,text/calendar"

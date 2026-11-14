@@ -54,13 +54,13 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent">
+            <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent-text">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
               <h2 id={titleId} className="text-lg font-semibold text-fg flex items-center gap-2">Pianificazione & Trigger</h2>
               <p className="text-xs text-fg-muted">
-                Automazione: <span className="text-accent">{automation.name}</span>
+                Automazione: <span className="text-accent-text">{automation.name}</span>
               </p>
             </div>
           </div>

@@ -99,14 +99,14 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 border border-accent/20 rounded-xl text-accent">
+            <div className="p-2 bg-accent/10 border border-accent/20 rounded-xl text-accent-text">
               <Sliders size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 id={titleId} className="text-base font-bold text-fg">Modifica Automazione</h2>
                 <span className="font-mono text-xs px-2 py-0.5 bg-panel border border-border rounded-md text-fg-muted">{automation.id}</span>
-                <span className="text-xs font-semibold px-2 py-0.5 bg-accent/15 text-accent rounded-full border border-accent/30">
+                <span className="text-xs font-semibold px-2 py-0.5 bg-accent/15 text-accent-text rounded-full border border-accent/30">
                   v{automation.version || 1}
                 </span>
               </div>
@@ -124,7 +124,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
               key={id}
               onClick={() => changeTab(id)}
               className={`px-3 py-2 text-xs font-medium border-b-2 flex items-center gap-1.5 transition cursor-pointer ${
-                activeTab === id ? 'border-accent text-accent font-semibold' : 'border-transparent text-fg-muted hover:text-fg'
+                activeTab === id ? 'border-accent text-accent-text font-semibold' : 'border-transparent text-fg-muted hover:text-fg'
               }`}
             >
               <Icon size={13} /> {label}

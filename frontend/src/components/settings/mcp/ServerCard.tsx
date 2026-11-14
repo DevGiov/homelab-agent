@@ -46,7 +46,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
     <div className="rounded-xl border border-border bg-panel/60">
       <div className="p-3 flex items-start justify-between gap-2">
         <div className="flex items-start gap-2.5 min-w-0">
-          <div className="p-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent shrink-0">
+          <div className="p-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent-text shrink-0">
             <Server size={14} />
           </div>
           <div className="min-w-0">
@@ -54,7 +54,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
               <span className="text-xs font-semibold text-fg">{server.name}</span>
               <span className="font-mono text-xs text-fg-muted">{server.id}</span>
               {server.builtin && (
-                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">.env</span>
+                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-text border border-accent/30">.env</span>
               )}
               <span className={`text-xs px-1.5 py-0.5 rounded-full border ${badge.className}`}>{badge.label}</span>
             </div>
@@ -64,7 +64,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={test} disabled={isTesting} className="p-1.5 rounded-lg text-fg-muted hover:text-accent hover:bg-panel-hover cursor-pointer" title="Prova connessione">
+          <button onClick={test} disabled={isTesting} className="p-1.5 rounded-lg text-fg-muted hover:text-accent-text hover:bg-panel-hover cursor-pointer" title="Prova connessione">
             {isTesting ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} />}
           </button>
           {!server.builtin && (

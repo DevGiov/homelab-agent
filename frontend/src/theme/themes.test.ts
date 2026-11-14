@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import palette from 'tailwindcss/colors';
-import tailwindConfig, { lightThemeStatusColors } from '../../tailwind.config.js';
 import indexCss from '../index.css?raw';
+import paletteCss from '../palette.css?raw';
 import { LABEL_CHIPS } from '../utils/sensitivity';
 import { CODE_COLORS, codeColorsFor, codeVariables, type CodeColors } from './codeColors';
 import { STATUS_BUTTON, STATUS_FILL } from './statusFill';
@@ -50,7 +49,7 @@ interface StateClasses {
 
 /**
  * Testo e fondo di ogni stato di una stringa di classi: in uno stato vale il token con la sua variante, altrimenti quello
- * senza variante (`bg-accent/15 hover:bg-accent/25 text-accent` dà text-accent su /15 e, al passaggio del mouse, su /25).
+ * senza variante (`bg-accent/15 hover:bg-accent/25 text-accent-text` dà text-accent-text su /15 e, al passaggio del mouse, su /25).
  * Lo stato disattivato non conta: i controlli disattivati non hanno requisiti di contrasto.
  */
 function statesOf(classes: string, isText: (utility: string) => boolean, isFill: (utility: string) => boolean): StateClasses[] {
@@ -162,6 +161,12 @@ describe('blocchi di codice', () => {
   });
 });
 
+// La palette di Tailwind 3 (src/palette.css): `palette.rose[500]` è l'esadecimale di `rose-500`
+const palette: Record<string, Record<number, string>> = {};
+for (const [, hue, shade, hex] of paletteCss.matchAll(/--color-([a-z]+)-(\d+): (#[0-9a-f]{6});/g)) {
+  (palette[hue] ??= {})[Number(shade)] = hex;
+}
+
 // Fondi di stato pieni: la tonalità della palette di Tailwind per una classe `bg-<colore>-<grado>`
 const STATUS_HUES = ['emerald', 'green', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose', 'red', 'orange', 'amber', 'yellow', 'lime', 'zinc'] as const;
 type Hue = (typeof STATUS_HUES)[number];
@@ -173,7 +178,7 @@ const fillsOf = (classes: string) =>
     .filter((f) => f.match)
     .map(({ token, match }) => ({
       token,
-      hex: palette[match![1] as Hue][Number(match![2]) as 500] as string,
+      hex: palette[match![1] as Hue][Number(match![2])],
       shade: Number(match![2]),
       translucent: Boolean(match![3]),
     }));
@@ -186,7 +191,7 @@ describe('fondi di stato pieni con testo bianco', () => {
     const fills = fillsOf(classes);
     expect(fills.length).toBeGreaterThan(0);
     for (const fill of fills) {
-      // Opachi e mai 900/950: quelli il plugin dei temi chiari li trasforma in tinte chiare, e il bianco sparirebbe
+      // Opachi e mai 900/950: quelli le regole dei temi chiari li trasformano in tinte chiare, e il bianco sparirebbe
       expect(fill.translucent, fill.token).toBe(false);
       expect(fill.shade, fill.token).toBeLessThan(900);
       expect(contrast('#ffffff', fill.hex), fill.token).toBeGreaterThanOrEqual(4.5);
@@ -221,28 +226,36 @@ describe('fondi di stato pieni con testo bianco', () => {
 });
 
 describe('testo di stato su fondi di stato tinti', () => {
-  // Regole del plugin dei temi chiari (tailwind.config.js): colore di una classe di stato quando il body non è `.dark`
+  // Regole dei temi chiari (index.css, blocco `body:not(.dark) :is(…)`): colore di una classe di stato quando il body non è `.dark`
   const lightRules: Record<string, { color?: string; backgroundColor?: string }> = {};
-  const pluginApi = {
-    addComponents: (rules: typeof lightRules) => Object.assign(lightRules, rules),
-    theme: (path: string) => path.split('.').slice(1).reduce<unknown>((o, key) => (o as Record<string, unknown>)[key], palette),
-  };
-  lightThemeStatusColors.handler(pluginApi as unknown as Parameters<typeof lightThemeStatusColors.handler>[0]);
+  /** Un valore del blocco, con le variabili della palette (`var(--color-rose-800)`) sostituite dall'esadecimale */
+  const resolve = (value: string) => value.replace(/var\(--color-([a-z]+)-(\d+)\)/g, (_, hue: string, shade: string) => palette[hue][Number(shade)]);
+  for (const [, selectors, body] of indexCss.matchAll(/body:not\(\.dark\) :is\(([^)]*)\) \{([^}]*)\}/g)) {
+    const rule: { color?: string; backgroundColor?: string } = {};
+    for (const [, property, value] of body.matchAll(/([\w-]+): ([^;]+);/g)) {
+      if (property === 'color') rule.color = resolve(value);
+      if (property === 'background-color') rule.backgroundColor = resolve(value);
+    }
+    for (const selector of selectors.split(', ')) lightRules[`body:not(.dark) ${selector}`] = rule;
+  }
 
   const TEXT = new RegExp(`^text-(${STATUS_HUES.join('|')})-(\\d{2,3})$`);
-  const hueColor = (hue: string, shade: string) => palette[hue as Hue][Number(shade) as 500] as string;
-  const lightRule = (utility: string) => lightRules[`body:not(.dark) .${utility.replace('/', '\\/')}`];
+  const hueColor = (hue: string, shade: string) => palette[hue as Hue][Number(shade)];
+  // Nello stato `hover:` vale la regola della classe con la variante, se c'è; altrimenti quella della classe semplice
+  const lightRule = (utility: string, variant: string) =>
+    (variant === 'hover:' ? lightRules[`body:not(.dark) .${`hover:${utility}`.replace(/[:/]/g, '\\$&')}:hover`] : undefined) ??
+    lightRules[`body:not(.dark) .${utility.replace('/', '\\/')}`];
 
-  /** Colore del testo nel tema: quello della palette, o quello del plugin nei temi chiari. */
-  const textColor = (utility: string, isDark: boolean) => {
-    const rule = isDark ? undefined : lightRule(utility);
+  /** Colore del testo nel tema: quello della palette, o quello delle regole dei temi chiari. */
+  const textColor = (utility: string, variant: string, isDark: boolean) => {
+    const rule = isDark ? undefined : lightRule(utility, variant);
     if (rule?.color) return rule.color;
     const [, hue, shade] = TEXT.exec(utility)!;
     return hueColor(hue, shade);
   };
-  /** Il fondo composto sopra la superficie, con la sua opacità o con la tinta del plugin nei temi chiari. */
-  const fillOver = (utility: string, isDark: boolean, surface: string) => {
-    const rule = isDark ? undefined : lightRule(utility);
+  /** Il fondo composto sopra la superficie, con la sua opacità o con la tinta delle regole dei temi chiari. */
+  const fillOver = (utility: string, variant: string, isDark: boolean, surface: string) => {
+    const rule = isDark ? undefined : lightRule(utility, variant);
     if (rule?.backgroundColor) {
       const [, color, percent] = /^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, transparent\)$/.exec(rule.backgroundColor)!;
       return over(color, surface, Number(percent) / 100);
@@ -257,10 +270,35 @@ describe('testo di stato su fondi di stato tinti', () => {
   );
 
   it('i distintivi si trovano nel codice, chip della sensibilità e stati delle esecuzioni compresi', () => {
-    expect(Object.keys(lightRules).length).toBeGreaterThan(100);
+    expect(Object.keys(lightRules).length).toBeGreaterThan(40);
     expect(badges.length).toBeGreaterThan(50);
     expect(badges.some((b) => b.classes === LABEL_CHIPS.private)).toBe(true);
     expect(badges.some((b) => b.file.endsWith('RunsTab.tsx') && b.fill === 'bg-emerald-500/20')).toBe(true);
+  });
+
+  // Una classe di stato nuova senza regola resterebbe scritta per lo sfondo scuro anche nei temi chiari: chiaro su chiaro.
+  // Le regole sono a mano (Tailwind 4 non genera regole con un selettore del genere), e questo test elenca quelle mancanti.
+  it('ogni classe di stato usata nel codice ha la sua regola per i temi chiari', () => {
+    const expected = (token: string) => {
+      const utility = token.split(':').pop() ?? '';
+      const variants = token.slice(0, token.length - utility.length).split(':').filter(Boolean);
+      const match = /^(text|bg|border)-([a-z]+)-(\d{3})(\/\d+)?$/.exec(utility);
+      if (!match || !(STATUS_HUES as readonly string[]).includes(match[2])) return undefined;
+      const [, kind, , shade] = match;
+      const remapped = kind === 'text' ? [100, 200, 300, 400] : kind === 'bg' ? [900, 950] : [700, 800, 900];
+      if (!remapped.includes(Number(shade)) || (kind === 'text' && match[4])) return undefined;
+      if (variants.length === 1 && variants[0] === 'selection') return `body:not(.dark) .${token.replace(/[:/]/g, '\\$&')}::selection`;
+      return variants.every((v) => v === 'hover') && variants.length <= 1
+        ? `body:not(.dark) .${token.replace(/[:/]/g, '\\$&')}${variants.length ? ':hover' : ''}`
+        : `(variante non supportata: ${token})`;
+    };
+    const missing = CLASS_STRINGS.flatMap(({ file, classes }) =>
+      tokensOf(classes).flatMap((token) => {
+        const selector = expected(token);
+        return selector && !(selector in lightRules) && !indexCss.includes(selector) ? [`${file}: ${token} -> ${selector}`] : [];
+      }),
+    );
+    expect([...new Set(missing)]).toEqual([]);
   });
 
   it('il testo di stato usa i gradi 100-400, gli unici che i temi chiari rimappano', () => {
@@ -282,7 +320,7 @@ describe('testo di stato su fondi di stato tinti', () => {
   describe.each(THEME_LIST)('tema $id', ({ isDark, colors }) => {
     it.each(SURFACES)('almeno 4.5:1 sopra %s, in ogni stato', (surface) => {
       const failures = badges.flatMap((b) => {
-        const ratio = contrast(textColor(b.text, isDark), fillOver(b.fill, isDark, colors[surface]));
+        const ratio = contrast(textColor(b.text, b.variant, isDark), fillOver(b.fill, b.variant, isDark, colors[surface]));
         return ratio < 4.5 ? [`${b.file}: ${b.variant}${b.text} su ${b.variant}${b.fill} = ${ratio.toFixed(2)}`] : [];
       });
       expect([...new Set(failures)]).toEqual([]);
@@ -309,14 +347,22 @@ describe('distintivi che pulsano', () => {
 
 describe("testo d'accento", () => {
   it("text-accent usa il testo d'accento del tema; fondi, bordi e anelli restano sull'accento", () => {
-    expect(tailwindConfig.theme.extend.textColor.accent).toEqual({ DEFAULT: expect.stringContaining('var(--accent-text)') });
-    expect(tailwindConfig.theme.extend.colors.accent).toMatchObject({ DEFAULT: expect.stringContaining('var(--accent)') });
+    expect(indexCss).toContain('--color-accent-text: var(--accent-text);');
+    expect(indexCss).toContain('--color-accent: var(--accent);');
   });
 
-  // Le opacità delle tinte dell'accento dietro a `text-accent` nel codice, in ogni stato
+  // In Tailwind 4 `text-accent` leggerebbe `--accent`, che sulle tinte dell'accento può non bastare per il contrasto
+  it('nessuna classe `text-accent`: il testo usa `text-accent-text`', () => {
+    const offenders = CLASS_STRINGS.flatMap(({ file, classes }) =>
+      tokensOf(classes).filter((token) => /(^|:)text-accent(\/\d+)?$/.test(token)).map((token) => `${file}: ${token}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  // Le opacità delle tinte dell'accento dietro a `text-accent-text` nel codice, in ogni stato
   const tints = new Set(
     CLASS_STRINGS.flatMap(({ classes }) =>
-      statesOf(classes, (u) => u === 'text-accent', (u) => /^bg-accent\/\d+$/.test(u)).map((s) => Number(s.fill.split('/')[1])),
+      statesOf(classes, (u) => u === 'text-accent-text', (u) => /^bg-accent\/\d+$/.test(u)).map((s) => Number(s.fill.split('/')[1])),
     ),
   );
 
@@ -339,8 +385,9 @@ describe("testo d'accento", () => {
 });
 
 describe('classi di colore del tema', () => {
-  const colors = tailwindConfig.theme.extend.colors;
-  const roots = Object.keys(colors).sort((a, b) => b.length - a.length);
+  // I colori del tema in index.css (`--color-<nome>`): bg, panel, border, fg, accent, userBubble… e le loro sottochiavi
+  const names = new Set([...indexCss.matchAll(/--color-([\w-]+):/g)].map((m) => m[1]));
+  const roots = [...new Set([...names].map((name) => name.split('-')[0]))].sort((a, b) => b.length - a.length);
   const UTILITY = new RegExp(
     `^(?:text|bg|border(?:-[xytrbl])?|ring(?:-offset)?|outline|fill|stroke|divide|from|via|to|shadow|decoration|caret|accent)-(${roots.join('|')})(.*?)(?:\\/\\d+)?$`,
   );
@@ -352,14 +399,12 @@ describe('classi di colore del tema', () => {
       .filter(({ match }) => {
         if (!match) return false;
         const [, root, rest] = match;
-        const value = colors[root];
-        if (rest === '') return typeof value !== 'string' && !('DEFAULT' in value);
-        return !rest.startsWith('-') || typeof value === 'string' || !(rest.slice(1) in value);
+        return !names.has(`${root}${rest}`);
       })
       .map(({ token }) => `${file}: ${token}`),
   );
 
-  it('ogni classe di colore del tema usata nel codice esiste nella configurazione di Tailwind', () => {
+  it('ogni classe di colore del tema usata nel codice esiste nel tema di Tailwind (index.css)', () => {
     expect(roots).toEqual(expect.arrayContaining(['fg', 'accent', 'userBubble']));
     expect(unknown).toEqual([]);
   });

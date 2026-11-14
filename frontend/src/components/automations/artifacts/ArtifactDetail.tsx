@@ -55,7 +55,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
     >
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-fg-muted gap-2 text-xs p-6">
-          <RefreshCw size={18} className="animate-spin text-accent" />
+          <RefreshCw size={18} className="animate-spin text-accent-text" />
           <span>Caricamento anteprima artefatto...</span>
         </div>
       ) : artifact ? (
@@ -68,13 +68,13 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                     setIsFullscreen(false);
                     onBack();
                   }}
-                  className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent font-medium transition cursor-pointer shadow-sm shrink-0"
+                  className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent-text font-medium transition cursor-pointer shadow-sm shrink-0"
                   title="Torna all'elenco dei report"
                 >
                   <ArrowLeft size={13} />
                   <span>Elenco</span>
                 </button>
-                <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-xs flex items-center gap-1 truncate max-w-[140px] sm:max-w-[180px]">
+                <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent-text font-semibold text-xs flex items-center gap-1 truncate max-w-[140px] sm:max-w-[180px]">
                   <Sparkles size={11} className="shrink-0" />
                   <span className="truncate">{artifact.automation_name || artifact.automation_id || 'Report'}</span>
                 </span>
@@ -117,7 +117,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                 className="p-1.5 rounded-xl border border-border/80 bg-panel hover:bg-panel-header text-fg-muted hover:text-fg text-xs transition cursor-pointer"
                 title={isFullscreen ? 'Riduci visualizzazione' : 'Schermo intero'}
               >
-                {isFullscreen ? <Minimize2 size={13} className="text-accent" /> : <Maximize2 size={13} />}
+                {isFullscreen ? <Minimize2 size={13} className="text-accent-text" /> : <Maximize2 size={13} />}
               </button>
 
               <button

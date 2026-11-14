@@ -216,7 +216,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-panel-header/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
+            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
               <CalIcon size={18} />
             </div>
             <div>
@@ -316,7 +316,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               id={`${fieldId}-all-day`}
               checked={allDay}
               onChange={e => setAllDay(e.target.checked)}
-              className="rounded border-input-border text-accent bg-input-bg"
+              className="rounded border-input-border text-accent-text bg-input-bg"
             />
             <label htmlFor={`${fieldId}-all-day`} className="text-xs font-medium text-fg cursor-pointer select-none">
               Evento per l'intera giornata
@@ -350,7 +350,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setUseDuration(!useDuration)}
-                      className="text-xs text-accent hover:underline cursor-pointer font-medium"
+                      className="text-xs text-accent-text hover:underline cursor-pointer font-medium"
                     >
                       {useDuration ? 'Specifica orario fine' : 'Usa durata'}
                     </button>

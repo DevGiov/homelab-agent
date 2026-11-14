@@ -44,7 +44,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         );
       case 'running':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-xs font-medium border border-accent/30 animate-tint-pulse">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent-text text-xs font-medium border border-accent/30 animate-tint-pulse">
             <Clock size={10} /> In corso
           </span>
         );
@@ -60,7 +60,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
   return (
     <div className={`space-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between text-xs text-accent font-semibold">
+      <div className="flex items-center justify-between text-xs text-accent-text font-semibold">
         <div className="flex items-center gap-1.5">
           <ListChecks size={15} />
           <span>Piano di esecuzione {planStructure?.goal ? `— ${planStructure.goal}` : ''}</span>
@@ -83,7 +83,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="tabular-nums font-bold text-accent text-xs min-w-[20px]">
+                  <span className="tabular-nums font-bold text-accent-text text-xs min-w-[20px]">
                     {idx + 1}.
                   </span>
                   <span className="font-mono text-xs font-medium text-fg">{node.tool_name}</span>
@@ -113,7 +113,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         <ol className="space-y-1.5 text-xs">
           {planSteps?.map((step, idx) => (
             <li key={idx} className="flex items-start gap-2 glass-card p-2.5 rounded-xl border border-border">
-              <span className="tabular-nums font-bold text-accent text-xs min-w-[20px] mt-0.5">
+              <span className="tabular-nums font-bold text-accent-text text-xs min-w-[20px] mt-0.5">
                 {idx + 1}.
               </span>
               <span className="text-fg leading-relaxed">{step}</span>

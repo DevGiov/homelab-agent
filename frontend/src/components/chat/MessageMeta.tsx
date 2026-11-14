@@ -103,7 +103,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         <button
           type="button"
           onClick={() => onInspect(msg.id)}
-          className={`${actionButton} bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent shadow-sm`}
+          className={`${actionButton} bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent-text shadow-sm`}
           title="Ispeziona parametri, trace e tool nel pannello diagnostica"
         >
           <Activity size={9} />
@@ -119,7 +119,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
       )}
       {msg.model && (
         <span className={`${badge} bg-panel border border-border text-fg-muted`} title={`Modello LLM: ${msg.model}`}>
-          <Cpu size={10} className="text-accent shrink-0" />
+          <Cpu size={10} className="text-accent-text shrink-0" />
           <span className="font-mono">{msg.model}</span>
         </span>
       )}

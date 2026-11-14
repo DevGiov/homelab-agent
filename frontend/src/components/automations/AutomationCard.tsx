@@ -91,7 +91,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           <div>
             <h4 className="text-sm font-bold text-fg flex items-center gap-2">
               {auto.name}
-              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 tabular-nums">
+              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent-text border border-accent/30 tabular-nums">
                 v{auto.version}
               </span>
             </h4>
@@ -100,7 +100,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
 
           <div className="flex items-center gap-2">
             {isRunning ? (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-tint-pulse">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent-text border border-accent/40 flex items-center gap-1.5 animate-tint-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
               </span>
             ) : isPaused ? (
@@ -134,7 +134,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
         <div className="flex items-center justify-between mt-4 text-xs text-fg-muted flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5">
-              <Layers size={13} className="text-accent" /> {auto.steps_count} step
+              <Layers size={13} className="text-accent-text" /> {auto.steps_count} step
             </span>
 
             <button
@@ -161,7 +161,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           {auto.last_artifact_id && (
             <button
               onClick={() => actions.openReport(auto.last_artifact_id!)}
-              className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent-text border border-accent/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
               title={`Apri report: ${auto.last_artifact_name || 'Ultimo Report'}`}
             >
               <FileText size={12} />
@@ -173,7 +173,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
         {parameters.length > 0 && (
           <div className="mt-3 pt-2.5 border-t border-border/40">
             <div className="text-xs text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
-              <Sliders size={11} className="text-accent" /> Parametri di default
+              <Sliders size={11} className="text-accent-text" /> Parametri di default
             </div>
             <div className="flex flex-wrap gap-1.5">
               {parameters.slice(0, 3).map(([key, value]) => (
@@ -274,14 +274,14 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           </button>
           <button
             onClick={() => actions.openEditor(auto)}
-            className={`${iconButton} hover:text-accent`}
+            className={`${iconButton} hover:text-accent-text`}
             title="Modifica workflow, trigger, prompt e parametri dell'automazione"
           >
             <Edit2 size={15} />
           </button>
           <button
             onClick={() => actions.openParams(auto, 'edit')}
-            className={`${iconButton} hover:text-accent`}
+            className={`${iconButton} hover:text-accent-text`}
             title="Configura o modifica parametri di default"
           >
             <Sliders size={15} />

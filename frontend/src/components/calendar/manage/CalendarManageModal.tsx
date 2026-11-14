@@ -66,7 +66,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
       >
         <div className="px-5 py-4 border-b border-border/60 flex items-center justify-between bg-panel-header/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
+            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
               <CalIcon size={18} />
             </div>
             <div>
@@ -85,7 +85,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
               key={id}
               onClick={() => setActiveTab(id)}
               className={`px-3 py-2 text-xs font-medium rounded-t-xl border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === id ? 'border-accent text-accent bg-panel' : 'border-transparent text-fg-muted hover:text-fg'
+                activeTab === id ? 'border-accent text-accent-text bg-panel' : 'border-transparent text-fg-muted hover:text-fg'
               }`}
             >
               <Icon size={14} />

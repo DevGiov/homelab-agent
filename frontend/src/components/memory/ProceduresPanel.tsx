@@ -36,7 +36,7 @@ export const ProceduresPanel: React.FC<ProceduresPanelProps> = ({ state, threadT
 
       {state.isLoading && state.procedures.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-12 text-xs text-fg-muted">
-          <Loader2 size={14} className="animate-spin text-accent" /> Caricamento…
+          <Loader2 size={14} className="animate-spin text-accent-text" /> Caricamento…
         </div>
       ) : state.procedures.length === 0 ? (
         <p className="text-xs text-fg-muted text-center py-12">

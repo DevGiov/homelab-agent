@@ -49,7 +49,7 @@ const MODES: Array<{
         comandi sicuri).
       </>
     ),
-    color: 'text-accent',
+    color: 'text-accent-text',
     selected: 'bg-accent/15 border-accent ring-1 ring-accent/40',
     idle: 'hover:border-accent/30',
     dot: 'bg-accent',
@@ -138,7 +138,7 @@ export const SecurityTab: React.FC = () => {
       <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield size={15} className="text-accent" />
+            <Shield size={15} className="text-accent-text" />
             <h3 className="text-xs font-semibold text-fg">Modalità di rischio e conferme umane</h3>
           </div>
           <span className="text-xs text-fg-muted">Sincronizzata con la barra della chat</span>

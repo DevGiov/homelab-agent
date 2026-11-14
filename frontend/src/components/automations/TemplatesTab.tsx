@@ -31,13 +31,13 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
             key={tpl.id}
             className="p-5 rounded-2xl bg-panel border border-accent/40 shadow-md flex flex-col justify-between space-y-4 relative overflow-hidden"
           >
-            <div className="absolute top-0 right-0 bg-accent/20 px-3 py-1 text-xs font-bold text-accent rounded-bl-xl border-l border-b border-accent/30">
+            <div className="absolute top-0 right-0 bg-accent/20 px-3 py-1 text-xs font-bold text-accent-text rounded-bl-xl border-l border-b border-accent/30">
               PRONTO
             </div>
 
             <div>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-accent/20 text-accent flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-accent/20 text-accent-text flex items-center justify-center">
                   <Mail size={18} />
                 </div>
                 <div>

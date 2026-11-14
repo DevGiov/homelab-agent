@@ -219,12 +219,12 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
       {/* Intestazione */}
       <div className="bg-gradient-to-r from-accent/20 via-panel/80 to-panel px-4 py-3 border-b border-border/80 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-accent/20 text-accent border border-accent/40">
+          <div className="p-2 rounded-xl bg-accent/20 text-accent-text border border-accent/40">
             <Sparkles size={18} className="animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs uppercase font-bold tracking-wider text-accent">
+              <span className="text-xs uppercase font-bold tracking-wider text-accent-text">
                 Proposta di Automazione
               </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted tabular-nums">
@@ -256,7 +256,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         {triggers.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-fg-muted font-medium flex items-center gap-1">
-              <Clock size={12} className="text-accent" /> Trigger:
+              <Clock size={12} className="text-accent-text" /> Trigger:
             </span>
             {triggers.map((t: any, idx: number) => (
               <span
@@ -273,7 +273,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         {/* Workflow Steps */}
         <div className="space-y-1.5">
           <span className="text-fg-muted font-medium flex items-center gap-1">
-            <Layers size={12} className="text-accent" /> Sequenza Step ({steps.length}):
+            <Layers size={12} className="text-accent-text" /> Sequenza Step ({steps.length}):
           </span>
           <div className="rounded-xl border border-border/80 bg-panel/60 p-2 space-y-2">
             {steps.map((s: any, idx: number) => (
@@ -282,7 +282,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                 className="flex items-start justify-between gap-2 p-1.5 rounded-lg hover:bg-panel/80 transition"
               >
                 <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
+                  <span className="w-5 h-5 rounded-full bg-accent/20 text-accent-text font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <div>
@@ -292,7 +292,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                         {s.type}
                       </span>
                       {s.action_or_tool && (
-                        <span className="text-accent font-mono">{s.action_or_tool}</span>
+                        <span className="text-accent-text font-mono">{s.action_or_tool}</span>
                       )}
                     </div>
                   </div>
@@ -316,7 +316,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
             {allowedTools.map((t: string, idx: number) => (
               <span
                 key={idx}
-                className="px-2 py-0.5 rounded bg-panel border border-border text-xs font-mono text-accent"
+                className="px-2 py-0.5 rounded bg-panel border border-border text-xs font-mono text-accent-text"
               >
                 {t}
               </span>

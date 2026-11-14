@@ -19,7 +19,7 @@ const ORIGIN_LABELS: Record<HostOrigin, string> = {
 
 const ORIGIN_BADGES: Record<HostOrigin, string> = {
   default: 'bg-bg/60 border-border text-fg-muted',
-  user: 'bg-accent/15 border-accent/30 text-accent',
+  user: 'bg-accent/15 border-accent/30 text-accent-text',
   approval: 'bg-sky-500/15 border-sky-500/30 text-sky-300',
 };
 
@@ -107,7 +107,7 @@ export const AllowedHostsSection: React.FC = () => {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Globe size={15} className="text-accent" />
+          <Globe size={15} className="text-accent-text" />
           <h3 className="text-xs font-semibold text-fg">Host ammessi per le richieste web</h3>
         </div>
         <div className="flex items-center gap-1.5">
@@ -148,7 +148,7 @@ export const AllowedHostsSection: React.FC = () => {
       <div className="space-y-2">
         {loading ? (
           <div className="flex items-center justify-center p-4 text-xs text-fg-muted">
-            <Loader2 size={14} className="animate-spin mr-2 text-accent" />
+            <Loader2 size={14} className="animate-spin mr-2 text-accent-text" />
             Caricamento host ammessi...
           </div>
         ) : hosts.length === 0 ? (

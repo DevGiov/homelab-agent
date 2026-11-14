@@ -34,7 +34,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
       <div className="p-3 border-b border-border/60 bg-panel/30 flex items-center justify-between text-xs text-fg-muted">
         <span>{artifacts.length} artefatti archiviati</span>
         {query && (
-          <button onClick={onClearQuery} className="text-xs text-accent hover:underline cursor-pointer">
+          <button onClick={onClearQuery} className="text-xs text-accent-text hover:underline cursor-pointer">
             Azzera ricerca
           </button>
         )}
@@ -53,7 +53,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
           groups.map((group) => (
             <div key={group.key} className="space-y-1.5 pt-1">
               <div className="flex items-center gap-1.5 px-2 text-xs font-bold text-fg-muted uppercase tracking-wider">
-                <Calendar size={12} className="text-accent/70" />
+                <Calendar size={12} className="text-accent-text/70" />
                 <span>{group.title}</span>
                 <span className="text-xs text-fg-muted font-normal">({group.items.length})</span>
               </div>

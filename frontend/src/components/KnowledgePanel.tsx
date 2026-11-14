@@ -93,14 +93,14 @@ export const KnowledgePanel: React.FC = () => {
 
   const tabClass = (active: boolean) =>
     `flex-1 px-1.5 py-1 rounded-md text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
-      active ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
+      active ? 'bg-accent/20 text-accent-text border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
     }`;
 
   return (
     <div className="glass-card border border-border rounded-xl p-3.5 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-fg-muted text-xs">
-          <BookOpen size={14} className="text-accent" />
+          <BookOpen size={14} className="text-accent-text" />
           <span className="font-medium text-fg">Knowledge base</span>
         </div>
         <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna">
@@ -131,7 +131,7 @@ export const KnowledgePanel: React.FC = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-xs text-fg-muted hover:border-accent hover:text-accent transition disabled:opacity-50 cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-xs text-fg-muted hover:border-accent hover:text-accent-text transition disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
             Carica .md / .txt / .pdf
@@ -151,7 +151,7 @@ export const KnowledgePanel: React.FC = () => {
             {docs.map((doc) => (
               <div key={doc.filename} className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group">
                 <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                  <FileText size={12} className="text-accent shrink-0" />
+                  <FileText size={12} className="text-accent-text shrink-0" />
                   <span className="text-xs font-mono text-fg truncate">{doc.filename}</span>
                   <span className="text-xs text-fg-muted shrink-0">{doc.chunks}ch</span>
                 </div>
@@ -187,7 +187,7 @@ export const KnowledgePanel: React.FC = () => {
             <button
               onClick={handleSearch}
               disabled={isSearching || !query.trim()}
-              className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/25 transition disabled:opacity-50 cursor-pointer"
+              className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent-text hover:bg-accent/25 transition disabled:opacity-50 cursor-pointer"
               title="Cerca"
             >
               {isSearching ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}

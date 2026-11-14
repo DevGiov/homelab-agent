@@ -100,9 +100,9 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
       <div className="border-t border-border pt-3 space-y-3">
         <div className="space-y-1.5">
           <label htmlFor={`${fieldId}-provider`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
-            <Cpu size={12} className="text-accent" />
+            <Cpu size={12} className="text-accent-text" />
             Provider LLM
-            {loadingProviders && <Loader2 size={12} className="animate-spin text-accent ml-1" />}
+            {loadingProviders && <Loader2 size={12} className="animate-spin text-accent-text ml-1" />}
           </label>
           <select
             id={`${fieldId}-provider`}

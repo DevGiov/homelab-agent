@@ -41,7 +41,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
               <Menu size={20} />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shrink-0">
             <Activity size={18} />
           </div>
           <div className="min-w-0">
@@ -86,7 +86,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
         {!summary || !series ? (
           isLoading && (
             <div className="flex items-center justify-center gap-2 py-16 text-xs text-fg-muted">
-              <Loader2 size={14} className="animate-spin text-accent" /> Caricamento metriche…
+              <Loader2 size={14} className="animate-spin text-accent-text" /> Caricamento metriche…
             </div>
           )
         ) : (

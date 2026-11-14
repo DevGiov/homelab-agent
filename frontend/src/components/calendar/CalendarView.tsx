@@ -91,7 +91,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
       />
 
       {data.syncMessage && (
-        <div className="px-5 py-2 bg-accent/10 border-b border-accent/25 text-xs text-accent flex items-center justify-between">
+        <div className="px-5 py-2 bg-accent/10 border-b border-accent/25 text-xs text-accent-text flex items-center justify-between">
           <span>{data.syncMessage}</span>
           <button onClick={data.dismissSyncMessage} className="text-fg-muted hover:text-fg">
             ✕
@@ -119,7 +119,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
           {data.isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex items-center gap-2 text-fg-muted text-sm">
-                <RefreshCw size={18} className="animate-spin text-accent" />
+                <RefreshCw size={18} className="animate-spin text-accent-text" />
                 <span>Caricamento eventi...</span>
               </div>
             </div>

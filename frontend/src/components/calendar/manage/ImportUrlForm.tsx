@@ -12,7 +12,7 @@ const GoogleHelp: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-between w-full font-medium text-accent hover:underline text-left cursor-pointer"
+        className="flex items-center justify-between w-full font-medium text-accent-text hover:underline text-left cursor-pointer"
       >
         <span className="flex items-center gap-1.5">
           <HelpCircle size={14} /> Come ottenere il link segreto da Google Calendar
@@ -24,7 +24,7 @@ const GoogleHelp: React.FC = () => {
         <ol className="list-decimal pl-5 space-y-1 text-fg-muted text-xs leading-relaxed pt-1">
           <li>
             Apri Google Calendar da browser (
-            <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-accent underline inline-flex items-center gap-0.5">
+            <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-accent-text underline inline-flex items-center gap-0.5">
               calendar.google.com <ExternalLink size={10} />
             </a>
             ).

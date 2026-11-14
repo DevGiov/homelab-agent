@@ -120,7 +120,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           }`}
           title={isOpen ? 'Collassa pannello' : 'Espandi la diagnostica'}
         >
-          <Activity size={18} className="text-accent shrink-0" aria-hidden="true" />
+          <Activity size={18} className="text-accent-text shrink-0" aria-hidden="true" />
           <span className={isOpen ? 'font-semibold text-xs text-fg flex-1 text-left truncate' : 'sr-only'}>
             Diagnostica dell'agente
           </span>
@@ -186,7 +186,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                 <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-panel/70 border border-border text-xs">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-fg-muted min-w-0">
-                      <MessageSquare size={13} className="text-accent shrink-0" />
+                      <MessageSquare size={13} className="text-accent-text shrink-0" />
                       <span className="text-xs font-medium truncate">Messaggio:</span>
                     </div>
                     <select
@@ -220,7 +220,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
 
                   {selectedMessageId && (
-                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-accent text-xs">
+                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-accent-text text-xs">
                       <span className="truncate">
                         Ispezione msg #{assistantMessages.findIndex((m) => m.id === selectedMessageId) + 1}
                       </span>
@@ -245,7 +245,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                     <Zap size={14} className="text-amber-400" />
                     <span className="font-medium text-fg">Modalità dell'agente</span>
                   </div>
-                  <div className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-accent/15 text-accent border border-accent/30 uppercase tracking-wide">
+                  <div className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-accent/15 text-accent-text border border-accent/30 uppercase tracking-wide">
                     {activeMode}
                   </div>
                 </div>
@@ -255,7 +255,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               {activeModel && (
                 <div className="glass-card border border-border rounded-xl p-3.5 space-y-1.5">
                   <div className="flex items-center gap-2 text-fg-muted text-xs">
-                    <Cpu size={14} className="text-accent" />
+                    <Cpu size={14} className="text-accent-text" />
                     <span className="font-medium text-fg">Modello LLM</span>
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-panel text-fg border border-border">
@@ -313,7 +313,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
                 ) : activeMode === 'chat' || activeMode === 'ask' ? (
                   <div className="bg-panel border border-border text-fg-muted px-3 py-2 rounded-lg text-xs flex items-center gap-2">
-                    <Info size={14} className="text-accent shrink-0" />
+                    <Info size={14} className="text-accent-text shrink-0" />
                     <span>Domanda informativa (nessun tool necessario)</span>
                   </div>
                 ) : (
@@ -343,7 +343,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                     </div>
                     {activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0 ? (
                       <div className="space-y-1.5 pt-1">
-                        <div className="text-xs text-accent font-semibold uppercase tracking-wider">
+                        <div className="text-xs text-accent-text font-semibold uppercase tracking-wider">
                           {activeWebPrefetch.sources.length}{' '}
                           {activeWebPrefetch.sources.length === 1
                             ? 'Fonte Recuperata'
@@ -359,12 +359,12 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                               className="block p-1.5 rounded bg-panel-header border border-border/80 hover:border-accent transition group"
                             >
                               <div className="flex items-center justify-between gap-1">
-                                <span className="text-xs font-medium text-fg group-hover:text-accent truncate">
+                                <span className="text-xs font-medium text-fg group-hover:text-accent-text truncate">
                                   {src.title || src.url}
                                 </span>
                                 <ExternalLink
                                   size={10}
-                                  className="text-fg-muted group-hover:text-accent shrink-0"
+                                  className="text-fg-muted group-hover:text-accent-text shrink-0"
                                 />
                               </div>
                               {src.snippet && (

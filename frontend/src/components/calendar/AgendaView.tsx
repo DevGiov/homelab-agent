@@ -28,7 +28,7 @@ const TodayMarker: React.FC<{ markerRef: RefObject<HTMLDivElement | null> }> = (
     >
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
-        <span className="font-bold text-xs text-accent uppercase tracking-wider">
+        <span className="font-bold text-xs text-accent-text uppercase tracking-wider">
           Oggi — {now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </span>
       </div>
@@ -58,7 +58,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
         />
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">{ev.summary}</h4>
+            <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent-text transition">{ev.summary}</h4>
             {ev.category && (
               <span className="px-2 py-0.5 rounded-md bg-input-bg text-xs text-fg-muted font-medium border border-input-border uppercase">
                 {ev.category}
@@ -96,7 +96,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent rounded-lg text-xs font-medium flex items-center gap-1 transition"
+            className="px-2.5 py-1 bg-accent/15 hover:bg-accent/25 text-accent-text rounded-lg text-xs font-medium flex items-center gap-1 transition"
           >
             <span>Partecipa</span>
             <ExternalLink size={12} />
@@ -132,7 +132,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
     <div className="flex-1 glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30 flex flex-col">
       <div className="p-4 border-b border-border/60 bg-panel-header/60 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <CalendarDays size={16} className="text-accent" />
+          <CalendarDays size={16} className="text-accent-text" />
           <span className="text-xs font-semibold text-fg uppercase">Agenda Cronologica</span>
         </div>
         <span className="text-xs text-fg-muted">{events.length} eventi totali</span>
@@ -144,7 +144,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
             <p>Nessun evento trovato nei calendari selezionati.</p>
             <button
               onClick={onNewEvent}
-              className="px-3.5 py-1.5 bg-accent/20 hover:bg-accent/25 text-accent rounded-xl text-xs font-medium inline-flex items-center gap-1.5 transition"
+              className="px-3.5 py-1.5 bg-accent/20 hover:bg-accent/25 text-accent-text rounded-xl text-xs font-medium inline-flex items-center gap-1.5 transition"
             >
               <Plus size={14} /> Crea il tuo primo evento
             </button>
@@ -155,7 +155,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
               <div key={group.monthKey} id={`agenda-month-${group.monthKey}`} className="space-y-3">
                 <div className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10">
                   <div className="flex items-center gap-2">
-                    <CalendarDays size={15} className="text-accent" />
+                    <CalendarDays size={15} className="text-accent-text" />
                     <h3 className="font-bold text-xs sm:text-sm text-fg tracking-wide uppercase">
                       {MONTH_NAMES[group.month.getMonth()]} {group.month.getFullYear()}
                     </h3>

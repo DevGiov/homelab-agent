@@ -65,7 +65,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={onManageCalendars}
-              className="p-1 text-fg-muted hover:text-accent hover:bg-panel-hover rounded-md transition"
+              className="p-1 text-fg-muted hover:text-accent-text hover:bg-panel-hover rounded-md transition"
               title="Gestisci calendari e import"
             >
               <Settings size={13} />
@@ -110,7 +110,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
 
         <button
           onClick={onManageCalendars}
-          className="w-full mt-2.5 py-1.5 px-2.5 text-xs text-accent hover:bg-accent/10 border border-accent/25 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+          className="w-full mt-2.5 py-1.5 px-2.5 text-xs text-accent-text hover:bg-accent/10 border border-accent/25 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
         >
           <Plus size={13} />
           <span>Aggiungi / Importa</span>
@@ -126,7 +126,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
               onClick={() => onCategoryChange(cat.id)}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer border ${
                 category === cat.id
-                  ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
+                  ? 'bg-accent/15 border-accent/40 text-accent-text font-semibold'
                   : 'bg-input-bg/40 border-border/40 text-fg-muted hover:text-fg hover:bg-panel-hover'
               }`}
             >
@@ -143,7 +143,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         </div>
         <div className="flex items-center justify-between text-fg-muted">
           <span>Eventi filtrati</span>
-          <span className="font-semibold text-accent">{filteredEvents}</span>
+          <span className="font-semibold text-accent-text">{filteredEvents}</span>
         </div>
       </div>
     </div>

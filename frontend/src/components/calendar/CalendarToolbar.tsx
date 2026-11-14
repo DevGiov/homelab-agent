@@ -132,7 +132,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPickerOpen(!isPickerOpen)}
-                className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold text-fg hover:bg-panel-hover hover:text-accent rounded-lg transition cursor-pointer flex items-center gap-1 tracking-tight"
+                className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold text-fg hover:bg-panel-hover hover:text-accent-text rounded-lg transition cursor-pointer flex items-center gap-1 tracking-tight"
                 title="Clicca per scegliere mese e anno desiderati"
               >
                 <span className="truncate max-w-[140px] sm:max-w-none">{title}</span>
@@ -151,7 +151,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
 
           <button
             onClick={navigation.today}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-fg hover:text-accent bg-input-bg hover:bg-panel-hover border border-input-border rounded-xl shadow-inner transition cursor-pointer shrink-0"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-fg hover:text-accent-text bg-input-bg hover:bg-panel-hover border border-input-border rounded-xl shadow-inner transition cursor-pointer shrink-0"
             title="Torna ad oggi"
           >
             Oggi
@@ -179,7 +179,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
         </button>
 
         <button onClick={onSync} disabled={isSyncing} className={`${iconButton} disabled:opacity-50`} title="Sincronizza calendari esterni">
-          <RefreshCw size={15} className={isSyncing ? 'animate-spin text-accent' : ''} />
+          <RefreshCw size={15} className={isSyncing ? 'animate-spin text-accent-text' : ''} />
         </button>
 
         <button

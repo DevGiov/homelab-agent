@@ -46,7 +46,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-accent-contrast' : 'bg-input-bg text-fg'}`}>
                     {DAY_NAMES_SHORT[idx]} {day.getDate()} {MONTH_NAMES[day.getMonth()].substring(0, 3)}
                   </span>
-                  {isToday && <span className="text-xs text-accent font-semibold uppercase tracking-wider">Oggi</span>}
+                  {isToday && <span className="text-xs text-accent-text font-semibold uppercase tracking-wider">Oggi</span>}
                 </div>
                 <span className="text-xs text-fg-muted">{dayEvents.length} eventi</span>
               </div>

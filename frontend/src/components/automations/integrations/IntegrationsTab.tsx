@@ -26,7 +26,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
       <ConfirmDialog {...dialog} />
       <div className="p-4 rounded-2xl bg-panel border border-border/80 flex items-start justify-between gap-3 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shrink-0 mt-0.5">
             <Key size={18} />
           </div>
           <div>

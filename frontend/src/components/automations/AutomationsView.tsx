@@ -128,7 +128,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
             key={id}
             onClick={() => (id === 'artifacts' ? openArtifacts(null) : setActiveTab(id))}
             className={`py-2.5 sm:py-3 px-2.5 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === id ? 'border-accent text-accent' : 'border-transparent text-fg-muted hover:text-fg'
+              activeTab === id ? 'border-accent text-accent-text' : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
             <Icon size={15} /> {label}

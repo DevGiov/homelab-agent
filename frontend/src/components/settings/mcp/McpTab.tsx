@@ -125,7 +125,7 @@ export const McpTab: React.FC = () => {
       ) : (
         <button
           onClick={() => setForm({})}
-          className="w-full py-1.5 rounded-xl border border-dashed border-accent/40 text-accent hover:bg-accent/10 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+          className="w-full py-1.5 rounded-xl border border-dashed border-accent/40 text-accent-text hover:bg-accent/10 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <Plus size={13} /> Aggiungi server MCP
         </button>
@@ -133,7 +133,7 @@ export const McpTab: React.FC = () => {
 
       {isLoading && servers.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-6 text-xs text-fg-muted">
-          <Loader2 size={14} className="animate-spin text-accent" /> Interrogazione dei server…
+          <Loader2 size={14} className="animate-spin text-accent-text" /> Interrogazione dei server…
         </div>
       ) : (
         servers.map((server) => (

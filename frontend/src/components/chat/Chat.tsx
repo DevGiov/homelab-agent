@@ -105,7 +105,7 @@ export const Chat: React.FC<ChatProps> = ({
       {attachments.isDragging && (
         <div className="absolute inset-0 z-40 bg-accent/20 backdrop-blur-xs border-2 border-dashed border-accent flex flex-col items-center justify-center pointer-events-none transition-all duration-150">
           <div className="p-5 rounded-2xl glass-card border border-accent/60 shadow-2xl flex items-center gap-3 bg-panel/95">
-            <ImageIcon size={32} className="text-accent animate-bounce" />
+            <ImageIcon size={32} className="text-accent-text animate-bounce" />
             <div>
               <p className="text-sm font-semibold text-fg">Rilascia l'immagine qui</p>
               <p className="text-xs text-fg-muted">Verrà allegata alla richiesta multimodale</p>

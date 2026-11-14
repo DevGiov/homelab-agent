@@ -54,7 +54,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
       {episode.mode && <span className="uppercase tracking-wide">{episode.mode}</span>}
       {episode.thread_id &&
         (threadTitle && onOpenThread ? (
-          <button onClick={() => onOpenThread(episode.thread_id as string)} className="flex items-center gap-1 hover:text-accent truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
+          <button onClick={() => onOpenThread(episode.thread_id as string)} className="flex items-center gap-1 hover:text-accent-text truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
             <MessageSquare size={11} className="shrink-0" />
             <span className="truncate">{threadTitle}</span>
           </button>

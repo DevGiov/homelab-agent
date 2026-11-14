@@ -62,7 +62,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               <Menu size={20} />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shrink-0">
             <Brain size={18} />
           </div>
           <div className="min-w-0">
@@ -268,7 +268,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
           {memory.isLoading && memory.facts.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-12 text-xs text-fg-muted">
-              <Loader2 size={14} className="animate-spin text-accent" /> Caricamento…
+              <Loader2 size={14} className="animate-spin text-accent-text" /> Caricamento…
             </div>
           ) : memory.facts.length === 0 ? (
             <p className="text-xs text-fg-muted text-center py-12">

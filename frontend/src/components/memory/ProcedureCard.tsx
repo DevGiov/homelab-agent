@@ -72,7 +72,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
           <span>{SOURCE[procedure.source] ?? procedure.source}</span>
           {procedure.thread_id && threadTitle && onOpenThread && (
-            <button onClick={() => onOpenThread(procedure.thread_id as string)} className="flex items-center gap-1 hover:text-accent truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
+            <button onClick={() => onOpenThread(procedure.thread_id as string)} className="flex items-center gap-1 hover:text-accent-text truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">
               <MessageSquare size={11} className="shrink-0" />
               <span className="truncate">{threadTitle}</span>
             </button>

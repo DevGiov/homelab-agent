@@ -35,7 +35,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
   return (
     <section className="rounded-xl border border-accent/30 bg-accent/5 p-3 space-y-2" aria-label={`Entità ${entity.name}`}>
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-accent/15 text-accent-text flex items-center justify-center shrink-0">
           <Icon size={16} />
         </div>
         <div className="flex-1 min-w-0">

@@ -100,7 +100,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       {/* App Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-sm shadow-accent/15">
+          <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shadow-accent/15">
             <Cpu size={18} />
           </div>
           <div>
@@ -254,7 +254,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                           </span>
                         ) : (
-                          <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
+                          <MessageSquare size={14} className={isSelected ? 'text-accent-text' : 'text-fg-muted'} />
                         )}
                         <span className="truncate font-medium text-xs" title={thread.title ? `${thread.title} (${thread.thread_id})` : thread.thread_id}>
                           {label}
@@ -262,7 +262,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                       </span>
                       <span className="flex items-center gap-1 shrink-0">
                         {thread.is_active && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-tint-pulse">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent-text font-medium animate-tint-pulse">
                             In corso
                           </span>
                         )}

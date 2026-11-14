@@ -20,15 +20,15 @@ interface MessageListProps {
 
 const EmptyState = () => (
   <div className="h-full flex flex-col items-center justify-center text-center p-6 text-fg-muted space-y-4">
-    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl glass-card border border-border flex items-center justify-center text-accent shadow-lg shadow-accent/10">
+    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl glass-card border border-border flex items-center justify-center text-accent-text shadow-lg shadow-accent/10">
       <Sparkles size={24} />
     </div>
     <div className="max-w-md space-y-1">
       <h3 className="text-fg font-semibold text-sm">L'agente è pronto</h3>
       <p className="text-xs text-fg-muted leading-relaxed">
-        Scrivi un prompt per parlare con l'agente. Le modalità sono <span className="text-accent font-mono">chat</span>,{' '}
-        <span className="text-accent font-mono">ask</span>, <span className="text-accent font-mono">act</span> e{' '}
-        <span className="text-accent font-mono">plan</span>.
+        Scrivi un prompt per parlare con l'agente. Le modalità sono <span className="text-accent-text font-mono">chat</span>,{' '}
+        <span className="text-accent-text font-mono">ask</span>, <span className="text-accent-text font-mono">act</span> e{' '}
+        <span className="text-accent-text font-mono">plan</span>.
       </p>
     </div>
   </div>
@@ -76,7 +76,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       {/* Caricamento iniziale del thread, prima che arrivi qualsiasi messaggio */}
       {isLoading && messages.length === 0 && (
         <div className="flex gap-2.5 sm:gap-3 max-w-3xl mr-auto items-center">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-panel border border-border flex items-center justify-center text-accent animate-pulse">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-panel border border-border flex items-center justify-center text-accent-text animate-pulse">
             <Bot size={14} />
           </div>
           <div className="glass-card border border-border rounded-2xl rounded-tl-none px-3.5 py-2.5 sm:px-4 sm:py-3 text-xs">
