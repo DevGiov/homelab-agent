@@ -24,11 +24,11 @@ const EmptyState = () => (
       <Sparkles size={24} />
     </div>
     <div className="max-w-md space-y-1">
-      <h3 className="text-fg font-semibold text-sm">Main Agent Ready</h3>
+      <h3 className="text-fg font-semibold text-sm">L'agente è pronto</h3>
       <p className="text-xs text-fg-muted leading-relaxed">
-        Type a prompt to interact with the main agent API. Switch between <span className="text-accent font-mono">chat</span>,{' '}
-        <span className="text-accent font-mono">ask</span>, <span className="text-accent font-mono">act</span>, or{' '}
-        <span className="text-accent font-mono">plan</span> modes.
+        Scrivi un prompt per parlare con l'agente. Le modalità sono <span className="text-accent font-mono">chat</span>,{' '}
+        <span className="text-accent font-mono">ask</span>, <span className="text-accent font-mono">act</span> e{' '}
+        <span className="text-accent font-mono">plan</span>.
       </p>
     </div>
   </div>

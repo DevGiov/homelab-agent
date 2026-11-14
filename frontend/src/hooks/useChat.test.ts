@@ -99,8 +99,8 @@ describe('useChat — invio', () => {
 
     const [, reply] = result.current.currentMessages;
     expect(result.current.currentMessages).toHaveLength(2);
-    expect(reply).toMatchObject({ isError: true, content: 'Error: LLM non disponibile' });
-    expect(result.current.chatError).toBe('API Error: LLM non disponibile');
+    expect(reply).toMatchObject({ isError: true, content: 'Errore: LLM non disponibile' });
+    expect(result.current.chatError).toBe("Errore dell'API: LLM non disponibile");
     expect(result.current.isLoadingChat).toBe(false);
   });
 
@@ -111,7 +111,7 @@ describe('useChat — invio', () => {
     });
     const { result } = await renderChat();
     await act(() => result.current.handleSendMessage('', { execute: true }));
-    expect(result.current.chatError).toBe('API Error: input: campo obbligatorio');
+    expect(result.current.chatError).toBe("Errore dell'API: input: campo obbligatorio");
   });
 });
 

@@ -11,6 +11,6 @@ export const ThinkingIndicator: React.FC = () => (
         />
       ))}
     </div>
-    <span className="ml-1 text-xs font-sans">Thinking & executing...</span>
+    <span className="ml-1 text-xs font-sans">Ragionamento ed esecuzione...</span>
   </div>
 );

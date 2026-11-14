@@ -27,31 +27,31 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
       case 'success':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">
-            <CheckCircle2 size={10} /> Success
+            <CheckCircle2 size={10} /> Riuscito
           </span>
         );
       case 'failed':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 text-xs font-medium border border-rose-500/20">
-            <XCircle size={10} /> Failed
+            <XCircle size={10} /> Fallito
           </span>
         );
       case 'rolled_back':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-xs font-medium border border-amber-500/20">
-            <RotateCcw size={10} /> Rolled Back
+            <RotateCcw size={10} /> Annullato (rollback)
           </span>
         );
       case 'running':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-xs font-medium border border-accent/30 animate-pulse">
-            <Clock size={10} /> Running
+            <Clock size={10} /> In corso
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted text-xs font-mono">
-            Pending
+            In attesa
           </span>
         );
     }
@@ -63,12 +63,12 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
       <div className="flex items-center justify-between text-xs text-accent font-semibold">
         <div className="flex items-center gap-1.5">
           <ListChecks size={15} />
-          <span>Execution Plan {planStructure?.goal ? `— ${planStructure.goal}` : ''}</span>
+          <span>Piano di esecuzione {planStructure?.goal ? `— ${planStructure.goal}` : ''}</span>
         </div>
         {hasNodes && (
           <div className="flex items-center gap-1 text-xs font-mono text-fg-muted">
             <GitBranch size={12} />
-            <span>{planStructure?.nodes?.length} nodes</span>
+            <span>{planStructure?.nodes?.length} nodi</span>
           </div>
         )}
       </div>
@@ -97,7 +97,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
 
               {node.depends_on && node.depends_on.length > 0 && (
                 <div className="pl-7 flex items-center gap-1.5 text-xs font-mono text-fg-muted">
-                  <span>Depends on:</span>
+                  <span>Dipende da:</span>
                   {node.depends_on.map((dep) => (
                     <span key={dep} className="px-1.5 py-0.5 rounded bg-panel border border-border text-fg">
                       {dep}

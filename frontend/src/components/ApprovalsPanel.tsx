@@ -57,7 +57,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
         <div className="flex items-center gap-2 text-fg-muted text-xs">
           <ShieldAlert size={14} className="text-amber-400" />
           <span className="font-medium text-fg">
-            Pending Approvals
+            Approvazioni in attesa
             {pending.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
                 {pending.length}
@@ -68,14 +68,14 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
         <button
           onClick={refresh}
           className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer"
-          title="Refresh approvals"
+          title="Aggiorna le approvazioni"
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>
 
       {pending.length === 0 ? (
-        <p className="text-xs text-fg-muted italic">No pending tool approvals.</p>
+        <p className="text-xs text-fg-muted italic">Nessuna approvazione in attesa.</p>
       ) : (
         <div className="space-y-2">
           {pending.map((item) => {

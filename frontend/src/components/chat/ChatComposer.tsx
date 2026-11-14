@@ -49,7 +49,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       : 'Generazione in corso...'
     : images.length > 0
     ? "Aggiungi istruzioni per l'immagine o premi Invia per descriverla..."
-    : 'Send message (incolla immagini con Ctrl+V)...';
+    : 'Scrivi un messaggio (incolla immagini con Ctrl+V)...';
 
   return (
     <>
@@ -151,6 +151,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             }
           }}
           placeholder={placeholder}
+          aria-label="Messaggio"
           disabled={isLoading}
           className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:border-accent resize-none transition"
         />
@@ -182,7 +183,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             type="submit"
             disabled={!canSend}
             className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-accent-contrast rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
-            title={images.length > 0 && !input.trim() ? "Invia immagine per l'analisi automatica" : "Send Message"}
+            title={images.length > 0 && !input.trim() ? "Invia immagine per l'analisi automatica" : 'Invia messaggio'}
           >
             <Send size={15} />
           </button>

@@ -43,7 +43,7 @@ export function useThreads() {
       }
     } catch (err: any) {
       console.error('Failed to load threads:', err);
-      setError('Unable to reach Main Agent API. Make sure the backend service is running.');
+      setError("Impossibile raggiungere l'API di Main Agent: controlla che il backend sia in esecuzione.");
     } finally {
       setIsLoadingThreads(false);
     }
@@ -85,7 +85,7 @@ export function useThreads() {
       }
     } catch (err: any) {
       console.error(`Failed to delete thread ${threadId}:`, err);
-      setError(`Failed to delete thread ${threadId}`);
+      setError(`Eliminazione della conversazione ${threadId} non riuscita`);
     }
   }, [currentThreadId, threads, selectThread]);
 
@@ -97,7 +97,7 @@ export function useThreads() {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch (err: any) {
       console.error('Failed to clear threads:', err);
-      setError('Failed to clear all threads');
+      setError('Eliminazione delle conversazioni non riuscita');
     }
   }, []);
 

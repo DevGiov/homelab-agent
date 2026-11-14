@@ -76,7 +76,7 @@ export const Chat: React.FC<ChatProps> = ({
   const sensitivityBar = useSensitivityBarVisibility(conversationTag);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  const title = currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'Nuova Sessione');
+  const title = currentThreadTitle || (currentThreadId ? `Conversazione ${currentThreadId}` : 'Nuova conversazione');
   const textOnlyModel = options.model !== 'default' && !models.isVisionModel(options.model) ? options.model : null;
 
   const send = (text: string) => {
@@ -124,7 +124,7 @@ export const Chat: React.FC<ChatProps> = ({
           <button
             type="button"
             onClick={() => options.setIncognito(false)}
-            className="text-purple-300 hover:text-white underline text-xs ml-2 shrink-0 cursor-pointer"
+            className="text-purple-300 hover:text-fg underline text-xs ml-2 shrink-0 cursor-pointer"
           >
             Disattiva
           </button>
@@ -154,7 +154,7 @@ export const Chat: React.FC<ChatProps> = ({
             <span className="truncate">{error || conversation.error}</span>
           </div>
           <button onClick={onClearError} className="text-rose-400 hover:text-rose-200 font-bold px-2 py-0.5 cursor-pointer">
-            Dismiss
+            Chiudi
           </button>
         </div>
       )}

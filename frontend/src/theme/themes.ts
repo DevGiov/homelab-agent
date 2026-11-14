@@ -4,7 +4,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   midnight: {
     id: 'midnight',
     name: 'Midnight',
-    description: 'Deep navy space, electric sky accents, crisp contrast',
+    description: 'Blu notte profondo, accenti azzurro elettrico, contrasto netto',
     isDark: true,
     swatch: ['#090d16', '#111827', '#38bdf8', '#f1f5f9'],
     colors: {
@@ -32,7 +32,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   cyberpunk: {
     id: 'cyberpunk',
     name: 'Cyberpunk',
-    description: 'High-tech neon cyan and vivid violet with deep black glass',
+    description: 'Ciano neon e viola acceso su vetro nero profondo',
     isDark: true,
     swatch: ['#07070d', '#120e24', '#d946ef', '#00f5ff'],
     colors: {
@@ -60,7 +60,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   retrowave: {
     id: 'retrowave',
     name: 'Retrowave',
-    description: 'Synthwave dreamscape with hot pink, warm orange and violet',
+    description: 'Atmosfera synthwave con rosa acceso, arancio caldo e viola',
     isDark: true,
     swatch: ['#110d24', '#1d1740', '#ec4899', '#fed7aa'],
     colors: {
@@ -88,7 +88,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   ocean: {
     id: 'ocean',
     name: 'Ocean Abyss',
-    description: 'Deep marine blues with glowing cyan reflections',
+    description: 'Blu marino profondo con riflessi ciano luminosi',
     isDark: true,
     swatch: ['#061320', '#092238', '#06b6d4', '#e0f2fe'],
     colors: {
@@ -116,7 +116,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   forest: {
     id: 'forest',
     name: 'Emerald Forest',
-    description: 'Rich dark moss, lush pine panels and bright mint accents',
+    description: 'Muschio scuro, pannelli verde pino e accenti menta brillante',
     isDark: true,
     swatch: ['#09140f', '#12271e', '#10b981', '#f0fdf4'],
     colors: {
@@ -144,7 +144,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   claude: {
     id: 'claude',
     name: 'Claude Warm',
-    description: 'Warm charcoal, organic beige and terracotta accents',
+    description: 'Carbone caldo, beige naturale e accenti terracotta',
     isDark: true,
     swatch: ['#1d1c1a', '#2b2a26', '#e07a5f', '#f5f2eb'],
     colors: {
@@ -172,7 +172,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   dark: {
     id: 'dark',
     name: 'Slate Dark',
-    description: 'Classic homelab slate dark mode with sapphire blue accents',
+    description: 'Il classico tema scuro ardesia con accenti blu zaffiro',
     isDark: true,
     swatch: ['#0b0f19', '#151e2e', '#3b82f6', '#f8fafc'],
     colors: {
@@ -200,7 +200,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   light: {
     id: 'light',
     name: 'Paper Light',
-    description: 'Clean crisp light aesthetic with deep cobalt blue accents',
+    description: 'Chiaro e pulito, con accenti blu cobalto',
     isDark: false,
     swatch: ['#f8fafc', '#ffffff', '#2563eb', '#0f172a'],
     colors: {

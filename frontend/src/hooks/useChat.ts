@@ -219,10 +219,10 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       } catch (err) {
         console.error('Invio del messaggio fallito:', err);
         const errMsg = formatApiError(err, "Invio del messaggio all'agente non riuscito");
-        setChatError(`API Error: ${errMsg}`);
+        setChatError(`Errore dell'API: ${errMsg}`);
         updateThread(threadId, (msgs) => [
           ...msgs.filter((m) => m.id !== assistantMsgId),
-          { id: `err_${Date.now()}`, sender: 'assistant', content: `Error: ${errMsg}`, timestamp: nowTime(), isError: true },
+          { id: `err_${Date.now()}`, sender: 'assistant', content: `Errore: ${errMsg}`, timestamp: nowTime(), isError: true },
         ]);
       } finally {
         endStream();

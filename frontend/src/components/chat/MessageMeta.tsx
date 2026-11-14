@@ -143,7 +143,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
           <Zap size={10} className="text-amber-400" />
           <span>{metrics.tok_per_s ?? 0} tok/s</span>
           <span className="text-border">•</span>
-          <span>{metrics.completion_tokens ?? 0} tok gen</span>
+          <span>{metrics.completion_tokens ?? 0} tok generati</span>
           {metrics.duration_s !== undefined && (
             <>
               <span className="text-border">•</span>

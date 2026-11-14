@@ -155,14 +155,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-xs gap-1.5 text-fg-muted hover:border-accent/40 hover:text-fg transition shadow-sm cursor-pointer select-none max-w-[200px] sm:max-w-[260px]"
         title={
           selectedModel === 'default'
-            ? 'Modello LLM: Default'
+            ? 'Modello LLM: predefinito'
             : `Modello LLM: ${selectedModel}${isCurrentLoaded ? ' (Caricato in VRAM)' : isCurrentLoading ? ' (In caricamento...)' : ' (Non caricato)'}`
         }
       >
         <Box size={12} className="text-emerald-400 shrink-0" />
         
         <span className="truncate font-mono text-xs text-fg">
-          {selectedModel === 'default' ? 'Modello: Default' : selectedModel}
+          {selectedModel === 'default' ? 'Modello: predefinito' : selectedModel}
         </span>
 
         {/* Loaded VRAM dot indicator */}
@@ -220,7 +220,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Cpu size={13} className="text-fg-muted shrink-0" />
-                  <span className="truncate">Modello: Default</span>
+                  <span className="truncate">Modello: predefinito</span>
                 </div>
                 {selectedModel === 'default' && <Check size={14} className="text-accent shrink-0" />}
               </div>
@@ -353,7 +353,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               title="Supporta visione multimodale"
             >
               <Eye size={9} />
-              <span>Vision</span>
+              <span>Visione</span>
             </span>
           )}
 

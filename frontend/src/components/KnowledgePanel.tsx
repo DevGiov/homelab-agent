@@ -134,7 +134,7 @@ export const KnowledgePanel: React.FC = () => {
             className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-xs text-fg-muted hover:border-accent hover:text-accent transition disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
-            Upload .md / .txt / .pdf
+            Carica .md / .txt / .pdf
           </button>
           <div className="flex items-center justify-between gap-2 text-xs text-fg-muted">
             <span>Etichetta dei nuovi documenti</span>

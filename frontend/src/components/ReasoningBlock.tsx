@@ -91,7 +91,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
           <Lightbulb size={14} className="text-amber-400 animate-pulse" />
           <span className="font-medium">
             {isStreaming ? (
-              phases.length > 1 ? `Thinking (Fase ${phases.length})...` : 'Thinking...'
+              phases.length > 1 ? `Ragionamento (fase ${phases.length})...` : 'Ragionamento...'
             ) : (
               phases.length > 1 ? `Processo di Ragionamento (${phases.length} fasi)` : 'Processo di Ragionamento'
             )}

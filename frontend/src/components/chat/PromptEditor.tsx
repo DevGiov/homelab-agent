@@ -36,6 +36,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
         onChange={(e) => setText(e.target.value)}
         className="w-full bg-input-bg/90 border border-border rounded-xl p-2.5 text-xs sm:text-sm text-fg focus:border-accent resize-y min-h-[60px]"
         placeholder="Modifica prompt..."
+        aria-label="Prompt"
         autoFocus
       />
       <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-border/40 text-xs">
@@ -43,13 +44,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as AgentMode | 'auto')}
+            aria-label="Modalità"
             className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:border-accent"
           >
-            <option value="auto">Mode: Auto</option>
-            <option value="chat">Mode: Chat</option>
-            <option value="ask">Mode: Ask</option>
-            <option value="act">Mode: Act</option>
-            <option value="plan">Mode: Plan</option>
+            <option value="auto">Modalità: auto</option>
+            <option value="chat">Modalità: chat</option>
+            <option value="ask">Modalità: ask</option>
+            <option value="act">Modalità: act</option>
+            <option value="plan">Modalità: plan</option>
           </select>
           {models.modelDetails.length > 0 && (
             <ModelSelector

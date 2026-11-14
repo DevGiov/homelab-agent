@@ -185,7 +185,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             {resolvedAction === 'approve' && (
               <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs font-medium text-emerald-300">
                 <Check size={16} className="shrink-0 text-emerald-400" />
-                <span>Tool autorizzato ed eseguito per questa singola chiamata (one-time).</span>
+                <span>Tool autorizzato ed eseguito per questa sola chiamata.</span>
               </div>
             )}
             {resolvedAction === 'approve_thread' && (
@@ -257,7 +257,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
                 onClick={() => handleResolve('approve_thread')}
                 disabled={isLoading}
                 className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/50 bg-sky-600/20 px-3 py-2.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/35 hover:border-sky-500 transition disabled:opacity-50 cursor-pointer shadow-sm text-center"
-                title="Consenti per tutti i turni di questo thread senza richiedere ulteriori conferme"
+                title="Consenti per tutti i turni di questa conversazione senza chiedere altre conferme"
               >
                 {isLoading && activeAction === 'approve_thread' ? (
                   <Loader2 size={14} className="animate-spin" />

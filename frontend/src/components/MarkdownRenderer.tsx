@@ -241,22 +241,22 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
       {/* Header bar */}
       <div className="bg-panel/90 border-b border-border/60 px-3 py-1.5 flex items-center justify-between text-fg-muted">
         <span className="text-xs font-semibold uppercase text-accent tracking-wider">
-          {language || 'code'}
+          {language || 'codice'}
         </span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition bg-panel/60 hover:bg-panel px-2 py-0.5 rounded border border-border/60 cursor-pointer"
-          title="Copy code to clipboard"
+          title="Copia il codice negli appunti"
         >
           {copied ? (
             <>
               <Check size={11} className="text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Copied!</span>
+              <span className="text-emerald-400 font-medium">Copiato!</span>
             </>
           ) : (
             <>
               <Copy size={11} />
-              <span>Copy</span>
+              <span>Copia</span>
             </>
           )}
         </button>

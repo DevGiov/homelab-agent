@@ -113,12 +113,12 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           onClick={onToggle}
           aria-expanded={isOpen}
           className="flex items-center gap-2 text-fg-muted hover:text-fg transition w-full cursor-pointer min-w-0"
-          title={isOpen ? 'Collassa pannello' : 'Espandi log Tool & Diagnostica'}
+          title={isOpen ? 'Collassa pannello' : 'Espandi la diagnostica'}
         >
           <Activity size={18} className="text-accent shrink-0" />
           {isOpen && (
             <span className="font-semibold text-xs text-fg flex-1 text-left truncate">
-              Agent Diagnostics
+              Diagnostica dell'agente
             </span>
           )}
           <ChevronRight
@@ -155,7 +155,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               }`}
             >
               <Activity size={12} />
-              Diagnostics
+              Diagnostica
             </button>
             <button
               type="button"
@@ -224,7 +224,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       </span>
                       <button
                         onClick={() => onSelectMessageId?.(null)}
-                        className="underline text-xs hover:text-white font-medium ml-2 cursor-pointer shrink-0"
+                        className="underline text-xs hover:text-fg font-medium ml-2 cursor-pointer shrink-0"
                       >
                         Torna a Live
                       </button>
@@ -241,7 +241,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                 <div className="glass-card border border-border rounded-xl p-3.5 space-y-1.5">
                   <div className="flex items-center gap-2 text-fg-muted text-xs">
                     <Zap size={14} className="text-amber-400" />
-                    <span className="font-medium text-fg">Agent Mode</span>
+                    <span className="font-medium text-fg">Modalità dell'agente</span>
                   </div>
                   <div className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-accent/15 text-accent border border-accent/30 uppercase tracking-wide">
                     {activeMode}
@@ -277,19 +277,19 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-xs text-fg-muted">Token Generati</div>
+                      <div className="text-xs text-fg-muted">Token generati</div>
                       <div className="text-fg font-bold text-sm mt-0.5">
                         {activeMetrics.completion_tokens ?? 0} <span className="text-xs font-normal text-fg-muted">tok</span>
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-xs text-fg-muted">Prompt Token</div>
+                      <div className="text-xs text-fg-muted">Token del prompt</div>
                       <div className="text-fg font-medium mt-0.5">
                         {activeMetrics.prompt_tokens ?? 0}
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-xs text-fg-muted">Durata Turno</div>
+                      <div className="text-xs text-fg-muted">Durata del turno</div>
                       <div className="text-fg font-medium mt-0.5">
                         {activeMetrics.duration_s ?? 0}s
                       </div>
@@ -302,7 +302,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center gap-2 text-fg-muted text-xs">
                   <Wrench size={14} className="text-emerald-400" />
-                  <span className="font-medium text-fg">Tool Executed</span>
+                  <span className="font-medium text-fg">Tool eseguito</span>
                 </div>
                 {activeTool ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-lg text-xs font-mono flex items-center justify-between shadow-sm">
@@ -312,7 +312,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                 ) : activeMode === 'chat' || activeMode === 'ask' ? (
                   <div className="bg-panel border border-border text-fg-muted px-3 py-2 rounded-lg text-xs flex items-center gap-2">
                     <Info size={14} className="text-accent shrink-0" />
-                    <span>Info query (no tool execution needed)</span>
+                    <span>Domanda informativa (nessun tool necessario)</span>
                   </div>
                 ) : (
                   <p className="text-xs text-fg-muted italic">Nessun tool registrato per questa query.</p>
@@ -325,7 +325,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 text-fg-muted">
                       <Globe size={14} className="text-cyan-400" />
-                      <span className="font-medium text-fg">Web Context (Prefetch)</span>
+                      <span className="font-medium text-fg">Contesto web (prefetch)</span>
                     </div>
                     {activeWebPrefetch.provider_used && (
                       <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
@@ -337,7 +337,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
                   <div className="text-xs text-fg-muted bg-panel border border-border/70 rounded-lg p-2 space-y-1">
                     <div className="font-mono text-xs text-fg-muted truncate">
-                      Query: <span className="text-fg">"{activeWebPrefetch.query}"</span>
+                      Ricerca: <span className="text-fg">"{activeWebPrefetch.query}"</span>
                     </div>
                     {activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0 ? (
                       <div className="space-y-1.5 pt-1">
@@ -419,7 +419,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
             <Wrench size={16} />
           </button>
           {activeWebPrefetch && (
-            <div className="p-2 text-cyan-400" title="Web Retrieval (Prefetch) attivo">
+            <div className="p-2 text-cyan-400" title="Ricerca web preventiva attiva">
               <Globe size={16} />
             </div>
           )}

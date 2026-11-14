@@ -266,7 +266,7 @@ describe('traccia di un passo riscritto', () => {
     );
     expect(screen.getAllByTestId('clean-rewrite')).toHaveLength(1);
     expect(screen.queryByText(/4458812/)).toBeNull();
-    fireEvent.click(screen.getAllByTitle('Show step details')[1]);
+    fireEvent.click(screen.getAllByTitle('Mostra i dettagli dello step')[1]);
     expect(screen.getByText(/con i dati private del turno \(non inviati\)/)).toBeTruthy();
     expect(screen.getByText(/4458812/)).toBeTruthy();
   });
