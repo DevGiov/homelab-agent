@@ -87,6 +87,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           {tab === 'facts' && (
             <button
               onClick={() => setIsAdding(true)}
+              aria-label="Aggiungi un fatto"
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-accent-contrast text-xs font-semibold shadow-sm cursor-pointer"
             >
               <Plus size={13} /> <span className="hidden sm:inline">Fatto</span>

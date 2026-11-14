@@ -184,6 +184,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
 
         <button
           onClick={onNewEvent}
+          aria-label="Nuovo evento"
           className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer"
         >
           <Plus size={15} />

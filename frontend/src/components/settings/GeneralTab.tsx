@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { AlertCircle, Box, CheckCircle2, Cpu, KeyRound, Loader2, Save } from 'lucide-react';
 import { getApiKey, setApiKey } from '../../api/http';
 import { getProviderModels, getProviders, setDefaultProvider, type ProviderInfo } from '../../api/providers';
@@ -9,6 +9,7 @@ const fieldClass =
 
 /** API key, provider e modello di default; il salvataggio chiude il modale. */
 export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
+  const fieldId = useId();
   const [apiKey, setLocalApiKey] = useState(getApiKey());
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [provider, setProvider] = useState('');
@@ -81,11 +82,12 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
       )}
 
       <div className="space-y-1.5">
-        <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+        <label htmlFor={`${fieldId}-key`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
           <KeyRound size={12} className="text-amber-400" />
           Chiave API (header X-API-Key)
         </label>
         <input
+          id={`${fieldId}-key`}
           type="password"
           value={apiKey}
           onChange={(e) => setLocalApiKey(e.target.value)}
@@ -97,12 +99,13 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
 
       <div className="border-t border-border pt-3 space-y-3">
         <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+          <label htmlFor={`${fieldId}-provider`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
             <Cpu size={12} className="text-accent" />
             Provider LLM
             {loadingProviders && <Loader2 size={12} className="animate-spin text-accent ml-1" />}
           </label>
           <select
+            id={`${fieldId}-provider`}
             value={provider}
             onChange={(e) => changeProvider(e.target.value)}
             disabled={loadingProviders || providers.length === 0}
@@ -120,12 +123,13 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
         </div>
 
         <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+          <label htmlFor={`${fieldId}-model`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
             <Box size={12} className="text-emerald-400" />
-            Modello di Default
+            Modello predefinito
             {loadingModels && <Loader2 size={12} className="animate-spin text-emerald-400 ml-1" />}
           </label>
           <select
+            id={`${fieldId}-model`}
             value={model}
             onChange={(e) => setModel(e.target.value)}
             disabled={loadingModels || models.length === 0}
