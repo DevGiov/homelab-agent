@@ -99,6 +99,8 @@ def _fact_rows(conn, rows: List[tuple], scores: Optional[Dict[int, float]] = Non
             "source": metadata.get("source", "manual"),
             # Etichetta data dall'utente al fatto (app.security.flows); senza, un fatto è `private`
             "sensitivity": metadata.get("sensitivity"),
+            # Scritto da un modello che aveva letto contenuto non attendibile: al richiamo si presenta come dato
+            "untrusted": bool(metadata.get("untrusted")),
             # CURRENT_TIMESTAMP di SQLite è UTC senza fuso: ISO 8601 esplicito per i client
             "created_at": _iso(created_at),
             "invalid_at": _iso(invalid_at),
@@ -313,6 +315,7 @@ def add_fact(
     created_at: Optional[str] = None,
     dedupe: bool = True,
     sensitivity: Optional[str] = None,
+    untrusted: bool = False,
 ) -> Tuple[Optional[int], bool]:
     """Salva un fatto con le sue entità. Restituisce (id, creato): un quasi-duplicato non viene riscritto ma
     riceve le entità nuove, e l'id è quello del fatto esistente. `entities_checked` segna che le entità sono già
@@ -320,7 +323,8 @@ def add_fact(
     `created_at` è la data da cui il fatto vale (per i fatti consolidati, quella del messaggio da cui vengono).
     `dedupe=False` salta il controllo dei quasi-duplicati (un aggiornamento esplicito del consolidamento).
     `sensitivity`: etichetta del fatto nuovo (public, internal, private); senza, al richiamo vale il default `private`.
-    Un quasi-duplicato tiene l'etichetta del fatto esistente."""
+    `untrusted`: il fatto viene da contenuto non attendibile (una risposta scritta dopo aver letto una pagina web).
+    Un quasi-duplicato tiene l'etichetta e il segno del fatto esistente."""
     content = content.strip()
     if not content:
         return None, False
@@ -331,6 +335,8 @@ def add_fact(
     metadata: Dict[str, Any] = {"source": source}
     if sensitivity is not None:
         metadata["sensitivity"] = sensitivity
+    if untrusted:
+        metadata["untrusted"] = True
     fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata=metadata, created_at=created_at)
     if fact_id is None:
         return None, False
@@ -355,6 +361,9 @@ def update_fact(fact_id: int, content: str, entities: Iterable[Dict[str, str]]) 
         vector_store.update_memory_content(fact_id, content)
     conn = vector_store._get_conn()
     try:
+        # Un fatto riscritto o confermato a mano dall'utente è suo: non è più "da contenuto non attendibile"
+        conn.execute("UPDATE vec_memory SET metadata_json = json_remove(COALESCE(metadata_json, '{}'), '$.untrusted') "
+                     "WHERE id = ? AND kind = 'fact'", (fact_id,))
         conn.execute("DELETE FROM memory_fact_entities WHERE fact_id = ?", (fact_id,))
         conn.commit()
     finally:

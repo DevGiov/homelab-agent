@@ -18,6 +18,8 @@ alzare tutto al livello del messaggio più riservato, ogni blocco si legge a liv
 i soli messaggi pubblici con i fatti pubblici, poi quelli fino a `internal`, poi tutto. Un fatto detto dall'utente in
 una conversazione pubblica esce pubblico; ciò che viene da una risposta data con dati privati, o che cambia un fatto
 privato, esce privato; i dati personali (rilevatori, persone) lo alzano a privato.
+Allo stesso modo un fatto porta il segno "non attendibile" se lo portava qualcosa di ciò che la sua lettura ha visto
+(una risposta scritta dopo aver letto una pagina web): al richiamo viene presentato come dato, non come istruzione.
 """
 import json
 import logging
@@ -252,8 +254,11 @@ def fact_label(op: FactOperation, messages: List[Dict[str, Any]], related: List[
     if any(e.type == "person" for e in op.entities):
         tags.append(flows.tag_of(flows.Label.PRIVATE, "fatto:person"))
     tag = flows.join(*tags)
+    # Non attendibile se lo era qualcosa di ciò che la chiamata ha letto: una risposta scritta dopo una pagina web,
+    # o un fatto che già portava il segno
+    untrusted = tag.untrusted or any(m.get("untrusted") for m in messages) or any(f.get("untrusted") for f in related)
     # I fatti accettano le etichette che l'utente può scegliere: un segreto non diventa un fatto più alto di privato
-    return flows.Tag(min(tag.label, flows.Label.PRIVATE), tag.untrusted, tag.reasons)
+    return flows.Tag(min(tag.label, flows.Label.PRIVATE), untrusted, tag.reasons)
 
 
 def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], related: List[Dict[str, Any]],
@@ -288,7 +293,7 @@ def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], rela
         # a quello che sostituisce
         fact_id, created = facts.add_fact(op.fact, thread_id=thread_id, entities=entity_refs(op.entities), source="conversation",
                                           entities_checked=True, created_at=date, dedupe=op.op != "update",
-                                          sensitivity=label.label.key)
+                                          sensitivity=label.label.key, untrusted=label.untrusted)
         if fact_id is None:
             continue
         written.append(fact_id)

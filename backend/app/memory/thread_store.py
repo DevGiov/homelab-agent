@@ -494,7 +494,7 @@ def get_history(thread_id: str) -> List[Dict[str, Any]]:
     conn = _get_conn()
     try:
         rows = conn.execute("""
-            SELECT sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity
+            SELECT sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity, sensitivity_json
             FROM thread_messages
             WHERE thread_id = ? AND COALESCE(is_error, 0) = 0
             ORDER BY rowid ASC
@@ -502,11 +502,12 @@ def get_history(thread_id: str) -> List[Dict[str, Any]]:
     finally:
         conn.close()
     history = []
-    for sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity in rows:
+    for sender, content, versions_json, version_index, mode, tool_used, created_at, sensitivity, sensitivity_json in rows:
         text = _active_content(content, versions_json, version_index).strip()
         if text:
+            # `untrusted`: la risposta è stata scritta dopo aver letto contenuto non attendibile (pagine web, email)
             history.append({"role": sender, "content": text, "mode": mode, "tool_used": tool_used, "created_at": created_at,
-                            "sensitivity": sensitivity})
+                            "sensitivity": sensitivity, "untrusted": bool(_sensitivity_of(sensitivity, sensitivity_json).get("untrusted"))})
     return history
 
 

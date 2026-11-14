@@ -448,11 +448,13 @@ I fatti scritti a mano e quelli senza etichetta restano `private`.
 Resta aperto, e accettato per ora:
 
 - **Canale nascosto nella scelta del tool.** Il modello che ha letto i dati privati decide ancora se e quale uscita fare a ogni passo: circa 3-4 bit a passo con gli strumenti di oggi, per 5 (ask), 10 (act) o 15 (plan) passi a turno. Per sfruttarlo serve una destinazione che l'attaccante osserva e istruzioni piantate nei dati privati; la conferma degli host non ammessi lo limita, la modalità `dangerous` no.
-- **Il segno "non attendibile" non arriva ai fatti.** Un fatto tratto dal riassunto di una pagina web diventa memoria attendibile. Vale anche per i messaggi recenti. Da fare: salvare il segno con il fatto.
+- **Il segno "non attendibile" sui messaggi recenti.** Non si propaga da un turno al successivo: dopo una pagina web letta in una conversazione, le autorizzazioni "per questa conversazione" e "sempre" per le uscite non varrebbero più per tutto il resto della conversazione.
+
+**Il segno "non attendibile" sui fatti** (deciso il 14/11/2026). Un fatto lo porta se lo portava qualcosa di ciò che la sua lettura ha visto: una risposta scritta dopo aver letto una pagina web o un'email, o un fatto già segnato. Ciò che ha scritto l'utente resta attendibile, e un fatto riscritto a mano dall'utente perde il segno. Al richiamo i fatti segnati stanno in un blocco a parte, dentro i delimitatori che i prompt trattano come dati e non come istruzioni (7.3), e la vista Memoria li indica. Il tag del turno non cambia: le autorizzazioni già date per le uscite restano valide.
 
 ## 10. Decisioni
 
-Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-9).
+Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-10).
 
 | # | Domanda | Decisione | Note |
 | :--- | :--- | :--- | :--- |
@@ -465,6 +467,7 @@ Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-9).
 | 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano i loro host nella policy; lista base di host sicuri da subito, tutto modificabile dalla UI | Fatto in S0 ([9.1](#91-s0-come-è-stata-costruita)) |
 | 8 | Conferme continue nell'uso reale (9.4) | Anticipare la separazione tra chi scrive la query e chi legge la memoria (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
 | 9 | Etichetta di un fatto estratto da una conversazione | Quella dei messaggi da cui nasce, invece di `private` (14/11/2026) | Fatto, con letture per livello dopo la revisione ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
+| 10 | Segno "non attendibile" su fatti e messaggi | Sui fatti sì, mostrato e presentato al modello come dato; sui messaggi recenti no, per non togliere valore alle autorizzazioni (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
 
 ## 11. Alternative scartate
 

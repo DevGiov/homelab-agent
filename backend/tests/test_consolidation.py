@@ -376,6 +376,51 @@ def test_an_update_keeps_at_least_the_label_of_the_fact_it_replaces(sandbox):
     assert len(seen) == 2 and _labels() == {"Il router di casa è un Fritz!Box 5690": "private"}
 
 
+def _untrusted_flags():
+    return {f["content"]: f["untrusted"] for f in facts.list_facts()[0]}
+
+
+def test_a_fact_written_after_reading_untrusted_content_carries_the_mark(sandbox):
+    """La risposta è stata scritta dopo aver letto una pagina web: ciò che ne viene è un dato, non una cosa detta
+    dall'utente. Quello che l'utente ha scritto resta attendibile."""
+    thread_store.save_user_message("u1", "Cerco un dissipatore per la mia GPU.", user_msg_id="u1-u", sensitivity="public")
+    thread_store.save_assistant_message("u1", {"response": "Secondo il sito il modello X regge 250 W.",
+                                               "sensitivity": {"label": "public", "untrusted": True, "reasons": ["untrusted:tool:web_search"]}},
+                                        ast_msg_id="u1-a")
+    assert [m["untrusted"] for m in thread_store.get_history("u1")] == [False, True]
+
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="Il dissipatore X regge 250 W"))):
+        mc.consolidate_messages()
+    assert _untrusted_flags() == {"Il dissipatore X regge 250 W": True}
+
+    # Un fatto che la lettura successiva scrive vedendo quel fatto ne eredita il segno
+    thread_store.save_user_message("u2", "Quale dissipatore regge 250 W?", user_msg_id="u2-u", sensitivity="public")
+    thread_store.save_assistant_message("u2", {"response": "Ok.", "sensitivity": {"label": "public"}}, ast_msg_id="u2-a")
+
+    def propose(messages, related, model=None):
+        assert [f["content"] for f in related] == ["Il dissipatore X regge 250 W"]
+        return [FactOperation(op="add", message=1, fact="L'utente vuole un dissipatore da almeno 250 W come il modello X")]
+
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        mc.consolidate_messages()
+    assert _untrusted_flags()["L'utente vuole un dissipatore da almeno 250 W come il modello X"] is True
+
+
+def test_what_the_user_wrote_stays_trusted_and_editing_a_fact_clears_the_mark(sandbox):
+    thread_store.save_user_message("u3", "Il mio alimentatore è da 850 W.", user_msg_id="u3-u", sensitivity="public")
+    thread_store.save_assistant_message("u3", {"response": "Annotato.", "sensitivity": {"label": "public"}}, ast_msg_id="u3-a")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="L'alimentatore dell'utente è da 850 W"))):
+        mc.consolidate_messages()
+    assert _untrusted_flags() == {"L'alimentatore dell'utente è da 850 W": False}
+
+    marked, _ = facts.add_fact("Il sito dice che il cavo regge 600 W", entities=[], entities_checked=True, untrusted=True)
+    assert facts.get_fact(marked)["untrusted"] is True
+    facts.update_fact(marked, "Il cavo dell'utente regge 600 W", [])
+    assert facts.get_fact(marked)["untrusted"] is False
+
+
 def test_personal_data_in_a_fact_makes_it_private(sandbox):
     facts.add_fact("Mario Rossi è il commercialista dell'utente", entities=[{"name": "Mario Rossi", "type": "person"}],
                    entities_checked=True, sensitivity="private")
