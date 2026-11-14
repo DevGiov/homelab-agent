@@ -318,7 +318,8 @@ def _ingest(session: Dict[str, Any]) -> None:
     turns = [tuple(t) for t in session["turns"]] + [FILLER_TURNS[i % len(FILLER_TURNS)] for i in range(session.get("filler", 0))]
     for i, (user, assistant) in enumerate(turns):
         thread_store.save_user_message(thread, user, user_msg_id=f"{thread}-u{i}")
-        thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat"}, ast_msg_id=f"{thread}-a{i}")
+        thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat", "sensitivity": {"label": "public"}},
+                                             ast_msg_id=f"{thread}-a{i}")
     with sqlite3.connect(settings.checkpoint_db_path) as conn:
         conn.execute("UPDATE thread_messages SET created_at = ? WHERE thread_id = ?", (f"{session['date']} 10:00:00", thread))
 

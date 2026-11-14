@@ -387,8 +387,10 @@ def _kb_result_label(result: Any, default: Label) -> Label:
 # --- Sorgenti della memoria ------------------------------------------------------------------------
 
 def message_tag(sensitivity: Optional[str], role: str) -> Tag:
-    """Messaggio salvato: la sua etichetta; senza (messaggi precedenti a S1) `public`, come un messaggio nuovo."""
-    label = Label.parse(sensitivity, Label.PUBLIC)
+    """Messaggio salvato: la sua etichetta. Senza etichetta, un messaggio dell'utente vale `public` come uno nuovo;
+    una risposta dell'assistente vale `private`, perché non si sa cosa aveva letto il turno che l'ha scritta
+    (risposte precedenti alle etichette, o salvate da un percorso che non le calcola)."""
+    label = Label.parse(sensitivity, Label.PRIVATE if role == "assistant" else Label.PUBLIC)
     return Tag(label, False, (f"messaggio:{role}",) if label > Label.PUBLIC else ())
 
 

@@ -26,7 +26,8 @@ def _say(thread, date, *turns):
     start = len(thread_store.get_history(thread)) // 2
     for i, (user, assistant) in enumerate(turns, start=start):
         thread_store.save_user_message(thread, user, user_msg_id=f"{thread}-u{i}")
-        thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat"}, ast_msg_id=f"{thread}-a{i}")
+        thread_store.save_assistant_message(thread, {"response": assistant, "mode": "chat", "sensitivity": {"label": "public"}},
+                                             ast_msg_id=f"{thread}-a{i}")
     with sqlite3.connect(settings.checkpoint_db_path) as conn:
         conn.execute(f"UPDATE thread_messages SET created_at = ? WHERE thread_id = ? AND message_id IN ({','.join('?' * (2 * len(turns)))})",
                      (f"{date} 10:00:00", thread, *[f"{thread}-{k}{i}" for i in range(start, start + len(turns)) for k in "ua"]))
@@ -165,8 +166,13 @@ def test_facts_differing_only_in_identifiers_are_not_duplicates(sandbox):
 def test_an_update_creates_the_new_fact_even_if_it_looks_like_the_old_one(sandbox):
     old, _ = facts.add_fact("Pi-hole ha l'IP 192.168.1.53")
     _say("b", "2026-10-01", ("Ho cambiato l'IP di Pi-hole: ora è 192.168.1.250.", "Ricevuto."))
-    update = FactOperation(op="update", message=1, fact="Pi-hole ha l'IP 192.168.1.250", replaces=old)
-    with patch.object(mc, "propose_operations", return_value=[update]):
+
+    def propose(messages, related, model=None):  # il fatto vecchio è privato: lo vede solo la lettura a quel livello
+        if old not in [f["id"] for f in related]:
+            return []
+        return [FactOperation(op="update", message=1, fact="Pi-hole ha l'IP 192.168.1.250", replaces=old)]
+
+    with patch.object(mc, "propose_operations", side_effect=propose):
         assert mc.consolidate_messages()["updated"] == 1
     assert [f["content"] for f in facts.list_facts()[0]] == ["Pi-hole ha l'IP 192.168.1.250"]
 
@@ -232,32 +238,142 @@ def _labels():
     return {f["content"]: f["sensitivity"] for f in facts.list_facts()[0]}
 
 
-def test_a_fact_takes_the_label_of_the_message_it_comes_from(sandbox):
+def _reader(by_level):
+    """Finto modello del consolidamento: `by_level(messages, related)` → operazioni; registra cosa ha visto ogni lettura."""
+    seen = []
+
+    def propose(messages, related, model=None):
+        seen.append(([m["content"] for m in messages], [f["content"] for f in related]))
+        return by_level(messages, related)
+
+    return propose, seen
+
+
+def test_a_block_is_read_level_by_level_and_a_fact_takes_the_label_of_what_was_read(sandbox):
     # La risposta è privata perché il turno aveva memoria privata: ciò che riporta resta privato
     _say_labeled("p1", "Uso Linux per giocare.", "public", "Il tuo NAS ha 4 dischi da 8 TB.", "private")
-    with patch.object(mc, "propose_operations", return_value=_ops(
-            FactOperation(op="add", message=1, fact="L'utente gioca su Linux"),
-            FactOperation(op="add", message=2, fact="Il NAS dell'utente ha 4 dischi da 8 TB"),
-            FactOperation(op="add", message=99, fact="Numero di messaggio fuori dal blocco"))):
-        mc.consolidate_messages()
+
+    def by_level(messages, related):
+        if len(messages) == 1:
+            return [FactOperation(op="add", message=1, fact="L'utente gioca su Linux")]
+        # Chi ha letto la risposta privata scrive privato, qualunque messaggio indichi
+        return [FactOperation(op="add", message=1, fact="Il NAS dell'utente ha 4 dischi da 8 TB"),
+                FactOperation(op="add", message=99, fact="Numero di messaggio fuori dal blocco")]
+
+    propose, seen = _reader(by_level)
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        assert mc.consolidate_messages() == {"messages": 2, "added": 3, "updated": 0, "invalidated": 0}
     assert _labels() == {"L'utente gioca su Linux": "public", "Il NAS dell'utente ha 4 dischi da 8 TB": "private",
                          "Numero di messaggio fuori dal blocco": "private"}
+    # Prima i soli messaggi pubblici, poi tutto, con il fatto appena scritto mostrato come già in memoria
+    assert seen == [(["Uso Linux per giocare."], []),
+                    (["Uso Linux per giocare.", "Il tuo NAS ha 4 dischi da 8 TB."], ["L'utente gioca su Linux"])]
 
 
-def test_messages_saved_before_labels_count_as_public(sandbox):
-    _say("p2", "2026-10-01", ("Il mio editor è Neovim.", "Annotato."))
-    with patch.object(mc, "propose_operations", return_value=_ops(FactOperation(op="add", message=1, fact="L'utente usa Neovim"))):
+def test_a_private_fact_is_not_shown_to_the_public_reading_and_what_quotes_it_stays_private(sandbox):
+    """Il caso della revisione del 14/11: un fatto privato mostrato al modello e ripetuto in un fatto nuovo attribuito
+    al messaggio pubblico dell'utente."""
+    facts.add_fact("Il codice cliente dell'utente presso il fornitore di energia è 4458812", entities=[],
+                   entities_checked=True, sensitivity="private")
+    _say_labeled("p7", "Ho cambiato fornitore di energia: ora sono con Enel.", "public", "Annotato.", "public")
+
+    def by_level(messages, related):
+        if not related:
+            return [FactOperation(op="add", message=1, fact="L'utente ha Enel come fornitore di energia")]
+        return [FactOperation(op="add", message=1, fact="L'utente è cliente Enel con il codice 4458812")]
+
+    propose, seen = _reader(by_level)
+    with patch.object(mc, "propose_operations", side_effect=propose):
         mc.consolidate_messages()
-    assert _labels() == {"L'utente usa Neovim": "public"}
+    assert seen[0][1] == [] and "Il codice cliente dell'utente presso il fornitore di energia è 4458812" in seen[1][1]
+    labels = _labels()
+    assert labels["L'utente ha Enel come fornitore di energia"] == "public"
+    assert labels["L'utente è cliente Enel con il codice 4458812"] == "private"
+
+
+def test_the_facts_shown_to_a_reading_are_found_with_the_messages_it_sees(sandbox):
+    """Anche la scelta dei fatti da mostrare dice qualcosa dei messaggi: un fatto pubblico che somiglia solo al
+    messaggio privato non arriva alla lettura pubblica."""
+    facts.add_fact("Il gatto dell'utente si chiama Micio", entities=[], entities_checked=True, sensitivity="public")
+    thread_store.save_user_message("p12", "Uso Linux per giocare.", user_msg_id="p12-u0", sensitivity="public")
+    thread_store.save_assistant_message("p12", {"response": "Ok.", "sensitivity": {"label": "public"}}, ast_msg_id="p12-a0")
+    thread_store.save_user_message("p12", "Il mio gatto Micio deve andare dal veterinario.", user_msg_id="p12-u1", sensitivity="private")
+    thread_store.save_assistant_message("p12", {"response": "Segnato.", "sensitivity": {"label": "private"}}, ast_msg_id="p12-a1")
+    propose, seen = _reader(lambda messages, related: [])
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        mc.consolidate_messages()
+    assert [len(messages) for messages, _ in seen] == [2, 4]
+    assert seen[0][1] == [] and seen[1][1] == ["Il gatto dell'utente si chiama Micio"]
+
+
+def test_a_block_at_one_level_with_nothing_higher_in_memory_is_read_once(sandbox):
+    facts.add_fact("L'utente usa Arch Linux", entities=[], entities_checked=True, sensitivity="public")
+    _say_labeled("p8", "Uso Arch Linux anche sul portatile.", "public", "Ok.", "public")
+    propose, seen = _reader(lambda messages, related: [])
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        mc.consolidate_messages()
+    assert len(seen) == 1 and seen[0][1] == ["L'utente usa Arch Linux"]
+
+
+def test_a_reading_that_fails_leaves_the_whole_block_for_the_next_run(sandbox):
+    _say_labeled("p9", "Uso Linux per giocare.", "public", "Il tuo NAS ha 4 dischi da 8 TB.", "private")
+    propose, seen = _reader(lambda messages, related: [] if len(messages) == 1 else None)
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        assert mc.consolidate_messages()["messages"] == 0
+    assert len(seen) == 2 and mc.pending() == {"messages": 2, "threads": 1}
+
+
+def test_answers_alone_are_not_read_below_their_question(sandbox):
+    # Domanda privata (conversazione privata), risposta pubblica: la risposta da sola non si legge
+    _say_labeled("p10", "Il mio IBAN è cambiato.", "private", "Ok.", "public")
+    propose, seen = _reader(lambda messages, related: [])
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        mc.consolidate_messages()
+    assert [messages for messages, _ in seen] == [["Il mio IBAN è cambiato.", "Ok."]]
+
+
+def test_reading_levels():
+    from app.security.flows import Label
+    public, private = {"role": "user", "sensitivity": "public"}, {"role": "assistant", "sensitivity": "private"}
+    internal_fact, private_fact = {"sensitivity": "internal"}, {"metadata": {}}
+    assert mc.reading_levels([public], []) == [Label.PUBLIC]
+    assert mc.reading_levels([public, private], [private_fact]) == [Label.PUBLIC, Label.PRIVATE]
+    assert mc.reading_levels([public], [internal_fact]) == [Label.PUBLIC, Label.INTERNAL]
+    assert mc.reading_levels([public], [internal_fact, private_fact]) == [Label.PUBLIC, Label.PRIVATE]
+    assert mc.reading_levels([private], [internal_fact]) == [Label.PRIVATE]
+    # Un messaggio segreto si legge al livello più alto dei fatti: privato
+    assert mc.reading_levels([{"role": "user", "sensitivity": "secret"}], []) == [Label.PRIVATE]
+
+
+def test_an_answer_saved_without_a_label_counts_as_private(sandbox):
+    """Risposte precedenti alle etichette, o salvate da un percorso che non le calcola: non si sa cosa avevano letto."""
+    thread_store.save_user_message("p2", "Il mio editor è Neovim.", user_msg_id="p2-u")
+    thread_store.save_assistant_message("p2", {"response": "Annotato: usi Neovim sul server 10.0.0.7.", "mode": "chat"}, ast_msg_id="p2-a")
+
+    def by_level(messages, related):
+        if len(messages) == 1:
+            return [FactOperation(op="add", message=1, fact="L'utente usa Neovim")]
+        return [FactOperation(op="add", message=1, fact="Il server dell'utente è 10.0.0.7")]
+
+    propose, _ = _reader(by_level)
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        mc.consolidate_messages()
+    assert _labels() == {"L'utente usa Neovim": "public", "Il server dell'utente è 10.0.0.7": "private"}
 
 
 def test_an_update_keeps_at_least_the_label_of_the_fact_it_replaces(sandbox):
     old, _ = facts.add_fact("Il router di casa è un Fritz!Box 7590", entities=[], entities_checked=True)  # senza etichetta: privato
     _say_labeled("p3", "Ho cambiato il router con un Fritz!Box 5690.", "public", "Ricevuto.", "public")
-    with patch.object(mc, "propose_operations", return_value=_ops(
-            FactOperation(op="update", message=1, fact="Il router di casa è un Fritz!Box 5690", replaces=old))):
-        mc.consolidate_messages()
-    assert _labels() == {"Il router di casa è un Fritz!Box 5690": "private"}
+
+    def by_level(messages, related):  # il fatto privato si vede solo alla lettura privata, che lo sostituisce
+        if old not in [f["id"] for f in related]:
+            return []
+        return [FactOperation(op="update", message=1, fact="Il router di casa è un Fritz!Box 5690", replaces=old)]
+
+    propose, seen = _reader(by_level)
+    with patch.object(mc, "propose_operations", side_effect=propose):
+        assert mc.consolidate_messages()["updated"] == 1
+    assert len(seen) == 2 and _labels() == {"Il router di casa è un Fritz!Box 5690": "private"}
 
 
 def test_personal_data_in_a_fact_makes_it_private(sandbox):
@@ -279,8 +395,8 @@ def test_personal_data_in_a_fact_makes_it_private(sandbox):
     assert labels["L'utente usa Proxmox VE 9 sul server di casa"] == "public"
 
 
-def test_a_near_duplicate_keeps_the_label_of_the_existing_fact(sandbox):
-    """Un fatto privato ripetuto dall'assistente e attribuito al messaggio dell'utente non diventa pubblico."""
+def test_an_identical_fact_keeps_the_label_of_the_existing_one(sandbox):
+    """Lo stesso testo di un fatto già in memoria non ne crea uno nuovo: resta quello, con la sua etichetta."""
     facts.add_fact("Il codice cliente dell'utente presso il fornitore di energia è 4458812", entities=[],
                    entities_checked=True, sensitivity="private")
     _say_labeled("p5", "Grazie.", "public", "Il tuo codice cliente è 4458812.", "private")
@@ -297,6 +413,15 @@ def test_secrets_never_reach_the_memory(sandbox):
         mc.consolidate_messages()
     (content,) = _labels()
     assert "sk-proj-" not in content and "[RIMOSSO: segreto]" in content
+
+
+def test_a_fact_that_carried_a_secret_is_private_even_from_public_messages(sandbox):
+    _say_labeled("p11", "Segna la chiave del servizio.", "public", "Fatto.", "public")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="La chiave del servizio è sk-proj-abcdefghijklmnopqrstuvwx123456"))):
+        mc.consolidate_messages()
+    ((content, label),) = _labels().items()
+    assert "sk-proj-" not in content and label == "private"
 
 
 def test_fact_label_never_goes_above_private():

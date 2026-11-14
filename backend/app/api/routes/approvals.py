@@ -175,8 +175,10 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
     )
 
     synthesized_text = ""
+    # La sintesi legge la conversazione (la richiesta) e il risultato del tool: la risposta salvata ne prende
+    # l'etichetta; se non si riesce a calcolarla resta privata
+    syn_tag = flows.tag_of(flows.Label.PRIVATE, "conversazione")
     try:
-        # La sintesi legge la conversazione (la richiesta) e il risultato del tool
         syn_tag = flows.join(flows.tag_of(thread_store.thread_label(req.thread_id) or "public", "conversazione")
                              if req.thread_id else None, flows.result_tag(req.tool_name, req.arguments, result))
         syn_res = call_llm(
@@ -211,7 +213,8 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
             "tool_used": req.tool_name,
             "execution_trace": trace,
             "mode": req.mode or "act",
-            "error": isinstance(result, dict) and bool(result.get("error"))
+            "error": isinstance(result, dict) and bool(result.get("error")),
+            "sensitivity": syn_tag.to_dict(),
         })
 
     return {

@@ -13,16 +13,18 @@ vengono, così le domande temporali ("cosa ho installato ad agosto") hanno la da
 La deduplicazione confronta i fatti salvati dall'ultima esecuzione con tutti gli altri: i gruppi molto simili passano al
 modello, che indica quali ripetono o contraddicono un altro fatto.
 
-Un fatto nuovo prende l'etichetta di sensibilità del messaggio da cui viene (`fact_label`): pubblico se l'ha scritto
-l'utente in una conversazione pubblica, privato se viene da una risposta data in un turno con dati privati; per un
-aggiornamento anche quella del fatto sostituito; i dati personali (rilevatori, persone) lo alzano a privato.
+Un fatto nuovo prende l'etichetta di sensibilità di ciò che il modello ha letto per scriverlo (`fact_label`). Per non
+alzare tutto al livello del messaggio più riservato, ogni blocco si legge a livelli crescenti (`reading_levels`): prima
+i soli messaggi pubblici con i fatti pubblici, poi quelli fino a `internal`, poi tutto. Un fatto detto dall'utente in
+una conversazione pubblica esce pubblico; ciò che viene da una risposta data con dati privati, o che cambia un fatto
+privato, esce privato; i dati personali (rilevatori, persone) lo alzano a privato.
 """
 import json
 import logging
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator
@@ -218,23 +220,34 @@ def _related_facts(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(found.values())[:RELATED_MAX]
 
 
+def _message_level(message: Dict[str, Any]) -> flows.Label:
+    return min(flows.message_tag(message.get("sensitivity"), message.get("role", "user")).label, flows.Label.PRIVATE)
+
+
+def _fact_level(fact: Dict[str, Any]) -> flows.Label:
+    return min(flows.memory_item_tag("fatto", fact).label, flows.Label.PRIVATE)
+
+
+def reading_levels(messages: List[Dict[str, Any]], related: List[Dict[str, Any]]) -> List[flows.Label]:
+    """Livelli a cui leggere un blocco, dal più basso: uno per ogni etichetta dei suoi messaggi, più quello dei fatti
+    correlati quando supera i messaggi (un messaggio pubblico può cambiare un fatto privato). A ogni livello il modello
+    vede solo ciò che non lo supera, quindi quello che scrive resta a quel livello: un fatto detto in un messaggio
+    pubblico esce pubblico anche se nel blocco c'è una risposta privata, e nessun fatto esce più basso di ciò che
+    il modello aveva davanti."""
+    levels = sorted({_message_level(m) for m in messages})
+    top = max((_fact_level(f) for f in related), default=levels[-1])
+    return levels + [top] if top > levels[-1] else levels
+
+
 def fact_label(op: FactOperation, messages: List[Dict[str, Any]], related: List[Dict[str, Any]],
                person_names: List[str]) -> flows.Tag:
-    """Etichetta di un fatto proposto dal consolidamento, per provenienza (decisione presa il 14/11/2026):
-    - il messaggio indicato da `op.message`; se il numero è fuori dal blocco, tutti i messaggi del blocco;
-    - per un aggiornamento, anche il fatto sostituito;
+    """Etichetta di un fatto proposto dal consolidamento: quello che un modello scrive eredita da ciò che ha letto.
+    - tutti i messaggi e i fatti mostrati alla chiamata che lo ha proposto (`messages`, `related`): il numero di
+      messaggio indicato dal modello non conta, perché lo sceglie il modello;
     - privato se il testo contiene un dato personale (segreto, IBAN, codice fiscale, email, persona della memoria) o
-      se tra le entità c'è una persona.
-    I fatti già in memoria mostrati al modello non entrano: un fatto che li ripete è un quasi-duplicato e tiene
-    l'etichetta di quello esistente (facts.add_fact)."""
-    if 1 <= op.message <= len(messages):
-        sources = [messages[op.message - 1]]
-    else:
-        sources = messages
-    tags = [flows.message_tag(m.get("sensitivity"), m.get("role", "user")) for m in sources]
-    if op.op == "update":
-        replaced = next((f for f in related if f.get("id") == op.replaces), None)
-        tags.append(flows.memory_item_tag("fatto", replaced))
+      se tra le entità c'è una persona."""
+    tags = [flows.message_tag(m.get("sensitivity"), m.get("role", "user")) for m in messages]
+    tags.extend(flows.memory_item_tag("fatto", f) for f in related)
     tags.append(detectors.tag_for(op.fact, "fatto", person_names, kinds=detectors.RESULT_KINDS))
     if any(e.type == "person" for e in op.entities):
         tags.append(flows.tag_of(flows.Label.PRIVATE, "fatto:person"))
@@ -243,8 +256,11 @@ def fact_label(op: FactOperation, messages: List[Dict[str, Any]], related: List[
     return flows.Tag(min(tag.label, flows.Label.PRIVATE), tag.untrusted, tag.reasons)
 
 
-def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], related: List[Dict[str, Any]], thread_id: str) -> Dict[str, int]:
+def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], related: List[Dict[str, Any]],
+           thread_id: str) -> Tuple[Dict[str, int], List[int]]:
+    """Applica le operazioni proposte leggendo `messages` e `related`; restituisce i conteggi e i fatti scritti."""
     counts = {"added": 0, "updated": 0, "invalidated": 0}
+    written: List[int] = []
     known = {f["id"] for f in related}
     try:
         person_names = [e["name"] for e in facts.list_entities(entity_type="person") if e.get("name")]
@@ -263,23 +279,24 @@ def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], rela
             continue
         if len(op.fact.strip()) <= 5:
             continue
+        label = fact_label(op, messages, related, person_names)
         # Un segreto non va in memoria: verrebbe richiamato nel contesto di un modello
         op.fact, removed = detectors.redact_secrets(op.fact)
         if removed:
             logger.warning(f"Fatto dal thread '{thread_id}': {removed} segreti rimossi prima del salvataggio")
         # Un aggiornamento esplicito non passa dal controllo dei quasi-duplicati: il fatto nuovo somiglia per forza
         # a quello che sostituisce
-        label = fact_label(op, messages, related, person_names)
         fact_id, created = facts.add_fact(op.fact, thread_id=thread_id, entities=entity_refs(op.entities), source="conversation",
                                           entities_checked=True, created_at=date, dedupe=op.op != "update",
                                           sensitivity=label.label.key)
         if fact_id is None:
             continue
+        written.append(fact_id)
         if op.op == "update" and fact_id != op.replaces:
             counts["updated"] += facts.supersede_fact(op.replaces, by=fact_id, at=date)
         else:
             counts["added"] += created
-    return counts
+    return counts, written
 
 
 def _chunks(messages: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
@@ -306,6 +323,32 @@ def pending() -> Dict[str, int]:
     return {"messages": messages, "threads": threads}
 
 
+def _consolidate_block(chunk: List[Dict[str, Any]], thread_id: str, model: Optional[str]) -> Optional[Dict[str, int]]:
+    """Un blocco letto a livelli crescenti (reading_levels); None se il modello non risponde a un livello: il blocco
+    si rifà al prossimo giro, e i fatti già scritti ai livelli più bassi gli vengono mostrati come già in memoria."""
+    counts = {"added": 0, "updated": 0, "invalidated": 0}
+    all_related = _related_facts(chunk)
+    written: Dict[int, Dict[str, Any]] = {}
+    for level in reading_levels(chunk, all_related):
+        visible = [m for m in chunk if _message_level(m) <= level]
+        if not any(m["role"] == "user" for m in visible):  # solo risposte: si leggono al livello della domanda
+            continue
+        # I fatti correlati si cercano con i soli messaggi visibili: anche la scelta di cosa mostrare è un'informazione
+        found = all_related if len(visible) == len(chunk) else _related_facts(visible)
+        related = {f["id"]: f for f in (*found, *written.values()) if _fact_level(f) <= level}
+        operations = propose_operations(visible, list(related.values()), model=model)
+        if operations is None:
+            return None
+        applied, ids = _apply(operations, visible, list(related.values()), thread_id)
+        for key, value in applied.items():
+            counts[key] += value
+        for fact_id in ids:
+            fact = facts.get_fact(fact_id)
+            if fact:
+                written[fact_id] = fact
+    return counts
+
+
 def consolidate_messages(model: Optional[str] = None) -> Dict[str, int]:
     """Consolida i messaggi nuovi di tutti i thread, a blocchi per thread in ordine cronologico globale: un fatto
     detto dopo, anche in un altro thread, supera quello detto prima."""
@@ -324,13 +367,12 @@ def consolidate_messages(model: Optional[str] = None) -> Dict[str, int]:
     for _, thread_id, chunk, position in blocks:
         if thread_id in stalled:  # un blocco fallito: i successivi dello stesso thread aspettano il prossimo giro
             continue
-        related = _related_facts(chunk)
-        operations = propose_operations(chunk, related, model=model)
-        if operations is None:
+        counts = _consolidate_block(chunk, thread_id, model)
+        if counts is None:
             logger.warning(f"Consolidamento del thread '{thread_id}' fermo: risposta del modello non valida")
             stalled.add(thread_id)
             continue
-        for key, value in _apply(operations, chunk, related, thread_id).items():
+        for key, value in counts.items():
             totals[key] += value
         totals["messages"] += len(chunk)
         thread_store.save_consolidated(thread_id, position)
