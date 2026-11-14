@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { AlertTriangle, EyeOff, Image as ImageIcon } from 'lucide-react';
+import { EyeOff, Image as ImageIcon } from 'lucide-react';
 import type { FormattedMessage } from '../../api/chat';
 import type { PromptEdit, SendOptions } from '../../hooks/useChat';
 import { useChatOptions } from '../../hooks/useChatOptions';
 import { useImageAttachments } from '../../hooks/useImageAttachments';
 import { useModelCatalog } from '../../hooks/useModelCatalog';
 import { ChatComposer } from './ChatComposer';
+import { ChatErrorBanner } from './ChatErrorBanner';
 import { ChatHeader } from './ChatHeader';
 import type { MessageActions } from './ChatMessage';
 import { ChatOptionsBar } from './ChatOptionsBar';
@@ -75,6 +76,7 @@ export const Chat: React.FC<ChatProps> = ({
   const conversationTag = joinTags(levelTag, lastAssistant(messages)?.sensitivity);
   const sensitivityBar = useSensitivityBarVisibility(conversationTag);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const bannerError = error || conversation.error;
 
   const title = currentThreadTitle || (currentThreadId ? `Conversazione ${currentThreadId}` : 'Nuova conversazione');
   const textOnlyModel = options.model !== 'default' && !models.isVisionModel(options.model) ? options.model : null;
@@ -147,17 +149,7 @@ export const Chat: React.FC<ChatProps> = ({
       )}
       <ConfirmDialog request={conversation.confirmRequest} onAnswer={conversation.answer} />
 
-      {(error || conversation.error) && (
-        <div className="bg-rose-950/80 border-b border-rose-800 px-4 sm:px-6 py-2.5 flex items-center justify-between text-xs text-rose-200 shrink-0">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-            <span className="truncate">{error || conversation.error}</span>
-          </div>
-          <button onClick={onClearError} className="text-rose-400 hover:text-rose-200 font-bold px-2 py-0.5 cursor-pointer">
-            Chiudi
-          </button>
-        </div>
-      )}
+      {bannerError && <ChatErrorBanner message={bannerError} onClose={onClearError} />}
 
       <MessageList
         messages={messages}
