@@ -102,7 +102,18 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             <ExternalLink size={12} />
           </a>
         )}
-        <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">Modifica →</span>
+        {/* La riga si apre col clic; da tastiera il pulsante, che compare quando riceve il focus */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          aria-label={`Modifica l'evento ${ev.summary}`}
+          className="px-1 rounded text-xs text-fg-muted hover:text-fg can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition cursor-pointer"
+        >
+          Modifica →
+        </button>
       </div>
     </div>
   );

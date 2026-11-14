@@ -69,8 +69,9 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                     e.stopPropagation();
                     onNewEvent(day.dateStr);
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-muted hover:text-accent rounded transition hidden sm:block"
+                  className="can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-0.5 text-fg-muted hover:text-accent rounded transition hidden sm:block"
                   title="Aggiungi evento qui"
+                  aria-label={`Aggiungi un evento il ${day.dateStr}`}
                 >
                   <Plus size={13} />
                 </button>

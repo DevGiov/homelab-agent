@@ -80,22 +80,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       {msg.images && msg.images.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {msg.images.map((img, idx) => (
-            <div
+            <button
+              type="button"
               key={idx}
               onClick={() => actions.onOpenImage(img)}
               className="relative group/thumb cursor-pointer rounded-xl overflow-hidden border border-white/20 shadow-md hover:scale-[1.02] transition-transform duration-150 bg-black/20"
               title="Clicca per ingrandire"
+              aria-label={`Ingrandisci l'allegato ${idx + 1}`}
             >
-              <img src={img} alt={`allegato-${idx}`} className="max-h-48 max-w-[220px] sm:max-w-[280px] object-cover rounded-xl" />
-              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
+              <img src={img} alt="" className="max-h-48 max-w-[220px] sm:max-w-[280px] object-cover rounded-xl" />
+              {/* Solo un suggerimento: il pulsante è l'immagine, che su un telefono si tocca senza */}
+              <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 group-focus-visible/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
                 <Maximize2 size={16} className="drop-shadow" />
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
       <div className="whitespace-pre-wrap font-sans break-words pr-12">{msg.content}</div>
-      <div className="absolute top-0 right-0 flex items-center gap-0.5 opacity-0 group-hover/userbubble:opacity-100 transition-opacity">
+      <div className="absolute top-0 right-0 flex items-center gap-0.5 can-hover:opacity-0 group-hover/userbubble:opacity-100 focus-within:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={() => copy(msg.content)}

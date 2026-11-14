@@ -158,8 +158,9 @@ export const KnowledgePanel: React.FC = () => {
                 />
                 <button
                   onClick={() => handleDeleteDoc(doc.filename)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-fg-muted hover:text-rose-400 transition cursor-pointer"
+                  className="can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 transition cursor-pointer"
                   title="Elimina documento"
+                  aria-label={`Elimina il documento ${doc.filename}`}
                 >
                   <Trash2 size={11} />
                 </button>

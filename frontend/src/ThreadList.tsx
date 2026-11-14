@@ -279,7 +279,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   <button
                     type="button"
                     onClick={() => onDeleteThread(thread.thread_id)}
-                    className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded transition cursor-pointer"
+                    className="absolute top-2.5 right-2.5 can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded transition cursor-pointer"
                     title="Elimina conversazione"
                     aria-label={`Elimina la conversazione ${label}`}
                   >

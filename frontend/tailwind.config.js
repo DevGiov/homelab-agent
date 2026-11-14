@@ -37,6 +37,14 @@ export const lightThemeStatusColors = plugin(({ addComponents, theme }) => {
   addComponents(rules);
 });
 
+/**
+ * `can-hover:` vale solo sui dispositivi col passaggio del mouse. Un controllo che compare al passaggio del mouse si
+ * nasconde con `can-hover:opacity-0`: su telefoni e tablet, dove il passaggio non esiste, resta sempre visibile.
+ */
+const hoverDevices = plugin(({ addVariant }) => {
+  addVariant('can-hover', '@media (hover: hover)');
+});
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -138,5 +146,5 @@ export default {
   },
   // Container query (`@container/chat`, `@xl/chat:flex`): la colonna della chat cambia larghezza con le barre laterali,
   // la finestra no
-  plugins: [lightThemeStatusColors, containerQueries],
+  plugins: [lightThemeStatusColors, hoverDevices, containerQueries],
 }
