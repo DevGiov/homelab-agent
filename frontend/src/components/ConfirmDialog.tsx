@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { STATUS_BUTTON } from '../theme/statusFill';
 
 export interface ConfirmRequest {
   message: string;
@@ -44,7 +45,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
           <button onClick={() => onAnswer(false)} className="px-3 py-1.5 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
             Annulla
           </button>
-          <button ref={confirmRef} onClick={() => onAnswer(true)} className="px-3 py-1.5 rounded-lg bg-rose-500 text-white text-xs font-semibold cursor-pointer">
+          <button ref={confirmRef} onClick={() => onAnswer(true)} className={`px-3 py-1.5 rounded-lg ${STATUS_BUTTON.danger} text-xs font-semibold cursor-pointer`}>
             {request.confirmLabel ?? 'Elimina'}
           </button>
         </div>

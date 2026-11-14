@@ -16,6 +16,7 @@ import {
   Brain,
 } from 'lucide-react';
 import { LazyBoundary } from './components/LazyBoundary';
+import { STATUS_BUTTON } from './theme/statusFill';
 
 export type AppView = 'chat' | 'automations' | 'calendar' | 'memory' | 'metrics';
 
@@ -179,7 +180,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             </button>
             <button
               onClick={handleConfirmClearAll}
-              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded transition shadow-sm cursor-pointer"
+              className={`px-2.5 py-1 ${STATUS_BUTTON.danger} font-medium rounded transition shadow-sm cursor-pointer`}
             >
               Elimina tutte
             </button>

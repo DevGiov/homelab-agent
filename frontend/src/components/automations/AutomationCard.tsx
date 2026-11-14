@@ -19,6 +19,7 @@ import type { AutomationRunSummary } from '../../api/automationRuns';
 import type { AutomationSummary } from '../../api/automations';
 import { useCopyFeedback } from '../../hooks/useCopyFeedback';
 import type { RunActions } from '../../hooks/useRunActions';
+import { STATUS_BUTTON } from '../../theme/statusFill';
 import { Toggle } from '../Toggle';
 import { AutomationCardDetails } from './AutomationCardDetails';
 
@@ -212,7 +213,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             {isRunning ? (
               <button
                 onClick={() => runActions.pause(activeRun.run_id)}
-                className="px-3 py-1.5 bg-amber-600/90 hover:bg-amber-600 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                className={`px-3 py-1.5 ${STATUS_BUTTON.warning} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer`}
                 title="Metti in pausa l'esecuzione al termine del passo corrente"
               >
                 <Pause size={12} /> Pausa
@@ -220,7 +221,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             ) : (
               <button
                 onClick={() => runActions.resume(activeRun.run_id)}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+                className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer`}
                 title="Riprendi l'esecuzione dal passo corrente"
               >
                 <Play size={12} /> Riprendi

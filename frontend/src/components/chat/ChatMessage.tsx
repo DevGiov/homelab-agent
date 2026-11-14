@@ -6,6 +6,7 @@ import { useCopyFeedback } from '../../hooks/useCopyFeedback';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import ReasoningBlock from '../ReasoningBlock';
+import { STATUS_FILL } from '../../theme/statusFill';
 import { AssistantDetails } from './AssistantDetails';
 import { MessageMeta } from './MessageMeta';
 import { PromptEditor } from './PromptEditor';
@@ -44,7 +45,7 @@ const avatarClass = (msg: FormattedMessage) =>
   msg.sender === 'user'
     ? 'bg-accent text-accent-contrast shadow-md shadow-accent/25'
     : msg.isError
-    ? 'bg-rose-600 text-white'
+    ? STATUS_FILL.danger
     : 'bg-panel border border-border text-accent';
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({

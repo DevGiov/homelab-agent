@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { STATUS_BUTTON } from '../theme/statusFill';
 
 interface Props {
   children: ReactNode;
@@ -74,7 +75,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
             <button
               onClick={this.handleReload}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold shadow-md transition cursor-pointer"
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl ${STATUS_BUTTON.danger} text-xs font-semibold shadow-md transition cursor-pointer`}
             >
               <RefreshCw size={13} />
               <span>Ricarica Pagina</span>

@@ -8,6 +8,7 @@ import {
 } from '../../api/automationRuns';
 import type { Notify } from '../../hooks/useFeedback';
 import { formatApiError } from '../../utils/error';
+import { STATUS_BUTTON } from '../../theme/statusFill';
 
 interface ApprovalsTabProps {
   approvals: AutomationApprovalItem[];
@@ -98,13 +99,13 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => resolve(apr, 'approve')}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition"
+                      className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition`}
                     >
                       <Check size={14} /> Approva ed Esegui
                     </button>
                     <button
                       onClick={() => resolve(apr, 'deny')}
-                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 transition"
+                      className={`px-3 py-1.5 ${STATUS_BUTTON.danger} rounded-lg text-xs font-medium flex items-center gap-1 transition`}
                     >
                       <X size={14} /> Nega
                     </button>

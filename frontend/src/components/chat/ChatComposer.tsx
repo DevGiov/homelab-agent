@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { AlertTriangle, Image as ImageIcon, Loader2, Paperclip, Pause, Play, Send, Square, X } from 'lucide-react';
 import type { ImageAttachments } from '../../hooks/useImageAttachments';
+import { STATUS_BUTTON } from '../../theme/statusFill';
 
 interface ChatComposerProps {
   attachments: ImageAttachments;
@@ -173,7 +174,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             <button
               type="button"
               onClick={onStop}
-              className="p-1.5 sm:p-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition active:scale-95 shadow-md shadow-rose-600/30 cursor-pointer"
+              className={`p-1.5 sm:p-2 ${STATUS_BUTTON.danger} rounded-lg transition active:scale-95 shadow-md shadow-rose-600/30 cursor-pointer`}
               title="Interrompi esecuzione"
             >
               <Square size={14} className="fill-current" />

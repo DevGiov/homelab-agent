@@ -5,6 +5,7 @@ import { deleteAutomation, getAutomation, toggleAutomationEnabled, type Automati
 import { useAutomationsData } from '../../hooks/useAutomationsData';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useRunActions } from '../../hooks/useRunActions';
+import { STATUS_FILL } from '../../theme/statusFill';
 import { formatApiError } from '../../utils/error';
 import { FeedbackToast } from '../FeedbackToast';
 import { ApprovalsTab } from './ApprovalsTab';
@@ -129,7 +130,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           >
             <Icon size={15} /> {label}
             {Boolean(badge) && (
-              <span className="px-1.5 py-0.2 rounded-full text-xs bg-rose-500 text-white font-bold">{badge}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-xs ${STATUS_FILL.danger} font-bold`}>{badge}</span>
             )}
           </button>
         ))}
