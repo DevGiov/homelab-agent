@@ -167,7 +167,8 @@ describe('App: finestra delle impostazioni', () => {
     act(() => opener.focus());
     fireEvent.click(opener);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Impostazioni & Personalizzazione' });
+    // La finestra è caricata a parte: sotto carico il secondo di attesa predefinito non basta
+    const dialog = await screen.findByRole('dialog', { name: 'Impostazioni & Personalizzazione' }, { timeout: 5000 });
     expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.keyDown(document.activeElement!, { key: 'Tab', shiftKey: true });
     expect(dialog.contains(document.activeElement)).toBe(true);
