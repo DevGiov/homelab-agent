@@ -182,7 +182,7 @@ export const KnowledgePanel: React.FC = () => {
             <button
               onClick={handleSearch}
               disabled={isSearching || !query.trim()}
-              className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/30 transition disabled:opacity-50 cursor-pointer"
+              className="px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/25 transition disabled:opacity-50 cursor-pointer"
               title="Cerca"
             >
               {isSearching ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}

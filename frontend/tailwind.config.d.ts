@@ -3,5 +3,5 @@ import type { Config } from 'tailwindcss';
 
 type ThemeColors = Record<string, string | Record<string, string>>;
 
-declare const config: Config & { theme: { extend: { colors: ThemeColors } } };
+declare const config: Config & { theme: { extend: { colors: ThemeColors; textColor: ThemeColors } } };
 export default config;

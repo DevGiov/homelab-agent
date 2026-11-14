@@ -133,7 +133,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
             <p>Nessun evento trovato nei calendari selezionati.</p>
             <button
               onClick={onNewEvent}
-              className="px-3.5 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent rounded-xl text-xs font-medium inline-flex items-center gap-1.5 transition"
+              className="px-3.5 py-1.5 bg-accent/20 hover:bg-accent/25 text-accent rounded-xl text-xs font-medium inline-flex items-center gap-1.5 transition"
             >
               <Plus size={14} /> Crea il tuo primo evento
             </button>

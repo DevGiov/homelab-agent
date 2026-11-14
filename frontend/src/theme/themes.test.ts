@@ -28,6 +28,39 @@ const over = (top: string, bottom: string, alpha: number) =>
 
 const SURFACES: Array<keyof ThemeColors> = ['bg', 'bgSecondary', 'panel', 'panelHeader', 'agentBubble', 'inputBg'];
 
+// Stringhe di classi nel codice (tra apici, virgolette o backtick), escluse quelle dei test
+const SOURCES = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const CLASS_STRINGS = Object.entries(SOURCES).flatMap(([file, text]) =>
+  [...text.matchAll(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)].map((m) => ({ file: file.replace('../', 'src/'), classes: m[0].slice(1, -1) })),
+);
+
+/** I token di una stringa di classi, senza la punteggiatura dei template (`${cond ? 'a' : 'b'}`). */
+const tokensOf = (classes: string) => classes.split(/[\s'"`{}()?,;]+/).filter(Boolean);
+
+interface StateClasses {
+  /** Variante dello stato: '' per quello normale, `hover:`, `group-hover:`… */
+  variant: string;
+  text: string;
+  fill: string;
+}
+
+/**
+ * Testo e fondo di ogni stato di una stringa di classi: in uno stato vale il token con la sua variante, altrimenti quello
+ * senza variante (`bg-accent/15 hover:bg-accent/25 text-accent` dà text-accent su /15 e, al passaggio del mouse, su /25).
+ * Lo stato disattivato non conta: i controlli disattivati non hanno requisiti di contrasto.
+ */
+function statesOf(classes: string, isText: (utility: string) => boolean, isFill: (utility: string) => boolean): StateClasses[] {
+  const tokens = tokensOf(classes).map((token) => ({ variant: token.slice(0, token.lastIndexOf(':') + 1), utility: token.slice(token.lastIndexOf(':') + 1) }));
+  const texts = tokens.filter((t) => isText(t.utility));
+  const fills = tokens.filter((t) => isFill(t.utility));
+  const variants = new Set([...texts, ...fills].map((t) => t.variant).filter((v) => !v.includes('disabled:')));
+  return [...variants].flatMap((variant) => {
+    const text = texts.find((t) => t.variant === variant) ?? texts.find((t) => t.variant === '');
+    const fill = fills.find((t) => t.variant === variant) ?? fills.find((t) => t.variant === '');
+    return text && fill ? [{ variant, text: text.utility, fill: fill.utility }] : [];
+  });
+}
+
 describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ colors }) => {
   it.each(SURFACES)('testo e testo attenuato su %s', (surface) => {
     expect(contrast(colors.fg, colors[surface])).toBeGreaterThanOrEqual(4.5);
@@ -106,8 +139,38 @@ describe('fondi di stato pieni con testo bianco', () => {
   });
 });
 
+describe("testo d'accento", () => {
+  it("text-accent usa il testo d'accento del tema; fondi, bordi e anelli restano sull'accento", () => {
+    expect(tailwindConfig.theme.extend.textColor.accent).toEqual({ DEFAULT: expect.stringContaining('var(--accent-text)') });
+    expect(tailwindConfig.theme.extend.colors.accent).toMatchObject({ DEFAULT: expect.stringContaining('var(--accent)') });
+  });
+
+  // Le opacità delle tinte dell'accento dietro a `text-accent` nel codice, in ogni stato
+  const tints = new Set(
+    CLASS_STRINGS.flatMap(({ classes }) =>
+      statesOf(classes, (u) => u === 'text-accent', (u) => /^bg-accent\/\d+$/.test(u)).map((s) => Number(s.fill.split('/')[1])),
+    ),
+  );
+
+  it('le tinte dietro al testo si trovano nel codice', () => {
+    expect([...tints]).toEqual(expect.arrayContaining([10, 15, 20, 25]));
+  });
+
+  describe.each(THEME_LIST)('tema $id', ({ colors }) => {
+    it.each(SURFACES)('almeno 4.5:1 su %s e sulle tinte dell\'accento sopra di essa', (surface) => {
+      for (const opacity of [0, ...tints]) {
+        const background = over(colors.accent, colors[surface], opacity / 100);
+        expect(contrast(colors.accentText, background), `/${opacity}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it('almeno 4.5:1 sul pannello al passaggio del mouse (bg-panel-hover)', () => {
+      expect(contrast(colors.accentText, over(colors.fg, colors.panel, 0.08))).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+});
+
 describe('classi di colore del tema', () => {
-  const sources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
   const colors = tailwindConfig.theme.extend.colors;
   const roots = Object.keys(colors).sort((a, b) => b.length - a.length);
   const UTILITY = new RegExp(
@@ -115,9 +178,8 @@ describe('classi di colore del tema', () => {
   );
   // Una classe con un nome di colore inesistente (`text-userBubbleText`) non genera CSS: il testo eredita il colore del
   // contenitore senza errori, ed è così che il fumetto dell'utente ha usato `fg` invece del suo colore
-  const unknown = Object.entries(sources).flatMap(([file, text]) =>
-    [...text.matchAll(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)]
-      .flatMap((m) => m[0].slice(1, -1).split(/[\s'"`{}()?,;]+/))
+  const unknown = CLASS_STRINGS.flatMap(({ file, classes }) =>
+    tokensOf(classes)
       .map((token) => ({ token, match: UTILITY.exec(token.split(':').pop() ?? '') }))
       .filter(({ match }) => {
         if (!match) return false;
@@ -126,7 +188,7 @@ describe('classi di colore del tema', () => {
         if (rest === '') return typeof value !== 'string' && !('DEFAULT' in value);
         return !rest.startsWith('-') || typeof value === 'string' || !(rest.slice(1) in value);
       })
-      .map(({ token }) => `${file.replace('../', 'src/')}: ${token}`),
+      .map(({ token }) => `${file}: ${token}`),
   );
 
   it('ogni classe di colore del tema usata nel codice esiste nella configurazione di Tailwind', () => {

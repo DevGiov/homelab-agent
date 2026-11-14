@@ -97,6 +97,13 @@ export default {
           900: '#1e3a8a',
         },
       },
+      // `text-accent` usa il colore d'accento per il testo, che ogni tema tiene leggibile anche sulle tinte dell'accento;
+      // fondi, bordi e anelli restano sull'accento. Le altre chiavi (`text-accent-contrast`…) restano quelle di `colors`.
+      textColor: {
+        accent: {
+          DEFAULT: themed('--accent-text'),
+        },
+      },
       // Bordo di default (preflight) per gli elementi con `border` senza colore esplicito
       borderColor: {
         DEFAULT: 'var(--border)',
