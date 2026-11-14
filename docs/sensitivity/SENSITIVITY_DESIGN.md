@@ -379,6 +379,12 @@ Una **fuga** è un'uscita eseguita verso una destinazione fuori casa con dentro 
 
 Si rifà a ogni modello nuovo: `make eval MODELS=<modello> ARGS="--suites flows --repeat 2"`.
 
+**Dall'uso reale, primi giorni** (un'installazione, due conversazioni): 10 conferme di uscita su 12 uscite, tutte autorizzate dall'utente. Tutte `private`, e tutte per la memoria: fatti richiamati (privati per default) ed episodi salvati prima delle etichette (11 su 12, privati per default). Le conferme che l'utente autorizza sempre sono rumore: è lo stesso problema discusso per i comandi nella decisione 6. Opzioni, dalla più economica:
+
+1. Episodi senza etichetta trattati come `internal` invece che `private`: descrivono esecuzioni di tool (richiesta, argomenti, errori), non output, e la decisione 2 dà `internal` allo stato dell'infrastruttura.
+2. Etichettare a mano i fatti che non sono privati (vista Memoria).
+3. La separazione già decisa tra la chiamata che scrive la query e quella che legge la memoria: è l'unica che toglie il costo senza abbassare etichette.
+
 **Vista delle uscite di dati** (Impostazioni > Sicurezza, `GET /v1/security/flows?hours=`): per destinazione quante uscite consentite, conferme chieste, autorizzate dopo una conferma e bloccate, e le ultime richieste con la query o l'indirizzo. Serve a misurare le conferme nell'uso normale, che le valutazioni non vedono.
 
 ## 10. Decisioni
