@@ -108,7 +108,7 @@ export const FactEditor: React.FC<FactEditorProps> = ({ initial, known, submitLa
         <button
           type="submit"
           disabled={!content.trim() || isSaving}
-          className="px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+          className="px-3 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
         >
           {isSaving && <Loader2 size={12} className="animate-spin" />}
           {submitLabel}

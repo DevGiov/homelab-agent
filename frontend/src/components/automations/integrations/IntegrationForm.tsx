@@ -149,7 +149,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-medium transition shadow-sm cursor-pointer"
+                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs font-medium transition shadow-sm cursor-pointer"
               >
                 {isSaving ? 'Salvataggio...' : spec.saveLabel}
               </button>

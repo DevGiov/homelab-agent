@@ -41,7 +41,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* Logo: solo in una colonna abbastanza larga, e lascia il posto allo stato quando c'è */}
       {!status && (
-        <div className="hidden @md/chat:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
+        <div className="hidden @md/chat:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-accent-contrast shadow-md shadow-accent/20 shrink-0">
           <Bot size={18} />
         </div>
       )}
@@ -72,7 +72,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             aria-pressed={mode === modeOption}
             className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition cursor-pointer ${
               mode === modeOption
-                ? 'bg-accent text-white shadow-md shadow-accent/25'
+                ? 'bg-accent text-accent-contrast shadow-md shadow-accent/25'
                 : 'text-fg-muted hover:text-fg hover:bg-border/40'
             }`}
           >
@@ -121,7 +121,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {onOpenMobileToolLog && (
         <button
           onClick={onOpenMobileToolLog}
-          className="md:hidden p-1.5 text-accent hover:text-white bg-accent/15 hover:bg-accent border border-accent/30 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer shadow-sm"
+          className="md:hidden p-1.5 text-accent hover:text-accent-contrast bg-accent/15 hover:bg-accent border border-accent/30 rounded-lg transition shrink-0 flex items-center justify-center cursor-pointer shadow-sm"
           title="Apri Diagnostica"
           aria-label="Apri Diagnostica"
         >

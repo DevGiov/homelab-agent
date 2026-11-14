@@ -45,7 +45,7 @@ export const ImportFileForm: React.FC<ManageFormProps & { calendars: CalendarIte
             type="file"
             accept=".ics,text/calendar"
             onChange={(e) => selectFile(e.target.files?.[0])}
-            className="text-xs text-fg file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-accent file:text-white hover:file:bg-accent-hover cursor-pointer"
+            className="text-xs text-fg file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-accent file:text-accent-contrast hover:file:bg-accent-hover cursor-pointer"
           />
           {file && (
             <p className="text-xs text-emerald-400 font-medium">

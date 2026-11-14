@@ -42,9 +42,9 @@ const bubbleClass = (msg: FormattedMessage) =>
 
 const avatarClass = (msg: FormattedMessage) =>
   msg.sender === 'user'
-    ? 'bg-accent shadow-md shadow-accent/25'
+    ? 'bg-accent text-accent-contrast shadow-md shadow-accent/25'
     : msg.isError
-    ? 'bg-rose-600'
+    ? 'bg-rose-600 text-white'
     : 'bg-panel border border-border text-accent';
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -131,7 +131,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   return (
     <div className={`flex gap-2.5 sm:gap-3 max-w-3xl ${isUser ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
       <div
-        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 text-white shadow-sm mt-0.5 ${avatarClass(msg)}`}
+        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${avatarClass(msg)}`}
       >
         {isUser ? <User size={14} /> : <Bot size={14} />}
       </div>

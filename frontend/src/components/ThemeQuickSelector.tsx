@@ -45,7 +45,7 @@ export const ThemeQuickSelector: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center cursor-pointer ${
           isOpen
-            ? 'bg-accent text-white shadow-lg shadow-accent/25 scale-105 ring-1 ring-accent/50'
+            ? 'bg-accent text-accent-contrast shadow-lg shadow-accent/25 scale-105 ring-1 ring-accent/50'
             : 'text-fg-muted hover:text-fg hover:bg-panel border border-transparent hover:border-border'
         }`}
         title="Selettore Temi & Effetti Visivi"

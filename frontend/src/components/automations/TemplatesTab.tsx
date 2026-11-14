@@ -67,7 +67,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
 
             <button
               onClick={() => install(tpl)}
-              className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition cursor-pointer active:scale-[0.99]"
+              className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition cursor-pointer active:scale-[0.99]"
             >
               <Plus size={16} /> Installa ed Attiva Automazione
             </button>

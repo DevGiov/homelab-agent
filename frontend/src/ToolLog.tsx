@@ -145,7 +145,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               onClick={() => setTab('diagnostics')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'diagnostics'
-                  ? 'bg-accent text-white shadow-sm shadow-accent/25'
+                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
               }`}
             >
@@ -156,7 +156,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               onClick={() => setTab('knowledge')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'knowledge'
-                  ? 'bg-accent text-white shadow-sm shadow-accent/25'
+                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
               }`}
             >

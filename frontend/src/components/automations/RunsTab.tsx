@@ -79,7 +79,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
               key={status}
               onClick={() => setStatusFilter(status)}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition capitalize cursor-pointer ${
-                statusFilter === status ? 'bg-accent text-white shadow-sm' : 'bg-panel border border-border text-fg-muted hover:text-fg'
+                statusFilter === status ? 'bg-accent text-accent-contrast shadow-sm' : 'bg-panel border border-border text-fg-muted hover:text-fg'
               }`}
             >
               {status.replace('_', ' ')}

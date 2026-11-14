@@ -52,6 +52,7 @@ function applyThemeVariables(def: ThemeDefinition, isFrosted: boolean, hasGlow: 
   root.style.setProperty('--fg-muted', colors.fgMuted);
   root.style.setProperty('--accent', colors.accent);
   root.style.setProperty('--accent-hover', colors.accentHover);
+  root.style.setProperty('--accent-contrast', colors.accentContrast);
   root.style.setProperty('--accent-subtle', colors.accentSubtle);
   root.style.setProperty('--user-bubble-bg', colors.userBubble);
   root.style.setProperty('--user-bubble-fg', colors.userBubbleText);

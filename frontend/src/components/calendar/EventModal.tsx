@@ -422,7 +422,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="submit"
                 disabled={isSaving || isDeleting}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
                   <span>Salvataggio...</span>

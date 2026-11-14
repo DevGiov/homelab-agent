@@ -86,7 +86,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
                 <X size={12} /> Rifiuta
               </button>
             )}
-            <button onClick={onApprove} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold cursor-pointer">
+            <button onClick={onApprove} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold cursor-pointer">
               <Check size={12} /> Approva
             </button>
           </div>

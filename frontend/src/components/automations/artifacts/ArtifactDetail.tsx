@@ -103,7 +103,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                     key={mode}
                     onClick={() => setViewMode(mode)}
                     className={`px-2 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
-                      viewMode === mode ? 'bg-accent text-white font-medium shadow-sm' : 'text-fg-muted hover:text-fg'
+                      viewMode === mode ? 'bg-accent text-accent-contrast font-medium shadow-sm' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <Icon size={12} />

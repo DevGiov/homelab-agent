@@ -73,7 +73,8 @@ export default {
           DEFAULT: themed('--accent'),
           hover: themed('--accent-hover'),
           subtle: themed('--accent-subtle'),
-          contrast: '#ffffff',
+          // Testo sopra `bg-accent`: chiaro o scuro secondo il tema, per il contrasto 4.5:1
+          contrast: themed('--accent-contrast'),
         },
         userBubble: {
           DEFAULT: themed('--user-bubble-bg'),

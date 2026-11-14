@@ -75,7 +75,7 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
           <button
             onClick={() => onStart(modelFromChoice(runChoice))}
             disabled={status.running || status.pending.messages === 0}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 cursor-pointer"
           >
             {status.running ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
             {status.running ? 'Consolidamento…' : 'Consolida ora'}
@@ -117,7 +117,7 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
               aria-label="Modello del consolidamento programmato"
             />
           </label>
-          <button onClick={save} disabled={!draft.time} className="px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 cursor-pointer">
+          <button onClick={save} disabled={!draft.time} className="px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 cursor-pointer">
             Salva
           </button>
           <span>Orario nel fuso {browserTimezone()}. Il modello vale anche come scelta iniziale per «Consolida ora».</span>

@@ -181,7 +181,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           <button
             type="submit"
             disabled={!canSend}
-            className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-white rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
+            className="absolute right-1.5 sm:right-2 p-1.5 sm:p-2 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:hover:bg-accent text-accent-contrast rounded-lg transition active:scale-95 shadow-md shadow-accent/25 cursor-pointer"
             title={images.length > 0 && !input.trim() ? "Invia immagine per l'analisi automatica" : "Send Message"}
           >
             <Send size={15} />

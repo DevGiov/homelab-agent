@@ -87,7 +87,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           {tab === 'facts' && (
             <button
               onClick={() => setIsAdding(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold shadow-sm cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-accent-contrast text-xs font-semibold shadow-sm cursor-pointer"
             >
               <Plus size={13} /> <span className="hidden sm:inline">Fatto</span>
             </button>
@@ -217,7 +217,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               <button
                 onClick={memory.extract}
                 disabled={memory.isExtracting}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-50 cursor-pointer"
               >
                 {memory.isExtracting ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                 Estrai entità

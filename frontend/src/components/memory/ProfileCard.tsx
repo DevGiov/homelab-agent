@@ -69,7 +69,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
               <button type="button" onClick={() => setIsEditing(false)} className="px-3 py-1 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
                 Annulla
               </button>
-              <button type="submit" disabled={isSaving} className="px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 flex items-center gap-1 cursor-pointer">
+              <button type="submit" disabled={isSaving} className="px-3 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 flex items-center gap-1 cursor-pointer">
                 {isSaving && <Loader2 size={12} className="animate-spin" />}
                 Salva
               </button>

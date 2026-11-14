@@ -105,7 +105,7 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
                   <button
                     onClick={saveEditing}
                     disabled={isBusy}
-                    className="p-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                    className="p-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
                     title="Salva modifiche"
                   >
                     <Save size={14} />

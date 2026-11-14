@@ -136,7 +136,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
           <button
             type="submit"
             disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold disabled:opacity-50 cursor-pointer"
           >
             {isSaving && <Loader2 size={12} className="animate-spin" />}
             {isEdit ? 'Salva' : 'Aggiungi server'}

@@ -19,6 +19,8 @@ export interface ThemeColors {
   fgMuted: string;
   accent: string;
   accentHover: string;
+  /** Testo e icone sopra lo sfondo d'accento pieno: almeno 4.5:1 sia su accent sia su accentHover. */
+  accentContrast: string;
   accentSubtle: string;
   userBubble: string;
   userBubbleText: string;

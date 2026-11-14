@@ -471,7 +471,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
               <button
                 onClick={handleSaveDefaults}
                 disabled={isSaving}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
               >
                 <Save size={13} /> {isSaving ? 'Salvataggio...' : 'Salva Parametri Predefiniti'}
               </button>
@@ -479,7 +479,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
               <button
                 onClick={handleExecute}
                 disabled={isSaving}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
               >
                 <Play size={13} /> {isSaving ? 'Avvio in corso...' : isDryRun ? 'Avvia Dry-Run' : 'Avvia Esecuzione'}
               </button>

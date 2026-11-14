@@ -93,7 +93,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                   {c.event_count !== undefined && <span className="text-xs text-fg-muted">{c.event_count}</span>}
                   <div
                     className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
-                      isChecked ? 'bg-accent border-accent text-white' : 'border-border/80 bg-input-bg'
+                      isChecked ? 'bg-accent border-accent text-accent-contrast' : 'border-border/80 bg-input-bg'
                     }`}
                   >
                     {isChecked && <Check size={10} strokeWidth={3} />}

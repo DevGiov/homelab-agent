@@ -55,7 +55,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
               <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                 <span
                   className={`text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full transition ${
-                    day.isToday ? 'bg-accent text-white font-bold shadow-sm shadow-accent/40' : 'text-fg-muted group-hover:text-fg'
+                    day.isToday ? 'bg-accent text-accent-contrast font-bold shadow-sm shadow-accent/40' : 'text-fg-muted group-hover:text-fg'
                   }`}
                 >
                   {day.dayNumber}

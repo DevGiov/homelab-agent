@@ -74,7 +74,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
               </option>
             ))}
           </select>
-          <button type="submit" className="px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold cursor-pointer">
+          <button type="submit" className="px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold cursor-pointer">
             Salva
           </button>
           <button type="button" onClick={() => setMode('view')} className="px-2 py-1 rounded-lg text-xs text-fg-muted hover:text-fg cursor-pointer">
@@ -100,7 +100,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
               if (chosen) onMerge(chosen);
             }}
             disabled={!target}
-            className="px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 cursor-pointer"
           >
             Unisci
           </button>

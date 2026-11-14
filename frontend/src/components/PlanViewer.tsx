@@ -131,7 +131,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
             const summary = planSteps?.join('; ') || planStructure?.nodes?.map((n) => n.tool_name).join('; ') || '';
             onExecutePlan(`Esegui il piano per: ${summary}`);
           }}
-          className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-accent/25 cursor-pointer active:scale-95"
+          className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-contrast rounded-xl text-xs font-medium transition-all shadow-md shadow-accent/25 cursor-pointer active:scale-95"
         >
           <Play size={13} className="fill-current" />
           <span>Avvia Esecuzione Piano</span>

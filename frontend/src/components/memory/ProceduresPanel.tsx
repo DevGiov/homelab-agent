@@ -23,7 +23,7 @@ export const ProceduresPanel: React.FC<ProceduresPanelProps> = ({ state, threadT
           Le note sui tool compaiono nel catalogo di act e plan; i piani modello entrano nella memoria quando la richiesta è simile.
           {proposed > 0 && <span className="text-amber-400"> {proposed} da approvare.</span>}
         </p>
-        <button onClick={() => setIsAdding(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold cursor-pointer">
+        <button onClick={() => setIsAdding(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold cursor-pointer">
           <Plus size={12} /> Procedura
         </button>
       </div>

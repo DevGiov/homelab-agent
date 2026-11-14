@@ -102,7 +102,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
             type="button"
             onClick={save}
             disabled={saving}
-            className="px-5 py-2 rounded-xl text-xs font-semibold bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/25 flex items-center gap-2 transition disabled:opacity-50"
+            className="px-5 py-2 rounded-xl text-xs font-semibold bg-accent hover:bg-accent-hover text-accent-contrast shadow-lg shadow-accent/25 flex items-center gap-2 transition disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
             <span>{saving ? 'Salvataggio...' : 'Salva Modifiche Trigger'}</span>

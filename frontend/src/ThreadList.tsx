@@ -155,7 +155,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               onClick={() => onViewChange(id)}
               // Due viste nella prima riga (le etichette lunghe), tre nella seconda
               className={`${i < 2 ? 'col-span-3' : 'col-span-2'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
-                currentView === id ? 'bg-accent text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
+                currentView === id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
               }`}
               title={title}
             >
@@ -194,7 +194,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       <div className="p-3">
         <button
           onClick={handleCreateNew}
-          className="w-full py-2.5 px-3 bg-accent hover:bg-accent-hover text-white rounded-xl font-medium text-xs flex items-center justify-center gap-2 shadow-lg shadow-accent/25 transition active:scale-[0.98] cursor-pointer"
+          className="w-full py-2.5 px-3 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl font-medium text-xs flex items-center justify-center gap-2 shadow-lg shadow-accent/25 transition active:scale-[0.98] cursor-pointer"
         >
           <Plus size={16} />
           <span>New Thread</span>

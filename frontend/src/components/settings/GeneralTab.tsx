@@ -146,7 +146,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
         onClick={save}
         disabled={saving}
         className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50 ${
-          saved ? 'bg-emerald-600/30 border border-emerald-500/50 text-emerald-300' : 'bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/25'
+          saved ? 'bg-emerald-600/30 border border-emerald-500/50 text-emerald-300' : 'bg-accent hover:bg-accent-hover text-accent-contrast shadow-lg shadow-accent/25'
         }`}
       >
         {saved ? (
