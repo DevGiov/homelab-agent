@@ -52,6 +52,15 @@ body:not(.dark) {
     background-color: color-mix(in srgb, var(--accent) 35%, transparent);
     color: var(--fg);
   }
+
+  /* Su schermi piccoli i campi di testo a 16 px: sotto, iOS ingrandisce la pagina quando ricevono il focus */
+  @media (max-width: 767.98px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
