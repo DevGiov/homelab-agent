@@ -129,7 +129,7 @@ export const SecurityTab: React.FC = () => {
   return (
     <div className="space-y-4">
       {message && (
-        <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
+        <div role="status" className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
           <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
           <span>{message}</span>
         </div>

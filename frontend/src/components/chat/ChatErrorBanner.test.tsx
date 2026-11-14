@@ -18,6 +18,13 @@ describe('ChatErrorBanner', () => {
     expect(classes).not.toContain('truncate');
   });
 
+  it("il messaggio è un avviso per i lettori di schermo, senza il pulsante Chiudi", () => {
+    render(<ChatErrorBanner message={long} onClose={() => {}} />);
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe(long);
+    expect(alert.querySelector('button')).toBeNull();
+  });
+
   it('il pulsante Chiudi non si restringe e chiude', () => {
     const onClose = vi.fn();
     render(<ChatErrorBanner message={long} onClose={onClose} />);

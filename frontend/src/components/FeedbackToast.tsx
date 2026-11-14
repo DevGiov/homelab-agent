@@ -4,7 +4,9 @@ import type { FeedbackType } from '../hooks/useFeedback';
 
 export const FeedbackToast: React.FC<{ feedback: { type: FeedbackType; text: string } | null }> = ({ feedback }) =>
   feedback && (
+    // Gli errori si annunciano subito, le conferme quando il lettore di schermo ha finito
     <div
+      role={feedback.type === 'success' ? 'status' : 'alert'}
       className={`absolute top-14 right-4 z-50 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-lg animate-in fade-in duration-200 max-w-[90vw] sm:max-w-sm ${
         feedback.type === 'success'
           ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-800'

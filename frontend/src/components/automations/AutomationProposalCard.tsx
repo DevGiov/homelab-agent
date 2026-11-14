@@ -326,21 +326,21 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
 
         {/* Messaggi di esito o errore */}
         {errorMsg && (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs">
+          <div role="alert" className="flex items-center gap-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs">
             <AlertCircle size={14} className="shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {dryRunResult && (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs">
+          <div role="status" className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs">
             <CheckCircle2 size={14} className="shrink-0" />
             <span>{dryRunResult}</span>
           </div>
         )}
 
         {activated && (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs">
+          <div role="status" className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs">
             <CheckCircle2 size={14} className="shrink-0" />
             <span>Automazione salvata ed attivata con successo! Ora è visibile in Automations Hub.</span>
           </div>

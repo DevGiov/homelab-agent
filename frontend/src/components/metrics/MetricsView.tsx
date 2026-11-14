@@ -81,7 +81,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3" tabIndex={0} role="region" aria-label="Metriche">
-        {error && <div className="p-2 rounded-lg text-xs border bg-rose-950/40 border-rose-800/60 text-rose-300">{error}</div>}
+        {error && <div role="alert" className="p-2 rounded-lg text-xs border bg-rose-950/40 border-rose-800/60 text-rose-300">{error}</div>}
 
         {!summary || !series ? (
           isLoading && (

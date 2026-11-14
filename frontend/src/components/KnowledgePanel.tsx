@@ -140,7 +140,11 @@ export const KnowledgePanel: React.FC = () => {
             <span>Etichetta dei nuovi documenti</span>
             <SensitivitySelect value={uploadLevel} onChange={setUploadLevel} label="Etichetta dei nuovi documenti" />
           </div>
-          {uploadMsg && <p className="text-xs text-fg-muted italic">{uploadMsg}</p>}
+          {uploadMsg && (
+            <p role="status" className="text-xs text-fg-muted italic">
+              {uploadMsg}
+            </p>
+          )}
 
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
             {docs.length === 0 && !isLoading && <p className="text-xs text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>}

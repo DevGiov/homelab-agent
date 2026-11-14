@@ -50,7 +50,7 @@ const ParametersField: React.FC<{ value: Record<string, any>; onChange: (value: 
         className={`${fieldClass} p-2.5 font-mono ${error ? 'border-rose-500/60' : ''}`}
         placeholder='{"query": "repository di tendenza su GitHub"}'
       />
-      {error && <p className="text-xs text-rose-400 mt-1">JSON non valido, modifica non applicata: {error}</p>}
+      {error && <p role="alert" className="text-xs text-rose-400 mt-1">JSON non valido, modifica non applicata: {error}</p>}
     </div>
   );
 };

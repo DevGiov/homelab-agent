@@ -92,7 +92,11 @@ export const DataExitsSection: React.FC = () => {
         conferme sui dati pubblici o interni dicono che le etichette sono troppo strette.
       </p>
 
-      {error && <p className="text-xs text-rose-300">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-rose-300">
+          {error}
+        </p>
+      )}
       {loading && !data ? (
         <div className="flex items-center justify-center p-3 text-xs text-fg-muted">
           <Loader2 size={14} className="animate-spin mr-2" /> Caricamento…

@@ -75,7 +75,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
   return (
     <>
       {error && (
-        <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-800/80 rounded-xl p-2.5 text-xs text-rose-200">
+        <div role="alert" className="flex items-center gap-2 bg-rose-950/70 border border-rose-800/80 rounded-xl p-2.5 text-xs text-rose-200">
           <AlertCircle size={14} className="text-rose-400 shrink-0" />
           <span>{error}</span>
         </div>

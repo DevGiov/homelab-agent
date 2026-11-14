@@ -167,7 +167,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
         {/* Error message */}
         {errorMsg && (
-          <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300">
+          <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300">
             <X size={15} className="shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -175,7 +175,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
         {/* Resolved Status Banner */}
         {resolved ? (
-          <div className="pt-1">
+          <div role="status" className="pt-1">
             {resolvedAction === 'deny' && (
               <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-medium text-rose-300">
                 <X size={16} className="shrink-0 text-rose-400" />

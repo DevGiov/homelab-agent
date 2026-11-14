@@ -99,7 +99,7 @@ export const AllowedHostsSection: React.FC = () => {
   return (
     <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-3">
       {message && (
-        <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
+        <div role="status" className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
           <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
           <span>{message}</span>
         </div>
@@ -218,7 +218,7 @@ export const AllowedHostsSection: React.FC = () => {
         </div>
 
         {addError && (
-          <div className="text-xs text-rose-400 flex items-center gap-1.5">
+          <div role="alert" className="text-xs text-rose-400 flex items-center gap-1.5">
             <AlertTriangle size={12} className="shrink-0" />
             <span>{addError}</span>
           </div>

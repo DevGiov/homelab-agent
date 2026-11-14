@@ -134,7 +134,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
 
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
           {errorMsg && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+            <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
               <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-400" />
               <span>{errorMsg}</span>
             </div>
@@ -149,7 +149,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
                 Modifica direttamente la specifica completa dell'automazione in formato JSON. Salvando da qui vale il JSON, non i campi delle
                 altre schede.
               </p>
-              {jsonError && <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">{jsonError}</div>}
+              {jsonError && <div role="alert" className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">{jsonError}</div>}
               <textarea
                 value={rawJson}
                 onChange={(e) => editJson(e.target.value)}

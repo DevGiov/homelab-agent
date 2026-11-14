@@ -117,7 +117,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
           </span>
         </div>
       )}
-      {error && <div className="p-2 rounded-lg text-xs bg-rose-950/40 border border-rose-800/60 text-rose-300">{error}</div>}
+      {error && <div role="alert" className="p-2 rounded-lg text-xs bg-rose-950/40 border border-rose-800/60 text-rose-300">{error}</div>}
 
       <div className="flex items-center justify-between gap-2 pt-1">
         <button
