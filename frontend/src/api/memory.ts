@@ -30,6 +30,8 @@ export interface Fact {
   score?: number;
   /** Etichetta data al fatto; null = il default dei fatti (privati). */
   sensitivity?: SensitivityLevel | null;
+  /** Scritto dopo aver letto contenuto non attendibile (pagine web, email): al modello arriva come dato. */
+  untrusted?: boolean;
 }
 
 export interface Entity extends FactEntity {

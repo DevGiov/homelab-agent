@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, MessageSquare, Pencil, PenLine, RotateCcw, Trash2 } from 'lucide-react';
+import { History, MessageSquare, Pencil, PenLine, RotateCcw, ShieldAlert, Trash2 } from 'lucide-react';
 import type { Entity, Fact, FactInput } from '../../api/memory';
 import { formatDateTime } from '../../utils/metricsFormat';
 import { EntityChip } from './EntityChip';
@@ -91,6 +91,15 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
             onChange={onSetSensitivity}
             label="Etichetta del fatto"
           />
+        )}
+        {fact.untrusted && (
+          <span
+            className="flex items-center gap-1 text-amber-300"
+            title="Scritto dopo aver letto contenuto esterno (una pagina web, un'email): al modello viene presentato come dato, non come istruzione. Se lo modifichi diventa un fatto tuo."
+            data-testid="fact-untrusted"
+          >
+            <ShieldAlert size={11} aria-hidden="true" /> da contenuto esterno
+          </span>
         )}
         {fact.invalid_at && (
           <span className="flex items-center gap-1 text-amber-400">
