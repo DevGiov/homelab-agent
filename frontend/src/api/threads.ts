@@ -1,5 +1,6 @@
 import type { FormattedMessage, MessageVersion } from './chat';
 import { http } from './http';
+import type { SensitivityLevel } from '../utils/sensitivity';
 
 export interface ThreadItem {
   thread_id: string;
@@ -17,6 +18,8 @@ export interface ThreadDetails {
   is_active?: boolean;
   is_paused?: boolean;
   active_snapshot?: any;
+  /** Livello minimo scelto per la conversazione; null = pubblico. */
+  sensitivity_level?: SensitivityLevel | null;
 }
 
 const threadPath = (threadId: string) => `/threads/${encodeURIComponent(threadId)}`;
@@ -27,6 +30,13 @@ export function listThreads(): Promise<ThreadItem[]> {
 
 export function getThreadDetails(threadId: string): Promise<ThreadDetails> {
   return http.get(threadPath(threadId));
+}
+
+export function setThreadSensitivity(
+  threadId: string,
+  level: SensitivityLevel
+): Promise<{ thread_id: string; sensitivity_level: SensitivityLevel; previous: SensitivityLevel }> {
+  return http.put(`${threadPath(threadId)}/sensitivity`, { level });
 }
 
 export function deleteThread(threadId: string): Promise<{ status: string }> {

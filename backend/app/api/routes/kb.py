@@ -63,3 +63,17 @@ async def kb_search(query: str, k: int = 5):
     """Ricerca semantica nella knowledge base."""
     from app.memory.knowledge_base import search_knowledge
     return {"results": search_knowledge(query, k=max(1, min(k, 20)))}
+
+
+@router.put("/v1/kb/documents/{filename}/sensitivity", dependencies=[Depends(verify_api_key)])
+async def kb_set_document_sensitivity(filename: str, request: Request):
+    """Etichetta del documento (public, internal, private): `knowledge_search` porta nel turno la più alta trovata."""
+    from app.memory import knowledge_base
+    body = await request.json()
+    try:
+        changed = knowledge_base.set_document_sensitivity(filename, str(body.get("sensitivity") or ""))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    if not changed:
+        raise HTTPException(status_code=404, detail=f"Documento '{filename}' non trovato.")
+    return {"filename": filename, "sensitivity": body.get("sensitivity"), "chunks": changed}

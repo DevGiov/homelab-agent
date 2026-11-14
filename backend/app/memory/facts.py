@@ -361,6 +361,27 @@ def update_fact(fact_id: int, content: str, entities: Iterable[Dict[str, str]]) 
     return get_fact(fact_id)
 
 
+def set_fact_sensitivity(fact_id: int, level: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Etichetta di un fatto (public, internal, private); None torna al default della sorgente (private)."""
+    from app.security.flows import USER_LEVELS
+    if level is not None and level not in USER_LEVELS:
+        raise ValueError(f"Sensibilità non valida: {level!r} ({', '.join(USER_LEVELS)})")
+    if get_fact(fact_id) is None:
+        return None
+    conn = vector_store._get_conn()
+    try:
+        if level is None:
+            conn.execute("UPDATE vec_memory SET metadata_json = json_remove(COALESCE(metadata_json, '{}'), '$.sensitivity') "
+                         "WHERE id = ?", (fact_id,))
+        else:
+            conn.execute("UPDATE vec_memory SET metadata_json = json_set(COALESCE(metadata_json, '{}'), '$.sensitivity', ?) "
+                         "WHERE id = ?", (level, fact_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_fact(fact_id)
+
+
 def tag_fact(fact_id: int, entities: Iterable[Dict[str, str]]) -> None:
     """Aggiunge entità a un fatto senza toccare quelle che ha già, e lo segna come analizzato (anche senza entità)."""
     conn = vector_store._get_conn()

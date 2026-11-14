@@ -5,6 +5,7 @@ import {
   deleteEntity,
   deleteFact,
   restoreFact,
+  setFactSensitivity,
   extractEntities,
   getEntity,
   getMemoryStats,
@@ -23,6 +24,7 @@ import {
 } from '../api/memory';
 import { formatApiError } from '../utils/error';
 import type { Notify } from './useFeedback';
+import { LABEL_NAMES, type SensitivityLevel } from '../utils/sensitivity';
 
 const PAGE_SIZE = 50;
 const SEARCH_DELAY_MS = 350;
@@ -147,6 +149,8 @@ export function useMemoryExplorer(notify: Notify) {
     run(() => (id == null ? createFact(input) : updateFact(id, input)), id == null ? 'Fatto aggiunto.' : 'Fatto aggiornato.');
   const removeFact = (id: number) => run(() => deleteFact(id), 'Fatto eliminato.');
   const restore = (id: number) => run(() => restoreFact(id), 'Fatto di nuovo valido.');
+  const setSensitivity = (id: number, level: SensitivityLevel) =>
+    run(() => setFactSensitivity(id, level === 'private' ? null : level), `Etichetta del fatto: ${LABEL_NAMES[level].toLowerCase()}.`);
   const editEntity = (id: number, input: EntityRef) => run(() => updateEntity(id, input), `Entità '${input.name}' aggiornata.`);
   const removeEntity = (entity: Entity) =>
     run(async () => {
@@ -200,6 +204,7 @@ export function useMemoryExplorer(notify: Notify) {
     reload: refreshAll,
     refreshStats: loadStats,
     saveFact,
+    setSensitivity,
     removeFact,
     restore,
     editEntity,

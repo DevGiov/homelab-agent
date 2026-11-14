@@ -372,3 +372,68 @@ def test_calendar_feed_chosen_by_the_model_follows_the_network_rules():
             "calendar_import_feed", {"url": "webcal://10.0.0.5/feed.ics", "name": "Prova"}, ["calendar"],
             thread_id="t-feed", security_mode="dangerous")
     assert res.get("blocked") and not fetch.called
+
+
+# --- S2: API per l'interfaccia --------------------------------------------------------------------
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+
+    from app.api.main import api
+    return TestClient(api)
+
+
+def test_thread_level_is_returned_set_and_audited_when_lowered(client):
+    thread = "t-s2-level"
+    thread_store.save_user_message(thread, "ciao", user_msg_id="u1", sensitivity="internal")
+    thread_store.save_assistant_message(thread, {"response": "ok", "sensitivity": INTERNAL.to_dict()}, ast_msg_id="a1")
+
+    detail = client.get(f"/v1/threads/{thread}").json()
+    assert detail["sensitivity_level"] is None
+    user, assistant = detail["messages"]
+    assert user["sensitivity"] == {"label": "internal", "untrusted": False, "reasons": []}
+    assert assistant["sensitivity"] == INTERNAL.to_dict()
+
+    assert client.put(f"/v1/threads/{thread}/sensitivity", json={"level": "private"}).json()["previous"] == "public"
+    assert client.get(f"/v1/threads/{thread}").json()["sensitivity_level"] == "private"
+    assert not [r for r in audit_log.get_recent(thread_id=thread) if r["tool_name"] == "thread_sensitivity"]
+
+    client.put(f"/v1/threads/{thread}/sensitivity", json={"level": "public"})
+    lowered = [r for r in audit_log.get_recent(thread_id=thread) if r["tool_name"] == "thread_sensitivity"]
+    assert len(lowered) == 1 and lowered[0]["flow"] == "lowered"
+    assert client.put(f"/v1/threads/{thread}/sensitivity", json={"level": "secret"}).status_code == 422
+
+
+def test_fact_label_can_be_set_and_reset(client):
+    from app.memory import facts
+    fact_id, _ = facts.add_fact("Fatto inventato per la prova delle etichette S2", entities=[], entities_checked=True)
+    try:
+        assert facts.get_fact(fact_id)["sensitivity"] is None
+        res = client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": "public"})
+        assert res.status_code == 200 and res.json()["sensitivity"] == "public"
+        assert flows.memory_item_tag("fatto", facts.get_fact(fact_id)).label == Label.PUBLIC
+        assert client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": None}).json()["sensitivity"] is None
+        assert flows.memory_item_tag("fatto", facts.get_fact(fact_id)).label == Label.PRIVATE
+        assert client.put("/v1/memory/facts/999999/sensitivity", json={"sensitivity": "public"}).status_code == 404
+        assert client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": "secret"}).status_code == 422
+    finally:
+        facts.delete_fact(fact_id)
+
+
+def test_document_label_is_chosen_at_upload_listed_and_changeable(client):
+    from app.memory import knowledge_base
+    name = "s2_etichette_prova.md"
+    res = client.post("/v1/kb/documents", json={"filename": name, "content": "# Prova\\n\\nTesto inventato.", "sensitivity": "private"})
+    assert res.status_code == 200
+    try:
+        doc = next(d for d in client.get("/v1/kb/documents").json()["documents"] if d["filename"] == name)
+        assert doc["sensitivity"] == "private"
+        assert client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "public"}).json()["chunks"] >= 1
+        doc = next(d for d in client.get("/v1/kb/documents").json()["documents"] if d["filename"] == name)
+        assert doc["sensitivity"] == "public"
+        assert client.put("/v1/kb/documents/manca.md/sensitivity", json={"sensitivity": "public"}).status_code == 404
+        assert client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "boh"}).status_code == 422
+        assert client.post("/v1/kb/documents", json={"filename": "x.md", "content": "y", "sensitivity": "boh"}).status_code == 400
+    finally:
+        knowledge_base.delete_document(name)

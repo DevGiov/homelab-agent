@@ -27,6 +27,7 @@ import {
   webPrefetchFromEvent,
   type ChatDiagnostics,
 } from '../utils/chatMessages';
+import { isLevel, type SensitivityLevel } from '../utils/sensitivity';
 
 export interface SendOptions {
   mode?: AgentMode;
@@ -37,6 +38,8 @@ export interface SendOptions {
   webSearch?: WebSearchMode;
   images?: string[];
   securityMode?: SecurityMode;
+  /** Livello minimo della conversazione (app/security/flows.py). */
+  sensitivity?: SensitivityLevel;
 }
 
 export interface PromptEdit {
@@ -55,6 +58,12 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<ChatDiagnostics>({});
+  // Livello minimo della conversazione aperta, come salvato dal backend
+  const [threadLevel, setThreadLevel] = useState<SensitivityLevel | null>(null);
+  // Cambiando conversazione il livello è quello del thread nuovo, che arriva con il suo storico
+  useEffect(() => {
+    setThreadLevel(null);
+  }, [currentThreadId]);
 
   const isSendingRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -116,6 +125,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
 
       const messages = markResolvedApprovals(details.messages ?? []);
       setCurrentThreadTitle(details.title || null);
+      setThreadLevel(isLevel(details.sensitivity_level) ? details.sensitivity_level : null);
       updateThread(threadId, () => messages);
       setDiagnostics(diagnosticsOf(lastAssistant(messages)));
 
@@ -190,6 +200,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         web_search: options.webSearch,
         images,
         security_mode: options.securityMode,
+        sensitivity: options.sensitivity,
       };
       const update = messageUpdater(threadId, assistantMsgId);
       const signal = startStream();
@@ -459,6 +470,8 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   return {
     currentMessages,
     currentThreadTitle,
+    threadLevel,
+    setThreadLevel,
     isLoadingChat,
     isPaused,
     chatError,

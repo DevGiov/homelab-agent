@@ -1,7 +1,7 @@
 # Sensibilità dei dati: design
 
 **Data:** 13 novembre 2026
-**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite lo stesso giorno ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)); S2-S4 non iniziate.
+**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite il 13/11/2026 ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)), S2 il 14/11/2026 ([9.3](#93-s2-come-è-stata-costruita)); S3 e S4 non iniziate.
 **Contesto:** oggi ogni chiamata a un modello resta su un server locale. Prima di aggiungere un provider cloud, un agente di coding esterno o un canale di chat su un servizio di terzi serve una regola, applicata dal codice, che dica quali dati possono andare dove.
 
 Il documento descrive cosa esce oggi dal backend (verificato sul codice del ramo `dev`), il modello proposto (un'etichetta su ogni dato, un livello ammesso per ogni destinazione, un solo controllo), dove si aggancia al codice esistente e in che ordine costruirlo.
@@ -265,7 +265,7 @@ Ogni fase è utile da sola e lascia il sistema funzionante.
 | :--- | :--- | :--- |
 | **S0. Chiusura dei flussi scoperti** (fatta il 13/11/2026, [9.1](#91-s0-come-è-stata-costruita)) | `http_get` e `inspect_image`: lista degli host ammessi modificabile dalla UI, conferma per gli host pubblici fuori lista, blocco per quelli locali fuori lista, host dichiarati dalle automazioni. `inspect_image` chiama il modello attraverso `LLMProvider.chat` e legge solo file della directory dei dati. Il prefetch passa dal gestore dei tool, con audit | Una conferma in più per `http_get` verso internet. Indipendente dal resto: sono difetti di oggi |
 | **S1. Etichette e controllo, con sole destinazioni locali** (fatta il 13/11/2026, [9.2](#92-s1-come-è-stata-costruita)) | `security/flows.py`; parametro `tag` obbligatorio in `chat` e `call_llm`; etichette alle sorgenti della tabella 4.1; `tag` in `AgentState` e `AgentLoop`; controllo in `execute_tool` e `execute_search`; colonne di audit e metriche; rilevatori | Cambia solo la ricerca: in un turno con dati privati chiede o non parte |
-| **S2. Interfaccia** | Indicatore, selettore, scheda "uscita di dati", etichette in Memoria, knowledge base e server MCP | L'utente vede e corregge le etichette |
+| **S2. Interfaccia** (fatta il 14/11/2026, [9.3](#93-s2-come-è-stata-costruita)) | Indicatore, selettore, scheda "uscita di dati", etichette in Memoria, knowledge base e server MCP | L'utente vede e corregge le etichette |
 | **S3. Valutazioni** | Suite `flows` in `app/evals`: un fatto privato con una stringa riconoscibile, un compito che invoglia a cercarlo sul web, un provider finto con livello `internal` che registra ciò che riceve. Passa se la stringa non compare in nessuna uscita registrata | Un numero al posto di un'impressione, da rifare a ogni modello |
 | **S4. Prima destinazione non locale** | Scelta del provider per chiamata, secondo etichetta e ruolo | Arriva con il primo provider cloud, non prima |
 
@@ -338,6 +338,21 @@ Un server MCP senza classificazione vale come il più stretto: risultati `privat
 - `calendar_import_feed` scaricava un URL scelto dal modello senza il controllo di rete di S0: ora segue le stesse regole di `http_get`.
 
 **Effetto pratico atteso, da misurare.** Con il profilo compilato ogni turno con memoria diventa `private` e ogni ricerca del loop chiede conferma; dopo un tool dell'infrastruttura il turno è almeno `internal`, e così la ricerca. La ricerca preventiva continua a girare finché la richiesta e gli ultimi messaggi sono pubblici. Se le conferme risultano troppe, la strada scelta dal maintainer (13/11/2026, da fare più avanti) è separare la chiamata che scrive la query (che vedrebbe solo la richiesta) da quella che legge la memoria.
+
+### 9.3 S2 come è stata costruita
+
+| Dove | Cosa |
+| :--- | :--- |
+| Chat, barra delle opzioni | Selettore "Dati: Pubblici / Interni / Privati", il livello minimo della conversazione. In una chat già salvata il cambio va subito al backend (`PUT /v1/threads/{id}/sensitivity`); in una chat nuova parte con il primo messaggio. Abbassarlo chiede conferma e lascia una riga di audit (`thread_sensitivity`, esito `lowered`) |
+| Chat, sotto l'intestazione | Fascia quando la conversazione è interna o privata: perché (motivi in italiano), cosa cambia (ricerca e servizi esterni chiedono conferma, la ricerca preventiva non parte) e un avviso se l'ultimo turno ha letto contenuto non attendibile. L'etichetta mostrata unisce il livello scelto e quella dell'ultima risposta |
+| Chat, ogni risposta | Chip dell'etichetta da `internal` in su (decisione 4), motivi nel tooltip. Il backend salva il tag intero di ogni risposta (`thread_messages.sensitivity_json`) e lo restituisce con la cronologia |
+| Scheda di approvazione | Per una capability `flow:` diventa "Uscita di dati": destinazione in parole, etichetta, "Testo che uscirebbe", motivi. Niente "sempre" |
+| Ricerca preventiva | L'evento `web_prefetch.skipped` diventa uno stato della diagnostica, con il motivo |
+| Memoria | Etichetta di ogni fatto modificabile (`PUT /v1/memory/facts/{id}/sensitivity`); "Privati (predefinito)" finché non la si sceglie |
+| Knowledge base | Etichetta dei nuovi documenti scelta prima del caricamento; etichetta di ogni documento nell'elenco, modificabile (`PUT /v1/kb/documents/{nome}/sensitivity`) |
+| Impostazioni, Server MCP | Sezione "Sensibilità dei dati per server": i server ricavati dal catalogo (prefisso dei tool), etichetta dei risultati, livello che possono ricevere, risultati non attendibili; "non classificato" per quelli senza regola. Le regole per singolo tool restano solo nell'API |
+
+Non c'è ancora una vista dell'audit delle uscite di dati: le righe ci sono (`label`, `destination`, `flow`), la vista è per S3, insieme alle valutazioni.
 
 ## 10. Decisioni
 

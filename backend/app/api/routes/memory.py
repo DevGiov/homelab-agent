@@ -108,6 +108,20 @@ def update_fact(fact_id: int, body: FactInput) -> Dict[str, Any]:
     return fact
 
 
+class SensitivityInput(BaseModel):
+    # None: torna al default dei fatti (private)
+    sensitivity: Optional[Literal["public", "internal", "private"]] = None
+
+
+@router.put("/facts/{fact_id}/sensitivity")
+def set_fact_sensitivity(fact_id: int, body: SensitivityInput) -> Dict[str, Any]:
+    """Etichetta del fatto (app.security.flows): decide dove può andare quando viene richiamato in un turno."""
+    fact = facts.set_fact_sensitivity(fact_id, body.sensitivity)
+    if fact is None:
+        raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
+    return fact
+
+
 @router.post("/facts/{fact_id}/restore")
 def restore_fact(fact_id: int) -> Dict[str, Any]:
     """Un fatto superato torna valido."""

@@ -40,6 +40,8 @@ function MainLayout() {
   const {
     currentMessages,
     currentThreadTitle,
+    threadLevel,
+    setThreadLevel,
     isLoadingChat,
     isPaused,
     chatError,
@@ -150,6 +152,8 @@ function MainLayout() {
           <Chat
             currentThreadId={currentThreadId}
             currentThreadTitle={currentThreadTitle}
+            threadLevel={threadLevel}
+            onThreadLevelSaved={setThreadLevel}
             messages={currentMessages}
             onSendMessage={handleSendMessage}
             onRegenerate={handleRegenerateMessage}

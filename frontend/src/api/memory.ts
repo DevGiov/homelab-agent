@@ -1,4 +1,5 @@
 import { http } from './http';
+import type { SensitivityLevel } from '../utils/sensitivity';
 
 export const ENTITY_TYPES = ['person', 'organization', 'place', 'project', 'software', 'infrastructure', 'other'] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
@@ -27,6 +28,8 @@ export interface Fact {
   entities: FactEntity[];
   /** Somiglianza con la query, solo nei risultati di ricerca. */
   score?: number;
+  /** Etichetta data al fatto; null = il default dei fatti (privati). */
+  sensitivity?: SensitivityLevel | null;
 }
 
 export interface Entity extends FactEntity {
@@ -79,6 +82,11 @@ export function createFact(input: FactInput): Promise<Fact> {
 
 export function updateFact(id: number, input: FactInput): Promise<Fact> {
   return http.put(`/memory/facts/${id}`, input);
+}
+
+/** Etichetta del fatto: decide dove può andare quando viene richiamato. null torna al default (privati). */
+export function setFactSensitivity(id: number, sensitivity: SensitivityLevel | null): Promise<Fact> {
+  return http.put(`/memory/facts/${id}/sensitivity`, { sensitivity });
 }
 
 export function restoreFact(id: number): Promise<Fact> {

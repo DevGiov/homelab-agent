@@ -1,5 +1,6 @@
 import { apiUrl, authHeaders, errorFromResponse, http } from './http';
 import { readSseEvents } from './sse';
+import type { SensitivityLevel, SensitivityTag } from '../utils/sensitivity';
 
 export type AgentMode = 'chat' | 'ask' | 'act' | 'plan';
 
@@ -23,6 +24,9 @@ export interface WebPrefetchData {
   sources?: WebPrefetchSource[];
   summary_text?: string;
   error?: string;
+  /** Ricerca preventiva non eseguita perché la conversazione contiene dati riservati. */
+  skipped_reason?: string;
+  label?: string;
 }
 
 export interface ChatRequest {
@@ -37,6 +41,8 @@ export interface ChatRequest {
   web_search?: WebSearchMode;
   images?: string[];
   security_mode?: SecurityMode;
+  /** Livello minimo della conversazione: vale per questo messaggio e i successivi del thread. */
+  sensitivity?: SensitivityLevel;
 }
 
 export interface ExecutionTraceItem {
@@ -113,6 +119,8 @@ export interface ChatResponse {
   command_prefix?: string;
   risk_reason?: string;
   security_mode?: SecurityMode;
+  /** Sensibilità del turno: etichetta, non attendibilità e motivi. */
+  sensitivity?: SensitivityTag;
 }
 
 export interface MessageVersion {
@@ -142,6 +150,7 @@ export interface MessageVersion {
   approval_resolved?: boolean;
   approval_action?: string;
   security_mode?: SecurityMode;
+  sensitivity?: SensitivityTag;
 }
 
 export interface FormattedMessage extends MessageVersion {

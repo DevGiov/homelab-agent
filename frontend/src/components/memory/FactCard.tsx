@@ -4,6 +4,8 @@ import type { Entity, Fact, FactInput } from '../../api/memory';
 import { formatDateTime } from '../../utils/metricsFormat';
 import { EntityChip } from './EntityChip';
 import { FactEditor } from './FactEditor';
+import { SensitivitySelect } from '../sensitivity/SensitivitySelect';
+import type { SensitivityLevel } from '../../utils/sensitivity';
 
 interface FactCardProps {
   fact: Fact;
@@ -16,9 +18,11 @@ interface FactCardProps {
   onSave: (input: FactInput) => Promise<boolean>;
   onRestore: () => void;
   onDelete: () => void;
+  /** Nuova etichetta del fatto (privati è il default). */
+  onSetSensitivity?: (level: SensitivityLevel) => void;
 }
 
-export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityId, threadTitle, onSelectEntity, onOpenThread, onSave, onRestore, onDelete }) => {
+export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityId, threadTitle, onSelectEntity, onOpenThread, onSave, onRestore, onDelete, onSetSensitivity }) => {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -80,6 +84,14 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
           </span>
         )}
         {fact.created_at && <span>{formatDateTime(fact.created_at)}</span>}
+        {onSetSensitivity && (
+          <SensitivitySelect
+            value={fact.sensitivity ?? 'private'}
+            isDefault={!fact.sensitivity}
+            onChange={onSetSensitivity}
+            label="Etichetta del fatto"
+          />
+        )}
         {fact.invalid_at && (
           <span className="flex items-center gap-1 text-amber-400/90">
             <History size={11} /> {fact.superseded_by ? `superato da #${fact.superseded_by}` : 'non più valido'} il {formatDateTime(fact.invalid_at)}

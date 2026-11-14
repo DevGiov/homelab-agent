@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { resolveApproval, type ApprovalAction, type ResolveApprovalResponse } from '../api/approvals';
 import { formatApiError } from '../utils/error';
+import { describeDestination, parseFlowCapability } from '../utils/sensitivity';
+import { SensitivityChip } from './sensitivity/SensitivityChip';
 
 export interface InlineApprovalCardProps {
   requestId: string;
@@ -78,6 +80,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   const isNetRequest = Boolean(commandPrefix?.startsWith('net:'));
   // Uscita di dati (sensibilità): si autorizza una volta o per questa chat, mai per sempre
   const isFlowRequest = Boolean(commandPrefix?.startsWith('flow:'));
+  const flow = parseFlowCapability(commandPrefix);
   const netHost = isNetRequest ? commandPrefix!.slice(4).trim() : null;
   // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
   const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
@@ -92,7 +95,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
           </div>
           <div className="min-w-0">
             <h4 className="text-xs font-semibold text-amber-200 truncate">
-              Autorizzazione Tool Richiesta (Guardrail)
+              {flow ? 'Uscita di dati: serve la tua conferma' : 'Autorizzazione Tool Richiesta (Guardrail)'}
             </h4>
             <div className="text-[10px] text-amber-300/80 font-mono">
               ID: {requestId}
@@ -106,6 +109,16 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
       {/* Card Content */}
       <div className="p-4 space-y-3">
+        {/* Uscita di dati: dove andrebbero e con quale etichetta */}
+        {flow && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-fg">
+            <span>
+              Destinazione: <strong>{describeDestination(flow.destination)}</strong>
+            </span>
+            <SensitivityChip tag={{ label: flow.label }} always />
+          </div>
+        )}
+
         {/* Risk motivation */}
         {riskReason && (
           <div className="flex items-start gap-2 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
@@ -120,9 +133,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <div className="flex items-center justify-between gap-2 mb-1.5 text-[10px] text-fg-muted select-none">
               <span className="flex items-center gap-1.5">
                 <Terminal size={12} className="text-accent" />
-                {isCodePreview ? 'Codice proposto:' : 'Comando shell proposto:'}
+                {flow ? 'Testo che uscirebbe:' : isCodePreview ? 'Codice proposto:' : 'Comando shell proposto:'}
               </span>
-              {displayPrefix && (
+              {displayPrefix && !flow && (
                 <span className="text-fg-muted">
                   Prefisso: <code className="text-emerald-300 font-semibold">{displayPrefix}</code>
                 </span>
@@ -179,8 +192,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 p-2.5 text-xs font-medium text-sky-300">
                 <MessageSquare size={16} className="shrink-0 text-sky-400" />
                 <span>
-                  Tool autorizzato per l'intera conversazione corrente
-                  {displayPrefix ? ` (prefisso: "${displayPrefix}")` : ''}.
+                  {flow
+                    ? `Invio a ${describeDestination(flow.destination)} autorizzato per questa conversazione, per dati fino a questo livello (non dopo aver letto contenuto non attendibile).`
+                    : `Tool autorizzato per l'intera conversazione corrente${displayPrefix ? ` (prefisso: "${displayPrefix}")` : ''}.`}
                 </span>
               </div>
             )}

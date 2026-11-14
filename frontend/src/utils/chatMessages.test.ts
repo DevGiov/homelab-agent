@@ -74,3 +74,11 @@ describe('chatMessages', () => {
     expect(webPrefetchFromEvent(started, 'altro', {}, 'domanda')).toBe(started);
   });
 });
+
+describe('ricerca preventiva saltata per dati riservati', () => {
+  it('diventa uno stato senza fonti con il motivo', async () => {
+    const { webPrefetchFromEvent: fromEvent } = await import('./chatMessages');
+    const res = fromEvent(undefined, 'web_prefetch.skipped', { reason: 'La conversazione contiene dati riservati', label: 'private' }, 'q');
+    expect(res).toMatchObject({ success: false, error: 'sensitive', skipped_reason: 'La conversazione contiene dati riservati', label: 'private', sources: [] });
+  });
+});

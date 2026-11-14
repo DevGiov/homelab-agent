@@ -2,9 +2,10 @@
 import logging
 import sqlite3
 import time
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.agent.stream_session import (
     get_session,
@@ -128,6 +129,8 @@ async def get_thread(thread_id: str):
         return {
             "thread_id": thread_id,
             "title": thread_store.get_thread_title(thread_id),
+            # Livello minimo della conversazione scelto dall'utente (app.security.flows); None = public
+            "sensitivity_level": thread_store.get_thread_sensitivity(thread_id),
             "checkpoint_count": count,
             "messages": stored_messages,
             "is_active": is_active,
@@ -199,3 +202,23 @@ async def delete_all_threads():
         return {"status": "cleared", "deleted_checkpoints": deleted_rows}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear threads: {str(e)}") from e
+
+
+class SensitivityLevelRequest(BaseModel):
+    level: Literal["public", "internal", "private"]
+
+
+@router.put("/v1/threads/{thread_id}/sensitivity", dependencies=[Depends(verify_api_key)])
+async def set_thread_sensitivity(thread_id: str, req: SensitivityLevelRequest):
+    """Livello minimo della conversazione: vale per i messaggi successivi. Abbassarlo è una scelta dell'utente che la UI
+    conferma prima di chiamare: resta nell'audit."""
+    from app.security import audit_log
+    from app.security.flows import Label
+
+    previous = thread_store.get_thread_sensitivity(thread_id) or "public"
+    thread_store.set_thread_sensitivity(thread_id, req.level)
+    if Label.parse(req.level) < Label.parse(previous):
+        audit_log.log_tool_call("thread_sensitivity", {"from": previous, "to": req.level}, thread_id=thread_id,
+                                registry="security", result={"lowered": True},
+                                flow={"label": req.level, "destination": "thread", "flow": "lowered"})
+    return {"thread_id": thread_id, "sensitivity_level": req.level, "previous": previous}

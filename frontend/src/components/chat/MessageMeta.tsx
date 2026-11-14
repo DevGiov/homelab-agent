@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, Check, ChevronLeft, ChevronRight, Copy, Cpu, Globe, Pause, RefreshCw, Wrench, Zap } from 'lucide-react';
 import type { FormattedMessage } from '../../api/chat';
+import { SensitivityChip } from '../sensitivity/SensitivityChip';
 
 interface MessageMetaProps {
   message: FormattedMessage;
@@ -110,6 +111,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         </button>
       )}
 
+      {!isUser && <SensitivityChip tag={msg.sensitivity} />}
       {modeName && (
         <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
           {modeName}

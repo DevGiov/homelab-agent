@@ -1,9 +1,10 @@
 import React from 'react';
-import { Brain, EyeOff, Globe, Shield, ShieldCheck, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, EyeOff, Globe, Lock, Shield, ShieldCheck, Zap, type LucideIcon } from 'lucide-react';
 import type { SecurityMode, WebSearchMode } from '../../api/chat';
 import type { ChatOptions } from '../../hooks/useChatOptions';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { ModelSelector } from '../ModelSelector';
+import { LABEL_HINTS, LABEL_NAMES, LEVELS, type SensitivityLevel } from '../../utils/sensitivity';
 
 const SECURITY_MODES: Array<{ mode: SecurityMode; label: string; icon: LucideIcon; active: string; iconActive: string; title: string }> = [
   {
@@ -62,8 +63,16 @@ const BUDGETS = [
   { value: '32768', label: 'Ragionamento: 32768 token' },
 ];
 
-/** Opzioni del prossimo invio: sicurezza, incognito, ricerca web, modello e budget di reasoning. */
-export const ChatOptionsBar: React.FC<{ options: ChatOptions; models: ModelCatalog }> = ({ options, models }) => {
+interface ChatOptionsBarProps {
+  options: ChatOptions;
+  models: ModelCatalog;
+  /** Livello minimo della conversazione e chi lo cambia (useConversationLevel). */
+  level?: SensitivityLevel;
+  onLevelChange?: (level: SensitivityLevel) => void;
+}
+
+/** Opzioni del prossimo invio: sicurezza, livello dei dati, incognito, ricerca web, modello e budget di reasoning. */
+export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models, level, onLevelChange }) => {
   const web = WEB_SEARCH[options.webSearch];
 
   return (
@@ -87,6 +96,29 @@ export const ChatOptionsBar: React.FC<{ options: ChatOptions; models: ModelCatal
           );
         })}
       </div>
+
+      {level && onLevelChange && (
+        <div
+          className={`flex items-center glass-card border rounded-lg px-2 py-1 text-[11px] gap-1.5 w-max shadow-sm ${
+            level === 'public' ? 'border-border text-fg-muted hover:border-accent/40' : level === 'internal' ? 'border-sky-500/50 text-sky-300' : 'border-amber-500/50 text-amber-300'
+          }`}
+          title="Livello minimo dei dati di questa conversazione: decide dove possono andare (ricerca web, servizi esterni)"
+        >
+          <Lock size={12} className="shrink-0" />
+          <select
+            value={level}
+            onChange={(e) => onLevelChange(e.target.value as SensitivityLevel)}
+            className="bg-transparent text-[11px] focus:outline-none cursor-pointer"
+            aria-label="Livello dei dati della conversazione"
+          >
+            {LEVELS.map((l) => (
+              <option key={l} value={l} className="bg-panel text-fg" title={LABEL_HINTS[l]}>
+                Dati: {LABEL_NAMES[l]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         type="button"

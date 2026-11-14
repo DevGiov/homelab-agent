@@ -16,6 +16,7 @@ import { useFeedback } from '../../../hooks/useFeedback';
 import { formatApiError } from '../../../utils/error';
 import { ServerCard } from './ServerCard';
 import { ServerForm } from './ServerForm';
+import { McpFlowsSection } from './McpFlowsSection';
 
 /** Server MCP collegati all'agente e impostazioni dei loro tool; le modifiche valgono subito, senza riavvio. */
 export const McpTab: React.FC = () => {
@@ -102,6 +103,8 @@ export const McpTab: React.FC = () => {
           {feedback.text}
         </div>
       )}
+
+      <McpFlowsSection tools={tools} notify={notify} />
 
       {form ? (
         <ServerForm

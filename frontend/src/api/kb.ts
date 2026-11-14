@@ -1,10 +1,13 @@
 import { http } from './http';
+import type { SensitivityLevel } from '../utils/sensitivity';
 
 export interface KbDocument {
   filename: string;
   doc_id?: string;
   source?: string;
   chunks: number;
+  /** Etichetta del documento (default interni). */
+  sensitivity?: SensitivityLevel;
 }
 
 export interface KbUploadResponse {
@@ -18,13 +21,21 @@ export async function listKbDocuments(): Promise<KbDocument[]> {
   return res.documents;
 }
 
-export function uploadKbDocument(fileOrPayload: File | { filename: string; content: string }): Promise<KbUploadResponse> {
+export function uploadKbDocument(
+  fileOrPayload: File | { filename: string; content: string },
+  sensitivity: SensitivityLevel = 'internal'
+): Promise<KbUploadResponse> {
   if (fileOrPayload instanceof File) {
     const formData = new FormData();
     formData.append('file', fileOrPayload);
+    formData.append('sensitivity', sensitivity);
     return http.post('/kb/documents', formData);
   }
-  return http.post('/kb/documents', fileOrPayload);
+  return http.post('/kb/documents', { ...fileOrPayload, sensitivity });
+}
+
+export function setKbDocumentSensitivity(filename: string, sensitivity: SensitivityLevel): Promise<{ chunks: number }> {
+  return http.put(`/kb/documents/${encodeURIComponent(filename)}/sensitivity`, { sensitivity });
 }
 
 export function deleteKbDocument(filename: string): Promise<{ status: string; chunks_deleted: number }> {

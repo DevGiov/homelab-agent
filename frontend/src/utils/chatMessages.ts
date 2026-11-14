@@ -100,6 +100,9 @@ export function webPrefetchFromEvent(
   if (event === 'web_prefetch.completed') {
     return { ...(current || { query, success: true }), provider_used: data.provider, latency_ms: data.latency_ms };
   }
+  if (event === 'web_prefetch.skipped') {
+    return { query: '', success: false, sources: [], error: 'sensitive', skipped_reason: data.reason, label: data.label };
+  }
   return current;
 }
 

@@ -69,7 +69,7 @@ def init_db():
         """)
         # Sensibilità (app.security.flows): di ogni messaggio, del riassunto (la più alta tra i messaggi che copre) e
         # il livello minimo scelto dall'utente per la conversazione. NULL = public, come i messaggi nuovi
-        ensure_columns(conn, "thread_messages", {"sensitivity": "TEXT"})
+        ensure_columns(conn, "thread_messages", {"sensitivity": "TEXT", "sensitivity_json": "TEXT"})
         ensure_columns(conn, "thread_summaries", {"sensitivity": "TEXT"})
         ensure_columns(conn, "thread_metadata", {"sensitivity": "TEXT"})
         conn.commit()
@@ -284,13 +284,16 @@ def save_assistant_message(
         # Etichetta del turno che ha scritto la risposta (ChatResponse.sensitivity)
         sens = response_data.get("sensitivity")
         sensitivity = sens.get("label") if isinstance(sens, dict) else sens
+        # Il tag intero (motivi e non attendibilità), per l'indicatore della conversazione nella UI
+        sensitivity_json = json.dumps(sens, ensure_ascii=False) if isinstance(sens, dict) else None
 
         cursor.execute("""
             INSERT OR REPLACE INTO thread_messages
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
-             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model, sensitivity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model, sensitivity,
+             sensitivity_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -312,6 +315,7 @@ def save_assistant_message(
             web_prefetch_json,
             model,
             sensitivity,
+            sensitivity_json,
         ))
         conn.commit()
         return msg_id
@@ -386,7 +390,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
                    plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
                    is_error, reasoning_content, versions_json, version_index, images_json, metrics_json,
-                   web_prefetch_json, model
+                   web_prefetch_json, model, sensitivity, sensitivity_json
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -398,7 +402,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         for row in rows:
             (m_id, sender, content, ts, mode, tool_used, reasoning,
              ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
-             vers_json, v_idx, img_json, met_json, wp_json, model_val) = row
+             vers_json, v_idx, img_json, met_json, wp_json, model_val, sens_label, sens_json) = row
 
             versions_parsed = None
             if vers_json:
@@ -447,7 +451,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "images": images_parsed,
                 "metrics": metrics_parsed,
                 "web_prefetch": web_prefetch_parsed,
-                "model": model_val
+                "model": model_val,
+                "sensitivity": _sensitivity_of(sens_label, sens_json),
             }
             messages.append(msg_obj)
 
@@ -455,6 +460,18 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Errore lettura messaggi thread '{thread_id}': {e}")
         return []
+
+
+def _sensitivity_of(label: Optional[str], detail_json: Optional[str]) -> Dict[str, Any]:
+    """Etichetta di un messaggio per la UI: il tag intero se salvato, altrimenti solo l'etichetta (public se manca)."""
+    if detail_json:
+        try:
+            detail = json.loads(detail_json)
+            if isinstance(detail, dict) and detail.get("label"):
+                return detail
+        except ValueError:
+            pass
+    return {"label": label or "public", "untrusted": False, "reasons": []}
 
 
 def _active_content(content: str, versions_json: Optional[str], version_index: Optional[int]) -> str:

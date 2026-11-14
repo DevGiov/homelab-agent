@@ -186,6 +186,7 @@ def list_documents() -> List[Dict[str, Any]]:
                     "doc_id": meta.get("doc_id"),
                     "source": meta.get("source"),
                     "chunks": count,
+                    "sensitivity": meta.get("sensitivity") or "internal",
                 }
             elif fname:
                 docs[fname]["chunks"] += count
@@ -193,6 +194,25 @@ def list_documents() -> List[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"list_documents fallito: {e}")
         return []
+
+
+def set_document_sensitivity(filename: str, sensitivity: str) -> int:
+    """Nuova etichetta per tutti i pezzi di un documento; quanti pezzi ha cambiato (0 se il documento non c'è)."""
+    from app.security.flows import USER_LEVELS
+    if sensitivity not in USER_LEVELS:
+        raise ValueError(f"Sensibilità non valida: {sensitivity!r} ({', '.join(USER_LEVELS)})")
+    import sqlite3
+    conn = sqlite3.connect(settings.checkpoint_db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE vec_memory SET metadata_json = json_set(metadata_json, '$.sensitivity', ?) "
+            "WHERE kind = 'kb' AND json_extract(metadata_json, '$.filename') = ?",
+            (sensitivity, Path(filename).name),
+        )
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
 
 
 def delete_document(filename: str) -> int:

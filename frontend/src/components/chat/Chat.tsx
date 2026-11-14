@@ -11,10 +11,18 @@ import type { MessageActions } from './ChatMessage';
 import { ChatOptionsBar } from './ChatOptionsBar';
 import { ImageLightbox } from './ImageLightbox';
 import { MessageList } from './MessageList';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { SensitivityBar } from '../sensitivity/SensitivityBar';
+import { useConversationLevel } from '../sensitivity/useConversationLevel';
+import { lastAssistant } from '../../utils/chatMessages';
+import { joinTags, type SensitivityLevel } from '../../utils/sensitivity';
 
 interface ChatProps {
   currentThreadId: string | null;
   currentThreadTitle?: string | null;
+  /** Livello minimo della conversazione salvato dal backend (null = pubblico) e chi lo aggiorna. */
+  threadLevel?: SensitivityLevel | null;
+  onThreadLevelSaved?: (level: SensitivityLevel) => void;
   messages: FormattedMessage[];
   onSendMessage: (input: string, options: SendOptions) => Promise<void>;
   onRegenerate?: (assistantMsgId: string) => Promise<void> | void;
@@ -36,6 +44,8 @@ interface ChatProps {
 export const Chat: React.FC<ChatProps> = ({
   currentThreadId,
   currentThreadTitle,
+  threadLevel = null,
+  onThreadLevelSaved,
   messages,
   onSendMessage,
   onRegenerate,
@@ -56,6 +66,12 @@ export const Chat: React.FC<ChatProps> = ({
   const models = useModelCatalog();
   const options = useChatOptions(currentThreadId, models.loadedModel);
   const attachments = useImageAttachments();
+  const conversation = useConversationLevel(currentThreadId, threadLevel, onThreadLevelSaved);
+  // Etichetta mostrata: il livello scelto, unito a quella dell'ultima risposta (motivi compresi)
+  const levelTag = conversation.level === 'public'
+    ? null
+    : { label: conversation.level, untrusted: false, reasons: [`conversazione:${conversation.level}`] };
+  const conversationTag = joinTags(levelTag, lastAssistant(messages)?.sensitivity);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const title = currentThreadTitle || (currentThreadId ? `Thread: ${currentThreadId}` : 'Nuova Sessione');
@@ -63,7 +79,7 @@ export const Chat: React.FC<ChatProps> = ({
 
   const send = (text: string) => {
     const images = attachments.images.map((img) => img.dataUrl);
-    onSendMessage(text, options.toSendOptions(images.length > 0 ? images : undefined));
+    onSendMessage(text, { ...options.toSendOptions(images.length > 0 ? images : undefined), sensitivity: conversation.level });
     attachments.clear();
   };
 
@@ -123,11 +139,14 @@ export const Chat: React.FC<ChatProps> = ({
         onOpenMobileToolLog={onOpenMobileToolLog}
       />
 
-      {error && (
+      <SensitivityBar tag={conversationTag} />
+      <ConfirmDialog request={conversation.confirmRequest} onAnswer={conversation.answer} />
+
+      {(error || conversation.error) && (
         <div className="bg-rose-950/80 border-b border-rose-800 px-4 sm:px-6 py-2.5 flex items-center justify-between text-xs text-rose-200 shrink-0">
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-            <span className="truncate">{error}</span>
+            <span className="truncate">{error || conversation.error}</span>
           </div>
           <button onClick={onClearError} className="text-rose-400 hover:text-rose-200 font-bold px-2 py-0.5 cursor-pointer">
             Dismiss
@@ -147,7 +166,7 @@ export const Chat: React.FC<ChatProps> = ({
       />
 
       <div className="p-3 sm:p-4 border-t border-border glass-input-bar shrink-0 flex flex-col gap-2">
-        <ChatOptionsBar options={options} models={models} />
+        <ChatOptionsBar options={options} models={models} level={conversation.level} onLevelChange={conversation.requestChange} />
         <ChatComposer
           attachments={attachments}
           isLoading={isLoading}

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, FileText, Loader2, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
-import { deleteKbDocument, listKbDocuments, searchKb, uploadKbDocument, type KbDocument, type KbSearchResult } from '../api/kb';
+import { deleteKbDocument, listKbDocuments, searchKb, setKbDocumentSensitivity, uploadKbDocument, type KbDocument, type KbSearchResult } from '../api/kb';
+import { SensitivitySelect } from './sensitivity/SensitivitySelect';
+import type { SensitivityLevel } from '../utils/sensitivity';
 import { formatApiError } from '../utils/error';
 
 type Tab = 'docs' | 'search';
@@ -19,6 +21,8 @@ export const KnowledgePanel: React.FC = () => {
   const [searched, setSearched] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Etichetta dei documenti caricati da qui: decide dove possono andare i loro passaggi quando la ricerca li trova
+  const [uploadLevel, setUploadLevel] = useState<SensitivityLevel>('internal');
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -44,7 +48,7 @@ export const KnowledgePanel: React.FC = () => {
     setIsUploading(true);
     setUploadMsg(null);
     try {
-      const res = await uploadKbDocument(file);
+      const res = await uploadKbDocument(file, uploadLevel);
       setUploadMsg(`Documento caricato: ${res.chunks_indexed} chunk indicizzati.`);
       await refresh();
     } catch (e) {
@@ -52,6 +56,15 @@ export const KnowledgePanel: React.FC = () => {
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadMsg(null), 5000);
+    }
+  };
+
+  const handleSetLevel = async (filename: string, level: SensitivityLevel) => {
+    try {
+      await setKbDocumentSensitivity(filename, level);
+      await refresh();
+    } catch (e) {
+      setUploadMsg(`Errore: ${formatApiError(e)}`);
     }
   };
 
@@ -123,6 +136,10 @@ export const KnowledgePanel: React.FC = () => {
             {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
             Upload .md / .txt / .pdf
           </button>
+          <div className="flex items-center justify-between gap-2 text-[10px] text-fg-muted">
+            <span>Etichetta dei nuovi documenti</span>
+            <SensitivitySelect value={uploadLevel} onChange={setUploadLevel} label="Etichetta dei nuovi documenti" />
+          </div>
           {uploadMsg && <p className="text-[10px] text-fg-muted italic">{uploadMsg}</p>}
 
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
@@ -134,6 +151,11 @@ export const KnowledgePanel: React.FC = () => {
                   <span className="text-[11px] font-mono text-fg truncate">{doc.filename}</span>
                   <span className="text-[9px] text-fg-muted shrink-0">{doc.chunks}ch</span>
                 </div>
+                <SensitivitySelect
+                  value={doc.sensitivity ?? 'internal'}
+                  onChange={(level) => handleSetLevel(doc.filename, level)}
+                  label={`Etichetta di ${doc.filename}`}
+                />
                 <button
                   onClick={() => handleDeleteDoc(doc.filename)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-fg-muted hover:text-rose-400 transition cursor-pointer"

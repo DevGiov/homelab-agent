@@ -285,6 +285,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                   onOpenThread={onOpenThread}
                   onSave={(input) => memory.saveFact(fact.id, input)}
                   onRestore={() => memory.restore(fact.id)}
+                  onSetSensitivity={(level) => memory.setSensitivity(fact.id, level)}
                   onDelete={async () => {
                     if (await confirm({ message: 'Eliminare questo fatto?' })) memory.removeFact(fact.id);
                   }}
