@@ -107,15 +107,16 @@ export const ToolLog: React.FC<ToolLogProps> = ({
       }}
     >
       {/* Header / Toggle Button */}
-      {/* Compresso (striscia da 48 px, da md in su) l'icona e la freccia stanno una sopra l'altra; il nome resta per gli
-          screen reader. La freccia indica dove va il pannello: a destra per comprimerlo, a sinistra per aprirlo. */}
-      <div className={`p-3 border-b border-border flex items-center justify-between shrink-0 ${isOpen ? '' : 'md:px-0'}`}>
+      {/* Compresso (striscia da 48 px, da md in su) l'icona e la freccia stanno una sopra l'altra, alte quanto l'intestazione
+          della chat; il nome resta per gli screen reader. La freccia indica dove va il pannello: a destra per comprimerlo,
+          a sinistra per aprirlo. */}
+      <div className={`p-3 border-b border-border flex items-center justify-between shrink-0 ${isOpen ? '' : 'md:p-0 md:h-14'}`}>
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
           className={`flex items-center gap-2 text-fg-muted hover:text-fg transition w-full cursor-pointer min-w-0 ${
-            isOpen ? '' : 'md:flex-col md:justify-center md:gap-1'
+            isOpen ? '' : 'md:h-full md:flex-col md:justify-center md:gap-1'
           }`}
           title={isOpen ? 'Collassa pannello' : 'Espandi la diagnostica'}
         >

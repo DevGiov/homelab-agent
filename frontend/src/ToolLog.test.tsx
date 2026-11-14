@@ -19,7 +19,7 @@ describe('ToolLog: pulsante del pannello compresso', () => {
     expect(button.className.split(/\s+/)).toEqual(expect.arrayContaining(['md:flex-col', 'md:justify-center']));
     // Il testo resta per gli screen reader, fuori dalla larghezza della striscia
     expect(screen.getByText("Diagnostica dell'agente").className).toBe('sr-only');
-    expect(button.parentElement!.className.split(/\s+/)).toContain('md:px-0');
+    expect(button.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(['md:p-0', 'md:h-14']));
     fireEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
   });
