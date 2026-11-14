@@ -4,6 +4,7 @@ import type { AgentMode, FormattedMessage } from '../../api/chat';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { ChatMessage, type MessageActions } from './ChatMessage';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { scrollBehavior } from '../../utils/motion';
 
 interface MessageListProps {
   messages: FormattedMessage[];
@@ -46,7 +47,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages, isLoading, scrollKey]);
 
   return (

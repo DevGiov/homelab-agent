@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Lightbulb, ChevronDown } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { scrollBehavior } from '../utils/motion';
 
 interface ReasoningBlockProps {
   content: string;
@@ -50,7 +51,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
           if (node) {
             node.scrollTo({
               top: node.scrollHeight,
-              behavior: 'smooth'
+              behavior: scrollBehavior(),
             });
           }
         });

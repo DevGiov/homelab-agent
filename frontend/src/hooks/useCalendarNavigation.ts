@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { monthStartFromKey, toMonthKey } from '../utils/calendarDates';
+import { scrollBehavior } from '../utils/motion';
 
 export type CalendarViewMode = 'month' | 'week' | 'agenda';
 
@@ -20,7 +21,7 @@ export function useCalendarNavigation(presentMonths: string[]) {
     const target = document.getElementById(`agenda-month-${monthKey}`);
     if (!container || !target) return;
     const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-    container.scrollTo({ top: Math.max(0, offset - 8), behavior: 'smooth' });
+    container.scrollTo({ top: Math.max(0, offset - 8), behavior: scrollBehavior() });
   };
 
   /** Centra il marcatore "Oggi" nella lista; false se l'agenda non è montata. */
@@ -31,7 +32,7 @@ export function useCalendarNavigation(presentMonths: string[]) {
     const markerRect = marker.getBoundingClientRect();
     const top =
       markerRect.top - container.getBoundingClientRect().top + container.scrollTop - container.clientHeight / 2 + markerRect.height / 2;
-    container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    container.scrollTo({ top: Math.max(0, top), behavior: scrollBehavior() });
     return true;
   }, []);
 
