@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import palette from 'tailwindcss/colors';
+import tailwindConfig from '../../tailwind.config.js';
 import { STATUS_BUTTON, STATUS_FILL } from './statusFill';
 import { THEME_LIST } from './themes';
 import type { ThemeColors } from './types';
@@ -102,6 +103,35 @@ describe('fondi di stato pieni con testo bianco', () => {
   it('nel codice nessun testo bianco su fondi di stato chiari, traslucidi o 900/950', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(50);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('classi di colore del tema', () => {
+  const sources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+  const colors = tailwindConfig.theme.extend.colors;
+  const roots = Object.keys(colors).sort((a, b) => b.length - a.length);
+  const UTILITY = new RegExp(
+    `^(?:text|bg|border(?:-[xytrbl])?|ring(?:-offset)?|outline|fill|stroke|divide|from|via|to|shadow|decoration|caret|accent)-(${roots.join('|')})(.*?)(?:\\/\\d+)?$`,
+  );
+  // Una classe con un nome di colore inesistente (`text-userBubbleText`) non genera CSS: il testo eredita il colore del
+  // contenitore senza errori, ed è così che il fumetto dell'utente ha usato `fg` invece del suo colore
+  const unknown = Object.entries(sources).flatMap(([file, text]) =>
+    [...text.matchAll(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)]
+      .flatMap((m) => m[0].slice(1, -1).split(/[\s'"`{}()?,;]+/))
+      .map((token) => ({ token, match: UTILITY.exec(token.split(':').pop() ?? '') }))
+      .filter(({ match }) => {
+        if (!match) return false;
+        const [, root, rest] = match;
+        const value = colors[root];
+        if (rest === '') return typeof value !== 'string' && !('DEFAULT' in value);
+        return !rest.startsWith('-') || typeof value === 'string' || !(rest.slice(1) in value);
+      })
+      .map(({ token }) => `${file.replace('../', 'src/')}: ${token}`),
+  );
+
+  it('ogni classe di colore del tema usata nel codice esiste nella configurazione di Tailwind', () => {
+    expect(roots).toEqual(expect.arrayContaining(['fg', 'accent', 'userBubble']));
+    expect(unknown).toEqual([]);
   });
 });
 

@@ -67,7 +67,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
           <button
             type="button"
             onClick={onCancel}
-            className="px-2 py-1 rounded-md text-xs text-fg-muted hover:text-fg hover:bg-border/40 transition cursor-pointer"
+            className="px-2 py-1 rounded-md text-xs text-userBubble-text hover:bg-white/10 transition cursor-pointer"
           >
             Annulla
           </button>

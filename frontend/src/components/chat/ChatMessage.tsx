@@ -36,7 +36,7 @@ interface ChatMessageProps {
 
 const bubbleClass = (msg: FormattedMessage) =>
   msg.sender === 'user'
-    ? 'glass-bubble-user text-userBubbleText rounded-tr-none shadow-md'
+    ? 'glass-bubble-user text-userBubble-text rounded-tr-none shadow-md'
     : msg.isError
     ? 'bg-rose-950/70 border border-rose-800/80 text-rose-200 rounded-tl-none'
     : 'glass-bubble-agent text-fg border border-border rounded-tl-none shadow-sm';
@@ -99,16 +99,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         <button
           type="button"
           onClick={() => copy(msg.content)}
-          className="p-1 rounded text-userBubbleText/70 hover:text-userBubbleText hover:bg-white/10 transition cursor-pointer"
+          className="p-1 rounded text-userBubble-text hover:bg-white/10 transition cursor-pointer"
           title="Copia prompt"
         >
-          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
         {!isLoading && actions.onEditPrompt && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="p-1 rounded text-userBubbleText/70 hover:text-userBubbleText hover:bg-white/10 transition cursor-pointer"
+            className="p-1 rounded text-userBubble-text hover:bg-white/10 transition cursor-pointer"
             title="Modifica prompt"
           >
             <Pencil size={12} />
