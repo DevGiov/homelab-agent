@@ -82,7 +82,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                 className={`px-2.5 py-1.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition select-none ${
                   isChecked
                     ? 'bg-panel-hover/50 border-border/70 text-fg'
-                    : 'bg-transparent border-transparent text-fg-muted/60 hover:bg-panel-hover/30'
+                    : 'bg-transparent border-transparent text-fg-muted hover:bg-panel-hover/30'
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">

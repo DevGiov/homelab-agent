@@ -35,7 +35,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
     <div className="flex-1 flex flex-col glass-panel border border-border/70 rounded-2xl overflow-hidden shadow-xl bg-panel/30">
       <div className="grid grid-cols-7 border-b border-border/60 bg-panel-header/60 text-center py-2 text-xs font-semibold text-fg-muted">
         {DAY_NAMES_SHORT.map((d, i) => (
-          <div key={d} className={i >= 5 ? 'text-fg-muted/60' : ''}>
+          <div key={d} className={i >= 5 ? 'font-normal' : ''}>
             {d}
           </div>
         ))}

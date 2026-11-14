@@ -85,7 +85,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             )}
           </div>
 
-          {ev.description && <p className="text-xs text-fg-muted/80 line-clamp-1">{ev.description}</p>}
+          {ev.description && <p className="text-xs text-fg-muted line-clamp-1">{ev.description}</p>}
         </div>
       </div>
 

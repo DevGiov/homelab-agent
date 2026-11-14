@@ -45,7 +45,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
           <div className="text-center py-12 px-4">
             <FileText className="mx-auto text-fg-muted/40 mb-3" size={32} />
             <p className="text-xs text-fg-muted font-medium">Nessun artefatto trovato</p>
-            <p className="text-xs text-fg-muted/70 mt-1">
+            <p className="text-xs text-fg-muted mt-1">
               I report generati dalle automazioni (come briefing o audit) compariranno qui automaticamente.
             </p>
           </div>
@@ -55,7 +55,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
               <div className="flex items-center gap-1.5 px-2 text-xs font-bold text-fg-muted uppercase tracking-wider">
                 <Calendar size={12} className="text-accent/70" />
                 <span>{group.title}</span>
-                <span className="text-xs text-fg-muted/60 font-normal">({group.items.length})</span>
+                <span className="text-xs text-fg-muted font-normal">({group.items.length})</span>
               </div>
 
               <div className="space-y-1">

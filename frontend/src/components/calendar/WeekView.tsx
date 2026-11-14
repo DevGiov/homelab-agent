@@ -52,7 +52,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
               </div>
 
               {dayEvents.length === 0 ? (
-                <p className="text-xs text-fg-muted/50 italic py-1">Nessun impegno pianificato</p>
+                <p className="text-xs text-fg-muted italic py-1">Nessun impegno pianificato</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {dayEvents.map((ev) => (
