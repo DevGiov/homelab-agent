@@ -437,3 +437,17 @@ def test_document_label_is_chosen_at_upload_listed_and_changeable(client):
         assert client.post("/v1/kb/documents", json={"filename": "x.md", "content": "y", "sensitivity": "boh"}).status_code == 400
     finally:
         knowledge_base.delete_document(name)
+
+
+def test_data_exit_summary_counts_by_destination_and_lists_the_prompts(client):
+    before = client.get("/v1/security/flows?hours=1").json()
+    base = next((d for d in before["destinations"] if d["destination"] == "search:web"), {"allow": 0, "ask": 0})
+    _search(PUBLIC_TAG, thread_id="t-summary")
+    _search(PRIVATE, thread_id="t-summary")
+    data = client.get("/v1/security/flows?hours=1").json()
+    search = next(d for d in data["destinations"] if d["destination"] == "search:web")
+    assert search["allow"] == base["allow"] + 1 and search["ask"] == base["ask"] + 1
+    latest = data["recent"][0]
+    assert (latest["flow"], latest["destination"], latest["label"]) == ("ask", "search:web", "private")
+    assert latest["summary"] == "nome della persona" and latest["thread_id"] == "t-summary"
+    assert client.get("/v1/security/flows?hours=0").json()["hours"] == 1

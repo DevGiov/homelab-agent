@@ -109,7 +109,7 @@ Verificata il 2026-11-02 con prove reali su CT 125 (Qwen3.8-27B-Atomic-Vision-64
 
 **Rimandati**: revisione di ProxmoxMcp ([ISS-27](02-ISSUES.md#iss-27), tool composti) e tool calling nativo (opzione D di [INTERLEAVED_THINKING.md](../reasoning/INTERLEAVED_THINKING.md)), da decidere insieme dopo G2.
 
-**In costruzione**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)). Decisioni prese il 2026-11-13; fatte le fasi S0 (host ammessi), S1 (etichette e controllo delle uscite) il 2026-11-13 e S2 (interfaccia: livello della conversazione, indicatore, scheda di uscita, etichette in memoria, knowledge base e server MCP) il 2026-11-14. Prossima: S3, valutazioni.
+**Fatta, in osservazione**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)). Decisioni prese il 2026-11-13; fasi S0 (host ammessi) e S1 (etichette e controllo delle uscite) il 2026-11-13, S2 (interfaccia) e S3 (suite `flows`, vista delle uscite di dati) il 2026-11-14. Resta da misurare quante conferme arrivano nell'uso normale; S4 arriva con il primo provider cloud.
 
 ## Storico
 

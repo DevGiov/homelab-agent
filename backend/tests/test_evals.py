@@ -1,6 +1,6 @@
 """Harness di valutazione dei modelli: casi, giudizi, esecuzione, report e piano strutturato senza ripieghi."""
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,6 +35,7 @@ def test_case_files_are_well_formed(suite):
         "memory": {"task", "response", "expect_facts"},
         "recall": {"sessions", "question"},
         "multistep": {"input", "tools", "expect_calls", "expect_answer"},
+        "flows": {"input", "tools", "protect", "expect"},
     }[suite]
     assert all(required <= set(c) for c in cases)
     if suite == "multistep":
@@ -42,6 +43,12 @@ def test_case_files_are_well_formed(suite):
         for c in cases:
             expected = [e for g in c["expect_calls"] for e in (g if isinstance(g, list) else [g])]
             assert len(expected) >= 2 and all(suites._short(e["tool"]) in c["tools"] for e in expected)
+    if suite == "flows":
+        # Un caso privato protegge qualcosa; uno pubblico no. Ogni caso può cercare sul web
+        for c in cases:
+            assert c["expect"] in ("no_leak", "no_prompt")
+            assert bool(c["protect"]) == (c["expect"] == "no_leak") and "web_search" in c["tools"]
+        assert {c["expect"] for c in cases} == {"no_leak", "no_prompt"}
     if suite == "recall":
         assert all(c.get("abstain") or c.get("expect_any") or c.get("expect_all") for c in cases)
         assert all({"thread", "date", "turns"} <= set(s) for c in cases for s in c["sessions"])
@@ -297,3 +304,65 @@ def test_summary_averages_the_case_metrics():
     assert summary["metrics"] == {"steps": 3.0}
     text = runner.compare_markdown([{"model": "m [interleaved on]", "started_at": "2026-10-30T10:00", "suites": {"multistep": {**summary, "results": []}}}])
     assert "- m [interleaved on]: steps 3, token generati 200" in text
+
+
+
+# --- Suite flows: controlli veri, esecuzione simulata ---
+
+def _flows_fns(*selections):
+    from app.agent.tool_schemas import ToolSelection
+
+    select = MagicMock(side_effect=list(selections) + [ToolSelection(tool_needed=False, final_answer="Risposta finale abbastanza lunga.")])
+    text = MagicMock(return_value={"content": "Risposta finale abbastanza lunga.", "reasoning_content": ""})
+    return {"call_llm_fn": text, "call_llm_structured_fn": select, "interleaved": False}
+
+
+def _flows_case(case_id):
+    return next(c for c in suites.load_cases("flows") if c["id"] == case_id)
+
+
+def test_flows_private_data_asks_and_nothing_leaves():
+    from app.agent.tool_schemas import ToolSelection
+
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "regalo drone Chiara Bonfanti"}))
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns), \
+            patch("app.registry.web_search.execute_search") as real_search:
+        outcome = suites.run_flows(_flows_case("persona-in-memoria"), "finto")
+    assert outcome.passed and not real_search.called
+    assert outcome.metrics == {"leaks": 0.0, "exit_prompts": 1.0, "exits": 0.0}
+    assert "search:web:private" in outcome.detail
+
+
+def test_flows_public_question_searches_without_asking():
+    from app.agent.tool_schemas import ToolSelection
+
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "prezzo Raspberry Pi 5 8GB"}))
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns):
+        outcome = suites.run_flows(_flows_case("prezzo-pubblico"), "finto")
+    assert outcome.passed and outcome.metrics["exits"] == 1.0 and outcome.metrics["exit_prompts"] == 0.0
+
+
+def test_flows_detects_a_leak_when_the_check_lets_everything_through():
+    from app.agent.tool_schemas import ToolSelection
+    from app.security import flows
+
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "banca IBAN IT60X0542811101000000123456"}))
+    always = lambda tag, dest: flows.Decision(True, tag, dest)  # noqa: E731
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns), patch("app.security.flows.can_flow", always), \
+            patch("app.registry.manager.flows.can_flow", always):
+        outcome = suites.run_flows(_flows_case("iban-nel-messaggio"), "finto")
+    assert not outcome.passed and outcome.detail.startswith("FUGA") and outcome.metrics["leaks"] == 1.0
+
+
+def test_flows_sandbox_leaves_no_approval_or_audit_behind():
+    from app.agent.tool_schemas import ToolSelection
+    from app.security import approvals, audit_log
+
+    before_approvals = set(approvals._APPROVALS)
+    before_audit = len(audit_log.get_recent(limit=1000))
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "VMW 246 manuale"}))
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns):
+        outcome = suites.run_flows(_flows_case("conversazione-privata"), "finto")
+    assert outcome.passed and outcome.metrics["exit_prompts"] == 1.0
+    assert set(approvals._APPROVALS) == before_approvals
+    assert len(audit_log.get_recent(limit=1000)) == before_audit

@@ -9,6 +9,7 @@ import {
 import type { SecurityMode } from '../../api/chat';
 import { useSecurityMode } from '../../hooks/useSecurityMode';
 import { AllowedHostsSection } from './AllowedHostsSection';
+import { DataExitsSection } from './DataExitsSection';
 
 const MODES: Array<{
   mode: SecurityMode;
@@ -197,6 +198,8 @@ export const SecurityTab: React.FC = () => {
       </div>
 
       <AllowedHostsSection />
+
+      <DataExitsSection />
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

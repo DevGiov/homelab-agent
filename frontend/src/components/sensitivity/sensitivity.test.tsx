@@ -121,3 +121,29 @@ describe('classificazione dei server MCP', () => {
     expect(put?.body.result_untrusted).toBe(true);
   });
 });
+
+describe('uscite di dati', () => {
+  it('riassume per destinazione e mostra le ultime conferme', async () => {
+    const { DataExitsSection } = await import('../settings/DataExitsSection');
+    mockBackend({
+      'GET /v1/security/flows': () =>
+        jsonResponse({
+          hours: 168,
+          destinations: [
+            { destination: 'search:web', allow: 7, ask: 2, approved: 1, deny: 0, lowered: 0, labels: { public: 7, private: 2 } },
+            { destination: 'thread', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
+          ],
+          recent: [
+            { timestamp: '2026-11-14T10:00:00+00:00', thread_id: 't1', automation_id: null, tool_name: 'web_search', label: 'private',
+              destination: 'search:web', flow: 'ask', summary: 'regalo drone' },
+          ],
+        }),
+    });
+    render(<DataExitsSection />);
+    await waitFor(() => expect(screen.getByText('7 consentite', { exact: false })).toBeTruthy());
+    expect(screen.getAllByText('la ricerca web (motori pubblici)').length).toBeGreaterThan(0);
+    expect(screen.getByText('regalo drone')).toBeTruthy();
+    expect(screen.getByText('conferma chiesta')).toBeTruthy();
+    expect(screen.queryByText('thread')).toBeNull();
+  });
+});

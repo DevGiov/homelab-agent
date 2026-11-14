@@ -75,3 +75,15 @@ async def delete_mcp_flow(scope: str) -> Dict[str, Any]:
     if not flows.delete_mcp_flow_setting(scope):
         raise HTTPException(status_code=404, detail=f"Nessuna classificazione per '{scope}'.")
     return {"removed": scope}
+
+
+@router.get("/v1/security/flows", dependencies=[Depends(verify_api_key)])
+async def data_exit_summary(hours: int = 168) -> Dict[str, Any]:
+    """Uscite di dati delle ultime `hours` ore (default una settimana), dall'audit: quante conferme chiede il controllo."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.security import audit_log
+
+    hours = max(1, min(hours, 24 * 90))
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    return {"hours": hours, **audit_log.flow_summary(since)}

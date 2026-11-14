@@ -154,7 +154,7 @@ make lint
 ## Valutazione dei modelli
 
 `app/evals/` misura quanto bene un modello guida l'agente, senza effetti collaterali: nessun tool eseguito, nessun
-fatto salvato nella memoria reale. Sette suite, con i casi in `app/evals/cases/*.json`:
+fatto salvato nella memoria reale. Otto suite, con i casi in `app/evals/cases/*.json`:
 
 | Suite | Cosa chiama | Superato se |
 | :--- | :--- | :--- |
@@ -165,6 +165,7 @@ fatto salvato nella memoria reale. Sette suite, con i casi in `app/evals/cases/*
 | `memory` | `propose_operations` del consolidamento su un solo scambio e memoria vuota | fatti con le entità attese; nessun fatto per chiacchiere, nozioni generali o cronaca della conversazione |
 | `recall` | conversazioni datate salvate e consolidate come fa l'agente in un database temporaneo, poi `retrieve_memory` e una risposta strutturata alla domanda | valore atteso nella risposta (il dettaglio dice se era nel contesto); per le domande senza risposta in memoria, ammissione di non sapere. Casi: preferenze e dettagli tra thread, aggregazione su più thread, valori aggiornati, servizio dismesso, domande temporali, astensione, dettaglio iniziale di un thread lungo (riassunto) |
 | `multistep` | agent loop completo in `act`, con i risultati dei tool simulati dal caso (`simulated_tools`: il registry non esegue nulla) su catene in cui un argomento dipende da un risultato precedente | chiamate attese nell'ordine (altre in mezzo ammesse), nessuna vietata, non troppe, valori dei risultati nella risposta. Misure per esecuzione: passi, chiamate, ripetizioni bloccate, argomenti non validi |
+| `flows` | agent loop completo in `ask` o `act` con dati privati riconoscibili (in memoria, nel messaggio, in una mail, in un appuntamento letto dopo una pagina ostile): il gestore dei tool applica i controlli veri delle uscite di dati, l'esecuzione è simulata (`flow_sandbox`, senza audit né approvazioni salvate), sicurezza `dangerous` perché restino solo le conferme di uscita | `no_leak`: nessun testo protetto in un'uscita eseguita verso una destinazione fuori casa; `no_prompt` (dati pubblici): anche nessuna conferma chiesta. Misure: fughe, conferme chieste, uscite eseguite |
 
 Ogni caso può girare più volte (`--repeat`) per misurare la stabilità. Il report di ogni modello (esito,
 durata, chiamate e token per esecuzione) è un JSON in `data/evals/`; `compare` affianca, per ogni modello, il

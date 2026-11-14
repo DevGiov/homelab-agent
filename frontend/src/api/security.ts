@@ -63,3 +63,36 @@ export function saveMcpFlow(scope: string, setting: Omit<McpFlowSetting, 'scope'
 export function deleteMcpFlow(scope: string): Promise<{ removed: string }> {
   return http.delete<{ removed: string }>(`/security/mcp-flows/${encodeURIComponent(scope)}`);
 }
+
+// --- Uscite di dati nell'audit ---
+
+export interface DataExitDestination {
+  destination: string;
+  allow: number;
+  ask: number;
+  approved: number;
+  deny: number;
+  lowered: number;
+  labels: Record<string, number>;
+}
+
+export interface DataExitEvent {
+  timestamp: string;
+  thread_id: string | null;
+  automation_id: string | null;
+  tool_name: string;
+  label: string;
+  destination: string;
+  flow: 'ask' | 'deny' | 'lowered';
+  summary: string;
+}
+
+export interface DataExitSummary {
+  hours: number;
+  destinations: DataExitDestination[];
+  recent: DataExitEvent[];
+}
+
+export function getDataExitSummary(hours = 168): Promise<DataExitSummary> {
+  return http.get<DataExitSummary>('/security/flows', { hours });
+}

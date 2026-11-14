@@ -172,3 +172,37 @@ def tool_stats(since: str) -> List[Dict[str, Any]]:
         entry["p95_ms"] = durations[min(len(durations) - 1, int(len(durations) * 0.95))] if durations else None
         stats.append(entry)
     return sorted(stats, key=lambda s: s["avg_ms"] or 0, reverse=True)
+
+
+def flow_summary(since: str, recent: int = 20) -> Dict[str, Any]:
+    """Uscite di dati dalla data `since` (app.security.flows): per destinazione quante consentite, chieste, autorizzate
+    dopo una conferma e negate; le ultime richieste di conferma e i cambi di livello di una conversazione."""
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT destination, label, flow, COUNT(*) AS n FROM audit_log WHERE flow IS NOT NULL AND timestamp >= ? "
+            "GROUP BY destination, label, flow", (since,)).fetchall()
+        latest = conn.execute(
+            "SELECT timestamp, thread_id, automation_id, tool_name, label, destination, flow, arguments_json FROM audit_log "
+            "WHERE flow IN ('ask', 'deny', 'lowered') AND timestamp >= ? ORDER BY id DESC LIMIT ?", (since, recent)).fetchall()
+    finally:
+        conn.close()
+    by_destination: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        entry = by_destination.setdefault(r["destination"], {"destination": r["destination"], "allow": 0, "ask": 0,
+                                                              "approved": 0, "deny": 0, "lowered": 0, "labels": {}})
+        entry[r["flow"]] = entry.get(r["flow"], 0) + r["n"]
+        entry["labels"][r["label"]] = entry["labels"].get(r["label"], 0) + r["n"]
+    events = []
+    for r in latest:
+        item = dict(r)
+        try:
+            args = json.loads(item.pop("arguments_json") or "{}")
+        except ValueError:
+            args = {}
+        # Solo cosa permette di riconoscere la richiesta: la query o l'indirizzo, accorciati
+        item["summary"] = str(args.get("query") or args.get("url") or args.get("image_path_or_url")
+                              or (f"{args.get('from')} → {args.get('to')}" if "to" in args else ""))[:160]
+        events.append(item)
+    return {"destinations": sorted(by_destination.values(), key=lambda e: -(e["ask"] + e["deny"])), "recent": events}

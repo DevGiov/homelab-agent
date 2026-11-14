@@ -69,6 +69,8 @@ Ultimo risultato di ogni suite per modello. `multistep` con il pensiero tra i pa
 
 La matrice completa è il passo G2 della roadmap.
 
+Suite `flows` (sensibilità dei dati, 2026-11-14, dal checkout locale verso llama-swap): PXQN-Qwen3.8-27B-OneCard-MTP 100% (16/16 su 8 casi, 2 ripetizioni), **nessuna fuga**, 0,62 conferme di uscita per esecuzione. Dettagli nel design, sezione 9.4.
+
 ### Valutazione dei modelli (D4)
 
 Base del 2026-10-28 su LFM2.5-24B-A2B-HugeCtx (`make eval`, CT 125). Accuratezza sulle esecuzioni e durata mediana:
