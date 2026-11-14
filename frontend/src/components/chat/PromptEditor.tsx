@@ -3,6 +3,7 @@ import { Send } from 'lucide-react';
 import type { AgentMode, FormattedMessage } from '../../api/chat';
 import type { PromptEdit } from '../../hooks/useChat';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
+import { USER_BUBBLE_BUTTON } from '../../theme/userBubble';
 import { ModelSelector } from '../ModelSelector';
 
 interface PromptEditorProps {
@@ -74,7 +75,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
           <button
             type="button"
             onClick={submit}
-            className="px-2.5 py-1 rounded-md text-xs font-medium bg-accent text-accent-contrast hover:bg-accent-hover shadow-sm transition cursor-pointer flex items-center gap-1"
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold ${USER_BUBBLE_BUTTON} shadow-sm transition cursor-pointer flex items-center gap-1`}
           >
             <Send size={10} />
             <span>Invia</span>

@@ -4,6 +4,7 @@ import tailwindConfig, { lightThemeStatusColors } from '../../tailwind.config.js
 import { LABEL_CHIPS } from '../utils/sensitivity';
 import { STATUS_BUTTON, STATUS_FILL } from './statusFill';
 import { THEME_LIST } from './themes';
+import { USER_BUBBLE_BUTTON } from './userBubble';
 import type { ThemeColors } from './types';
 
 // Rapporto di contrasto WCAG 2 tra due colori esadecimali #rrggbb
@@ -81,6 +82,42 @@ describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ color
   // passare un poco la pagina: sui temi chiari si schiarisce
   it.each(SURFACES)("testo nel fumetto dell'utente col vetro smerigliato, sopra %s", (surface) => {
     expect(contrast(colors.userBubbleText, over(colors.userBubble, colors[surface], 0.9))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // Il pulsante Invia nella modifica del prompt sta sul fumetto dell'utente: il fondo si distingue dal fumetto (3:1, come
+  // ogni componente) e il testo si legge sul fondo (4.5:1). I colori si leggono dalle classi, non si danno per scontati
+  describe("pulsante pieno nel fumetto dell'utente", () => {
+    const TOKENS: Record<string, keyof ThemeColors> = {
+      userBubble: 'userBubble',
+      'userBubble-text': 'userBubbleText',
+      accent: 'accent',
+      'accent-hover': 'accentHover',
+      'accent-contrast': 'accentContrast',
+    };
+    /** Colore di `bg-…` o `text-…` nello stato `variant`; se lo stato non lo cambia, quello normale. */
+    const colorOf = (kind: 'bg' | 'text', variant: string) => {
+      const tokens = tokensOf(USER_BUBBLE_BUTTON);
+      const token = tokens.find((t) => t.startsWith(`${variant}${kind}-`)) ?? tokens.find((t) => t.startsWith(`${kind}-`));
+      const key = TOKENS[token?.split(':').pop()?.slice(kind.length + 1) ?? ''];
+      expect(key, `${variant}${kind}-… in "${USER_BUBBLE_BUTTON}"`).toBeDefined();
+      return colors[key];
+    };
+
+    it.each(['', 'hover:'])('stato "%s": testo almeno 4.5:1 sul fondo', (variant) => {
+      expect(contrast(colorOf('text', variant), colorOf('bg', variant))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it.each(['', 'hover:'])('stato "%s": fondo almeno 3:1 sul fumetto, opaco e col vetro smerigliato su ogni superficie', (variant) => {
+      const fill = colorOf('bg', variant);
+      expect(contrast(fill, colors.userBubble)).toBeGreaterThanOrEqual(3);
+      for (const surface of SURFACES) {
+        expect(contrast(fill, over(colors.userBubble, colors[surface], 0.9)), surface).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it('fondo e testo sono opachi: velati prenderebbero il colore del fumetto', () => {
+      expect(tokensOf(USER_BUBBLE_BUTTON).filter((t) => /(^|:)(bg|text)-[\w-]+\/\d+$/.test(t))).toEqual([]);
+    });
   });
 
   it.each(SURFACES)('testo al 80%% di opacità (text-fg/80, la più bassa usata) su %s', (surface) => {
