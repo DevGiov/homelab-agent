@@ -69,6 +69,13 @@ export function buildMonthGrid(date: Date): MonthGridDay[] {
   });
 }
 
+/** Nome di un giorno per i lettori di schermo, col numero dei suoi eventi: "14 novembre, 2 eventi". */
+export function dayLabel(dateStr: string, eventCount: number): string {
+  const [, month, day] = dateStr.split('-').map(Number);
+  const count = eventCount === 0 ? 'nessun evento' : eventCount === 1 ? '1 evento' : `${eventCount} eventi`;
+  return `${day} ${MONTH_NAMES[month - 1].toLowerCase()}, ${count}`;
+}
+
 export function groupByDate(events: CalendarEventItem[]): Map<string, CalendarEventItem[]> {
   const map = new Map<string, CalendarEventItem[]>();
   for (const ev of events) {

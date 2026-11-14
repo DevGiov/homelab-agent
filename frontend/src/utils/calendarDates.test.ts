@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CalendarEventItem } from '../api/calendar';
-import { buildMonthGrid, groupByDate, groupByMonth, mondayOf, toDateKey, weekDays, weekRangeTitle } from './calendarDates';
+import { buildMonthGrid, dayLabel, groupByDate, groupByMonth, mondayOf, toDateKey, weekDays, weekRangeTitle } from './calendarDates';
 
 const event = (dtstart: string, summary = dtstart) => ({ dtstart, dtend: dtstart, summary }) as CalendarEventItem;
 
@@ -27,6 +27,14 @@ describe('buildMonthGrid', () => {
     vi.setSystemTime(new Date(2026, 9, 27, 0, 30)); // in UTC sarebbe ancora il 26
     const today = buildMonthGrid(new Date(2026, 9, 1)).filter((d) => d.isToday);
     expect(today.map((d) => d.dateStr)).toEqual(['2026-10-27']);
+  });
+});
+
+describe('dayLabel', () => {
+  it('nomina il giorno col mese in minuscolo e il numero di eventi', () => {
+    expect(dayLabel('2026-11-14', 2)).toBe('14 novembre, 2 eventi');
+    expect(dayLabel('2026-01-01', 1)).toBe('1 gennaio, 1 evento');
+    expect(dayLabel('2026-12-31', 0)).toBe('31 dicembre, nessun evento');
   });
 });
 
