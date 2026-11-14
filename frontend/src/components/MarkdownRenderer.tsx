@@ -5,6 +5,8 @@ import { Copy, Check, ExternalLink, Calendar } from 'lucide-react';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { RehypePlugins } from './highlightPlugins';
 import { shallowestHeading } from '../utils/headings';
+import { navigate } from '../hooks/useRoute';
+import { formatRoute, isPlainClick } from '../utils/route';
 
 const AutomationProposalCard = lazy(() =>
   import('./automations/AutomationProposalCard').then((m) => ({ default: m.AutomationProposalCard })),
@@ -96,21 +98,23 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
 
           // Styled Hyperlinks & Event Anchors
           a: ({ href, children }) => {
+            // #event-<uid> scritto dall'agente: un link alla URL del calendario con l'evento, apribile anche in un'altra scheda
             if (href?.startsWith('#event-')) {
-              const eventUid = href.replace('#event-', '');
+              const route = { view: 'calendar', eventUid: href.slice('#event-'.length) } as const;
               return (
-                <button
-                  type="button"
+                <a
+                  href={formatRoute(route)}
                   onClick={(e) => {
+                    if (!isPlainClick(e)) return;
                     e.preventDefault();
-                    window.dispatchEvent(new CustomEvent('open-calendar-event', { detail: { eventUid } }));
+                    navigate(route);
                   }}
                   className="inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 transition font-medium cursor-pointer"
                   title="Apri nel Calendario"
                 >
-                  <Calendar size={12} className="inline shrink-0" />
+                  <Calendar size={12} className="inline shrink-0" aria-hidden="true" />
                   <span>{children}</span>
-                </button>
+                </a>
               );
             }
             return (

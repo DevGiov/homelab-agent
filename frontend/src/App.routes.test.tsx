@@ -8,12 +8,29 @@ const THREADS = [
   { thread_id: 'thr-2', title: 'Backup del NAS', last_message: 'Fatto', checkpoint_count: 1 },
 ];
 
-/** Backend finto: elenco, dettaglio di ogni conversazione con un messaggio riconoscibile, eliminazione e invio. */
+const EVENT = {
+  id: 'evt-1',
+  uid: 'evt-1@esempio.invalid',
+  calendar_id: 'cal-1',
+  summary: 'Cena di prova',
+  dtstart: '2026-11-20T19:00:00Z',
+  dtend: '2026-11-20T21:00:00Z',
+  all_day: false,
+  status: 'confirmed',
+};
+
+/**
+ * Backend finto: elenco, dettaglio di ogni conversazione con un messaggio riconoscibile e una risposta con un link a un
+ * evento, eliminazione, invio e un calendario con un evento.
+ */
 function setupBackend(threads = THREADS) {
   return mockBackend(
     {
       'GET /v1/threads': () => jsonResponse(threads),
       'GET /v1/health': () => jsonResponse({ status: 'ok' }),
+      'GET /v1/calendar/calendars': () =>
+        jsonResponse([{ id: 'cal-1', name: 'Personale', color: '#3b82f6', source: 'local', is_visible: true, is_read_only: false }]),
+      'GET /v1/calendar/events': () => jsonResponse([EVENT]),
       'POST /v1/invoke_stream': () =>
         sseResponse([
           { type: 'content', delta: 'Ciao' },
@@ -32,7 +49,12 @@ function setupBackend(threads = THREADS) {
           return jsonResponse({
             thread_id: id,
             title: thread?.title ?? null,
-            messages: thread ? [{ id: `u-${id}`, sender: 'user', content: `Messaggio di ${id}`, timestamp: '10:00' }] : [],
+            messages: thread
+              ? [
+                  { id: `u-${id}`, sender: 'user', content: `Messaggio di ${id}`, timestamp: '10:00' },
+                  { id: `a-${id}`, sender: 'assistant', content: `Ho segnato [la cena](#event-${EVENT.uid}).`, timestamp: '10:01' },
+                ]
+              : [],
           });
         },
       ],
@@ -271,6 +293,52 @@ describe('App: una URL per ogni conversazione', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Elimina tutte' }));
     await waitFor(() => expect(viewLink('Chat').getAttribute('href')).toBe('/'));
     expect(here()).toBe('/memoria');
+  });
+});
+
+describe('App: il calendario con un evento nella URL', () => {
+  const dialog = () => screen.findByRole('dialog', { name: 'Modifica Evento' }, { timeout: 5000 });
+
+  it('/calendario?evento=<uid> apre l’evento; chiuso, la URL torna a /calendario senza voci nuove', async () => {
+    setupBackend();
+    await renderAt(`/calendario?evento=${encodeURIComponent(EVENT.uid)}`);
+    const modal = await dialog();
+    expect(await within(modal).findByDisplayValue('Cena di prova')).toBeTruthy();
+    expect(here()).toBe('/calendario?evento=evt-1%40esempio.invalid');
+    expect(viewLink('Calendario').getAttribute('aria-current')).toBe('page');
+
+    const history = watchHistory();
+    fireEvent.click(within(modal).getByTitle('Chiudi'));
+    await waitFor(() => expect(here()).toBe('/calendario'));
+    expect(history.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Modifica Evento' })).toBeNull();
+  });
+
+  it('un evento che non esiste lascia il calendario e corregge la URL', async () => {
+    setupBackend();
+    window.history.replaceState(null, '', '/calendario?evento=fantasma');
+    const history = watchHistory();
+    await renderAt('/calendario?evento=fantasma');
+    await waitFor(() => expect(here()).toBe('/calendario'), { timeout: 5000 });
+    expect(history.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Modifica Evento' })).toBeNull();
+  });
+
+  it('dal link nella risposta al calendario con l’evento, e indietro alla conversazione', async () => {
+    setupBackend();
+    await renderAt('/c/thr-1');
+    const link = await screen.findByRole('link', { name: 'la cena' });
+    expect(link.getAttribute('href')).toBe('/calendario?evento=evt-1%40esempio.invalid');
+    const history = watchHistory();
+    fireEvent.click(link);
+    expect(history.push).toHaveBeenCalledTimes(1);
+    expect(await dialog()).toBeTruthy();
+    expect(here()).toBe('/calendario?evento=evt-1%40esempio.invalid');
+
+    await traverse(-1);
+    expect(here()).toBe('/c/thr-1');
+    expect(await screen.findByText('Messaggio di thr-1')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Modifica Evento' })).toBeNull();
   });
 });
 

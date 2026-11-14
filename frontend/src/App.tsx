@@ -95,16 +95,6 @@ function MainLayout() {
     navigate({ view: 'chat', threadId });
   };
 
-  // Link markdown #event-<uid>: il calendario con l'evento, come posto nuovo nella cronologia
-  useEffect(() => {
-    const handleOpenEvent = (e: Event) => {
-      const eventUid = (e as CustomEvent<{ eventUid?: string }>).detail?.eventUid;
-      if (eventUid) navigate({ view: 'calendar', eventUid });
-    };
-    window.addEventListener('open-calendar-event', handleOpenEvent);
-    return () => window.removeEventListener('open-calendar-event', handleOpenEvent);
-  }, []);
-
   // Titolo della scheda: il posto, con il titolo della conversazione appena si conosce
   const threadTitle = currentThreadTitle || threads.find((t) => t.thread_id === currentThreadId)?.title;
   useEffect(() => {

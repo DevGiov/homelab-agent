@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { CalendarEventItem } from '../../api/calendar';
 import { useCalendarData } from '../../hooks/useCalendarData';
@@ -13,8 +13,9 @@ import { MonthView } from './MonthView';
 import { WeekView } from './WeekView';
 
 interface CalendarViewProps {
-  /** Evento da aprire all'ingresso (link `#event-<uid>` dalla chat). */
+  /** Evento nominato dalla URL (link `#event-<uid>` dalla chat): si apre appena gli eventi sono caricati. */
   initialEventUid?: string | null;
+  /** L'evento della URL è stato chiuso, o non esiste: la URL torna al solo calendario. */
   onClearInitialEvent?: () => void;
   onOpenMobileSidebar?: () => void;
 }
@@ -50,18 +51,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
   const navigation = useCalendarNavigation(presentMonths);
   const { setCurrentDate } = navigation;
 
-  // Apertura dell'evento richiesto dalla chat appena gli eventi sono caricati
+  // Apertura dell'evento della URL appena gli eventi sono caricati, una volta: ricaricarli (sync, salvataggio) non lo
+  // riapre. La URL lo nomina finché è aperto, così ricaricare la pagina lo ritrova; se non c'è, la URL si corregge.
+  const openedEventUid = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialEventUid) return;
+    if (!initialEventUid) {
+      openedEventUid.current = null;
+      return;
+    }
+    if (data.isLoading || openedEventUid.current === initialEventUid) return;
     const target = data.events.find((e) => e.uid === initialEventUid || e.id === initialEventUid);
-    if (!target) return;
+    if (!target) {
+      onClearInitialEvent?.();
+      return;
+    }
+    openedEventUid.current = initialEventUid;
     setEditor({ event: target });
     if (target.dtstart) setCurrentDate(new Date(target.dtstart));
-    onClearInitialEvent?.();
-  }, [initialEventUid, data.events, onClearInitialEvent, setCurrentDate]);
+  }, [initialEventUid, data.events, data.isLoading, onClearInitialEvent, setCurrentDate]);
 
   const newEvent = (date?: string) => setEditor({ event: null, date });
   const openEvent = (event: CalendarEventItem) => setEditor({ event });
+  const closeEditor = () => {
+    setEditor(null);
+    if (initialEventUid) onClearInitialEvent?.();
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative">
@@ -137,7 +151,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
 
       <EventModal
         isOpen={editor !== null}
-        onClose={() => setEditor(null)}
+        onClose={closeEditor}
         onSave={data.reload}
         calendars={data.calendars}
         eventToEdit={editor?.event ?? null}

@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { shallowestHeading } from '../utils/headings';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
@@ -37,5 +37,42 @@ describe('titoli del testo', () => {
     expect((container.firstElementChild as HTMLElement).className.split(/\s+/)).toContain('[overflow-wrap:anywhere]');
     const link = getByRole('link', { name: url });
     expect(link.className.split(/\s+/)).not.toContain('inline-flex');
+  });
+});
+
+describe('link agli eventi del calendario', () => {
+  afterEach(() => {
+    cleanup();
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('#event-<uid> è un link alla URL del calendario con l’evento', () => {
+    const { getByRole } = render(<MarkdownRenderer content={'Ho segnato [la cena](#event-evt-42@esempio.invalid).'} />);
+    const link = getByRole('link', { name: 'la cena' });
+    expect(link.getAttribute('href')).toBe('/calendario?evento=evt-42%40esempio.invalid');
+    expect(link.getAttribute('target')).toBeNull();
+  });
+
+  it('il clic normale porta al calendario come voce nuova della cronologia', () => {
+    window.history.replaceState(null, '', '/c/thr-1');
+    const { getByRole } = render(<MarkdownRenderer content={'[la cena](#event-evt-42)'} />);
+    expect(fireEvent.click(getByRole('link', { name: 'la cena' }))).toBe(false);
+    expect(window.location.pathname + window.location.search).toBe('/calendario?evento=evt-42');
+  });
+
+  it('con Ctrl o Cmd lo apre il browser in un’altra scheda', () => {
+    window.history.replaceState(null, '', '/c/thr-1');
+    const { getByRole } = render(<MarkdownRenderer content={'[la cena](#event-evt-42)'} />);
+    let prevented = true;
+    const observe = (e: Event) => {
+      prevented = e.defaultPrevented;
+      // jsdom non apre altre schede
+      e.preventDefault();
+    };
+    document.addEventListener('click', observe);
+    fireEvent.click(getByRole('link', { name: 'la cena' }), { ctrlKey: true });
+    document.removeEventListener('click', observe);
+    expect(prevented).toBe(false);
+    expect(window.location.pathname).toBe('/c/thr-1');
   });
 });
