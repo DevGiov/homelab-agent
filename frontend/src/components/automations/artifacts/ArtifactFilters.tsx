@@ -38,7 +38,7 @@ export const ArtifactFilters: React.FC<ArtifactFiltersProps> = ({ filters, onCha
           placeholder="Cerca artefatto, report o automazione..."
           value={filters.query}
           onChange={(e) => onChange({ query: e.target.value })}
-          className="w-full bg-panel border border-border/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent"
+          className="w-full bg-panel border border-border/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-fg focus:border-accent"
         />
       </div>
     </div>
@@ -47,7 +47,7 @@ export const ArtifactFilters: React.FC<ArtifactFiltersProps> = ({ filters, onCha
       <select
         value={filters.automationId}
         onChange={(e) => onChange({ automationId: e.target.value })}
-        className="bg-panel border border-border/80 px-2 py-1.5 rounded-xl text-xs text-fg focus:outline-none focus:border-accent max-w-[170px] sm:max-w-xs truncate"
+        className="bg-panel border border-border/80 px-2 py-1.5 rounded-xl text-xs text-fg focus:border-accent max-w-[170px] sm:max-w-xs truncate"
       >
         <option value="all">Tutte le automazioni ({total})</option>
         {automations.map((opt) => (

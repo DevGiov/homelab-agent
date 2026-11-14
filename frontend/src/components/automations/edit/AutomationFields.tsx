@@ -2,7 +2,7 @@ import React from 'react';
 import type { AutomationFormState, Budget } from '../../../utils/automationForm';
 import { ModelChoiceSelect } from '../../ModelChoiceSelect';
 
-const inputClass = 'w-full bg-panel border border-border rounded-xl px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent';
+const inputClass = 'w-full bg-panel border border-border rounded-xl px-3 py-2 text-xs text-fg focus:border-accent';
 const labelClass = 'block text-xs font-semibold text-fg mb-1';
 
 interface FieldsProps {
@@ -55,7 +55,7 @@ export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
             id="enable-auto-toggle"
             checked={form.enabled}
             onChange={(e) => onChange({ enabled: e.target.checked })}
-            className="w-4 h-4 rounded border-border text-accent focus:ring-0"
+            className="w-4 h-4 rounded border-border text-accent"
           />
           <label htmlFor="enable-auto-toggle" className="text-xs text-fg cursor-pointer select-none">
             {form.enabled ? 'Abilitata (schedulazione e trigger attivi)' : 'Disabilitata (nessuna esecuzione automatica)'}

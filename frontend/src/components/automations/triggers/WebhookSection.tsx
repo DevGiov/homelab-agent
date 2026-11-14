@@ -72,7 +72,7 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
                 type="text"
                 readOnly
                 value={url}
-                className="flex-1 bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-sky-500 font-mono truncate select-all focus:outline-none"
+                className="flex-1 bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-sky-500 font-mono truncate select-all"
               />
               <button
                 type="button"

@@ -196,7 +196,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
                 value={memory.query}
                 onChange={(e) => memory.setQuery(e.target.value)}
                 placeholder="Cerca per significato (es. 'che IP ha il NAS?')"
-                className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-2 text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent"
+                className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-2 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent"
                 aria-label="Cerca nei fatti"
               />
             </div>

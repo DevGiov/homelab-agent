@@ -6,7 +6,7 @@ import { choiceFromModel, describeModelChoice, modelFromChoice } from '../../uti
 import { ModelChoiceSelect } from '../ModelChoiceSelect';
 import { Toggle } from '../Toggle';
 
-const selectClass = 'bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent max-w-[14rem]';
+const selectClass = 'bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:border-accent max-w-[14rem]';
 
 const summary = (r: ConsolidationResult) =>
   r.error

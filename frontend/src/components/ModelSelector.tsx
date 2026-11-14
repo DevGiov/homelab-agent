@@ -202,7 +202,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca modello..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-panel-header/70 border border-border rounded-lg text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-panel-header/70 border border-border rounded-lg text-fg placeholder:text-fg-muted/60 focus:border-accent"
             />
           </div>
 

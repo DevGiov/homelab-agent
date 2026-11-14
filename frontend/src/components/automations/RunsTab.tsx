@@ -115,7 +115,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="rounded bg-input-bg border-border text-accent focus:ring-0 cursor-pointer"
+                    className="rounded bg-input-bg border-border text-accent cursor-pointer"
                     title="Seleziona / deseleziona tutte le esecuzioni visibili"
                   />
                 </th>
@@ -143,7 +143,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       type="checkbox"
                       checked={selected.has(r.run_id)}
                       onChange={() => toggleRun(r.run_id)}
-                      className="rounded bg-input-bg border-border text-accent focus:ring-0 cursor-pointer"
+                      className="rounded bg-input-bg border-border text-accent cursor-pointer"
                       title="Seleziona run"
                     />
                   </td>

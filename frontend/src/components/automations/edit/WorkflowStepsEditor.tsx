@@ -21,7 +21,7 @@ const TOOLS: Array<[string, string]> = [
 const withCurrent = (options: Array<[string, string]>, current?: string | null) =>
   current && !options.some(([value]) => value === current) ? [...options, [current, current] as [string, string]] : options;
 
-const fieldClass = 'w-full bg-panel border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-accent';
+const fieldClass = 'w-full bg-panel border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg focus:border-accent';
 
 /** Parametri del tool come JSON libero: il testo si modifica liberamente e diventa effettivo solo quando è valido. */
 const ParametersField: React.FC<{ value: Record<string, any>; onChange: (value: Record<string, any>) => void }> = ({ value, onChange }) => {
@@ -107,7 +107,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   type="text"
                   value={step.name}
                   onChange={(e) => update(idx, { ...step, name: e.target.value })}
-                  className="font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent focus:outline-none px-1 py-0.5"
+                  className="font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent px-1 py-0.5"
                   placeholder="Nome dello step"
                 />
                 <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded border border-border">{step.step_id}</span>
@@ -180,7 +180,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                     type="checkbox"
                     checked={step.tools == null || step.tools.length > 0}
                     onChange={(e) => update(idx, { ...step, tools: e.target.checked ? null : [] })}
-                    className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-0"
+                    className="w-3.5 h-3.5 rounded border-border text-accent"
                   />
                   Può usare i tool consentiti dall'automazione
                 </label>

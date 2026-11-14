@@ -311,7 +311,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                               onChange={(e) =>
                                 handleUpdateDetectedValue(param.name, e.target.checked)
                               }
-                              className="rounded border-border text-accent focus:ring-0 w-4 h-4 cursor-pointer"
+                              className="rounded border-border text-accent w-4 h-4 cursor-pointer"
                             />
                             <span className="text-xs text-fg">
                               {val ? 'Attivato (true)' : 'Disattivato (false)'}
@@ -328,7 +328,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                               )
                             }
                             placeholder={param.default !== undefined ? String(param.default) : 'Inserisci valore...'}
-                            className="w-full px-2.5 py-1.5 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:border-accent"
                           />
                         )}
                       </div>
@@ -390,7 +390,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                         type="text"
                         value={item.value}
                         onChange={(e) => handleUpdateCustomValue(idx, e.target.value)}
-                        className="w-full px-2 py-1 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
+                        className="w-full px-2 py-1 rounded-lg bg-panel border border-border text-fg text-xs font-mono focus:border-accent"
                         placeholder="Valore..."
                       />
                     </div>
@@ -413,14 +413,14 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder="Nuova chiave (es. query)"
-                className="w-1/3 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
+                className="w-1/3 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
               />
               <input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 placeholder="Valore..."
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:outline-none focus:border-accent"
+                className="flex-1 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddParam();
                 }}
@@ -451,7 +451,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="checkbox"
                 checked={isDryRun}
                 onChange={(e) => setIsDryRun(e.target.checked)}
-                className="rounded border-border text-purple-500 focus:ring-0 cursor-pointer w-4 h-4"
+                className="rounded border-border text-purple-500 cursor-pointer w-4 h-4"
               />
             </div>
           )}

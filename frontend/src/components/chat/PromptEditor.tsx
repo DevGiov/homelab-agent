@@ -34,7 +34,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full bg-input-bg/90 border border-border rounded-xl p-2.5 text-xs sm:text-sm text-fg focus:outline-none focus:border-accent resize-y min-h-[60px]"
+        className="w-full bg-input-bg/90 border border-border rounded-xl p-2.5 text-xs sm:text-sm text-fg focus:border-accent resize-y min-h-[60px]"
         placeholder="Modifica prompt..."
         autoFocus
       />
@@ -43,7 +43,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as AgentMode | 'auto')}
-            className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none focus:border-accent"
+            className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:border-accent"
           >
             <option value="auto">Mode: Auto</option>
             <option value="chat">Mode: Chat</option>

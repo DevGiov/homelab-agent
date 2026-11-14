@@ -22,7 +22,7 @@ export const SensitivitySelect: React.FC<SensitivitySelectProps> = ({ value, onC
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as SensitivityLevel)}
-      className="bg-transparent focus:outline-none cursor-pointer disabled:cursor-default"
+      className="bg-transparent cursor-pointer disabled:cursor-default"
       aria-label={label}
     >
       {LEVELS.map((l) => (

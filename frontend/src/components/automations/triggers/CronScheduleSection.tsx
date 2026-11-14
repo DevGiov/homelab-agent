@@ -13,7 +13,7 @@ const FREQUENCIES: Array<[Frequency, string]> = [
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const inputClass =
-  'w-full bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent';
+  'w-full bg-input-bg border border-input-border rounded-lg px-3 py-2 text-xs text-fg focus:border-accent';
 const clamp = (value: number, max: number) => Math.max(0, Math.min(max, value));
 
 interface CronScheduleSectionProps {

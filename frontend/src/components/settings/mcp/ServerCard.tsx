@@ -116,7 +116,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
                   <select
                     value={tool.risk}
                     onChange={(e) => onToolChange(tool, { enabled: tool.enabled, risk: e.target.value as ToolRisk })}
-                    className={`bg-input-bg border border-input-border rounded-md px-1.5 py-0.5 text-xs focus:outline-none focus:border-accent ${
+                    className={`bg-input-bg border border-input-border rounded-md px-1.5 py-0.5 text-xs focus:border-accent ${
                       tool.risk === 'blocked' ? 'text-rose-400' : 'text-fg'
                     }`}
                     title="Rischio: Automatico usa la classificazione per nome"

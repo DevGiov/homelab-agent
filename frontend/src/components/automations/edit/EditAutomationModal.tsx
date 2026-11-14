@@ -150,7 +150,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
                 value={rawJson}
                 onChange={(e) => editJson(e.target.value)}
                 rows={16}
-                className="w-full bg-panel border border-border rounded-xl p-3 font-mono text-xs text-fg focus:outline-none focus:border-accent"
+                className="w-full bg-panel border border-border rounded-xl p-3 font-mono text-xs text-fg focus:border-accent"
               />
             </div>
           )}

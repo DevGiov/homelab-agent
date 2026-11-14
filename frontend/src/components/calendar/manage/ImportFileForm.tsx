@@ -61,7 +61,7 @@ export const ImportFileForm: React.FC<ManageFormProps & { calendars: CalendarIte
           <select
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
-            className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:outline-none focus:border-accent"
+            className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:border-accent"
           >
             <option value={NEW_CALENDAR} className="bg-panel text-fg">
               + Crea un nuovo calendario per questo file

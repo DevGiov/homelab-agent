@@ -210,7 +210,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             placeholder="Filter threads..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent transition"
+            className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:border-accent transition"
           />
         </div>
       </div>

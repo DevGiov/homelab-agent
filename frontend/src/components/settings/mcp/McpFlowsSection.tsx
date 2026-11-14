@@ -10,7 +10,7 @@ type Draft = Omit<McpFlowSetting, 'scope'>;
 
 const STRICTEST: Draft = { result_label: 'private', result_untrusted: false, clearance: 'public' };
 
-const selectClass = 'bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none focus:border-accent cursor-pointer';
+const selectClass = 'bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:border-accent cursor-pointer';
 
 /**
  * Classificazione dei server per la sensibilità dei dati: quanto sono riservati i loro risultati e quali dati possono

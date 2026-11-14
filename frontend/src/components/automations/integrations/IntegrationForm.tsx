@@ -4,7 +4,7 @@ import type { IntegrationTestResult, ServiceIntegration } from '../../../api/int
 import type { Integrations } from '../../../hooks/useIntegrations';
 import type { FieldSpec, FieldValues, IntegrationSpec } from './specs';
 
-const inputClass = 'w-full px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg focus:outline-none focus:border-accent text-xs font-mono';
+const inputClass = 'w-full px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg focus:border-accent text-xs font-mono';
 const colSpan = { 1: 'col-span-1', 2: 'col-span-2', 3: 'col-span-3' };
 
 /** Valori iniziali: configurazione salvata, segreti mascherati dal backend, altrimenti i default. */
@@ -43,7 +43,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
           id={id}
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="rounded border-border text-accent focus:ring-0 cursor-pointer"
+          className="rounded border-border text-accent cursor-pointer"
         />
         <label htmlFor={id} className="text-fg-muted text-xs cursor-pointer">
           {field.label}

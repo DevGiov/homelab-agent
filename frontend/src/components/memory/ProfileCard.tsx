@@ -57,7 +57,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
             rows={5}
             maxLength={PROFILE_MAX_CHARS}
             placeholder={"Chi sei e come lavori: nome, lingua, preferenze, convenzioni dell'homelab (es. 'Uso Debian 12 per i nuovi container')"}
-            className="w-full resize-y leading-relaxed bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent"
+            className="w-full resize-y leading-relaxed bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent"
             aria-label="Testo del profilo"
             autoFocus
           />

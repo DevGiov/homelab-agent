@@ -14,7 +14,7 @@ interface EntityPanelProps {
 }
 
 const inputClass =
-  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent';
+  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent';
 
 /** Entità della memoria, le più citate per prime; la selezione filtra i fatti. */
 export const EntityPanel: React.FC<EntityPanelProps> = ({ entities, query, type, selectedId, onQueryChange, onTypeChange, onSelect }) => (

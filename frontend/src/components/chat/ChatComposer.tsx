@@ -152,7 +152,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           }}
           placeholder={placeholder}
           disabled={isLoading}
-          className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 resize-none transition"
+          className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:border-accent resize-none transition"
         />
         {isLoading ? (
           <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">

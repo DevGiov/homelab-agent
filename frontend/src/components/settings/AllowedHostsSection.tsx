@@ -203,7 +203,7 @@ export const AllowedHostsSection: React.FC = () => {
                 setNewHost(e.target.value);
                 setAddError(null);
               }}
-              className="w-full bg-bg/60 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent"
+              className="w-full bg-bg/60 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-fg placeholder:text-fg-muted/60 focus:border-accent"
             />
           </div>
           <div>
@@ -212,7 +212,7 @@ export const AllowedHostsSection: React.FC = () => {
               placeholder="Nota opzionale"
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              className="w-full bg-bg/60 border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:outline-none focus:border-accent"
+              className="w-full bg-bg/60 border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent"
             />
           </div>
         </div>

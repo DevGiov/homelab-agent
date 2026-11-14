@@ -5,7 +5,7 @@ import { getProviderModels, getProviders, setDefaultProvider, type ProviderInfo 
 import { formatApiError } from '../../utils/error';
 
 const fieldClass =
-  'w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent disabled:opacity-50';
+  'w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs text-fg focus:border-accent disabled:opacity-50';
 
 /** API key, provider e modello di default; il salvataggio chiude il modale. */
 export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {

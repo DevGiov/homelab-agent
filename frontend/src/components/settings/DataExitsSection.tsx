@@ -71,7 +71,7 @@ export const DataExitsSection: React.FC = () => {
           <select
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
-            className="bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none cursor-pointer"
+            className="bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg cursor-pointer"
             aria-label="Periodo"
           >
             {PERIODS.map((p) => (

@@ -4,7 +4,7 @@ import { testMcpConnection, testMcpServer, type MCPServer, type MCPServerInput, 
 import { formatApiError } from '../../../utils/error';
 
 const inputClass =
-  'w-full bg-input-bg border border-input-border rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent';
+  'w-full bg-input-bg border border-input-border rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:border-accent';
 const labelClass = 'block text-xs font-medium text-fg-muted mb-1';
 
 interface ServerFormProps {

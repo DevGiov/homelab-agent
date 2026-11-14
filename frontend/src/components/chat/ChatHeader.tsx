@@ -87,7 +87,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           value={mode}
           onChange={(e) => onModeChange(e.target.value as AgentMode | 'auto')}
           aria-label="Modalità"
-          className="bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent capitalize"
+          className="bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:border-accent capitalize"
         >
           {MODES.map((modeOption) => (
             <option key={modeOption} value={modeOption}>
@@ -106,7 +106,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="checkbox"
           checked={execute}
           onChange={(e) => onExecuteChange(e.target.checked)}
-          className="rounded bg-input-bg border-border text-accent focus:ring-0 sr-only @xl/chat:not-sr-only"
+          className="rounded bg-input-bg border-border text-accent sr-only @xl/chat:not-sr-only"
         />
         <Play size={12} className={execute ? 'text-emerald-400' : 'text-fg-muted'} />
         <span className="text-xs hidden @xl/chat:inline">Execute</span>

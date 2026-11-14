@@ -185,7 +185,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       onChange={(e) =>
                         onSelectMessageId?.(e.target.value === 'latest' ? null : e.target.value)
                       }
-                      className="bg-input-bg border border-input-border text-fg rounded-lg px-2 py-1 text-xs max-w-[170px] sm:max-w-[200px] truncate focus:outline-none focus:border-accent"
+                      className="bg-input-bg border border-input-border text-fg rounded-lg px-2 py-1 text-xs max-w-[170px] sm:max-w-[200px] truncate focus:border-accent"
                     >
                       <option value="latest">⚡ Ultimo / Live ({assistantMessages.length})</option>
                       {assistantMessages.map((m, idx) => {

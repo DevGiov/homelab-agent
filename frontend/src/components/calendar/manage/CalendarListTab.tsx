@@ -78,7 +78,7 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
                       type="text"
                       value={editing.name}
                       onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      className="px-2.5 py-1 text-xs bg-input-bg text-fg border border-input-border rounded-lg focus:outline-none focus:border-accent"
+                      className="px-2.5 py-1 text-xs bg-input-bg text-fg border border-input-border rounded-lg focus:border-accent"
                     />
                   </div>
                 ) : (

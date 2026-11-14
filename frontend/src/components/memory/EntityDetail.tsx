@@ -15,7 +15,7 @@ interface EntityDetailProps {
   onDelete: () => void;
 }
 
-const inputClass = 'bg-input-bg border border-input-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent';
+const inputClass = 'bg-input-bg border border-input-border rounded-lg px-2 py-1 text-xs text-fg focus:border-accent';
 const iconButton = 'p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer';
 
 /** Entità selezionata: rinomina e tipo, unione in un'altra entità, eliminazione ed entità in relazione. */
