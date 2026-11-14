@@ -36,6 +36,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-30](#iss-30) | In chat il loop non riprende dopo un'approvazione | S1 | agent loop | ✅ Risolto 2026-11-02 |
 | [ISS-31](#iss-31) | Nei piani un'approvazione è trattata come un errore e annulla i passi fatti | S1 | agente/piani | ✅ Risolto 2026-11-02 |
 | [ISS-32](#iss-32) | Nelle run l'approvazione non esegue il tool, o lascia la run ferma | S1 | automazioni | ✅ Risolto 2026-11-02 |
+| [ISS-33](#iss-33) | `normalize_proposal`: comportamenti dubbi fissati dai test | S3 | backend/automations | 🟡 Da decidere caso per caso |
 
 ---
 
@@ -108,6 +109,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 ## ISS-09
 **Moduli monolitici, backend non strutturato a pacchetti** — S3
 
+- **Avanzamento (G3, 2026-11-14)**: `normalize_proposal` divisa (da 327 righe a 19, passi con nome in [proposal_normalization.py](../../backend/app/automations/proposal_normalization.py)); restano 17 funzioni sopra le 100 righe, di cui 4 sono schemi statici.
 - **Stato (2026-11-02)**: la struttura a pacchetti è fatta (fase B). Resta il criterio di uscita "nessuna funzione sopra ~100 righe": 18 funzioni lo superano. Alcune sono schemi statici (`get_tools` dei registry, `init_automations_db`); quelle con logica sono `normalize_proposal` (327 righe), `route_turn` (196), `run_script` (182), `execute_search` (171), `run_agent_flow_stream` (150). Si dividono quando si toccano quei file.
 - File oltre le 1000 righe: [graph.py](../../backend/app/agent/graph.py) (1730), `automations/db.py` (1315), [api.py](../../backend/app/api/) (1202).
 - Tutti i moduli e i 34 test stanno nella radice di `backend/`, insieme ai database SQLite.
@@ -315,3 +317,21 @@ Nessun code-splitting: automazioni, calendario e highlight.js finiscono tutti ne
 - **Tool che chiede conferma al guardrail**: la richiesta nasce con `run_id` uguale al thread o a `chat_session`, quindi la route la tratta come approvazione di chat: il tool viene eseguito, ma la run resta in `waiting_approval` per sempre. La scadenza è di 5 minuti anche per le run programmate di notte.
 - **Route asincrona** (`sync=false`): risolve la richiesta e rilancia `execute_run`, che riesegue lo step in attesa e crea una nuova approvazione.
 - **Soluzione**: la run riparte dallo step in attesa (`execute_run(run_id, resume=...)`). Un gate puro è finito; uno step con un tool lo esegue, con l'approvazione già data. Le richieste del guardrail vengono legate alla run con scadenza di 24 ore (`approvals.bind_to_run`), anche se risolte da `/v1/approvals`. Il rifiuto di uno step con un tool blocca la run; dentro uno step agentico arriva al modello, che può proseguire. La UI usa la route asincrona: uno step agentico può durare minuti.
+
+## ISS-33
+**`normalize_proposal`: comportamenti dubbi fissati dai test** — S3
+
+La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i test di [test_normalize_proposal.py](../../backend/tests/test_normalize_proposal.py) lo fissano com'era, e segnano con `# Da rivedere` i casi che sembrano errori. Ognuno si corregge cambiando il test insieme al codice.
+
+- **Registry predefiniti senza `calendar`**: un payload senza `allowed_registries` riceve un elenco che non lo contiene, mentre il default di `ExecutionPolicy` sì.
+- **`allowed_tools`**: l'ordine viene da un insieme e può cambiare tra processi; una stringa (`"curl"`) diventa l'elenco delle sue lettere.
+- **Il payload del chiamante viene modificato**: il trigger cron dedotto viene aggiunto alla lista `triggers` ricevuta.
+- **Eccezioni grezze al posto di un errore di validazione** (`TypeError`, `KeyError`): `steps: None`, `workflow {"steps": 5}`, `workflow {"steps": {"a": 1}}`, uno step con `timeout: None`.
+- **Passo iniziale inesistente**: con un elemento non valido in testa alla lista, `initial_step_id` punta a `step_1` che non c'è. Un workflow vuoto passa la validazione.
+- **Cron dedotto dal testo**: "alle 9:30" perde i minuti; "at 25:00" dà un'ora che non esiste; "format 3.14" e "sensore 12" vengono letti come orari; senza nome viene letto l'id.
+- **`triggers` come stringa**: `"@daily"` e `"webhook"` diventano un trigger manuale; `"every 5 minutes"` diventa l'espressione cron così com'è, senza controllo di sintassi.
+- **Cron esplicito non riconosciuto** se scritto con `cron_expr`, `expression` o `type: "CRON"`: se ne aggiunge un secondo dedotto.
+- **Istanze dei modelli dentro le liste** (`Trigger`, `WorkflowStepDefinition`): scartate in silenzio.
+- **Un prompt decide il tipo di step**: batte gli alias `python`, `code`, `gate`, `approval` e rende lo step agentico.
+- **Espansione dei template per sottostringa**: uno step solo con azione `"repair"` diventa l'intero template `github_issue_repair`; `"email"` ne corrisponde a due e decide l'ordine dei file; la policy dell'utente viene sostituita; gli errori di lettura del template vengono ignorati.
+- **Codice mai eseguito**, lasciato com'è: i nomi di ripiego "Nuova Automazione" e "Step N".
