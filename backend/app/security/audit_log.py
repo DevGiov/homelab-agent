@@ -174,9 +174,31 @@ def tool_stats(since: str) -> List[Dict[str, Any]]:
     return sorted(stats, key=lambda s: s["avg_ms"] or 0, reverse=True)
 
 
+# Cose a cui l'utente può abbassare l'etichetta a mano: destinazione con cui finiscono nell'audit
+LABEL_TARGETS = ("thread", "fact", "kb")
+
+
+def log_label_lowered(target: str, previous: str, new: str, *, subject: Optional[str] = None,
+                      thread_id: Optional[str] = None) -> bool:
+    """Etichetta di una conversazione, di un fatto o di un documento abbassata a mano: resta nell'audit (alzarla è
+    sempre lecito e non viene registrato). `subject` dice quale, per esempio "fatto #12"."""
+    from app.security.flows import Label
+    if target not in LABEL_TARGETS:
+        raise ValueError(f"Destinazione non valida per un cambio di etichetta: {target!r}")
+    if Label.parse(new) >= Label.parse(previous):
+        return False
+    args: Dict[str, Any] = {"from": previous, "to": new}
+    if subject:
+        args["subject"] = subject
+    log_tool_call(f"{target}_sensitivity", args, thread_id=thread_id, registry="security", result={"lowered": True},
+                  flow={"label": new, "destination": target, "flow": "lowered"})
+    return True
+
+
 def flow_summary(since: str, recent: int = 20) -> Dict[str, Any]:
     """Uscite di dati dalla data `since` (app.security.flows): per destinazione quante consentite, chieste, autorizzate
-    dopo una conferma e negate; le ultime richieste di conferma e i cambi di livello di una conversazione."""
+    dopo una conferma e negate; le ultime richieste di conferma e le etichette abbassate a mano (conversazioni,
+    fatti, documenti)."""
     conn = _get_conn()
     conn.row_factory = sqlite3.Row
     try:
@@ -202,7 +224,9 @@ def flow_summary(since: str, recent: int = 20) -> Dict[str, Any]:
         except ValueError:
             args = {}
         # Solo cosa permette di riconoscere la richiesta: la query o l'indirizzo, accorciati
-        item["summary"] = str(args.get("query") or args.get("url") or args.get("image_path_or_url")
-                              or (f"{args.get('from')} → {args.get('to')}" if "to" in args else ""))[:160]
+        change = f"{args.get('from')} → {args.get('to')}" if "to" in args else ""
+        if change and args.get("subject"):
+            change = f"{args['subject']}: {change}"
+        item["summary"] = str(args.get("query") or args.get("url") or args.get("image_path_or_url") or change)[:160]
         events.append(item)
     return {"destinations": sorted(by_destination.values(), key=lambda e: -(e["ask"] + e["deny"])), "recent": events}

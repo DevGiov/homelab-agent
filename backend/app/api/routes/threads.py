@@ -213,12 +213,8 @@ async def set_thread_sensitivity(thread_id: str, req: SensitivityLevelRequest):
     """Livello minimo della conversazione: vale per i messaggi successivi. Abbassarlo è una scelta dell'utente che la UI
     conferma prima di chiamare: resta nell'audit."""
     from app.security import audit_log
-    from app.security.flows import Label
 
     previous = thread_store.get_thread_sensitivity(thread_id) or "public"
     thread_store.set_thread_sensitivity(thread_id, req.level)
-    if Label.parse(req.level) < Label.parse(previous):
-        audit_log.log_tool_call("thread_sensitivity", {"from": previous, "to": req.level}, thread_id=thread_id,
-                                registry="security", result={"lowered": True},
-                                flow={"label": req.level, "destination": "thread", "flow": "lowered"})
+    audit_log.log_label_lowered("thread", previous, req.level, thread_id=thread_id)
     return {"thread_id": thread_id, "sensitivity_level": req.level, "previous": previous}

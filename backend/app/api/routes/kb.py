@@ -1,5 +1,7 @@
 """Knowledge base: documenti indicizzati e ricerca."""
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.deps import verify_api_key
@@ -67,13 +69,20 @@ async def kb_search(query: str, k: int = 5):
 
 @router.put("/v1/kb/documents/{filename}/sensitivity", dependencies=[Depends(verify_api_key)])
 async def kb_set_document_sensitivity(filename: str, request: Request):
-    """Etichetta del documento (public, internal, private): `knowledge_search` porta nel turno la più alta trovata."""
+    """Etichetta del documento (public, internal, private): `knowledge_search` porta nel turno la più alta trovata.
+    Abbassarla resta nell'audit, come per le conversazioni."""
     from app.memory import knowledge_base
+    from app.security import audit_log
     body = await request.json()
+    level = str(body.get("sensitivity") or "")
+    name = Path(filename).name
+    previous = next((d["sensitivity"] for d in knowledge_base.list_documents() if d["filename"] == name), None)
     try:
-        changed = knowledge_base.set_document_sensitivity(filename, str(body.get("sensitivity") or ""))
+        changed = knowledge_base.set_document_sensitivity(filename, level)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     if not changed:
         raise HTTPException(status_code=404, detail=f"Documento '{filename}' non trovato.")
+    if previous:
+        audit_log.log_label_lowered("kb", previous, level, subject=f"documento {name}")
     return {"filename": filename, "sensitivity": body.get("sensitivity"), "chunks": changed}

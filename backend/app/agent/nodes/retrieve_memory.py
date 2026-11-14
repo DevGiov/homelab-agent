@@ -20,7 +20,7 @@ from app.agent import llm_calls
 from app.agent.mode_policy import MemoryPolicy, get_mode_policy
 from app.agent.state import AgentState
 from app.memory import episodes, facts, procedures, profile, thread_store
-from app.security import flows
+from app.security import detectors, flows
 from app.security.flows import Tag
 
 logger = logging.getLogger("graph")
@@ -133,9 +133,32 @@ def _recalled_facts(task: str, thread_id: str, policy: MemoryPolicy) -> Tuple[st
     return f"{header}:\n" + "\n".join(lines), tag
 
 
+def _person_names() -> List[str]:
+    try:
+        return [e["name"] for e in facts.list_entities(entity_type="person") if e.get("name")]
+    except Exception as e:
+        logger.warning(f"Persone della memoria non lette (non bloccante): {e}")
+        return []
+
+
+def _has_label(item: Dict[str, Any]) -> bool:
+    return bool(item.get("sensitivity") or (item.get("metadata") or {}).get("sensitivity"))
+
+
+def episode_tag(episode: Dict[str, Any], person_names: Optional[List[str]] = None) -> Tag:
+    """Un episodio porta l'etichetta del turno da cui nasce. Quelli salvati prima delle etichette descrivono richiesta,
+    tool, argomenti ed errori, non output: sono `internal` come lo stato dell'infrastruttura (decisione 2), e i
+    rilevatori dei risultati li alzano se nel testo c'è un dato personale (segreto, IBAN, codice fiscale, email,
+    persona della memoria)."""
+    if _has_label(episode):
+        return flows.memory_item_tag("episodio", episode)
+    found = detectors.tag_for(episode.get("content") or "", "memoria:episodio",
+                              person_names if person_names is not None else _person_names(), kinds=detectors.RESULT_KINDS)
+    return flows.join(flows.memory_item_tag("episodio", episode, flows.Label.INTERNAL), found)
+
+
 def _past_executions(task: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
-    """Episodi di esecuzione simili alla richiesta: tool usati, errori ed esito. Un episodio porta l'etichetta del
-    turno da cui nasce (`private` per quelli salvati prima delle etichette)."""
+    """Episodi di esecuzione simili alla richiesta: tool usati, errori ed esito, con l'etichetta di `episode_tag`."""
     if not policy.episodes_k:
         return "", flows.PUBLIC_TAG
     try:
@@ -145,7 +168,8 @@ def _past_executions(task: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
         return "", flows.PUBLIC_TAG
     if not similar:
         return "", flows.PUBLIC_TAG
-    tag = flows.join(*(flows.memory_item_tag("episodio", e) for e in similar))
+    names = _person_names() if not all(_has_label(e) for e in similar) else []
+    tag = flows.join(*(episode_tag(e, names) for e in similar))
     return ("### Esecuzioni simili passate (tool usati ed esito):\n"
             + "\n".join(f"- [{(e['created_at'] or '')[:10]}] {e['content']}" for e in similar)), tag
 

@@ -14,6 +14,8 @@ describe('sensibilità: etichette', () => {
 
   it('descrive i motivi in italiano', () => {
     expect(describeReason('memoria:profilo')).toBe('il profilo utente');
+    expect(describeReason('memoria:episodio')).toBe("un'esecuzione passata");
+    expect(describeReason('memoria:episodio:iban')).toBe("un'esecuzione passata con un IBAN");
     expect(describeReason('tool:web_search')).toBe('risultato di web_search');
     expect(describeReason('messaggio:iban')).toBe('un IBAN nel messaggio');
     expect(describeReason('conversazione:private')).toBe('il livello scelto per la conversazione');

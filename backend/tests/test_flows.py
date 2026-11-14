@@ -341,6 +341,38 @@ def test_memory_context_tag_includes_the_profile_and_saved_message_labels():
     assert [m["sensitivity"] for m in history] == ["internal", "internal"]
 
 
+def test_unlabeled_episodes_are_internal_unless_the_detectors_find_personal_data():
+    """Episodi salvati prima delle etichette: internal (decisione 2), alzati dai rilevatori dei risultati."""
+    tag = memory_node.episode_tag({"content": "Richiesta: stato dei container. Tool: list_containers"}, [])
+    assert tag.label == Label.INTERNAL and tag.reasons == ("memoria:episodio",)
+    iban = memory_node.episode_tag({"content": "Richiesta: paga IBAN GB82 WEST 1234 5698 7654 32"}, [])
+    assert iban.label == Label.PRIVATE and "memoria:episodio:iban" in iban.reasons
+    person = memory_node.episode_tag({"content": "Richiesta: scrivi a Mario Rossi"}, ["Mario Rossi"])
+    assert person.label == Label.PRIVATE and "memoria:episodio:person" in person.reasons
+    # Un telefono no: tra i risultati dei tool dà troppi falsi positivi (numeri di memoria, uptime)
+    assert memory_node.episode_tag({"content": "maxmem 3221225472"}, []).label == Label.INTERNAL
+    # Un episodio etichettato tiene la sua etichetta, anche più bassa o più alta del default
+    assert memory_node.episode_tag({"content": "x", "sensitivity": "public"}, []).label == Label.PUBLIC
+    assert memory_node.episode_tag({"content": "x", "metadata": {"sensitivity": "private"}}, []).label == Label.PRIVATE
+    # Come per i fatti, l'etichetta salvata vale anche se dopo la memoria ha imparato un nome che compare nel testo
+    assert memory_node.episode_tag({"content": "scrivi a Mario Rossi", "sensitivity": "public"}, ["Mario Rossi"]).label == Label.PUBLIC
+
+
+def test_past_executions_read_the_people_only_for_unlabeled_episodes(monkeypatch):
+    policy = memory_node.get_mode_policy("act").memory
+    labeled = [{"content": "Tool: list_containers", "created_at": "2026-11-14", "sensitivity": "public"}]
+    monkeypatch.setattr(memory_node.episodes, "similar_episodes", lambda task, k: labeled)
+    people = MagicMock(return_value=[{"name": "Mario Rossi"}])
+    monkeypatch.setattr(memory_node.facts, "list_entities", people)
+    text, tag = memory_node._past_executions("stato", policy)
+    assert "list_containers" in text and tag.label == Label.PUBLIC and not people.called
+
+    unlabeled = labeled + [{"content": "Richiesta: scrivi a Mario Rossi", "created_at": "2026-10-01"}]
+    monkeypatch.setattr(memory_node.episodes, "similar_episodes", lambda task, k: unlabeled)
+    _, tag = memory_node._past_executions("stato", policy)
+    assert tag.label == Label.PRIVATE and people.call_count == 1
+
+
 def test_input_tag_uses_the_conversation_level_and_the_detectors():
     thread = "t-input-flows"
     tag = agent_runner._input_tag(thread, "ciao", None, "internal", incognito=False)
@@ -413,8 +445,14 @@ def test_fact_label_can_be_set_and_reset(client):
         res = client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": "public"})
         assert res.status_code == 200 and res.json()["sensitivity"] == "public"
         assert flows.memory_item_tag("fatto", facts.get_fact(fact_id)).label == Label.PUBLIC
+        # Da privato (default) a pubblico: nell'audit, con il fatto e il cambio
+        lowered = [r for r in audit_log.get_recent(limit=20) if r["tool_name"] == "fact_sensitivity"]
+        assert len(lowered) == 1 and lowered[0]["flow"] == "lowered" and lowered[0]["destination"] == "fact"
+        assert f"fatto #{fact_id}: private → public" in [e["summary"] for e in audit_log.flow_summary("2000-01-01")["recent"]]
         assert client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": None}).json()["sensitivity"] is None
         assert flows.memory_item_tag("fatto", facts.get_fact(fact_id)).label == Label.PRIVATE
+        # Rialzarla (al default) non si registra
+        assert len([r for r in audit_log.get_recent(limit=20) if r["tool_name"] == "fact_sensitivity"]) == 1
         assert client.put("/v1/memory/facts/999999/sensitivity", json={"sensitivity": "public"}).status_code == 404
         assert client.put(f"/v1/memory/facts/{fact_id}/sensitivity", json={"sensitivity": "secret"}).status_code == 422
     finally:
@@ -432,6 +470,12 @@ def test_document_label_is_chosen_at_upload_listed_and_changeable(client):
         assert client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "public"}).json()["chunks"] >= 1
         doc = next(d for d in client.get("/v1/kb/documents").json()["documents"] if d["filename"] == name)
         assert doc["sensitivity"] == "public"
+        lowered = [r for r in audit_log.get_recent(limit=20) if r["tool_name"] == "kb_sensitivity"]
+        assert len(lowered) == 1 and lowered[0]["destination"] == "kb" and lowered[0]["label"] == "public"
+        # Alzarla o lasciarla com'è non si registra
+        client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "internal"})
+        client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "internal"})
+        assert len([r for r in audit_log.get_recent(limit=20) if r["tool_name"] == "kb_sensitivity"]) == 1
         assert client.put("/v1/kb/documents/manca.md/sensitivity", json={"sensitivity": "public"}).status_code == 404
         assert client.put(f"/v1/kb/documents/{name}/sensitivity", json={"sensitivity": "boh"}).status_code == 422
         assert client.post("/v1/kb/documents", json={"filename": "x.md", "content": "y", "sensitivity": "boh"}).status_code == 400

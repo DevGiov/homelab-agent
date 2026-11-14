@@ -219,10 +219,14 @@ describe('uscite di dati', () => {
           destinations: [
             { destination: 'search:web', allow: 7, ask: 2, approved: 1, deny: 0, lowered: 0, labels: { public: 7, private: 2 } },
             { destination: 'thread', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
+            { destination: 'fact', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
+            { destination: 'kb', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { internal: 1 } },
           ],
           recent: [
             { timestamp: '2026-11-14T10:00:00+00:00', thread_id: 't1', automation_id: null, tool_name: 'web_search', label: 'private',
               destination: 'search:web', flow: 'ask', summary: 'regalo drone' },
+            { timestamp: '2026-11-14T09:00:00+00:00', thread_id: null, automation_id: null, tool_name: 'fact_sensitivity', label: 'public',
+              destination: 'fact', flow: 'lowered', summary: 'fatto #206: private → public' },
           ],
         }),
     });
@@ -232,5 +236,10 @@ describe('uscite di dati', () => {
     expect(screen.getByText('regalo drone')).toBeTruthy();
     expect(screen.getByText('conferma chiesta')).toBeTruthy();
     expect(screen.queryByText('thread')).toBeNull();
+    // Le etichette abbassate a mano non sono uscite: niente righe nel riepilogo, ma l'ultima resta tra le richieste
+    expect(screen.queryByText('kb')).toBeNull();
+    expect(screen.getByText('livello abbassato')).toBeTruthy();
+    expect(screen.getByText('fatto')).toBeTruthy();
+    expect(screen.getByText('fatto #206: private → public')).toBeTruthy();
   });
 });

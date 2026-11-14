@@ -82,7 +82,12 @@ export function describeReason(reason: string): string {
   const [kind, ...rest] = raw.split(':');
   const detail = rest.join(':');
   let text: string;
-  if (kind === 'memoria') text = MEMORY_NAMES[detail] ?? `memoria (${detail})`;
+  if (kind === 'memoria') {
+    // "memoria:episodio:iban": un rilevatore ha trovato un dato personale nell'elemento della memoria
+    const [item, found] = detail.split(':');
+    const base = MEMORY_NAMES[item] ?? `memoria (${item})`;
+    text = found ? `${base} con ${DETECTOR_NAMES[found] ?? found}` : base;
+  }
   else if (kind === 'tool') text = `risultato di ${detail}`;
   else if (kind === 'risultato') text = `dati trovati nel risultato di ${detail}`;
   else if (kind === 'messaggio' || kind === 'rilevatore') text = DETECTOR_NAMES[detail] ? `${DETECTOR_NAMES[detail]} nel messaggio` : 'un messaggio della conversazione';

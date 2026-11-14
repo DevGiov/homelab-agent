@@ -11,6 +11,13 @@ const PERIODS = [
   { hours: 720, label: 'Ultimi 30 giorni' },
 ];
 
+/** Etichette abbassate a mano (backend: audit_log.LABEL_TARGETS): non sono uscite, restano fuori dal riepilogo. */
+const LOWERED_TARGETS: Record<string, string> = {
+  thread: 'conversazione',
+  fact: 'fatto',
+  kb: 'documento',
+};
+
 const FLOW_TEXT: Record<string, string> = {
   ask: 'conferma chiesta',
   deny: 'bloccata',
@@ -41,7 +48,7 @@ export const DataExitsSection: React.FC = () => {
     load();
   }, [load]);
 
-  const destinations = (data?.destinations ?? []).filter((d) => d.destination !== 'thread');
+  const destinations = (data?.destinations ?? []).filter((d) => !(d.destination in LOWERED_TARGETS));
   const totals = destinations.reduce(
     (acc, d) => ({ allow: acc.allow + d.allow, ask: acc.ask + d.ask, approved: acc.approved + d.approved, deny: acc.deny + d.deny }),
     { allow: 0, ask: 0, approved: 0, deny: 0 }
@@ -127,7 +134,11 @@ export const DataExitsSection: React.FC = () => {
             <div key={`${e.timestamp}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
               <span className="text-fg-muted tabular-nums">{formatDateTime(e.timestamp)}</span>
               <span className="text-fg">{FLOW_TEXT[e.flow] ?? e.flow}</span>
-              {e.flow !== 'lowered' && <span className="text-fg-muted">{describeDestination(e.destination)}</span>}
+              {e.flow === 'lowered' ? (
+                <span className="text-fg-muted">{LOWERED_TARGETS[e.destination] ?? e.destination}</span>
+              ) : (
+                <span className="text-fg-muted">{describeDestination(e.destination)}</span>
+              )}
               {isLevel(e.label) && (e.flow === 'lowered' ? <span>a {LABEL_NAMES[e.label].toLowerCase()}</span> : <SensitivityChip tag={{ label: e.label }} always />)}
               {e.summary && <span className="font-mono text-fg-muted truncate max-w-[20rem]" title={e.summary}>{e.summary}</span>}
             </div>

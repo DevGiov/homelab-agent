@@ -115,10 +115,16 @@ class SensitivityInput(BaseModel):
 
 @router.put("/facts/{fact_id}/sensitivity")
 def set_fact_sensitivity(fact_id: int, body: SensitivityInput) -> Dict[str, Any]:
-    """Etichetta del fatto (app.security.flows): decide dove può andare quando viene richiamato in un turno."""
-    fact = facts.set_fact_sensitivity(fact_id, body.sensitivity)
+    """Etichetta del fatto (app.security.flows): decide dove può andare quando viene richiamato in un turno.
+    Abbassarla resta nell'audit, come per le conversazioni."""
+    from app.security import audit_log
+    before = facts.get_fact(fact_id)
+    fact = facts.set_fact_sensitivity(fact_id, body.sensitivity) if before else None
     if fact is None:
         raise HTTPException(status_code=404, detail=f"Fatto #{fact_id} non trovato.")
+    # Senza etichetta un fatto richiamato è privato (flows.memory_item_tag)
+    audit_log.log_label_lowered("fact", before.get("sensitivity") or "private", body.sensitivity or "private",
+                                subject=f"fatto #{fact_id}")
     return fact
 
 
