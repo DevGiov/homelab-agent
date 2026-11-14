@@ -39,10 +39,10 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         aria-expanded={!isCollapsed}
-        className="w-full glass-card hover:bg-panel border border-border rounded-xl p-2.5 flex items-center justify-between transition-all cursor-pointer group shadow-sm"
+        className="@container w-full glass-card hover:bg-panel border border-border rounded-xl p-2.5 flex items-center justify-between gap-2 transition-all cursor-pointer group shadow-sm"
         title={isCollapsed ? 'Mostra ragionamento e dettagli dei tool eseguiti' : 'Nascondi i dettagli'}
       >
-        <div className="flex items-center gap-2 text-xs font-medium">
+        <div className="flex items-center gap-2 text-xs font-medium min-w-0">
           <div className="flex items-center gap-1 text-accent">
             <Brain size={15} />
           </div>
@@ -51,7 +51,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           </span>
 
           {hasTrace && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent tabular-nums">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent tabular-nums whitespace-nowrap shrink-0">
               <Wrench size={10} />
               {stepsCount} {stepsCount === 1 ? 'tool eseguito' : 'tool eseguiti'}
             </span>
@@ -62,8 +62,9 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-fg-muted group-hover:text-fg">
-          <span className="text-xs uppercase">{isCollapsed ? 'Mostra' : 'Nascondi'}</span>
+        {/* Sotto i 20rem del pulsante (telefono, pannello stretto) resta solo la freccia: lo stato è in aria-expanded */}
+        <div className="flex items-center gap-1.5 text-fg-muted group-hover:text-fg shrink-0">
+          <span className="text-xs uppercase hidden @xs:inline">{isCollapsed ? 'Mostra' : 'Nascondi'}</span>
           {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
         </div>
       </button>
