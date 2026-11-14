@@ -122,17 +122,22 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
           <table className="w-full text-left text-xs border-collapse min-w-[700px]">
             <thead>
               <tr className="border-b border-border bg-panel-header/40 text-fg-muted font-semibold">
-                <th className="p-3 w-8 text-center" title="Seleziona tutte le visibili">
+                <th className="p-3 w-8 text-center">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
                     className="rounded bg-input-bg border-border text-accent cursor-pointer"
-                    title="Seleziona / deseleziona tutte le esecuzioni visibili"
+                    aria-label="Seleziona tutte le esecuzioni visibili"
+                    title="Seleziona tutte le esecuzioni visibili"
                   />
                 </th>
-                <th className="p-3 w-8"></th>
-                <th className="p-3 w-8"></th>
+                <th className="p-3 w-8">
+                  <span className="sr-only">Preferita</span>
+                </th>
+                <th className="p-3 w-8">
+                  <span className="sr-only">Preservata</span>
+                </th>
                 <th className="p-3">Run ID</th>
                 <th className="p-3">Automazione</th>
                 <th className="p-3">Stato</th>
@@ -156,7 +161,8 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       checked={selected.has(r.run_id)}
                       onChange={() => toggleRun(r.run_id)}
                       className="rounded bg-input-bg border-border text-accent cursor-pointer"
-                      title="Seleziona run"
+                      aria-label={`Seleziona l'esecuzione ${r.run_id}`}
+                      title="Seleziona l'esecuzione"
                     />
                   </td>
                   <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -231,12 +237,15 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       >
                         <Eye size={15} />
                       </button>
+                      {/* Preservata: disattivato, ma raggiungibile col Tab perché il motivo si legga (aria-disabled, non disabled) */}
                       <button
-                        onClick={() => runActions.remove(r.run_id, r.is_preserved)}
+                        onClick={() => !r.is_preserved && runActions.remove(r.run_id)}
+                        aria-disabled={r.is_preserved || undefined}
+                        aria-label={`Elimina l'esecuzione ${r.run_id}`}
                         className={`p-1.5 rounded-lg transition ${
                           r.is_preserved ? 'text-fg-muted/30 cursor-not-allowed' : 'text-fg-muted hover:text-rose-400 hover:bg-panel cursor-pointer'
                         }`}
-                        title={r.is_preserved ? 'Esecuzione preservata (sblocca prima di eliminare)' : 'Elimina esecuzione'}
+                        title={r.is_preserved ? 'Esecuzione preservata: sbloccala col lucchetto prima di eliminarla' : 'Elimina esecuzione'}
                       >
                         <Trash2 size={14} />
                       </button>

@@ -39,11 +39,7 @@ export function useRunActions(
     resume: (runId: string) =>
       attempt(() => resumeAutomationRun(runId), `Run ${runId} ripresa con successo.`, 'Errore ripresa run'),
 
-    remove: async (runId: string, isPreserved?: boolean) => {
-      if (isPreserved) {
-        alert('Questa esecuzione è preservata (bloccata con lucchetto). Sbloccala prima di eliminarla.');
-        return;
-      }
+    remove: async (runId: string) => {
       if (!confirm(`Sei sicuro di voler eliminare la run ${runId}?`)) return;
       const ok = await attempt(() => deleteAutomationRun(runId), `Run ${runId} eliminata.`, 'Errore eliminazione run', false);
       if (ok) setRuns((prev) => prev.filter((r) => r.run_id !== runId));
