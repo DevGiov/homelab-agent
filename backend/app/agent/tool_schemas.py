@@ -20,6 +20,12 @@ class CleanArguments(BaseModel):
         "description": "Argomenti per il tool, secondo il suo schema (null se enough_information=false)",
     })] = Field(default_factory=dict)
 
+    @field_validator("arguments", mode="before")
+    @classmethod
+    def _null_as_empty(cls, v):
+        # Il prompt chiede `"arguments": null` quando le informazioni non bastano
+        return {} if v is None else v
+
 
 class ToolSelection(BaseModel):
     """Output strutturato che l'LLM deve produrre per selezionare un tool o rispondere."""

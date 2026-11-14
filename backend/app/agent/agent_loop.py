@@ -655,6 +655,14 @@ class AgentLoop:
         self._note(f"Step {step_id}: Chiamata a '{tool_name}' fallita la validazione -> {error}")
         return False
 
+    def _similar_search(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[str]:
+        """La ricerca web già fatta nel turno a cui questa somiglia troppo, se c'è."""
+        if tool_name != "web_search":
+            return None
+        query = str(arguments.get("query", "")).strip()
+        return next((previous for previous in self.search_queries
+                     if _query_jaccard_similarity(query, previous) >= SEARCH_SIMILARITY_THRESHOLD), None)
+
     def _is_repetition(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> bool:
         """Anti-loop: una chiamata già fatta nel turno (o una ricerca web quasi uguale) chiude il loop e passa alla sintesi."""
         sig = _normalize_call_signature(tool_name, arguments)
@@ -662,15 +670,12 @@ class AgentLoop:
         self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
 
         if tool_name == "web_search" and not repeated:
-            query = str(arguments.get("query", "")).strip()
-            for previous in self.search_queries:
-                similarity = _query_jaccard_similarity(query, previous)
-                if similarity >= SEARCH_SIMILARITY_THRESHOLD:
-                    logger.info(f"Step {step_id}: query '{query}' ha similarità {similarity:.2f} con precedente '{previous}', trattata come duplicato")
-                    repeated = True
-                    break
-            if not repeated:
-                self.search_queries.append(query)
+            previous = self._similar_search(tool_name, arguments)
+            if previous is not None:
+                logger.info(f"Step {step_id}: query '{arguments.get('query')}' quasi uguale alla precedente '{previous}', trattata come duplicato")
+                repeated = True
+            else:
+                self.search_queries.append(str(arguments.get("query", "")).strip())
 
         if repeated:
             logger.warning(f"Step {step_id}: Rilevata ripetizione per '{tool_name}'. Interruzione loop ReAct per prevenire cicli infiniti.")
@@ -750,9 +755,13 @@ class AgentLoop:
         (la richiesta, i messaggi recenti se possono, i risultati scritti da dati che possono). Il suo tag è l'unione di
         ciò che ha letto, quindi la destinazione la riceve senza chiedere.
 
-        None quando non si può: la richiesta stessa non può andare alla destinazione, il modello dice che non basta,
-        gli argomenti non sono validi o ripetono una chiamata già fatta. Resta la conferma con gli argomenti originali."""
-        if self.request_tag is None or not self.call_llm_structured_fn:
+        Solo per i tool di sola lettura: chi riscrive non sa quale container, file o evento intendeva il turno, e
+        un'azione con argomenti indovinati non deve partire al posto di una conferma.
+
+        None quando non si può: il tool non è di sola lettura, la richiesta stessa non può andare alla destinazione, il
+        modello dice che non basta, gli argomenti non sono validi o ripetono una chiamata già fatta (o una ricerca quasi
+        uguale). Resta la conferma con gli argomenti originali."""
+        if self.request_tag is None or not self.call_llm_structured_fn or policy.classify_tool(tool_name, arguments) != "safe":
             return None
         dest = flows.destination_for_tool(tool_name, arguments, self._mcp_flows)
         if dest is None or flows.can_flow(self.tag, dest).allowed or not flows.can_flow(self.request_tag, dest).allowed:
@@ -799,7 +808,7 @@ class AgentLoop:
         clean_dest = flows.destination_for_tool(tool_name, clean_args, self._mcp_flows)
         if clean_dest is not None and not flows.can_flow(clean_tag, clean_dest).allowed:
             return None
-        if _normalize_call_signature(tool_name, clean_args) in self.call_counts:
+        if _normalize_call_signature(tool_name, clean_args) in self.call_counts or self._similar_search(tool_name, clean_args):
             return None
         logger.info(f"'{tool_name}': argomenti riscritti senza i dati {self.tag.label.key} del turno ({clean_tag.label.key})")
         return clean_args, clean_tag

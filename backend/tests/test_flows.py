@@ -405,6 +405,46 @@ def test_a_rewrite_that_repeats_a_call_already_made_falls_back_to_the_original(m
     assert second.args[1] == {"query": "b 4458812"} and second.kwargs["tag"].label == Label.PRIVATE
 
 
+def test_a_rewrite_almost_equal_to_an_earlier_search_falls_back_to_the_original(manager):
+    """Una ricerca quasi uguale a una già fatta chiuderebbe il ciclo: la riscrittura si scarta e resta la conferma."""
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "a 4458812"}),
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "b 4458812"}),
+        FINAL,
+    ], [_clean({"query": "previsioni meteo Bologna domani mattina"}), _clean({"query": "previsioni meteo Bologna domani mattina oggi"})])
+    loop = _private_loop(select)
+    loop.run()
+    first, second = manager.execute_tool.call_args_list
+    assert first.kwargs["clean"] is True
+    assert second.args[1] == {"query": "b 4458812"} and second.kwargs["tag"].label == Label.PRIVATE
+    assert not any(entry.get("duplicate_blocked") for entry in loop.execution_trace)
+
+
+def test_a_tool_that_changes_something_is_never_rewritten(manager):
+    """Chi riscrive non sa quale container intendeva il turno: un'azione resta alla conferma con gli argomenti veri."""
+    manager.get_tools_for_mode.return_value = [*TOOLS, {
+        "name": "proxmox-mcp__exec_lxc_command", "description": "Run a command in a container",
+        "parameters": {"type": "object", "properties": {"vmid": {"type": "integer"}, "command": {"type": "string"}},
+                       "required": ["vmid", "command"]}}]
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([
+        ToolSelection(tool_needed=True, tool_name="proxmox-mcp__exec_lxc_command", arguments={"vmid": 125, "command": "uptime"}),
+        FINAL,
+    ], [_clean({"vmid": 100, "command": "uptime"})])
+    _private_loop(select).run()
+    call = manager.execute_tool.call_args
+    assert calls["clean"] == []
+    assert call.args[1] == {"vmid": 125, "command": "uptime"}
+    assert call.kwargs["tag"].label == Label.PRIVATE and call.kwargs["clean"] is False
+
+
+def test_clean_arguments_accept_the_null_the_prompt_asks_for():
+    from app.agent.tool_schemas import CleanArguments
+    out = CleanArguments.model_validate({"enough_information": False, "arguments": None})
+    assert out.arguments == {} and out.enough_information is False
+
+
 def test_the_clean_call_reads_only_results_written_from_data_the_destination_may_receive(manager):
     manager.execute_tool.side_effect = [{"result": "RISULTATO-PUBBLICO"}, {"facts": ["RISULTATO-PRIVATO"]}, {"result": "ok"}]
     select, calls = _structured([
@@ -614,6 +654,28 @@ def client():
 
     from app.api.main import api
     return TestClient(api)
+
+
+def test_the_answer_saved_after_an_approval_without_checkpoint_keeps_the_label_of_what_it_read(client):
+    """Senza il checkpoint del turno la risposta è una sintesi del risultato: salvata senza etichetta varrebbe pubblica
+    per i turni successivi e per il consolidamento."""
+    from app.security import approvals
+    thread = "t-approval-label"
+    thread_store.save_user_message(thread, "controlla il container", user_msg_id="u1", sensitivity="public")
+    arguments = {"vmid": 125, "command": "uptime"}
+    request = approvals.ApprovalRequest(request_id="apr_label", tool_name="proxmox-mcp__exec_lxc_command",
+                                        arguments=arguments, thread_id=thread, mode="act")
+    approvals._APPROVALS[request.request_id] = request
+    result = {"stdout": "up 3 days"}
+    registry = MagicMock()
+    registry.execute_approved_tool.return_value = result
+    with patch("app.registry.manager.get_registry_manager", return_value=registry), \
+            patch("app.api.routes.approvals.call_llm", return_value={"content": "Il container è acceso da tre giorni."}):
+        res = client.post(f"/v1/approvals/{request.request_id}/resolve", json={"action": "approve", "resolved_by": "user"})
+    assert res.status_code == 200
+    expected = flows.result_tag(request.tool_name, arguments, result).label
+    assert expected > Label.PUBLIC
+    assert thread_store.get_history(thread)[-1]["sensitivity"] == expected.key
 
 
 def test_thread_level_is_returned_set_and_audited_when_lowered(client):
