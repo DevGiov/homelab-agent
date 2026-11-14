@@ -23,6 +23,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   defaultDate,
 }) => {
   const titleId = useId();
+  // Ogni etichetta è legata al suo campo: `${fieldId}-<campo>`
+  const fieldId = useId();
   const [summary, setSummary] = useState('');
   const [calendarId, setCalendarId] = useState('');
   const [dtstart, setDtstart] = useState('');
@@ -250,10 +252,11 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Titolo */}
           <div>
-            <label className="block text-xs font-medium text-fg/90 mb-1.5">
+            <label htmlFor={`${fieldId}-summary`} className="block text-xs font-medium text-fg/90 mb-1.5">
               Titolo Evento <span className="text-rose-400">*</span>
             </label>
             <input
+              id={`${fieldId}-summary`}
               type="text"
               value={summary}
               onChange={e => setSummary(e.target.value)}
@@ -266,10 +269,11 @@ export const EventModal: React.FC<EventModalProps> = ({
           {/* Calendario & Categoria */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-fg/90 mb-1.5">
+              <label htmlFor={`${fieldId}-calendar`} className="block text-xs font-medium text-fg/90 mb-1.5">
                 Calendario
               </label>
               <select
+                id={`${fieldId}-calendar`}
                 value={calendarId}
                 onChange={e => setCalendarId(e.target.value)}
                 className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:border-accent transition cursor-pointer"
@@ -283,10 +287,11 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
+              <label htmlFor={`${fieldId}-category`} className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
                 <Tag size={12} /> Categoria
               </label>
               <select
+                id={`${fieldId}-category`}
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:border-accent transition cursor-pointer"
@@ -305,12 +310,12 @@ export const EventModal: React.FC<EventModalProps> = ({
           <div className="flex items-center gap-2 pt-1">
             <input
               type="checkbox"
-              id="allDay"
+              id={`${fieldId}-all-day`}
               checked={allDay}
               onChange={e => setAllDay(e.target.checked)}
               className="rounded border-input-border text-accent bg-input-bg"
             />
-            <label htmlFor="allDay" className="text-xs font-medium text-fg cursor-pointer select-none">
+            <label htmlFor={`${fieldId}-all-day`} className="text-xs font-medium text-fg cursor-pointer select-none">
               Evento per l'intera giornata
             </label>
           </div>
@@ -319,10 +324,11 @@ export const EventModal: React.FC<EventModalProps> = ({
           <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-fg/90 mb-1 flex items-center gap-1">
+                <label htmlFor={`${fieldId}-start`} className="block text-xs font-medium text-fg/90 mb-1 flex items-center gap-1">
                   <Clock size={12} /> {allDay ? 'Data' : 'Inizio'}
                 </label>
                 <input
+                  id={`${fieldId}-start`}
                   type={allDay ? 'date' : 'datetime-local'}
                   value={dtstart}
                   onChange={e => setDtstart(e.target.value)}
@@ -335,7 +341,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               {!allDay && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-fg/90">
+                    <label htmlFor={`${fieldId}-end`} className="text-xs font-medium text-fg/90">
                       {useDuration ? 'Durata' : 'Fine'}
                     </label>
                     <button
@@ -349,6 +355,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
                   {useDuration ? (
                     <select
+                      id={`${fieldId}-end`}
                       value={duration}
                       onChange={e => setDuration(e.target.value)}
                       className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:border-accent transition cursor-pointer"
@@ -364,6 +371,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                     </select>
                   ) : (
                     <input
+                      id={`${fieldId}-end`}
                       type="datetime-local"
                       value={dtend}
                       onChange={e => setDtend(e.target.value)}
@@ -378,10 +386,11 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Luogo / Link Meeting */}
           <div>
-            <label className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
+            <label htmlFor={`${fieldId}-location`} className="block text-xs font-medium text-fg/90 mb-1.5 flex items-center gap-1">
               <MapPin size={12} /> Luogo o Link Virtuale
             </label>
             <input
+              id={`${fieldId}-location`}
               type="text"
               value={location}
               onChange={e => setLocation(e.target.value)}
@@ -392,10 +401,11 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Descrizione / Note */}
           <div>
-            <label className="block text-xs font-medium text-fg/90 mb-1.5">
+            <label htmlFor={`${fieldId}-description`} className="block text-xs font-medium text-fg/90 mb-1.5">
               Descrizione / Note
             </label>
             <textarea
+              id={`${fieldId}-description`}
               rows={3}
               value={description}
               onChange={e => setDescription(e.target.value)}
