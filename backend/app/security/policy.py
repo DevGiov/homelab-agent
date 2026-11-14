@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.mcp.store import tool_setting
 from app.security import permissions
 from app.security.approvals import approval_response, create_approval_request
+from app.security.provenance import Carried, Provenance, carried_text
 
 logger = logging.getLogger("guardrails")
 
@@ -281,6 +282,32 @@ def enrich_catalog_with_metadata(tools: List[Dict[str, Any]]) -> List[Dict[str, 
     return tools
 
 
+def _carried(tool_name: str, clean_name: str, raw_cmd: Any, args: Dict[str, Any],
+             provenance: Optional[Provenance]) -> Optional[Carried]:
+    """Testo non attendibile negli argomenti di un'azione che modifica qualcosa; None per le letture (un tool di sola
+    lettura, un comando shell di sola lettura): ciò che una lettura può far uscire lo decide il controllo dei flussi."""
+    if is_view_tool(tool_name):
+        return None
+    prefix = ""
+    if clean_name in ("exec_lxc_command", "exec_host_command"):
+        nature, extracted, _ = analyze_shell_command_nature(str(raw_cmd))
+        if nature == "safe_read":
+            return None
+        prefix = extracted or permissions.extract_command_prefix(args) or ""
+    return carried_text(args, provenance, prefix)
+
+
+def _carried_note(carried: Optional[Carried], permitted: bool) -> str:
+    """Cosa aggiungere al motivo di una richiesta di conferma quando gli argomenti portano testo venuto da fuori."""
+    if carried is None:
+        return ""
+    note = (f". ATTENZIONE: contiene testo che viene da contenuto esterno letto in questo turno e che non hai scritto tu: "
+            f"{carried.describe()}")
+    if permitted:
+        note += ". Il permesso già dato non vale per questa chiamata: serve una conferma esplicita"
+    return note
+
+
 def enforce_guardrails(
     tool_name: str,
     args: Dict[str, Any],
@@ -288,7 +315,8 @@ def enforce_guardrails(
     thread_id: Optional[str] = None,
     mode: Optional[str] = None,
     security_mode: str = "normal",
-    task: Optional[str] = None
+    task: Optional[str] = None,
+    provenance: Optional[Provenance] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Applica i guardrail multilivello prima dell'esecuzione di un tool in base alla modalità di rischio:
@@ -305,6 +333,11 @@ def enforce_guardrails(
          - Mutating-Write (rm, systemctl restart, apt, ecc.): richiedono SEMPRE approvazione specifica
            per quel comando/prefisso (a meno che non sia presente nella allow-list della chat o globale).
        - Altri tool EXECUTE (create, stop, allocate_ip, ecc.): richiedono approvazione interattiva.
+
+    `provenance` (app.security.provenance): ciò che il turno ha letto da contenuto non attendibile e ciò che ha scritto
+    l'utente. Un permesso già dato (per la chat o per sempre) non vale per un'azione che modifica qualcosa se i suoi
+    argomenti portano testo venuto da quel contenuto: si chiede di nuovo, dicendo quali parole e da dove (decisione 6).
+    In modalità DANGEROUS non si applica: lì l'utente ha rinunciato a ogni conferma.
     """
     raw_cmd = args.get("command") or args.get("cmd") or ""
     clean_name = normalize_tool_name(tool_name)
@@ -340,11 +373,14 @@ def enforce_guardrails(
             return None
 
         # Se già esplicitamente pre-approvato
-        if permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id):
+        permitted = permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id)
+        carried = _carried(tool_name, clean_name, raw_cmd, args, provenance)
+        if permitted and carried is None:
             logger.info(f"Guardrail [SAFEST]: tool '{tool_name}' pre-approvato via Permission Engine")
             return None
 
         reason = f"Modalità Massima Sicurezza (Safest): conferma esplicita richiesta per '{tool_name}'"
+        reason += _carried_note(carried, permitted)
         req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
         return approval_response(req, f"Modalità Safest attiva: il tool '{tool_name}' richiede la tua autorizzazione esplicita.",
                                  security_mode="safest")
@@ -373,18 +409,24 @@ def enforce_guardrails(
 
         # B.2: Comando Mutating-Write (rm, mkdir, touch, mv, chmod, systemctl restart, apt, ecc.)
         else:
-            # Per comandi di modifica, serve un'autorizzazione specifica per quel comando/prefisso
-            if permissions.is_command_preapproved(clean_name, effective_prefix, thread_id=thread_id):
+            # Per comandi di modifica, serve un'autorizzazione specifica per quel comando/prefisso; non vale se il
+            # comando porta testo letto da contenuto non attendibile
+            permitted = permissions.is_command_preapproved(clean_name, effective_prefix, thread_id=thread_id)
+            carried = carried_text(args, provenance, effective_prefix)
+            if permitted and carried is None:
                 logger.info(f"Guardrail [NORMAL]: comando modificante '{raw_cmd}' (prefisso='{effective_prefix}') consentito da allow-list")
                 return None
 
             reason = f"Esecuzione comando shell modificante ({effective_prefix}): {str(raw_cmd)[:120]}"
+            reason += _carried_note(carried, permitted)
             req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
             return approval_response(req, f"Il comando shell modificante '{effective_prefix}' richiede autorizzazione esplicita.",
                                      security_mode="normal", command_prefix=effective_prefix)
 
     # C. Altri tool di mutazione infrastrutturale (create_lxc, stop_container, allocate_ip, ecc.)
-    if permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id):
+    permitted = permissions.is_tool_preapproved(tool_name, args, thread_id=thread_id)
+    carried = carried_text(args, provenance)
+    if permitted and carried is None:
         logger.info(f"Guardrail [NORMAL]: tool '{tool_name}' pre-approvato via Permission Engine per thread='{thread_id}'")
         return None
 
@@ -402,6 +444,7 @@ def enforce_guardrails(
         reason = f"Modifica rotte reverse proxy NPM ({clean_name})"
     else:
         reason = f"Modifica dello stato dell'infrastruttura tramite {clean_name}"
+    reason += _carried_note(carried, permitted)
 
     req = create_approval_request(tool_name, args, thread_id=thread_id, mode=mode, risk_reason=reason, task=task)
     return approval_response(req, f"Il tool '{tool_name}' richiede conferma esplicita per ragioni di sicurezza ({reason}).",

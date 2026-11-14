@@ -53,7 +53,7 @@ class ToolRegistryManager:
                      security_mode: str = "normal", task: Optional[str] = None,
                      automation_id: Optional[str] = None, run_id: Optional[str] = None,
                      step_run_id: Optional[str] = None, approved_request: Optional[approvals.ApprovalRequest] = None,
-                     tag: Optional[Any] = None, clean: bool = False) -> Any:
+                     tag: Optional[Any] = None, clean: bool = False, provenance: Optional[Any] = None) -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit.
 
         `approved_request`: richiesta già approvata dall'utente. Salta la conferma preventiva (resta il
@@ -65,6 +65,10 @@ class ToolRegistryManager:
 
         `clean`: argomenti riscritti dall'agent loop senza i dati riservati del turno (`AgentLoop._clean_call`); un'uscita
         consentita finisce nell'audit come `clean` invece che `allow`, così si vede quante conferme la riscrittura evita.
+
+        `provenance` (app.security.provenance): ciò che il turno ha letto da contenuto non attendibile e ciò che ha
+        scritto l'utente. Serve ai guardrail: un permesso già dato non copre un'azione i cui argomenti portano testo
+        venuto da quel contenuto.
         """
         start_ms = time.monotonic() * 1000
 
@@ -78,7 +82,8 @@ class ToolRegistryManager:
             if tool_name in tool_names:
                 # --- Guardrail + Approval workflow (Fase 3.2) ---
                 guard_mode = "dangerous" if approved_request else security_mode
-                guard = policy.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=guard_mode, task=task)
+                guard = policy.enforce_guardrails(tool_name, args, thread_id=thread_id, mode=mode, security_mode=guard_mode, task=task,
+                                                  provenance=provenance)
                 if guard is not None:
                     if guard.get("blocked"):
                         audit_log.log_tool_call(

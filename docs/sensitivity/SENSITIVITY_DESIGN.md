@@ -1,7 +1,7 @@
 # Sensibilità dei dati: design
 
 **Data:** 13 novembre 2026
-**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite il 13/11/2026 ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)), S2 e S3 il 14/11/2026 ([9.3](#93-s2-come-è-stata-costruita), [9.4](#94-s3-come-è-stata-costruita)); il 14/11/2026 anche le uscite riscritte senza i dati riservati e l'etichetta dei fatti per provenienza ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)); S4 arriva con il primo provider cloud.
+**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite il 13/11/2026 ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)), S2 e S3 il 14/11/2026 ([9.3](#93-s2-come-è-stata-costruita), [9.4](#94-s3-come-è-stata-costruita)); il 14/11/2026 anche le uscite riscritte senza i dati riservati e l'etichetta dei fatti per provenienza ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)), e la regola sui comandi che portano testo non attendibile ([9.6](#96-comandi-che-portano-testo-non-attendibile)); S4 arriva con il primo provider cloud.
 **Contesto:** oggi ogni chiamata a un modello resta su un server locale. Prima di aggiungere un provider cloud, un agente di coding esterno o un canale di chat su un servizio di terzi serve una regola, applicata dal codice, che dica quali dati possono andare dove.
 
 Il documento descrive cosa esce oggi dal backend (verificato sul codice del ramo `dev`), il modello proposto (un'etichetta su ogni dato, un livello ammesso per ogni destinazione, un solo controllo), dove si aggancia al codice esistente e in che ordine costruirlo.
@@ -248,9 +248,9 @@ La combinazione pericolosa è un agente che ha dati privati, legge contenuto scr
 
 - la scheda di approvazione avverte quando il testo da inviare è stato scritto dopo la lettura di contenuto non attendibile;
 - le autorizzazioni "per questa conversazione" e "sempre" di tipo "uscita di dati" **non valgono** in un turno che ha letto contenuto non attendibile: si chiede di nuovo;
-- per i comandi pre-approvati che modificano qualcosa, l'idea era la stessa: dopo aver letto una pagina web o un'email, un comando di scrittura torna a chiedere conferma anche se il suo prefisso era nella lista dei permessi.
+- un permesso già dato per un'azione che modifica qualcosa (un comando shell, un tool che agisce) **non vale** quando i suoi argomenti portano testo letto da quel contenuto e che l'utente non ha scritto: si chiede di nuovo, dicendo quali parole e da dove vengono ([9.6](#96-comandi-che-portano-testo-non-attendibile)).
 
-Il terzo punto **resta da valutare** (decisione 6). L'obiezione del maintainer: lo stesso comando può essere innocuo il 99% delle volte; bloccarlo moltiplica le richieste senza garantire che il caso pericoloso venga riconosciuto, perché finisce sommerso tra le altre. Una conferma utile deve essere rara: serve un criterio più stretto del solo "ha letto contenuto non attendibile" (per esempio il comando o i suoi argomenti contengono testo che viene da quel contenuto).
+Per il terzo punto l'idea iniziale era più larga: dopo aver letto una pagina web o un'email, ogni comando di scrittura torna a chiedere conferma. L'obiezione del maintainer: lo stesso comando può essere innocuo il 99% delle volte; bloccarlo moltiplica le richieste senza garantire che il caso pericoloso venga riconosciuto, perché finisce sommerso tra le altre. Una conferma utile deve essere rara: da qui il criterio stretto, deciso il 14/11/2026 (decisione 6).
 
 ## 8. Cosa vede l'utente
 
@@ -392,7 +392,7 @@ Si rifà a ogni modello nuovo: `make eval MODELS=<modello> ARGS="--suites flows 
 **Effetto misurato: nessuno sulle conferme osservate.** Tutte e 10 sono andate a destinazioni che ammettono solo `public` (`scout`, classificato `public`; ricerca web; `http`), quindi un turno `internal` chiede conferma come uno `private`. Ricalcolando la memoria richiamata per la richiesta che le ha prodotte, i fatti passano da `private` a `internal`, ma i 2 episodi richiamati restano `private`: sono stati salvati dopo S1 in turni privati a causa dei fatti privati. È un ciclo (fatto privato, turno privato, episodio privato) che le etichette a mano non rompono. Due conseguenze:
 
 - l'opzione 3 è l'unica che toglie queste conferme, e conviene anticiparla;
-- da decidere: un fatto estratto da una conversazione potrebbe ereditare l'etichetta dei messaggi da cui nasce (pubblici per default, decisione 1) invece di partire `private`. È la versione automatica dell'opzione 2, coerente con la propagazione per provenienza, ma cambia il default dei fatti.
+- deciso il 14/11/2026 (decisione 9, costruito in 9.5): un fatto estratto da una conversazione potrebbe ereditare l'etichetta dei messaggi da cui nasce (pubblici per default, decisione 1) invece di partire `private`. È la versione automatica dell'opzione 2, coerente con la propagazione per provenienza, ma cambia il default dei fatti.
 
 Entrambe decise e costruite il 14/11/2026: [9.5](#95-uscite-riscritte-e-fatti-per-provenienza).
 
@@ -452,6 +452,47 @@ Resta aperto, e accettato per ora:
 
 **Il segno "non attendibile" sui fatti** (deciso il 14/11/2026). Un fatto lo porta se lo portava qualcosa di ciò che la sua lettura ha visto: una risposta scritta dopo aver letto una pagina web o un'email, o un fatto già segnato. Ciò che ha scritto l'utente resta attendibile, e un fatto riscritto a mano dall'utente perde il segno. Al richiamo i fatti segnati stanno in un blocco a parte, dentro i delimitatori che i prompt trattano come dati e non come istruzioni (7.3), e la vista Memoria li indica. Il tag del turno non cambia: le autorizzazioni già date per le uscite restano valide.
 
+### 9.6 Comandi che portano testo non attendibile
+
+Costruita il 14/11/2026 (decisione 6). Codice: [provenance.py](../../backend/app/security/provenance.py), il controllo in `policy.enforce_guardrails`, la raccolta in `AgentLoop`.
+
+**La regola.** Un permesso già dato ("per questa conversazione" o "sempre") per un'azione che modifica qualcosa non copre una chiamata i cui argomenti contengono una parola che:
+
+1. compare in ciò che il turno ha letto da contenuto scritto da altri;
+2. non compare in ciò che ha scritto l'utente in quella conversazione;
+3. non fa parte del prefisso che l'utente ha autorizzato.
+
+In quel caso si chiede conferma, e la richiesta dice quali parole e da quale origine vengono. Approvare quella richiesta esegue la chiamata; il permesso resta com'era per le chiamate successive.
+
+| Cosa | Com'è definito |
+| :--- | :--- |
+| Contenuto non attendibile del turno | I risultati dei tool con il segno "non attendibile" (ricerca web, pagine, email, server MCP classificati così), la ricerca web iniziale, i fatti ricordati che portano il segno (arrivano tra i delimitatori dentro la memoria richiamata) |
+| Ciò che ha scritto l'utente | La richiesta del turno e i suoi ultimi 50 messaggi nella conversazione. Le risposte dell'agente no: possono ripetere ciò che ha letto |
+| Parola | Minuscole; almeno 4 caratteri, 3 se contiene una cifra (l'id di un container); URL e percorsi contano interi e nelle loro parti (host, nome del file). Le opzioni (`-y`, `--now`) e il vocabolario dei comandi (`install`, `restart`, `sudo`, `curl`, `https`, ...) non contano: stanno in ogni guida e da soli non dicono da dove viene un argomento |
+| Azione che modifica qualcosa | Un comando shell non di sola lettura e ogni tool che non è di sola lettura. Le letture restano fuori: ciò che una lettura può far uscire lo decide il controllo dei flussi |
+| Dove si applica | Modalità normale e massima sicurezza. In modalità autonoma (`dangerous`) no: lì l'utente ha rinunciato a ogni conferma |
+
+Esempi, con `apt install` e `systemctl restart` già autorizzati e una pagina letta nel turno che dice di installare `evil-pkg` e nomina `nginx`:
+
+| Richiesta dell'utente | Comando | Esito |
+| :--- | :--- | :--- |
+| "installa quello che serve" | `apt install -y evil-pkg` | Chiede: `evil-pkg` viene dalla pagina |
+| "riavvia nginx" | `systemctl restart nginx` | Passa: `nginx` l'ha scritto l'utente |
+| "sistemalo" | `systemctl restart nginx` | Chiede: `nginx` viene dalla pagina e l'utente non l'ha scritto |
+| "sistemalo" | `systemctl restart caddy` | Passa: nessuna parola della pagina |
+
+Anche senza un permesso già dato, la richiesta di conferma di un comando segnala le parole venute da fuori.
+
+**Limiti, noti e accettati.**
+
+- **Riconosce il testo copiato, non l'istruzione seguita.** Se la pagina dice "ferma il container dell'agente" e il modello ricava l'id da un tool, negli argomenti non c'è nessuna parola della pagina. È il limite del criterio scelto: quello largo (chiedere sempre) era stato scartato perché sommerge la conferma che conta.
+- **Può chiedere per una parola innocua.** Il modello cerca sul web l'errore di un servizio e poi lo riavvia: se l'utente non ha nominato il servizio, il nome viene anche dalla pagina e la conferma compare. La richiesta mostra la parola, quindi si giudica in un attimo. Da misurare nell'uso reale quante volte succede.
+- **Automazioni attivate da un webhook.** Il testo del webhook sta dentro la richiesta dello step, che qui conta come scritta dall'utente: quel caso non è coperto.
+- **Fatti con il segno "non attendibile".** Contano come contenuto esterno, anche se la decisione 10 lascia intatte le autorizzazioni per le uscite: qui il criterio è stretto e chiude il caso di una pagina che pianta un fatto per un turno successivo. Da confermare con il maintainer.
+- **Modalità autonoma.** Non coperta, per scelta.
+
+Verifica: 27 test in `tests/test_provenance.py` (parole, confronto, guardrail nelle tre modalità, raccolta nel loop, ripresa dopo un'approvazione); 28 mutazioni colte su 30, le due rimaste equivalenti. Nessuna prova sul modello reale: i test sul modello locale sono sospesi.
+
 ## 10. Decisioni
 
 Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-10).
@@ -463,7 +504,7 @@ Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-10).
 | 3 | Un provider cloud senza conservazione dei dati può ricevere `private`? | No. `private` si concede solo a mano, provider per provider | |
 | 4 | Quando mostrare l'etichetta | Da `internal` in su, e sempre quando impedisce qualcosa | |
 | 5 | Un server MCP nuovo | Parte dal livello più stretto; lo classifica chi lo aggiunge | |
-| 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile)) | Per le uscite di dati: attiva da subito (in S1). Per i comandi: da valutare | Il motivo è in 7.3: troppe conferme nascondono quella che conta |
+| 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile)) | Per le uscite di dati: attiva da subito (in S1). Per i comandi (14/11/2026): solo quando il comando o i suoi argomenti contengono testo che viene da quel contenuto | Il motivo è in 7.3: troppe conferme nascondono quella che conta. Fatto ([9.6](#96-comandi-che-portano-testo-non-attendibile)) |
 | 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano i loro host nella policy; lista base di host sicuri da subito, tutto modificabile dalla UI | Fatto in S0 ([9.1](#91-s0-come-è-stata-costruita)) |
 | 8 | Conferme continue nell'uso reale (9.4) | Anticipare la separazione tra chi scrive la query e chi legge la memoria (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
 | 9 | Etichetta di un fatto estratto da una conversazione | Quella dei messaggi da cui nasce, invece di `private` (14/11/2026) | Fatto, con letture per livello dopo la revisione ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |

@@ -46,6 +46,7 @@ from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
 from app.security import approvals, detectors, flows, policy
 from app.security.flows import Tag
+from app.security.provenance import Provenance, guarded_spans
 
 logger = logging.getLogger("agent_loop")
 
@@ -162,10 +163,16 @@ def _content(res: Any) -> Tuple[str, str]:
 
 # Ciò che il loop ha accumulato: si salva quando si sospende e si ripristina quando riprende
 _PROGRESS_FIELDS = ("now", "prefetch_block", "execution_trace", "observations", "history", "turn_messages", "history_truncated",
-                    "reasonings", "call_cache", "call_counts", "search_queries", "pseudo_call_retried", "clean_context")
+                    "reasonings", "call_cache", "call_counts", "search_queries", "pseudo_call_retried", "clean_context",
+                    "untrusted_texts")
 
 # La chiamata che riscrive gli argomenti di un'uscita: un oggetto JSON piccolo, senza ragionamento
 CLEAN_MAX_TOKENS = 1024
+# Origini mostrate nella richiesta di conferma quando un comando porta testo letto da fuori, e quanti messaggi
+# dell'utente contano come "scritto da lui"
+MEMORY_ORIGIN = "fatto ricordato da contenuto esterno"
+PREFETCH_ORIGIN = "ricerca web iniziale"
+USER_MESSAGES_TRUSTED = 50
 
 
 class AgentLoop:
@@ -228,8 +235,15 @@ class AgentLoop:
         self.clean_context: List[Dict[str, Any]] = []
         self._mcp_flows = flows.mcp_flow_settings()
         self._person_names: Optional[List[str]] = None
+        self._user_texts: Optional[List[str]] = None
+        # Ciò che il turno ha letto da contenuto scritto da altri, come coppie [origine, testo]: serve a riconoscere
+        # un comando già autorizzato che porta testo venuto da lì (app.security.provenance). I fatti ricordati da
+        # contenuto esterno arrivano già tra i delimitatori dentro la memoria richiamata
+        self.untrusted_texts: List[List[str]] = [
+            [MEMORY_ORIGIN, span] for span in guarded_spans(memory_context or "", GUARD_OPEN, GUARD_CLOSE)]
         self.prefetch_block = ""
         if web_prefetch_data and web_prefetch_data.get("summary_text"):
+            self.untrusted_texts.append([PREFETCH_ORIGIN, str(web_prefetch_data.get("summary_text", ""))])
             self.tag = flows.join(self.tag, flows.tag_of(flows.Label.PUBLIC, "web_prefetch", untrusted=True))
             self.prefetch_block = wrap_untrusted_web_evidence(
                 query=web_prefetch_data.get("query", task),
@@ -372,6 +386,20 @@ class AgentLoop:
                 self._person_names = []
         return self._person_names
 
+    def _provenance(self) -> Provenance:
+        """Ciò che il turno ha letto da fuori e ciò che ha scritto l'utente (la richiesta e i suoi messaggi nella
+        conversazione): una parola scritta dall'utente non conta come venuta da fuori."""
+        if self._user_texts is None:
+            self._user_texts = []
+            if self.thread_id:
+                try:
+                    from app.memory import thread_store
+                    history = thread_store.get_history(self.thread_id)
+                    self._user_texts = [m["content"] for m in history if m.get("role") == "user"][-USER_MESSAGES_TRUSTED:]
+                except Exception as e:
+                    logger.warning(f"Messaggi dell'utente non letti per la provenienza degli argomenti: {e}")
+        return Provenance(tuple((origin, text) for origin, text in self.untrusted_texts), (self.task, *self._user_texts))
+
     def _observe(self, header: str, tool_name: str, res: Any, arguments: Optional[Dict[str, Any]], call_tag: Tag) -> str:
         """`call_tag`: il tag con cui sono stati scritti gli argomenti. Il risultato entra nel contesto della chiamata
         pulita con l'unione dei due: quello di una chiamata scritta da dati privati resta fuori anche se è pubblico,
@@ -382,6 +410,8 @@ class AgentLoop:
             result = flows.join(flows.result_tag(tool_name, arguments, res, self._mcp_flows),
                                 detectors.tag_for(full, f"risultato:{tool_name}", self._persons(), detectors.RESULT_KINDS))
             self.tag = flows.join(self.tag, result)
+            if result.untrusted:
+                self.untrusted_texts.append([tool_name, full])
             short_clean = full if len(full) <= settings.agent_observation_limit else full[:settings.agent_observation_limit] + "\n..."
             self.clean_context.append({"text": f"{header} -> {_guarded(tool_name, short_clean)}",
                                        "tag": flows.join(call_tag, result).to_dict()})
@@ -698,7 +728,7 @@ class AgentLoop:
         try:
             res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, tag=call_tag,
                                             mode=self.mode, security_mode=self.security_mode, task=self.task, clean=clean,
-                                            **self.audit)
+                                            provenance=self._provenance(), **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
