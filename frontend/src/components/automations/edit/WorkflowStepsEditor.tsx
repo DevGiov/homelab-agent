@@ -169,7 +169,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   value={step.prompt_template || ''}
                   onChange={(e) => update(idx, { ...step, prompt_template: e.target.value })}
                   rows={3}
-                  className={`${fieldClass} p-2.5 font-mono`}
+                  className={`${fieldClass} p-2.5`}
                   placeholder="Analizza i risultati: {{steps.step_1_search.output.text}} e genera un report strutturato."
                 />
                 <p className="text-xs text-fg-muted mt-1">

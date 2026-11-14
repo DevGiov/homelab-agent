@@ -32,7 +32,7 @@ const TodayMarker: React.FC<{ markerRef: RefObject<HTMLDivElement | null> }> = (
           Oggi — {now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </span>
       </div>
-      <span className="text-xs text-fg-muted font-mono">
+      <span className="text-xs text-fg-muted tabular-nums">
         {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
@@ -75,7 +75,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             <span className="flex items-center gap-1">
               <CalIcon size={12} /> {start.getDate()} {MONTH_NAMES[start.getMonth()]} {start.getFullYear()}
             </span>
-            <span className="flex items-center gap-1 font-mono text-xs">
+            <span className="flex items-center gap-1 tabular-nums text-xs">
               <Clock size={12} /> {timeRange}
             </span>
             {ev.location && (

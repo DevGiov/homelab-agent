@@ -55,7 +55,7 @@ export const AutomationCardDetails: React.FC<AutomationCardDetailsProps> = ({ au
                 key={st.step_id || idx}
                 className="flex items-center gap-2 text-xs p-1.5 rounded-lg bg-panel border border-border/50"
               >
-                <span className="w-5 h-5 rounded-md bg-accent/15 text-accent font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                <span className="w-5 h-5 rounded-md bg-accent/15 text-accent tabular-nums text-xs font-bold flex items-center justify-center shrink-0">
                   {idx + 1}
                 </span>
                 <div className="flex-1 min-w-0">

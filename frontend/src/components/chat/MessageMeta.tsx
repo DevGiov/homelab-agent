@@ -15,8 +15,8 @@ interface MessageMetaProps {
   onInspect?: (messageId: string) => void;
 }
 
-const badge = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-xs';
-const actionButton = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-mono transition cursor-pointer';
+const badge = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs';
+const actionButton = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs transition cursor-pointer';
 
 /** Riga sotto il messaggio: versioni, orario, azioni e badge di modalità, modello, tool, fonti e metriche. */
 export const MessageMeta: React.FC<MessageMetaProps> = ({
@@ -39,7 +39,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
   return (
     <div className={`flex items-center gap-1.5 text-xs text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
       {versionCount > 1 && (
-        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-xs font-mono text-fg-muted shadow-sm select-none">
+        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-xs tabular-nums text-fg-muted shadow-sm select-none">
           <button
             type="button"
             onClick={() => onSwitchVersion?.(msg.id, versionIndex - 1)}
@@ -120,13 +120,13 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
       {msg.model && (
         <span className={`${badge} bg-panel border border-border text-fg-muted`} title={`Modello LLM: ${msg.model}`}>
           <Cpu size={10} className="text-accent shrink-0" />
-          <span>{msg.model}</span>
+          <span className="font-mono">{msg.model}</span>
         </span>
       )}
       {msg.tool_used && (
         <span className={`${badge} bg-emerald-500/10 border border-emerald-500/20 text-emerald-400`}>
           <Wrench size={10} />
-          {msg.tool_used}
+          <span className="font-mono">{msg.tool_used}</span>
         </span>
       )}
       {sourcesCount > 0 && (
@@ -137,7 +137,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
       )}
       {metrics && (
         <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono text-xs bg-panel border border-border text-fg-muted"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full tabular-nums text-xs bg-panel border border-border text-fg-muted"
           title={`Generati: ${metrics.completion_tokens ?? 0} tok • Prompt: ${metrics.prompt_tokens ?? 0} tok • Totale contesto: ${metrics.total_tokens ?? 0} tok • Velocità LLM: ${metrics.tok_per_s ?? 0} tok/s • Tempo LLM: ${metrics.llm_duration_s ?? metrics.duration_s ?? 0}s • Durata turno: ${metrics.duration_s ?? 0}s`}
         >
           <Zap size={10} className="text-amber-400" />

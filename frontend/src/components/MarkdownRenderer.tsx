@@ -148,12 +148,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </tr>
           ),
           th: ({ children }) => (
-            <th className="px-3 py-2 font-mono font-medium text-accent">
+            <th className="px-3 py-2 font-medium text-accent">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 font-mono text-xs leading-relaxed">
+            <td className="px-3 py-2 text-xs leading-relaxed">
               {children}
             </td>
           ),

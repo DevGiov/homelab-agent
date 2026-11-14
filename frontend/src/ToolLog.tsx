@@ -269,7 +269,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                     <Zap size={14} className="text-amber-400" />
                     <span className="font-medium text-fg">Metriche & Velocità</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
                       <div className="text-xs text-fg-muted">Velocità LLM</div>
                       <div className="text-amber-400 font-bold text-sm mt-0.5">
@@ -336,7 +336,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
 
                   <div className="text-xs text-fg-muted bg-panel border border-border/70 rounded-lg p-2 space-y-1">
-                    <div className="font-mono text-xs text-fg-muted truncate">
+                    <div className="text-xs text-fg-muted truncate">
                       Ricerca: <span className="text-fg">"{activeWebPrefetch.query}"</span>
                     </div>
                     {activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0 ? (

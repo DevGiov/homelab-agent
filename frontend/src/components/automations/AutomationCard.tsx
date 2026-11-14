@@ -90,7 +90,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           <div>
             <h4 className="text-sm font-bold text-fg flex items-center gap-2">
               {auto.name}
-              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
+              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 tabular-nums">
                 v{auto.version}
               </span>
             </h4>
@@ -201,7 +201,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             <span>{isExpanded ? 'Nascondi Pipeline & Statistiche' : 'Mostra Pipeline & Statistiche'}</span>
           </button>
-          <span className="font-mono text-xs">TTL: {auto.retention_days || 14} giorni</span>
+          <span className="text-xs tabular-nums">TTL: {auto.retention_days || 14} giorni</span>
         </div>
         {isExpanded && <AutomationCardDetails automation={auto} runsCount={runs.length} />}
       </div>

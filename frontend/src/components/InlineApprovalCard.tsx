@@ -211,9 +211,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
             {/* Execution Result summary if available */}
             {resolvedResult && (
-              <div className="mt-2.5 rounded-lg border border-border bg-panel p-2.5 font-mono text-xs text-fg-muted overflow-x-auto max-h-48">
+              <div className="mt-2.5 rounded-lg border border-border bg-panel p-2.5 text-xs text-fg-muted overflow-x-auto max-h-48">
                 <div className="text-xs font-semibold text-fg mb-1">Risultato esecuzione:</div>
-                <pre>{typeof resolvedResult === 'string' ? resolvedResult : JSON.stringify(resolvedResult, null, 2)}</pre>
+                <pre className="font-mono">{typeof resolvedResult === 'string' ? resolvedResult : JSON.stringify(resolvedResult, null, 2)}</pre>
               </div>
             )}
           </div>

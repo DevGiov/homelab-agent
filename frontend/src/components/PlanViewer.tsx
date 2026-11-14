@@ -50,7 +50,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted text-xs font-mono">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted text-xs">
             In attesa
           </span>
         );
@@ -66,7 +66,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
           <span>Piano di esecuzione {planStructure?.goal ? `— ${planStructure.goal}` : ''}</span>
         </div>
         {hasNodes && (
-          <div className="flex items-center gap-1 text-xs font-mono text-fg-muted">
+          <div className="flex items-center gap-1 text-xs tabular-nums text-fg-muted">
             <GitBranch size={12} />
             <span>{planStructure?.nodes?.length} nodi</span>
           </div>
@@ -83,7 +83,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-accent text-xs min-w-[20px]">
+                  <span className="tabular-nums font-bold text-accent text-xs min-w-[20px]">
                     {idx + 1}.
                   </span>
                   <span className="font-mono text-xs font-medium text-fg">{node.tool_name}</span>
@@ -96,10 +96,10 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
               )}
 
               {node.depends_on && node.depends_on.length > 0 && (
-                <div className="pl-7 flex items-center gap-1.5 text-xs font-mono text-fg-muted">
+                <div className="pl-7 flex items-center gap-1.5 text-xs text-fg-muted">
                   <span>Dipende da:</span>
                   {node.depends_on.map((dep) => (
-                    <span key={dep} className="px-1.5 py-0.5 rounded bg-panel border border-border text-fg">
+                    <span key={dep} className="px-1.5 py-0.5 rounded bg-panel border border-border text-fg font-mono">
                       {dep}
                     </span>
                   ))}
@@ -113,7 +113,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         <ol className="space-y-1.5 text-xs">
           {planSteps?.map((step, idx) => (
             <li key={idx} className="flex items-start gap-2 glass-card p-2.5 rounded-xl border border-border">
-              <span className="font-mono font-bold text-accent text-xs min-w-[20px] mt-0.5">
+              <span className="tabular-nums font-bold text-accent text-xs min-w-[20px] mt-0.5">
                 {idx + 1}.
               </span>
               <span className="text-fg leading-relaxed">{step}</span>

@@ -234,7 +234,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 </h2>
                 {isLoading && <RefreshCw size={12} className="animate-spin text-accent" />}
               </div>
-              <p className="text-xs text-fg-muted font-mono">{automation.name} ({automation.id})</p>
+              <p className="text-xs text-fg-muted">{automation.name} (<span className="font-mono">{automation.id}</span>)</p>
             </div>
           </div>
 

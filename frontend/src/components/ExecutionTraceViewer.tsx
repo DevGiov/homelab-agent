@@ -51,19 +51,19 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           </span>
 
           {hasTrace && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent font-mono">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent tabular-nums">
               <Wrench size={10} />
               {stepsCount} {stepsCount === 1 ? 'tool eseguito' : 'tool eseguiti'}
             </span>
           )}
 
-          <span className="text-xs text-fg-muted font-mono hidden xs:inline ml-1">
+          <span className="text-xs text-fg-muted hidden xs:inline ml-1">
             {isCollapsed ? '(compresso)' : '(espanso)'}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 text-fg-muted group-hover:text-fg">
-          <span className="text-xs font-mono uppercase">{isCollapsed ? 'Mostra' : 'Nascondi'}</span>
+          <span className="text-xs uppercase">{isCollapsed ? 'Mostra' : 'Nascondi'}</span>
           {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
         </div>
       </button>
@@ -101,16 +101,16 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                     className="glass-card border border-border rounded-xl p-3 space-y-2 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 font-mono text-xs text-fg truncate">
-                        <span className="text-accent font-bold">Step {idx + 1}:</span>
-                        <span className="truncate font-semibold">{tr.tool_name}</span>
+                      <div className="flex items-center gap-2 text-xs text-fg truncate">
+                        <span className="text-accent font-bold tabular-nums">Step {idx + 1}:</span>
+                        <span className="truncate font-semibold font-mono">{tr.tool_name}</span>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {/* Firecracker Sandbox Badge */}
                         {tr.sandboxed !== undefined && (
                           <span
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono border ${
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${
                               isSandboxed
                                 ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
                                 : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
@@ -135,7 +135,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                         {/* Status indicator */}
                         <span
-                          className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded ${
+                          className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                             tr.error
                               ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                               : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
@@ -169,11 +169,11 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                     {/* Step Details */}
                     {isStepExpanded && (
-                      <div className="pt-2 border-t border-border space-y-2 text-xs font-mono">
+                      <div className="pt-2 border-t border-border space-y-2 text-xs">
                         {tr.args && (
                           <div>
                             <span className="text-fg-muted block mb-0.5">Parametri:</span>
-                            <pre className="bg-panel p-2 rounded-lg text-fg overflow-x-auto border border-border/60">
+                            <pre className="bg-panel p-2 rounded-lg text-fg font-mono overflow-x-auto border border-border/60">
                               {JSON.stringify(tr.args, null, 2)}
                             </pre>
                           </div>
@@ -184,7 +184,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                             <span className="text-fg-muted block mb-0.5">
                               Argomenti scritti dal modello con i dati {tr.clean_rewrite.turn_label} del turno (non inviati):
                             </span>
-                            <pre className="bg-panel p-2 rounded-lg text-fg-muted overflow-x-auto border border-border/60">
+                            <pre className="bg-panel p-2 rounded-lg text-fg-muted font-mono overflow-x-auto border border-border/60">
                               {JSON.stringify(tr.clean_rewrite.original_args, null, 2)}
                             </pre>
                           </div>
@@ -193,7 +193,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         {(tr.output || tr.result) && (
                           <div>
                             <span className="text-fg-muted block mb-0.5">Output:</span>
-                            <pre className="bg-panel p-2 rounded-lg text-emerald-400 overflow-x-auto whitespace-pre-wrap border border-border/60">
+                            <pre className="bg-panel p-2 rounded-lg text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap border border-border/60">
                               {typeof (tr.output || tr.result) === 'string'
                                 ? tr.output || tr.result
                                 : JSON.stringify(tr.output || tr.result, null, 2)}
@@ -204,7 +204,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         {tr.error && (
                           <div>
                             <span className="text-rose-400 block mb-0.5">Dettaglio dell'errore:</span>
-                            <pre className="bg-rose-950/60 p-2 rounded-lg text-rose-300 border border-rose-900/50 overflow-x-auto whitespace-pre-wrap">
+                            <pre className="bg-rose-950/60 p-2 rounded-lg text-rose-300 font-mono border border-rose-900/50 overflow-x-auto whitespace-pre-wrap">
                               {tr.error}
                             </pre>
                           </div>

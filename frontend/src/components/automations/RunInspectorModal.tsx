@@ -103,8 +103,8 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 id={titleId} className="text-base font-semibold text-fg font-mono">
-                  Run: {run.run_id}
+                <h2 id={titleId} className="text-base font-semibold text-fg">
+                  Run: <span className="font-mono">{run.run_id}</span>
                 </h2>
                 {getStatusBadge(run.status, run.is_dry_run)}
               </div>

@@ -141,7 +141,7 @@ export const SecurityTab: React.FC = () => {
             <Shield size={15} className="text-accent" />
             <h3 className="text-xs font-semibold text-fg">Modalità di rischio e conferme umane</h3>
           </div>
-          <span className="text-xs text-fg-muted font-mono">Sincronizzata con toolbar</span>
+          <span className="text-xs text-fg-muted">Sincronizzata con la barra della chat</span>
         </div>
         <p className="text-xs text-fg-muted leading-relaxed">
           Configura il comportamento di autorizzazione per i tool eseguiti dall'agent. Puoi cambiare modalità rapidamente anche tramite il

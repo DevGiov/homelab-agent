@@ -161,7 +161,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       >
         <Box size={12} className="text-emerald-400 shrink-0" />
         
-        <span className="truncate font-mono text-xs text-fg">
+        <span className={`truncate text-xs text-fg ${selectedModel === 'default' ? '' : 'font-mono'}`}>
           {selectedModel === 'default' ? 'Modello: predefinito' : selectedModel}
         </span>
 

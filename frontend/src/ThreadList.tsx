@@ -257,7 +257,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                           </span>
                         )}
                         {thread.checkpoint_count > 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted tabular-nums">
                             {thread.checkpoint_count}
                           </span>
                         )}

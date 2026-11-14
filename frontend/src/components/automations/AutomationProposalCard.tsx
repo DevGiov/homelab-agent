@@ -227,7 +227,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
               <span className="text-xs uppercase font-bold tracking-wider text-accent">
                 Proposta di Automazione
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted tabular-nums">
                 v{proposal.version || 1}
               </span>
             </div>
@@ -333,7 +333,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         )}
 
         {dryRunResult && (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-mono">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs">
             <CheckCircle2 size={14} className="shrink-0" />
             <span>{dryRunResult}</span>
           </div>

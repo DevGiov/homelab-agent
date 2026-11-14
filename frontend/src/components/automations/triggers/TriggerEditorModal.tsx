@@ -57,7 +57,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
             <div>
               <h2 id={titleId} className="text-lg font-semibold text-fg flex items-center gap-2">Pianificazione & Trigger</h2>
               <p className="text-xs text-fg-muted">
-                Automazione: <span className="text-accent font-mono">{automation.name}</span>
+                Automazione: <span className="text-accent">{automation.name}</span>
               </p>
             </div>
           </div>

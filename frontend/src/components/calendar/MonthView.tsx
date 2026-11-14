@@ -143,7 +143,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.calendar_color || DEFAULT_CALENDAR_COLOR }} />
                     <span className="font-medium text-fg truncate">{ev.summary}</span>
                   </div>
-                  <span className="text-xs text-fg-muted font-mono shrink-0">
+                  <span className="text-xs text-fg-muted tabular-nums shrink-0">
                     {ev.all_day ? 'Tutto il giorno' : eventStartTime(ev)}
                   </span>
                 </div>

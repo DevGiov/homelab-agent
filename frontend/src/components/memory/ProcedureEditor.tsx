@@ -68,7 +68,7 @@ export const ProcedureEditor: React.FC<ProcedureEditorProps> = ({ initial, kindL
         onChange={(e) => setContent(e.target.value)}
         rows={kind === 'plan_template' ? 5 : 2}
         placeholder={kind === 'plan_template' ? '1. primo passo con il tool…\n2. …' : "Come usare il tool (es. 'Su CT 125 riavvia con docker compose, non systemctl')"}
-        className={`${inputClass} w-full resize-y leading-relaxed font-mono`}
+        className={`${inputClass} w-full resize-y leading-relaxed`}
         aria-label="Contenuto della procedura"
       />
       <div className="flex justify-end gap-1.5">
