@@ -4,16 +4,23 @@ Include schemi canonici validati per definizioni, workflow, policy,
 budget, run, step ed esecuzioni.
 """
 
-import json
-import logging
 import re
-import secrets
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-logger = logging.getLogger("automations.models")
+from app.automations.proposal_normalization import (
+    expand_single_step_template,
+    normalize_budget,
+    normalize_identity,
+    normalize_notification_policy,
+    normalize_parameters_and_settings,
+    normalize_permission_policy,
+    normalize_steps,
+    normalize_triggers,
+    normalize_workflow_shape,
+)
 
 
 class SourceType(str, Enum):
@@ -49,6 +56,11 @@ class StepType(str, Enum):
     EVALUATION_GATE = "evaluation_gate"
     CUSTOM_CODE = "custom_code"
     CALENDAR = "calendar"
+
+
+def _as_dict(value: Any, model: type[BaseModel]) -> Any:
+    """Il dump di un'istanza del modello dato; ogni altro valore resta com'è."""
+    return value.model_dump() if isinstance(value, model) else value
 
 
 # --- Policy & Budget ---
@@ -179,331 +191,23 @@ class AutomationDefinition(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def normalize_proposal(cls, data: Any) -> Any:
-        """Normalizza tollerantemente payload raw generati da LLM o client UI."""
+        """Normalizza tollerantemente payload raw generati da LLM o client UI, un passo per sezione."""
         if not isinstance(data, dict):
             return data
         d = dict(data)
-
-        # 1. Normalizzazione ID e nome
-        if not d.get("id"):
-            import uuid
-            d["id"] = f"auto_{uuid.uuid4().hex[:8]}"
-        if not d.get("name"):
-            d["name"] = d.get("id", "Nuova Automazione")
-
-        # 1.1 Normalizzazione Parametri e Settings
-        raw_params = d.get("parameters") or d.get("params") or d.get("inputs") or d.get("config") or {}
-        if isinstance(raw_params, dict):
-            d["parameters"] = dict(raw_params)
-        else:
-            d["parameters"] = {}
-
-        raw_settings = d.get("settings") or d.get("custom_settings") or {}
-        if isinstance(raw_settings, dict):
-            d["settings"] = dict(raw_settings)
-        else:
-            d["settings"] = {}
-
-        # 2. Normalizzazione Workflow (array -> oggetto WorkflowSpec)
-        wf = d.get("workflow")
-        if isinstance(wf, list):
-            steps = list(wf)
-            first_step = steps[0] if (steps and isinstance(steps[0], dict)) else {}
-            initial_id = first_step.get("step_id") or first_step.get("id") or "step_1"
-            d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
-        elif isinstance(wf, dict):
-            wf = dict(wf)
-            if not wf.get("initial_step_id") and wf.get("steps"):
-                first_step = wf["steps"][0]
-                if isinstance(first_step, dict):
-                    wf["initial_step_id"] = first_step.get("step_id") or first_step.get("id") or "step_1"
-            d["workflow"] = wf
-        elif not wf and "steps" in d:
-            steps = list(d.pop("steps", []))
-            first_step = steps[0] if (steps and isinstance(steps[0], dict)) else {}
-            initial_id = first_step.get("step_id") or first_step.get("id") or "step_1"
-            d["workflow"] = {"initial_step_id": initial_id, "steps": steps}
-
-        # 2.1 Template Expansion Auto-Fix: se il workflow ha un singolo step con action che coincide con un template noto
-        if isinstance(d.get("workflow"), dict) and "steps" in d["workflow"]:
-            cur_steps = d["workflow"]["steps"]
-            if len(cur_steps) == 1 and isinstance(cur_steps[0], dict):
-                act = str(cur_steps[0].get("action_or_tool") or cur_steps[0].get("action") or "").lower()
-                clean_act = act.replace("-", "_")
-                from pathlib import Path
-                tpl_dir = Path(__file__).parent / "templates"
-                if tpl_dir.exists():
-                    for tpl_file in tpl_dir.glob("*.json"):
-                        stem_clean = tpl_file.stem.lower().replace("-", "_")
-                        if (stem_clean in clean_act or clean_act in stem_clean) and len(clean_act) >= 5:
-                            try:
-                                with open(tpl_file, "r", encoding="utf-8") as tf:
-                                    tpl_data = json.load(tf)
-                                    if "workflow" in tpl_data and "steps" in tpl_data["workflow"]:
-                                        d["workflow"]["steps"] = tpl_data["workflow"]["steps"]
-                                        d["workflow"]["initial_step_id"] = tpl_data["workflow"].get("initial_step_id", "step_1")
-                                        if "permission_policy" in tpl_data:
-                                            d["permission_policy"] = tpl_data["permission_policy"]
-                                        break
-                            except Exception:
-                                pass
-
-        # 3. Normalizzazione Steps all'interno del workflow
-        if isinstance(d.get("workflow"), dict) and "steps" in d["workflow"]:
-            norm_steps = []
-            for idx, s in enumerate(d["workflow"].get("steps", [])):
-                if not isinstance(s, dict):
-                    continue
-                s = dict(s)
-                if not s.get("step_id"):
-                    s["step_id"] = s.get("id") or f"step_{idx+1}"
-                if not s.get("name"):
-                    s["name"] = s.get("title") or s.get("step_id") or f"Step {idx+1}"
-                if not s.get("action_or_tool"):
-                    s["action_or_tool"] = s.get("action") or s.get("tool")
-
-                # Riconoscimento parametri asimmetrico e tollerante
-                step_params = (
-                    s.get("parameters")
-                    or s.get("arguments")
-                    or s.get("args")
-                    or s.get("params")
-                    or {}
-                )
-                if isinstance(step_params, dict):
-                    s["parameters"] = dict(step_params)
-                else:
-                    s["parameters"] = {}
-
-                # Normalizza input_source e content_source sia da top-level che da parameters
-                if "input_source" in s and "input_source" not in s["parameters"]:
-                    s["parameters"]["input_source"] = s["input_source"]
-                if "content_source" in s and "content_source" not in s["parameters"]:
-                    s["parameters"]["content_source"] = s["content_source"]
-                if "filename" in s["parameters"] and "path" not in s["parameters"]:
-                    s["parameters"]["path"] = s["parameters"]["filename"]
-
-                if not s.get("prompt_template"):
-                    s["prompt_template"] = (
-                        s.get("prompt")
-                        or s.get("instruction")
-                        or s.get("task")
-                        or s["parameters"].get("prompt")
-                    )
-
-                # Normalizzazione alias per tool noti
-                tool = s.get("action_or_tool")
-                if tool:
-                    tool_lower = str(tool).lower().replace("-", "_")
-                    if tool_lower in ("http_get", "curl", "fetch_url", "web_fetch", "fetch_web"):
-                        s["action_or_tool"] = "http_get"
-                    elif tool_lower in ("file_write", "write_file", "save_file", "save_report", "save_artifact", "save_briefing_artifact"):
-                        s["action_or_tool"] = "save_artifact"
-                    elif tool_lower in ("web_search", "search", "google", "brave_search"):
-                        s["action_or_tool"] = "web_search"
-
-                raw_type = str(s.get("type", "")).lower()
-                valid_step_types = {t.value for t in StepType}
-                if raw_type in valid_step_types:
-                    s["type"] = raw_type
-                elif (
-                    raw_type in ("llm_call", "agent", "llm", "agent_task", "agentic_task", "ai_task", "ai")
-                    or bool(s.get("prompt_template"))
-                ):
-                    s["type"] = StepType.AGENTIC_TASK.value
-                elif raw_type in ("code", "python", "script"):
-                    s["type"] = StepType.CUSTOM_CODE.value
-                elif raw_type in ("approval", "gate", "approval_gate"):
-                    s["type"] = StepType.APPROVAL_GATE.value
-                else:
-                    s["type"] = StepType.DETERMINISTIC_ACTION.value
-
-                if "timeout" in s and "timeout_seconds" not in s:
-                    s["timeout_seconds"] = int(s["timeout"])
-                norm_steps.append(s)
-            d["workflow"]["steps"] = norm_steps
-
-        # 4. Normalizzazione Triggers
-        trgs = d.get("triggers")
-        if isinstance(trgs, dict):
-            trgs = [trgs]
-        elif isinstance(trgs, str):
-            clean_str = trgs.strip()
-            if any(c in clean_str for c in "*0123456789"):
-                trgs = [{"type": "cron", "cron_expression": clean_str}]
-            else:
-                trgs = [{"type": "manual"}]
-        elif not trgs and (d.get("cron") or d.get("schedule") or d.get("cron_expression")):
-            expr = d.get("cron_expression") or d.get("schedule") or d.get("cron")
-            trgs = [{"type": "cron", "cron_expression": str(expr)}]
-
-        # Se non è presente un trigger cron esplicito, tenta inferenza intelligente da name/description
-        has_explicit_cron = False
-        if isinstance(trgs, list):
-            for t in trgs:
-                if isinstance(t, dict) and (
-                    t.get("type") == "cron"
-                    or t.get("cron_expression")
-                    or t.get("schedule")
-                    or t.get("cron")
-                ):
-                    has_explicit_cron = True
-                    break
-
-        if not has_explicit_cron:
-            text_to_scan = f"{d.get('name', '')} {d.get('description', '')}".lower()
-            inferred_cron = None
-            if "mezzogiorno" in text_to_scan or "alle 12" in text_to_scan or "ore 12" in text_to_scan:
-                inferred_cron = "0 12 * * *"
-            elif "alle 10" in text_to_scan or "ore 10" in text_to_scan:
-                inferred_cron = "0 10 * * *"
-            elif "alle 9" in text_to_scan or "ore 9" in text_to_scan or "alle 09" in text_to_scan:
-                inferred_cron = "0 9 * * *"
-            elif "alle 8" in text_to_scan or "ore 8" in text_to_scan or "alle 08" in text_to_scan:
-                inferred_cron = "0 8 * * *"
-            elif "ogni ora" in text_to_scan or "hourly" in text_to_scan:
-                inferred_cron = "0 * * * *"
-            else:
-                import re
-                m = re.search(r'(?:alle|ore|at)\s+([0-2]?\d)[:.]([0-5]\d)', text_to_scan)
-                if m:
-                    h, mn = int(m.group(1)), int(m.group(2))
-                    inferred_cron = f"{mn} {h} * * *"
-
-            if inferred_cron:
-                logger.info(f"Inferito trigger cron '{inferred_cron}' per automazione '{d.get('id')}' da testo descrittivo.")
-                if not trgs or not isinstance(trgs, list):
-                    trgs = [{"type": "cron", "cron_expression": inferred_cron, "timezone": "Europe/Rome"}]
-                else:
-                    trgs.append({"type": "cron", "cron_expression": inferred_cron, "timezone": "Europe/Rome"})
-
-        if not trgs or not isinstance(trgs, list):
-            d["triggers"] = [{"id": "trg_manual", "type": "manual", "enabled": True}]
-        else:
-            norm_trgs = []
-            for idx, t in enumerate(trgs):
-                if not isinstance(t, dict):
-                    continue
-                t = dict(t)
-                if not t.get("id"):
-                    t["id"] = f"trg_{idx+1}"
-
-                # Normalizzazione espressione cron da sinonimi
-                cron_expr = (
-                    t.get("cron_expression")
-                    or t.get("schedule")
-                    or t.get("cron")
-                    or t.get("cron_expr")
-                    or t.get("expression")
-                )
-                if cron_expr:
-                    t["cron_expression"] = str(cron_expr).strip()
-
-                raw_t_type = str(t.get("type", "")).lower()
-                if not raw_t_type:
-                    raw_t_type = "cron" if t.get("cron_expression") else "manual"
-                elif raw_t_type not in {tt.value for tt in TriggerType}:
-                    raw_t_type = "cron" if t.get("cron_expression") else "manual"
-
-                # Se ha una cron_expression ma era rimasto type manual o non valido, eleva a cron
-                if t.get("cron_expression") and raw_t_type == "manual":
-                    raw_t_type = "cron"
-
-                t["type"] = raw_t_type
-                if t["type"] == "cron" and not t.get("cron_expression"):
-                    t["cron_expression"] = "0 9 * * *"
-                elif t["type"] == "webhook":
-                    if not t.get("webhook_token"):
-                        t["webhook_token"] = secrets.token_urlsafe(24)
-                    if not t.get("webhook_path") and d.get("id"):
-                        t["webhook_path"] = f"/v1/automations/{d.get('id')}/webhook/{t['webhook_token']}"
-                if not t.get("timezone"):
-                    t["timezone"] = "Europe/Rome"
-                if "enabled" not in t:
-                    t["enabled"] = True
-                norm_trgs.append(t)
-
-            d["triggers"] = norm_trgs or [{"id": "trg_manual", "type": "manual", "enabled": True}]
-
-        # 5. Normalizzazione Budget (robusto contro None, dict vuoto, istanze o tipi non dict)
-        b = d.get("budget")
-        if isinstance(b, Budget):
-            b_dict = b.model_dump()
-        elif isinstance(b, dict):
-            b_dict = dict(b)
-        else:
-            b_dict = None
-
-        if b_dict is None:
-            d["budget"] = Budget().model_dump()
-        else:
-            if "max_tokens_per_run" in b_dict and "max_tokens" not in b_dict:
-                b_dict["max_tokens"] = b_dict["max_tokens_per_run"]
-            if "timeout_seconds" in b_dict and "max_duration_seconds" not in b_dict:
-                b_dict["max_duration_seconds"] = b_dict["timeout_seconds"]
-            if "duration_seconds" in b_dict and "max_duration_seconds" not in b_dict:
-                b_dict["max_duration_seconds"] = b_dict["duration_seconds"]
-            clean_b = {k: v for k, v in b_dict.items() if v is not None}
-            default_b = Budget().model_dump()
-            default_b.update(clean_b)
-            d["budget"] = default_b
-
-        # 6. Normalizzazione Permission Policy (robusto contro None, istanze o stringhe tipo 'auto_execute')
-        p = d.get("permission_policy")
-        if isinstance(p, ExecutionPolicy):
-            p_copy = p.model_dump()
-        elif isinstance(p, dict):
-            p_copy = dict(p)
-        elif isinstance(p, str):
-            p_lower = p.lower()
-            if p_lower in ("safest", "normal", "dangerous"):
-                p_copy = {"security_mode": p_lower}
-            else:
-                p_copy = {"security_mode": "normal"}
-        else:
-            p_copy = {}
-
-        if not p_copy.get("allowed_tools"):
-            tools = set()
-            if isinstance(d.get("workflow"), dict):
-                for st in d["workflow"].get("steps", []):
-                    if isinstance(st, dict) and st.get("action_or_tool"):
-                        tools.add(st["action_or_tool"])
-            p_copy["allowed_tools"] = list(tools)
-        else:
-            # Normalizzazione alias per tool noti in allowed_tools
-            norm_tools = set()
-            for t in p_copy.get("allowed_tools", []):
-                norm_tools.add(t)
-                t_lower = str(t).lower().replace("-", "_")
-                if t_lower in ("file_write", "write_file", "save_file", "save_report", "save_briefing_artifact", "save_artifact"):
-                    norm_tools.add("save_artifact")
-                elif t_lower in ("http_get", "curl", "fetch_url", "web_fetch", "fetch_web"):
-                    norm_tools.add("http_get")
-                elif t_lower in ("web_search", "search", "google", "brave_search"):
-                    norm_tools.add("web_search")
-            p_copy["allowed_tools"] = list(norm_tools)
-        if "allowed_registries" not in p_copy or not p_copy["allowed_registries"]:
-            p_copy["allowed_registries"] = ["mcp", "web", "code", "memory", "vision", "email", "automations"]
-        d["permission_policy"] = p_copy
-
-        # 7. Normalizzazione Notification Policy
-        n = d.get("notification_policy")
-        if isinstance(n, NotificationPolicy):
-            n_copy = n.model_dump()
-        elif isinstance(n, dict):
-            n_copy = dict(n)
-        else:
-            n_copy = None
-
-        if n_copy is None:
-            d["notification_policy"] = NotificationPolicy().model_dump()
-        else:
-            clean_n = {k: v for k, v in n_copy.items() if v is not None}
-            default_n = NotificationPolicy().model_dump()
-            default_n.update(clean_n)
-            d["notification_policy"] = default_n
-
+        normalize_identity(d)
+        normalize_parameters_and_settings(d)
+        normalize_workflow_shape(d)
+        expand_single_step_template(d)
+        normalize_steps(d, {t.value for t in StepType})
+        normalize_triggers(d, {t.value for t in TriggerType})
+        d["budget"] = normalize_budget(_as_dict(d.get("budget"), Budget), Budget().model_dump())
+        d["permission_policy"] = normalize_permission_policy(
+            _as_dict(d.get("permission_policy"), ExecutionPolicy), d.get("workflow")
+        )
+        d["notification_policy"] = normalize_notification_policy(
+            _as_dict(d.get("notification_policy"), NotificationPolicy), NotificationPolicy().model_dump()
+        )
         return d
 
 
