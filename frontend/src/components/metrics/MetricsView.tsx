@@ -46,7 +46,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Metriche</h1>
-            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">
+            <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
               Turni, velocità dei modelli, tool e salute dei servizi
             </p>
           </div>
@@ -60,7 +60,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
                 onClick={() => setRange(w)}
                 aria-pressed={w.id === range.id}
                 aria-label={w.label}
-                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
+                className={`px-2 py-1 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap ${
                   w.id === range.id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel-hover'
                 }`}
               >
@@ -81,7 +81,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
-        {error && <div className="p-2 rounded-lg text-[11px] border bg-rose-950/40 border-rose-800/60 text-rose-300">{error}</div>}
+        {error && <div className="p-2 rounded-lg text-xs border bg-rose-950/40 border-rose-800/60 text-rose-300">{error}</div>}
 
         {!summary || !series ? (
           isLoading && (

@@ -50,19 +50,19 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           </span>
 
           {hasTrace && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-[10px] text-accent font-mono">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-panel border border-border text-xs text-accent font-mono">
               <Wrench size={10} />
               {stepsCount} tool {stepsCount === 1 ? 'execution' : 'executions'}
             </span>
           )}
 
-          <span className="text-[10px] text-fg-muted font-mono hidden xs:inline ml-1">
+          <span className="text-xs text-fg-muted font-mono hidden xs:inline ml-1">
             {isCollapsed ? '(Collapsed)' : '(Expanded)'}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 text-fg-muted group-hover:text-fg">
-          <span className="text-[10px] font-mono uppercase">{isCollapsed ? 'Show' : 'Hide'}</span>
+          <span className="text-xs font-mono uppercase">{isCollapsed ? 'Show' : 'Hide'}</span>
           {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
         </div>
       </button>
@@ -86,7 +86,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
           {/* Trace steps */}
           {hasTrace && (
             <div className="space-y-2">
-              <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider px-1">
+              <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider px-1">
                 Tool Execution Trace
               </div>
               {trace?.map((tr, idx) => {
@@ -109,7 +109,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         {/* Firecracker Sandbox Badge */}
                         {tr.sandboxed !== undefined && (
                           <span
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono border ${
                               isSandboxed
                                 ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
                                 : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
@@ -123,7 +123,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                         {/* Status indicator */}
                         <span
-                          className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
+                          className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded ${
                             tr.error
                               ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                               : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
@@ -155,7 +155,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                     {/* Step Details */}
                     {isStepExpanded && (
-                      <div className="pt-2 border-t border-border space-y-2 text-[11px] font-mono">
+                      <div className="pt-2 border-t border-border space-y-2 text-xs font-mono">
                         {tr.args && (
                           <div>
                             <span className="text-fg-muted block mb-0.5">Parameters:</span>
@@ -201,13 +201,13 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
               </div>
               <div className="space-y-1.5 text-xs">
                 {rollbackTrace?.map((act, idx) => (
-                  <div key={idx} className="bg-panel p-2 rounded-lg border border-amber-900/40 font-mono text-[11px]">
+                  <div key={idx} className="bg-panel p-2 rounded-lg border border-amber-900/40 font-mono text-xs">
                     <div className="flex items-center justify-between text-amber-300">
                       <span>Undo: {act.tool_name}</span>
-                      <span className="text-[10px] text-amber-400/80">{act.status || 'Executed'}</span>
+                      <span className="text-xs text-amber-400/80">{act.status || 'Executed'}</span>
                     </div>
                     {act.args && (
-                      <div className="text-[10px] text-fg-muted mt-1 truncate">
+                      <div className="text-xs text-fg-muted mt-1 truncate">
                         Args: {JSON.stringify(act.args)}
                       </div>
                     )}

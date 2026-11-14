@@ -65,7 +65,7 @@ export const DataExitsSection: React.FC = () => {
           <select
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
-            className="bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-[11px] text-fg focus:outline-none cursor-pointer"
+            className="bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none cursor-pointer"
             aria-label="Periodo"
           >
             {PERIODS.map((p) => (
@@ -79,27 +79,27 @@ export const DataExitsSection: React.FC = () => {
           </button>
         </div>
       </div>
-      <p className="text-[11px] text-fg-muted leading-relaxed">
+      <p className="text-xs text-fg-muted leading-relaxed">
         Ogni chiamata che porta dati fuori dal backend passa da un controllo: <strong>consentita</strong> se la destinazione può
         ricevere quei dati, altrimenti l'agente <strong>chiede conferma</strong> mostrando cosa invierebbe. Tante conferme sui
         dati pubblici o interni dicono che le etichette sono troppo strette.
       </p>
 
-      {error && <p className="text-[11px] text-rose-300">{error}</p>}
+      {error && <p className="text-xs text-rose-300">{error}</p>}
       {loading && !data ? (
         <div className="flex items-center justify-center p-3 text-xs text-fg-muted">
           <Loader2 size={14} className="animate-spin mr-2" /> Caricamento…
         </div>
       ) : destinations.length === 0 ? (
-        <p className="text-[11px] text-fg-muted italic">Nessuna uscita di dati nel periodo.</p>
+        <p className="text-xs text-fg-muted italic">Nessuna uscita di dati nel periodo.</p>
       ) : (
         <>
-          <div className="text-[11px] text-fg">
+          <div className="text-xs text-fg">
             {totals.allow} consentite · <span className="text-amber-300">{totals.ask} conferme chieste</span> · {totals.approved} autorizzate dopo
             una conferma · {totals.deny} bloccate
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="text-fg-muted text-left">
                   <th className="font-medium py-1 pr-2">Destinazione</th>
@@ -129,9 +129,9 @@ export const DataExitsSection: React.FC = () => {
 
       {(data?.recent.length ?? 0) > 0 && (
         <div className="space-y-1 pt-1 border-t border-border/60">
-          <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">Ultime richieste</div>
+          <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Ultime richieste</div>
           {data!.recent.map((e, i) => (
-            <div key={`${e.timestamp}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+            <div key={`${e.timestamp}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
               <span className="text-fg-muted tabular-nums">{formatDateTime(e.timestamp)}</span>
               <span className="text-fg">{FLOW_TEXT[e.flow] ?? e.flow}</span>
               {e.flow === 'lowered' ? (

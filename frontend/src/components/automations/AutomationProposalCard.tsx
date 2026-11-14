@@ -148,7 +148,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
           <span>Anteprima proposta automazione (JSON non valido)</span>
         </div>
         <p className="text-fg-muted mb-2">Il blocco di proposta non ha una sintassi JSON valida:</p>
-        <pre className="bg-panel/80 p-2 rounded text-[11px] font-mono text-fg-muted overflow-x-auto max-h-40">{rawJson}</pre>
+        <pre className="bg-panel/80 p-2 rounded text-xs font-mono text-fg-muted overflow-x-auto max-h-40">{rawJson}</pre>
       </div>
     );
   }
@@ -227,7 +227,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
               <span className="text-xs uppercase font-bold tracking-wider text-accent">
                 Proposta di Automazione
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-panel border border-border text-fg-muted font-mono">
                 v{proposal.version || 1}
               </span>
             </div>
@@ -261,7 +261,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
             {triggers.map((t: any, idx: number) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-panel border border-border text-[11px] font-mono text-fg"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs font-mono text-fg"
               >
                 <Zap size={11} className="text-amber-400" />
                 {t.type === 'cron' ? `Cron: ${t.cron_expression}` : t.type}
@@ -282,12 +282,12 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                 className="flex items-start justify-between gap-2 p-1.5 rounded-lg hover:bg-panel/80 transition"
               >
                 <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                  <span className="w-5 h-5 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <div>
                     <div className="font-semibold text-fg text-xs">{s.name || s.step_id}</div>
-                    <div className="text-[10px] font-mono text-fg-muted flex items-center gap-1 mt-0.5">
+                    <div className="text-xs font-mono text-fg-muted flex items-center gap-1 mt-0.5">
                       <span className="px-1.5 py-0.5 rounded bg-panel border border-border/60">
                         {s.type}
                       </span>
@@ -298,7 +298,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                   </div>
                 </div>
                 {s.requires_approval && (
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
                     Richiede Approvazione
                   </span>
                 )}
@@ -310,13 +310,13 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         {/* Permissions & Security */}
         {allowedTools.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-fg-muted font-medium flex items-center gap-1 text-[11px]">
+            <span className="text-fg-muted font-medium flex items-center gap-1 text-xs">
               <Shield size={12} className="text-emerald-400" /> Permessi Tool:
             </span>
             {allowedTools.map((t: string, idx: number) => (
               <span
                 key={idx}
-                className="px-2 py-0.5 rounded bg-panel border border-border text-[10px] font-mono text-accent"
+                className="px-2 py-0.5 rounded bg-panel border border-border text-xs font-mono text-accent"
               >
                 {t}
               </span>
@@ -350,14 +350,14 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         <div className="pt-1">
           <button
             onClick={() => setShowJson(!showJson)}
-            className="flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg transition cursor-pointer"
+            className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition cursor-pointer"
           >
             <Code2 size={12} />
             <span>{showJson ? 'Nascondi Spec JSON' : 'Ispeziona Spec JSON'}</span>
             {showJson ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           {showJson && (
-            <pre className="mt-2 p-3 rounded-xl bg-panel border border-border text-[11px] font-mono text-fg-muted overflow-x-auto max-h-56">
+            <pre className="mt-2 p-3 rounded-xl bg-panel border border-border text-xs font-mono text-fg-muted overflow-x-auto max-h-56">
               {rawJson}
             </pre>
           )}

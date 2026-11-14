@@ -23,7 +23,7 @@ export const EpisodesPanel: React.FC<EpisodesPanelProps> = ({ state, threadTitle
         aria-label="Cerca negli episodi"
       />
     </div>
-    <p className="text-[11px] text-fg-muted">
+    <p className="text-xs text-fg-muted">
       {state.isSearching ? `${state.episodes.length} episodi più pertinenti` : `${state.total} episodi, dal più recente`}
     </p>
     {state.isLoading && state.episodes.length === 0 ? (

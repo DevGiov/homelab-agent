@@ -45,7 +45,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
           onChange={(e) => onChange(e.target.checked)}
           className="rounded border-border text-accent focus:ring-0 cursor-pointer"
         />
-        <label htmlFor={id} className="text-fg-muted text-[11px] cursor-pointer">
+        <label htmlFor={id} className="text-fg-muted text-xs cursor-pointer">
           {field.label}
         </label>
       </div>
@@ -53,10 +53,10 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
   }
   return (
     <div className={`${colSpan[field.cols ?? 3]} space-y-1`}>
-      <label className="text-fg-muted text-[11px] font-medium flex items-center justify-between">
+      <label className="text-fg-muted text-xs font-medium flex items-center justify-between">
         <span>{field.label}</span>
         {field.source === 'secrets' && (
-          <span className="text-[10px] text-accent flex items-center gap-1">
+          <span className="text-xs text-accent flex items-center gap-1">
             <Lock size={10} /> Cifrato AES
           </span>
         )}
@@ -75,7 +75,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
 
 const TestResult: React.FC<{ result: IntegrationTestResult; labels: IntegrationSpec['testLabels'] }> = ({ result, labels }) => (
   <div
-    className={`p-2.5 rounded-lg text-[11px] mt-2 border ${
+    className={`p-2.5 rounded-lg text-xs mt-2 border ${
       result.success ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800' : 'bg-rose-950/60 text-rose-300 border-rose-800'
     }`}
   >
@@ -115,12 +115,12 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
             </div>
             <div>
               <h3 className="text-sm font-semibold text-fg">{spec.title}</h3>
-              <span className="text-[11px] text-fg-muted">{spec.subtitle}</span>
+              <span className="text-xs text-fg-muted">{spec.subtitle}</span>
             </div>
           </div>
           {integration && (
             <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-medium border flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${
                 isConnected ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
               }`}
             >

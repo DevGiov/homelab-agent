@@ -33,7 +33,7 @@ export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, poi
   <section className="rounded-2xl border border-border bg-panel/60 p-3">
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
       <h2 className="text-xs font-semibold text-fg">Salute dei servizi</h2>
-      <span className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted">
+      <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
         {LEGEND.map((l) => (
           <span key={l.label} className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: l.color }} />
@@ -44,7 +44,7 @@ export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, poi
     </div>
 
     {services.length === 0 ? (
-      <p className="text-[11px] text-fg-muted py-3">Nessun campione nella finestra: il primo arriva entro un minuto dall'avvio del backend.</p>
+      <p className="text-xs text-fg-muted py-3">Nessun campione nella finestra: il primo arriva entro un minuto dall'avvio del backend.</p>
     ) : (
       <div className="space-y-2.5">
         {services.map((s) => (
@@ -53,9 +53,9 @@ export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, poi
               <div className="flex items-center gap-1.5 text-xs text-fg">
                 {s.ok ? <CheckCircle2 size={13} className="text-emerald-400 shrink-0" /> : <XCircle size={13} className="text-rose-400 shrink-0" />}
                 <span className="font-medium truncate">{serviceLabel(s.service)}</span>
-                <span className={`text-[11px] ${s.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{s.ok ? 'attivo' : 'giù'}</span>
+                <span className={`text-xs ${s.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{s.ok ? 'attivo' : 'giù'}</span>
               </div>
-              <div className="text-[11px] text-fg-muted truncate" title={s.last_error ?? undefined}>
+              <div className="text-xs text-fg-muted truncate" title={s.last_error ?? undefined}>
                 {formatPct(s.uptime_pct)} · {formatDuration(s.avg_latency_ms)}
                 {!s.ok && s.last_error ? ` · ${s.last_error}` : ''}
               </div>

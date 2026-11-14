@@ -5,6 +5,7 @@
 const themed = (variable) => `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`;
 
 import plugin from 'tailwindcss/plugin';
+import containerQueries from '@tailwindcss/container-queries';
 
 const STATUS_HUES = ['emerald', 'green', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose', 'red', 'orange', 'amber', 'yellow', 'zinc'];
 const OPACITIES = ['', ...Array.from({ length: 19 }, (_, i) => `/${(i + 1) * 5}`)];
@@ -114,5 +115,7 @@ export default {
       },
     },
   },
-  plugins: [lightThemeStatusColors],
+  // Container query (`@container/chat`, `@xl/chat:flex`): la colonna della chat cambia larghezza con le barre laterali,
+  // la finestra no
+  plugins: [lightThemeStatusColors, containerQueries],
 }

@@ -174,7 +174,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
           >
             Report & Artefatti
             {run.artifacts?.length ? (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-accent/20 text-accent">
+              <span className="px-1.5 py-0.2 rounded-full text-xs bg-accent/20 text-accent">
                 {run.artifacts.length}
               </span>
             ) : null}
@@ -220,7 +220,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                             <h4 className="text-xs font-semibold text-fg">
                               Step: {sr.step_id}
                             </h4>
-                            <span className="text-[11px] text-fg-muted flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-fg-muted flex items-center gap-2 mt-0.5">
                               <span>Tentativo {sr.attempt}</span>
                               {sr.tokens_consumed > 0 && (
                                 <span>• {sr.tokens_consumed} tokens</span>
@@ -254,7 +254,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                                 {sr.tool_calls.map((tc, tcIdx) => (
                                   <div
                                     key={tcIdx}
-                                    className="p-2 rounded bg-bg/60 border border-border/60 font-mono text-[11px]"
+                                    className="p-2 rounded bg-bg/60 border border-border/60 font-mono text-xs"
                                   >
                                     <div className="text-accent font-semibold">
                                       {tc.tool_name}
@@ -273,7 +273,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                           {sr.output_payload && (
                             <div>
                               <span className="text-fg-muted font-medium block mb-1">Output Step:</span>
-                              <pre className="p-2.5 rounded-lg bg-bg/60 border border-border font-mono text-[11px] overflow-x-auto text-emerald-300 max-h-60">
+                              <pre className="p-2.5 rounded-lg bg-bg/60 border border-border font-mono text-xs overflow-x-auto text-emerald-300 max-h-60">
                                 {typeof sr.output_payload === 'string'
                                   ? sr.output_payload
                                   : JSON.stringify(sr.output_payload, null, 2)}
@@ -306,7 +306,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                       <div className="flex items-center gap-2">
                         <FileText size={16} className="text-accent" />
                         <h3 className="text-xs font-semibold text-fg">{art.title}</h3>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-panel border border-border text-fg-muted uppercase">
+                        <span className="text-xs px-2 py-0.5 rounded bg-panel border border-border text-fg-muted uppercase">
                           {art.type}
                         </span>
                       </div>

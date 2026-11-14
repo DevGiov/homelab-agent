@@ -35,7 +35,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({ entities, query, type,
     </div>
 
     <ul className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar -mx-1 px-1" aria-label="Entità">
-      {entities.length === 0 && <li className="text-[11px] text-fg-muted py-3 text-center">Nessuna entità.</li>}
+      {entities.length === 0 && <li className="text-xs text-fg-muted py-3 text-center">Nessuna entità.</li>}
       {entities.map((e) => {
         const { icon: Icon, label } = ENTITY_TYPE_INFO[e.type] ?? ENTITY_TYPE_INFO.other;
         const active = e.id === selectedId;
@@ -50,7 +50,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({ entities, query, type,
             >
               <Icon size={13} className="shrink-0" aria-label={label} />
               <span className="flex-1 truncate">{e.name}</span>
-              <span className="tabular-nums text-[11px] text-fg-muted">{e.fact_count}</span>
+              <span className="tabular-nums text-xs text-fg-muted">{e.fact_count}</span>
             </button>
           </li>
         );

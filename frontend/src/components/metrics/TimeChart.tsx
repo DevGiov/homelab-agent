@@ -81,7 +81,7 @@ export const TimeChart: React.FC<TimeChartProps> = ({ title, kind, series, point
       <figcaption className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
         <span className="text-xs font-semibold text-fg">{title}</span>
         {series.length > 1 && (
-          <span className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted">
+          <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
             {series.map((s) => (
               <span key={s.key} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
@@ -104,14 +104,14 @@ export const TimeChart: React.FC<TimeChartProps> = ({ title, kind, series, point
           {ticks.map((t) => (
             <g key={t}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--chart-grid)" strokeWidth={1} />
-              <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" className="fill-fg-muted text-[10px] tabular-nums">
+              <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" className="fill-fg-muted text-xs tabular-nums">
                 {formatValue(t)}
               </text>
             </g>
           ))}
           {points.map((p, i) =>
             i % labelEvery === 0 ? (
-              <text key={p.start} x={PAD.left + band * (i + 0.5)} y={height - 4} textAnchor="middle" className="fill-fg-muted text-[10px] tabular-nums">
+              <text key={p.start} x={PAD.left + band * (i + 0.5)} y={height - 4} textAnchor="middle" className="fill-fg-muted text-xs tabular-nums">
                 {formatTick(p.start, windowHours)}
               </text>
             ) : null,
@@ -169,14 +169,14 @@ export const TimeChart: React.FC<TimeChartProps> = ({ title, kind, series, point
         </svg>
 
         {!hasData && (
-          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-fg-muted pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-fg-muted pointer-events-none">
             Nessun dato nella finestra
           </div>
         )}
 
         {hovered && hasData && (
           <div
-            className="absolute top-0 -translate-x-1/2 pointer-events-none rounded-lg border border-border bg-panel px-2 py-1.5 text-[11px] shadow-lg whitespace-nowrap z-10"
+            className="absolute top-0 -translate-x-1/2 pointer-events-none rounded-lg border border-border bg-panel px-2 py-1.5 text-xs shadow-lg whitespace-nowrap z-10"
             style={{ left: tooltipLeft }}
           >
             <div className="text-fg-muted mb-0.5">{new Date(hovered.start).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>

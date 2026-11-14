@@ -98,7 +98,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
         </div>
         <div className="flex items-center gap-2">
           {phases.length > 1 && (
-            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
               {phases.length} fasi
             </span>
           )}
@@ -117,7 +117,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
               className="p-3 rounded-lg bg-panel/40 border border-border/50 transition-all duration-200"
             >
               <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/30">
-                <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-primary/15 text-primary border border-primary/20">
+                <span className="px-2 py-0.5 text-xs font-semibold tracking-wide uppercase rounded-full bg-primary/15 text-primary border border-primary/20">
                   Fase {idx + 1}
                 </span>
                 {phase.title && (

@@ -15,7 +15,7 @@ const ModelField: React.FC<FieldsProps> = ({ form, onChange }) => (
   <div className="pt-2 border-t border-border/50">
     <label className={labelClass}>Modello LLM degli step agentici</label>
     <ModelChoiceSelect value={form.model} onChange={(model) => onChange({ model })} className={`${inputClass} py-1.5`} />
-    <p className="text-[11px] text-fg-muted mt-1">
+    <p className="text-xs text-fg-muted mt-1">
       Con il modello caricato, ogni step usa quello presente in VRAM quando parte, senza far caricare altri modelli; se
       nessuno è caricato usa il default. Un modello preciso viene caricato se serve.
     </p>
@@ -74,13 +74,13 @@ export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
           className={`${inputClass} py-1.5`}
           placeholder="14 (default)"
         />
-        <p className="text-[11px] text-fg-muted mt-1">Le run non protette con lucchetto verranno rimosse dopo questo intervallo dal cleanup notturno.</p>
+        <p className="text-xs text-fg-muted mt-1">Le run non protette con lucchetto verranno rimosse dopo questo intervallo dal cleanup notturno.</p>
       </div>
     </div>
 
     <ModelField form={form} onChange={onChange} />
 
-    <p className="text-[11px] text-fg-muted pt-2 border-t border-border/50">
+    <p className="text-xs text-fg-muted pt-2 border-t border-border/50">
       Schedulazione cron e webhook si configurano dal pulsante con l'orologio sulla card dell'automazione.
     </p>
   </div>
@@ -122,7 +122,7 @@ export const BudgetFields: React.FC<FieldsProps> = ({ form, onChange }) => (
         className={`${inputClass} font-mono p-2.5`}
         placeholder="api.github.com&#10;*.example.com"
       />
-      <p className="text-[11px] text-fg-muted mt-1">
+      <p className="text-xs text-fg-muted mt-1">
         Valgono solo durante le run di questa automazione, si sommano alla lista generale in Impostazioni &gt; Sicurezza, una voce per riga.
       </p>
     </div>

@@ -130,7 +130,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </div>
           ),
           thead: ({ children }) => (
-            <thead className="bg-panel/70 text-fg font-semibold border-b border-border uppercase text-[10px] tracking-wider">
+            <thead className="bg-panel/70 text-fg font-semibold border-b border-border uppercase text-xs tracking-wider">
               {children}
             </thead>
           ),
@@ -150,7 +150,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 font-mono text-[11px] sm:text-xs leading-relaxed">
+            <td className="px-3 py-2 font-mono text-xs leading-relaxed">
               {children}
             </td>
           ),
@@ -164,7 +164,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               // Inline code snippet
               return (
                 <code
-                  className="bg-panel/80 border border-border text-accent px-1.5 py-0.5 rounded font-mono text-[11px] sm:text-xs"
+                  className="bg-panel/80 border border-border text-accent px-1.5 py-0.5 rounded font-mono text-xs"
                   {...props}
                 >
                   {children}
@@ -237,12 +237,12 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
     <div className="my-3 rounded-xl border border-border/80 bg-panel/70 backdrop-blur-md overflow-hidden shadow-sm font-mono text-xs">
       {/* Header bar */}
       <div className="bg-panel/90 border-b border-border/60 px-3 py-1.5 flex items-center justify-between text-fg-muted">
-        <span className="text-[10px] font-semibold uppercase text-accent tracking-wider">
+        <span className="text-xs font-semibold uppercase text-accent tracking-wider">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg transition bg-panel/60 hover:bg-panel px-2 py-0.5 rounded border border-border/60 cursor-pointer"
+          className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition bg-panel/60 hover:bg-panel px-2 py-0.5 rounded border border-border/60 cursor-pointer"
           title="Copy code to clipboard"
         >
           {copied ? (
@@ -260,7 +260,7 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
       </div>
 
       {/* Code Body */}
-      <pre className="p-3 overflow-x-auto text-fg leading-relaxed font-mono text-[11px] sm:text-xs whitespace-pre hljs bg-bg/40">
+      <pre className="p-3 overflow-x-auto text-fg leading-relaxed font-mono text-xs whitespace-pre hljs bg-bg/40">
         <code className={`hljs ${language ? `language-${language}` : ''}`}>{children}</code>
       </pre>
     </div>

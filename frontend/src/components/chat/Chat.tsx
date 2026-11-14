@@ -98,7 +98,7 @@ export const Chat: React.FC<ChatProps> = ({
   return (
     <div
       {...attachments.dropZoneProps}
-      className="flex-1 flex flex-col h-full bg-transparent text-fg overflow-hidden relative"
+      className="@container/chat flex-1 min-w-0 flex flex-col h-full bg-transparent text-fg overflow-hidden relative"
     >
       {attachments.isDragging && (
         <div className="absolute inset-0 z-40 bg-accent/20 backdrop-blur-xs border-2 border-dashed border-accent flex flex-col items-center justify-center pointer-events-none transition-all duration-150">
@@ -113,7 +113,7 @@ export const Chat: React.FC<ChatProps> = ({
       )}
 
       {options.incognito && (
-        <div className="bg-purple-950/70 border-b border-purple-800/50 backdrop-blur-md px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] text-purple-200 z-20 shrink-0">
+        <div className="bg-purple-950/70 border-b border-purple-800/50 backdrop-blur-md px-3 sm:px-6 py-1.5 flex items-center justify-between text-xs text-purple-200 z-20 shrink-0">
           <div className="flex items-center gap-2 truncate">
             <EyeOff size={13} className="text-purple-400 shrink-0 animate-pulse" />
             <span className="truncate">
@@ -124,7 +124,7 @@ export const Chat: React.FC<ChatProps> = ({
           <button
             type="button"
             onClick={() => options.setIncognito(false)}
-            className="text-purple-300 hover:text-white underline text-[10px] ml-2 shrink-0 cursor-pointer"
+            className="text-purple-300 hover:text-white underline text-xs ml-2 shrink-0 cursor-pointer"
           >
             Disattiva
           </button>

@@ -102,7 +102,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-fg">Modifica Automazione</h3>
                 <span className="font-mono text-xs px-2 py-0.5 bg-panel border border-border rounded-md text-fg-muted">{automation.id}</span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 bg-accent/15 text-accent rounded-full border border-accent/30">
+                <span className="text-xs font-semibold px-2 py-0.5 bg-accent/15 text-accent rounded-full border border-accent/30">
                   v{automation.version || 1}
                 </span>
               </div>

@@ -40,7 +40,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-fg truncate">{entity.name}</h2>
-          <p className="text-[11px] text-fg-muted">
+          <p className="text-xs text-fg-muted">
             {label} · {entity.fact_count} {entity.fact_count === 1 ? 'fatto' : 'fatti'}
           </p>
         </div>
@@ -85,7 +85,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
 
       {mode === 'merge' && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-fg-muted">Unisci in</span>
+          <span className="text-xs text-fg-muted">Unisci in</span>
           <select value={target} onChange={(e) => setTarget(e.target.value)} className={`${inputClass} flex-1 min-w-[10rem]`} aria-label="Entità di destinazione">
             <option value="">Scegli un'entità…</option>
             {others.map((o) => (
@@ -112,7 +112,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
 
       {entity.related.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[11px] text-fg-muted mr-0.5">In relazione con</span>
+          <span className="text-xs text-fg-muted mr-0.5">In relazione con</span>
           {entity.related.map((r) => (
             <EntityChip key={r.id} entity={r} suffix={`· ${r.shared}`} onClick={() => onSelect(r.id)} />
           ))}

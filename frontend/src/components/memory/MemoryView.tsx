@@ -30,7 +30,7 @@ const TABS = [
   ['procedures', 'Procedure'],
 ] as const;
 
-const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] text-fg-muted shrink-0';
+const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs text-fg-muted shrink-0';
 
 type Tab = 'facts' | 'episodes' | 'procedures';
 
@@ -67,7 +67,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h1>
-            <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente, le sue esecuzioni passate e le procedure</p>
+            <p className="text-xs text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente, le sue esecuzioni passate e le procedure</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -155,7 +155,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               >
                 {label}
                 {id === 'procedures' && !!stats?.procedures_proposed && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-[10px] tabular-nums">{stats.procedures_proposed}</span>
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-xs tabular-nums">{stats.procedures_proposed}</span>
                 )}
               </button>
             ))}
@@ -210,7 +210,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
 
           {stats != null && stats.facts_without_entities > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2">
-              <p className="text-[11px] text-fg-muted">
+              <p className="text-xs text-fg-muted">
                 <span className="font-semibold text-fg">{stats.facts_without_entities}</span> fatti non sono mai stati analizzati per le entità. L'analisi usa il modello attivo,
                 10 fatti per chiamata.
               </p>
@@ -251,13 +251,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] text-fg-muted">
+            <p className="text-xs text-fg-muted">
               {memory.isSearching
                 ? `${memory.facts.length} fatti più pertinenti${selected ? ` tra quelli di ${selected.name}` : ''}`
                 : `${memory.total} fatti${memory.showSuperseded ? ', compresi i superati' : ''}${selected ? ` su ${selected.name}` : ''}, dal più recente`}
             </p>
             {!memory.isSearching && !!stats?.superseded_facts && (
-              <label className="flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
                 <input type="checkbox" checked={memory.showSuperseded} onChange={(e) => memory.setShowSuperseded(e.target.checked)} className="accent-accent" />
                 Mostra i {stats.superseded_facts} superati
               </label>

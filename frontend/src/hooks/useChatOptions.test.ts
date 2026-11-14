@@ -39,3 +39,15 @@ describe('useChatOptions: modello', () => {
     expect(result.current.model).toBe('Gemma-4-26B-Q3');
   });
 });
+
+describe('useChatOptions: ricerca web', () => {
+  it('si sceglie direttamente e resta tra le sessioni', () => {
+    localStorage.clear();
+    const { result } = renderHook(() => useChatOptions('t1', null));
+    expect(result.current.webSearch).toBe('auto');
+    act(() => result.current.setWebSearch('off'));
+    expect(result.current.toSendOptions().webSearch).toBe('off');
+    expect(renderHook(() => useChatOptions('t2', null)).result.current.webSearch).toBe('off');
+    localStorage.clear();
+  });
+});

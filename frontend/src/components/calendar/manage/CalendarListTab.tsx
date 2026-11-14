@@ -87,11 +87,11 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs text-fg truncate">{cal.name}</span>
-                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted">
+                        <span className="text-xs uppercase font-mono px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted">
                           {cal.source}
                         </span>
                       </div>
-                      <p className="text-[11px] text-fg-muted truncate">{cal.sync_url ? `Feed: ${cal.sync_url}` : 'Calendario locale'}</p>
+                      <p className="text-xs text-fg-muted truncate">{cal.sync_url ? `Feed: ${cal.sync_url}` : 'Calendario locale'}</p>
                     </div>
                   </>
                 )}

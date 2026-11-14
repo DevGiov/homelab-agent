@@ -8,7 +8,7 @@ interface AutomationsHeaderProps {
   onOpenMobileSidebar?: () => void;
 }
 
-const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] font-medium text-fg-muted shadow-sm shrink-0';
+const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0';
 
 export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, isLoading, onRefresh, onOpenMobileSidebar }) => {
   const hasApprovals = counts.approvals > 0;
@@ -29,7 +29,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
         </div>
         <div className="min-w-0">
           <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Automations & Loops</h1>
-          <p className="text-[10px] sm:text-[11px] text-fg-muted mt-0.5 hidden md:block">
+          <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
             Workflow schedulati, task ricorrenti e loop agentici supervisionati
           </p>
         </div>
@@ -46,13 +46,13 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           <span className="hidden xs:inline">Job:</span>
           <span className="font-bold text-emerald-400">{counts.jobs}</span>
         </div>
-        <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-[11px] font-medium text-fg-muted shadow-sm shrink-0">
+        <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0">
           <Zap size={12} className="text-amber-400" />
           <span>Run:</span>
           <span className="font-bold text-fg">{counts.runs}</span>
         </div>
         <div
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium shadow-sm shrink-0 ${
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium shadow-sm shrink-0 ${
             hasApprovals ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 animate-pulse' : 'bg-panel/80 border-border/70 text-fg-muted'
           }`}
         >

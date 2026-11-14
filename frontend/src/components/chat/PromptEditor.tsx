@@ -38,12 +38,12 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
         placeholder="Modifica prompt..."
         autoFocus
       />
-      <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-border/40 text-[11px]">
+      <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-border/40 text-xs">
         <div className="flex items-center gap-1.5 flex-wrap">
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as AgentMode | 'auto')}
-            className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-[10px] text-fg focus:outline-none focus:border-accent"
+            className="bg-panel border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none focus:border-accent"
           >
             <option value="auto">Mode: Auto</option>
             <option value="chat">Mode: Chat</option>
@@ -65,14 +65,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
           <button
             type="button"
             onClick={onCancel}
-            className="px-2 py-1 rounded-md text-[10px] text-fg-muted hover:text-fg hover:bg-border/40 transition cursor-pointer"
+            className="px-2 py-1 rounded-md text-xs text-fg-muted hover:text-fg hover:bg-border/40 transition cursor-pointer"
           >
             Annulla
           </button>
           <button
             type="button"
             onClick={submit}
-            className="px-2.5 py-1 rounded-md text-[10px] font-medium bg-accent text-white hover:bg-accent-hover shadow-sm transition cursor-pointer flex items-center gap-1"
+            className="px-2.5 py-1 rounded-md text-xs font-medium bg-accent text-white hover:bg-accent-hover shadow-sm transition cursor-pointer flex items-center gap-1"
           >
             <Send size={10} />
             <span>Invia</span>

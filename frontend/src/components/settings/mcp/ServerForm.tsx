@@ -5,7 +5,7 @@ import { formatApiError } from '../../../utils/error';
 
 const inputClass =
   'w-full bg-input-bg border border-input-border rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent';
-const labelClass = 'block text-[11px] font-medium text-fg-muted mb-1';
+const labelClass = 'block text-xs font-medium text-fg-muted mb-1';
 
 interface ServerFormProps {
   /** Server da modificare; assente per un nuovo server. */
@@ -98,7 +98,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
           className={`${inputClass} font-mono disabled:opacity-60`}
         />
         {isEdit && server?.has_token && (
-          <label className="flex items-center gap-1.5 mt-1 text-[11px] text-fg-muted cursor-pointer">
+          <label className="flex items-center gap-1.5 mt-1 text-xs text-fg-muted cursor-pointer">
             <input type="checkbox" checked={removeToken} onChange={(e) => setRemoveToken(e.target.checked)} />
             Rimuovi il token salvato
           </label>
@@ -107,7 +107,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
 
       {test && (
         <div
-          className={`p-2 rounded-lg text-[11px] flex items-start gap-1.5 border ${
+          className={`p-2 rounded-lg text-xs flex items-start gap-1.5 border ${
             test.ok ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
           }`}
         >
@@ -117,7 +117,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
           </span>
         </div>
       )}
-      {error && <div className="p-2 rounded-lg text-[11px] bg-rose-950/40 border border-rose-800/60 text-rose-300">{error}</div>}
+      {error && <div className="p-2 rounded-lg text-xs bg-rose-950/40 border border-rose-800/60 text-rose-300">{error}</div>}
 
       <div className="flex items-center justify-between gap-2 pt-1">
         <button

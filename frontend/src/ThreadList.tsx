@@ -102,7 +102,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             <h1 className="font-semibold text-sm text-fg leading-tight">Main-Agent UI</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={`w-2 h-2 rounded-full ${isBackendHealthy === true ? 'bg-emerald-400 animate-pulse' : isBackendHealthy === false ? 'bg-rose-500' : 'bg-amber-400'}`}></span>
-              <span className="text-[11px] text-fg-muted">
+              <span className="text-xs text-fg-muted">
                 {isBackendHealthy === true ? 'API Connected' : isBackendHealthy === false ? 'API Offline' : 'Connecting...'}
               </span>
             </div>
@@ -148,13 +148,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
       {/* Selettore della vista principale */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-[11px]">
+        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
           {VIEWS.map(({ id, label, title, icon: Icon }, i) => (
             <button
               key={id}
               onClick={() => onViewChange(id)}
-              // Tre viste nella prima riga, due nella seconda
-              className={`${i < 3 ? 'col-span-2' : 'col-span-3'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
+              // Due viste nella prima riga (le etichette lunghe), tre nella seconda
+              className={`${i < 2 ? 'col-span-3' : 'col-span-2'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
                 currentView === id ? 'bg-accent text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
               }`}
               title={title}
@@ -250,12 +250,12 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   </div>
                   <div className="flex items-center gap-1">
                     {thread.is_active && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
                         In corso
                       </span>
                     )}
                     {thread.checkpoint_count > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
                         {thread.checkpoint_count}
                       </span>
                     )}
@@ -269,11 +269,11 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   </div>
                 </div>
                 {thread.last_message ? (
-                  <p className="text-[11px] text-fg-muted truncate pl-5">
+                  <p className="text-xs text-fg-muted truncate pl-5">
                     {thread.last_message}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-fg-muted/60 italic truncate pl-5">
+                  <p className="text-xs text-fg-muted/60 italic truncate pl-5">
                     (Nessun messaggio / in attesa)
                   </p>
                 )}
@@ -284,9 +284,9 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       </div>
 
       {/* Footer info */}
-      <div className="p-3 border-t border-border text-[11px] text-fg-muted flex items-center justify-between">
+      <div className="p-3 border-t border-border text-xs text-fg-muted flex items-center justify-between">
         <span>Main-Agent UI</span>
-        <span className="font-mono text-[10px]">homelab-dev</span>
+        <span className="font-mono text-xs">homelab-dev</span>
       </div>
 
       {/* Settings Modal */}

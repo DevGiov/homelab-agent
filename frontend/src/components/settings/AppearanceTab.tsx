@@ -11,7 +11,7 @@ const Switch: React.FC<{ label: string; description: string; checked: boolean; o
   <div className="flex items-center justify-between p-3 rounded-xl glass-card border border-border">
     <div className="flex flex-col pr-4">
       <span className="text-xs font-medium text-fg">{label}</span>
-      <span className="text-[11px] text-fg-muted">{description}</span>
+      <span className="text-xs text-fg-muted">{description}</span>
     </div>
     <button
       type="button"
@@ -63,7 +63,7 @@ export const AppearanceTab: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-fg">{t.name}</div>
-                  <div className="text-[10px] text-fg-muted line-clamp-1">{t.description}</div>
+                  <div className="text-xs text-fg-muted line-clamp-1">{t.description}</div>
                 </div>
               </button>
             );

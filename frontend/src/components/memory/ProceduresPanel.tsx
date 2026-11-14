@@ -19,7 +19,7 @@ export const ProceduresPanel: React.FC<ProceduresPanelProps> = ({ state, threadT
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-fg-muted">
+        <p className="text-xs text-fg-muted">
           Le note sui tool compaiono nel catalogo di act e plan; i piani modello entrano nella memoria quando la richiesta è simile.
           {proposed > 0 && <span className="text-amber-400"> {proposed} da approvare.</span>}
         </p>

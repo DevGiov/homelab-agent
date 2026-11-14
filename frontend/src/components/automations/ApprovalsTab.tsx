@@ -82,14 +82,14 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                       <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold text-fg">Azione Richiesta: {apr.tool_name}</h4>
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                          className={`px-2 py-0.5 rounded text-xs font-semibold border ${
                             isWorkflow ? 'bg-accent/15 text-accent border-accent/30' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'
                           }`}
                         >
                           {isWorkflow ? 'Workflow' : 'Chat Session'}
                         </span>
                       </div>
-                      <span className="text-[11px] font-mono text-fg-muted">
+                      <span className="text-xs font-mono text-fg-muted">
                         {isWorkflow ? 'Run' : 'Session'}: {apr.run_id} • Req: {apr.request_id}
                       </span>
                     </div>
@@ -122,9 +122,9 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   <div className="text-fg-muted">
                     <span className="font-semibold text-fg">Motivo Guardrail:</span> {apr.risk_reason || 'Conferma richiesta da policy.'}
                   </div>
-                  {apr.command_preview && <div className="font-mono text-[11px] text-amber-300">preview: {apr.command_preview}</div>}
+                  {apr.command_preview && <div className="font-mono text-xs text-amber-300">preview: {apr.command_preview}</div>}
                   {apr.arguments && (
-                    <pre className="text-[11px] text-fg-muted overflow-x-auto max-h-32 mt-1">
+                    <pre className="text-xs text-fg-muted overflow-x-auto max-h-32 mt-1">
                       {JSON.stringify(apr.arguments, null, 2)}
                     </pre>
                   )}

@@ -134,7 +134,7 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
               <Calendar className="w-4 h-4 shrink-0" />
               <span>{describeSchedule(schedule, timezone)}</span>
             </div>
-            <span className="font-mono text-[11px] bg-bg/80 px-2 py-0.5 rounded text-emerald-500 border border-emerald-500/30">
+            <span className="font-mono text-xs bg-bg/80 px-2 py-0.5 rounded text-emerald-500 border border-emerald-500/30">
               {toCron(schedule)}
             </span>
           </div>

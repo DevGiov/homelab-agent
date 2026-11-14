@@ -18,12 +18,12 @@ const matchesFilter = (run: AutomationRunSummary, filter: string) =>
 
 const StatusBadge: React.FC<{ run: AutomationRunSummary }> = ({ run }) =>
   run.is_dry_run ? (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
       Dry-Run
     </span>
   ) : (
     <span
-      className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize flex items-center gap-1 w-fit ${
+      className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${
         STATUS_BADGE[run.status] ?? 'bg-zinc-500/20 text-zinc-300'
       }`}
     >
@@ -182,12 +182,12 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                           e.stopPropagation();
                           onOpenArtifacts();
                         }}
-                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent text-[11px] font-medium flex items-center gap-1 transition"
+                        className="px-2 py-0.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent text-xs font-medium flex items-center gap-1 transition"
                       >
                         <FileText size={11} /> {r.artifacts_count}
                       </button>
                     ) : (
-                      <span className="text-fg-muted text-[11px]">-</span>
+                      <span className="text-fg-muted text-xs">-</span>
                     )}
                   </td>
                   <td className="p-3 text-fg-muted">{r.total_duration_ms > 0 ? `${r.total_duration_ms} ms` : '-'}</td>

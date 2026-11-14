@@ -119,7 +119,7 @@ export const AllowedHostsSection: React.FC = () => {
                   confirmLabel: 'Ripristina',
                 })
               }
-              className="px-2 py-1 text-[11px] rounded-lg border border-border bg-bg/60 text-fg-muted hover:text-fg hover:border-accent/40 transition cursor-pointer flex items-center gap-1.5"
+              className="px-2 py-1 text-xs rounded-lg border border-border bg-bg/60 text-fg-muted hover:text-fg hover:border-accent/40 transition cursor-pointer flex items-center gap-1.5"
               title="Ripristina gli host predefiniti mancanti"
             >
               <RotateCcw size={11} />
@@ -137,7 +137,7 @@ export const AllowedHostsSection: React.FC = () => {
         </div>
       </div>
 
-      <p className="text-[11px] text-fg-muted leading-relaxed">
+      <p className="text-xs text-fg-muted leading-relaxed">
         I tool <code>http_get</code> e <code>inspect_image</code> possono contattare direttamente gli host in questa lista senza chiedere conferma.
         Un host pubblico fuori lista richiede l'approvazione dell'utente, mentre un host della rete locale fuori lista viene bloccato categoricamente.
         Il formato <code>*.dominio</code> include sia il dominio che tutti i suoi sottodomini.
@@ -166,7 +166,7 @@ export const AllowedHostsSection: React.FC = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-xs font-semibold text-fg">{item.host}</span>
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                      className={`px-1.5 py-0.5 rounded text-xs font-medium border ${
                         ORIGIN_BADGES[item.origin] || 'bg-bg/60 border-border text-fg-muted'
                       }`}
                     >
@@ -174,7 +174,7 @@ export const AllowedHostsSection: React.FC = () => {
                     </span>
                   </div>
                   {item.note && (
-                    <div className="text-[11px] text-fg-muted mt-0.5 truncate">{item.note}</div>
+                    <div className="text-xs text-fg-muted mt-0.5 truncate">{item.note}</div>
                   )}
                 </div>
                 <button
@@ -192,7 +192,7 @@ export const AllowedHostsSection: React.FC = () => {
 
       {/* Modulo per aggiungere host e nota */}
       <form onSubmit={handleAdd} className="space-y-2 pt-2 border-t border-border/60">
-        <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">Aggiungi host</div>
+        <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Aggiungi host</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <input
@@ -218,7 +218,7 @@ export const AllowedHostsSection: React.FC = () => {
         </div>
 
         {addError && (
-          <div className="text-[11px] text-rose-400 flex items-center gap-1.5">
+          <div className="text-xs text-rose-400 flex items-center gap-1.5">
             <AlertTriangle size={12} className="shrink-0" />
             <span>{addError}</span>
           </div>

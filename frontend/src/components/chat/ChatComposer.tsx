@@ -54,7 +54,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <>
       {images.length > 0 && textOnlyModel && (
-        <div className="max-w-4xl mx-auto w-full px-1 text-[11px] text-amber-400/90 flex items-center gap-1.5">
+        <div className="max-w-4xl mx-auto w-full px-1 text-xs text-amber-400/90 flex items-center gap-1.5">
           <AlertTriangle size={12} className="shrink-0" />
           <span>
             Il modello selezionato (<strong>{textOnlyModel}</strong>) potrebbe non supportare la visione. Scegli un modello che
@@ -85,7 +85,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               >
                 <X size={12} />
               </button>
-              <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 text-[9px] text-white truncate max-w-[56px] sm:max-w-[64px]">
+              <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 text-xs text-white truncate max-w-[56px] sm:max-w-[64px]">
                 {img.name}
               </div>
             </div>
@@ -103,7 +103,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             title="Aggiungi altra immagine"
           >
             <Paperclip size={16} />
-            <span className="text-[9px] mt-1">+ Altro</span>
+            <span className="text-xs mt-1">+ Altro</span>
           </button>
         </div>
       )}

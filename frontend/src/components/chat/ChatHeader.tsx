@@ -27,8 +27,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenMobileToolLog,
   status,
 }) => (
-  <div className="h-14 border-b border-border glass-header px-2.5 sm:px-6 flex items-center justify-between z-10 shrink-0 gap-2">
-    <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
+  <div className="h-14 border-b border-border glass-header px-2.5 @2xl/chat:px-6 flex items-center justify-between z-10 shrink-0 gap-2">
+    <div className="flex items-center gap-2 min-w-0 shrink">
       {onOpenMobileSidebar && (
         <button
           onClick={onOpenMobileSidebar}
@@ -39,20 +39,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </button>
       )}
 
-      {/* Logo Bot: solo da sm in su, e lascia il posto allo stato quando c'è (l'intestazione stretta non li tiene tutti) */}
+      {/* Logo: solo in una colonna abbastanza larga, e lascia il posto allo stato quando c'è */}
       {!status && (
-        <div className="hidden sm:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
+        <div className="hidden @md/chat:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-white shadow-md shadow-accent/20 shrink-0">
           <Bot size={18} />
         </div>
       )}
       {status}
 
-      {/* Titolo Thread: visibile solo da md in su su desktop */}
-      <div className="hidden md:block truncate max-w-xs">
+      {/* Titolo: solo se la colonna lo tiene accanto ai controlli */}
+      <div className="hidden @lg/chat:block truncate min-w-0 max-w-xs">
         <h2 className="text-xs sm:text-sm font-semibold text-fg truncate" title={title}>
           {title}
         </h2>
-        <p className="text-[10px] sm:text-[11px] text-fg-muted truncate">Main Agent Engine</p>
+        <p className="text-xs text-fg-muted truncate">Main Agent Engine</p>
       </div>
     </div>
 
@@ -62,7 +62,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       <div
         role="group"
         aria-label="Modalità"
-        className="hidden sm:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs shrink-0"
+        className="hidden @xl/chat:flex bg-panel/80 border border-border rounded-lg p-1 items-center gap-1 text-xs shrink-0"
       >
         {MODES.map((modeOption) => (
           <button
@@ -81,11 +81,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         ))}
       </div>
 
-      {/* Mobile Mode Dropdown: etichette ultra compatte */}
-      <div className="sm:hidden shrink-0">
+      {/* Colonna stretta: le modalità in un menu */}
+      <div className="@xl/chat:hidden shrink-0">
         <select
           value={mode}
           onChange={(e) => onModeChange(e.target.value as AgentMode | 'auto')}
+          aria-label="Modalità"
           className="bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent capitalize"
         >
           {MODES.map((modeOption) => (
@@ -105,10 +106,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="checkbox"
           checked={execute}
           onChange={(e) => onExecuteChange(e.target.checked)}
-          className="rounded bg-input-bg border-border text-accent focus:ring-0 sr-only sm:not-sr-only"
+          className="rounded bg-input-bg border-border text-accent focus:ring-0 sr-only @xl/chat:not-sr-only"
         />
         <Play size={12} className={execute ? 'text-emerald-400' : 'text-fg-muted'} />
-        <span className="text-[10px] sm:text-[11px] hidden sm:inline">Execute</span>
+        <span className="text-xs hidden @xl/chat:inline">Execute</span>
       </label>
 
       {/* Quick Theme Selector */}

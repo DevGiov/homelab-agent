@@ -57,7 +57,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase">I Miei Calendari</span>
+          <span className="text-xs font-semibold text-fg-muted tracking-wider uppercase">I Miei Calendari</span>
           <div className="flex items-center gap-1.5">
             <button
               onClick={onManageCalendars}
@@ -66,7 +66,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             >
               <Settings size={13} />
             </button>
-            <span className="text-[10px] text-fg-muted bg-panel px-1.5 py-0.5 rounded-full border border-border/50">
+            <span className="text-xs text-fg-muted bg-panel px-1.5 py-0.5 rounded-full border border-border/50">
               {calendars.length}
             </span>
           </div>
@@ -90,7 +90,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                   <span className="truncate font-medium">{c.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {c.event_count !== undefined && <span className="text-[10px] text-fg-muted">{c.event_count}</span>}
+                  {c.event_count !== undefined && <span className="text-xs text-fg-muted">{c.event_count}</span>}
                   <div
                     className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
                       isChecked ? 'bg-accent border-accent text-white' : 'border-border/80 bg-input-bg'
@@ -114,13 +114,13 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
       </div>
 
       <div>
-        <span className="text-[11px] font-semibold text-fg-muted tracking-wider uppercase block mb-2">Categorie</span>
+        <span className="text-xs font-semibold text-fg-muted tracking-wider uppercase block mb-2">Categorie</span>
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
               onClick={() => onCategoryChange(cat.id)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer border ${
                 category === cat.id
                   ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
                   : 'bg-input-bg/40 border-border/40 text-fg-muted hover:text-fg hover:bg-panel-hover'

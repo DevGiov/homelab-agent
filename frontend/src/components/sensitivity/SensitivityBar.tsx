@@ -44,7 +44,7 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
           {reasons.length > 0 && <span className="opacity-80"> · {reasons.join(', ')}</span>}
         </p>
         {untrusted.length > 0 && (
-          <span className="shrink-0 rounded-full border border-current px-1.5 text-[11px] opacity-80">non attendibile</span>
+          <span className="shrink-0 rounded-full border border-current px-1.5 text-xs opacity-80">non attendibile</span>
         )}
         <button
           type="button"
@@ -98,7 +98,7 @@ export const SensitivityHeaderChip: React.FC<{ tag: SensitivityTag; onShow: () =
       onClick={onShow}
       aria-label={`Dati ${name.toLowerCase()}${tag.untrusted ? ', contenuto non attendibile' : ''}: mostra l'avviso`}
       title="Mostra l'avviso sui dati di questa conversazione"
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium shrink-0 cursor-pointer ${LABEL_CHIPS[tag.label]}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium shrink-0 cursor-pointer ${LABEL_CHIPS[tag.label]}`}
       data-testid="sensitivity-header-chip"
     >
       <Lock size={11} aria-hidden="true" />

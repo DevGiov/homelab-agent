@@ -45,7 +45,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-fg">{procedure.title}</p>
-          <p className="text-[11px] text-fg-muted mt-0.5">
+          <p className="text-xs text-fg-muted mt-0.5">
             {KIND_LABELS[procedure.kind]}
             {procedure.tool_name && (
               <>
@@ -55,7 +55,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
             )}
           </p>
         </div>
-        <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold ${status.className}`}>{status.label}</span>
+        <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-xs font-semibold ${status.className}`}>{status.label}</span>
         <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition">
           <button onClick={() => setIsEditing(true)} className="p-1 rounded-md text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer" title="Modifica procedura">
             <Pencil size={13} />
@@ -69,7 +69,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
       <p className="mt-2 text-xs text-fg whitespace-pre-wrap leading-relaxed">{procedure.content}</p>
 
       <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
           <span>{SOURCE[procedure.source] ?? procedure.source}</span>
           {procedure.thread_id && threadTitle && onOpenThread && (
             <button onClick={() => onOpenThread(procedure.thread_id as string)} className="flex items-center gap-1 hover:text-accent truncate max-w-[16rem] cursor-pointer" title="Apri la conversazione">

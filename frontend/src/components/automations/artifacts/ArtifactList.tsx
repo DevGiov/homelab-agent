@@ -34,7 +34,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
       <div className="p-3 border-b border-border/60 bg-panel/30 flex items-center justify-between text-xs text-fg-muted">
         <span>{artifacts.length} artefatti archiviati</span>
         {query && (
-          <button onClick={onClearQuery} className="text-[11px] text-accent hover:underline cursor-pointer">
+          <button onClick={onClearQuery} className="text-xs text-accent hover:underline cursor-pointer">
             Azzera ricerca
           </button>
         )}
@@ -45,17 +45,17 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
           <div className="text-center py-12 px-4">
             <FileText className="mx-auto text-fg-muted/40 mb-3" size={32} />
             <p className="text-xs text-fg-muted font-medium">Nessun artefatto trovato</p>
-            <p className="text-[11px] text-fg-muted/70 mt-1">
+            <p className="text-xs text-fg-muted/70 mt-1">
               I report generati dalle automazioni (come briefing o audit) compariranno qui automaticamente.
             </p>
           </div>
         ) : (
           groups.map((group) => (
             <div key={group.key} className="space-y-1.5 pt-1">
-              <div className="flex items-center gap-1.5 px-2 text-[11px] font-bold text-fg-muted uppercase tracking-wider">
+              <div className="flex items-center gap-1.5 px-2 text-xs font-bold text-fg-muted uppercase tracking-wider">
                 <Calendar size={12} className="text-accent/70" />
                 <span>{group.title}</span>
-                <span className="text-[10px] text-fg-muted/60 font-normal">({group.items.length})</span>
+                <span className="text-xs text-fg-muted/60 font-normal">({group.items.length})</span>
               </div>
 
               <div className="space-y-1">
@@ -93,11 +93,11 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-fg-muted mt-0.5">
-                      <span className="px-2 py-0.5 rounded-md bg-bg/80 border border-border/50 text-[10px] truncate max-w-[170px]">
+                    <div className="flex items-center justify-between text-xs text-fg-muted mt-0.5">
+                      <span className="px-2 py-0.5 rounded-md bg-bg/80 border border-border/50 text-xs truncate max-w-[170px]">
                         {art.automation_name || art.automation_id || 'Automazione'}
                       </span>
-                      <span className="flex items-center gap-1 text-[10px]">
+                      <span className="flex items-center gap-1 text-xs">
                         <Clock size={10} />
                         {art.created_at ? new Date(art.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                       </span>

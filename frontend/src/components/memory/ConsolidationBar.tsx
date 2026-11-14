@@ -6,7 +6,7 @@ import { choiceFromModel, describeModelChoice, modelFromChoice } from '../../uti
 import { ModelChoiceSelect } from '../ModelChoiceSelect';
 import { Toggle } from '../Toggle';
 
-const selectClass = 'bg-panel border border-border rounded-lg px-2 py-1 text-[11px] text-fg focus:outline-none focus:border-accent max-w-[14rem]';
+const selectClass = 'bg-panel border border-border rounded-lg px-2 py-1 text-xs text-fg focus:outline-none focus:border-accent max-w-[14rem]';
 
 const summary = (r: ConsolidationResult) =>
   r.error
@@ -52,7 +52,7 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
   return (
     <div className="rounded-xl border border-border bg-panel/60 px-3 py-2 space-y-2" aria-label="Consolidamento della memoria">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[11px] text-fg-muted space-y-0.5 min-w-0">
+        <div className="text-xs text-fg-muted space-y-0.5 min-w-0">
           <p>
             {status.pending.messages > 0 ? (
               <>
@@ -92,7 +92,7 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
       </div>
 
       {editing && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border/50 pt-2 text-[11px] text-fg-muted" aria-label="Programmazione del consolidamento">
+        <div className="flex flex-wrap items-center gap-3 border-t border-border/50 pt-2 text-xs text-fg-muted" aria-label="Programmazione del consolidamento">
           <span className="flex items-center gap-1.5">
             <Toggle size="sm" checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} title="Consolidamento giornaliero" />
             Ogni giorno

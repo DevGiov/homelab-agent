@@ -152,7 +152,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-[11px] gap-1.5 text-fg-muted hover:border-accent/40 hover:text-fg transition shadow-sm cursor-pointer select-none max-w-[200px] sm:max-w-[260px]"
+        className="flex items-center glass-card border border-border rounded-lg px-2 py-1 text-xs gap-1.5 text-fg-muted hover:border-accent/40 hover:text-fg transition shadow-sm cursor-pointer select-none max-w-[200px] sm:max-w-[260px]"
         title={
           selectedModel === 'default'
             ? 'Modello LLM: Default'
@@ -161,7 +161,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       >
         <Box size={12} className="text-emerald-400 shrink-0" />
         
-        <span className="truncate font-mono text-[11px] text-fg">
+        <span className="truncate font-mono text-xs text-fg">
           {selectedModel === 'default' ? 'Modello: Default' : selectedModel}
         </span>
 
@@ -182,7 +182,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
         {/* Loading spinner with percentage */}
         {isCurrentLoading && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-sans font-semibold shrink-0">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-sans font-semibold shrink-0">
             <Loader2 size={10} className="animate-spin text-amber-400" />
           </span>
         )}
@@ -229,7 +229,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             {/* Pinned Favorites Section */}
             {favoriteModels.length > 0 && (
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-semibold text-amber-400 uppercase tracking-wider">
                   <Star size={10} className="fill-amber-400" />
                   <span>Preferiti</span>
                 </div>
@@ -241,7 +241,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             {otherModels.length > 0 && (
               <div className="space-y-1">
                 {favoriteModels.length > 0 && (
-                  <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-fg-muted uppercase tracking-wider">
+                  <div className="px-2 pt-1 pb-0.5 text-xs font-semibold text-fg-muted uppercase tracking-wider">
                     Altri Modelli
                   </div>
                 )}
@@ -297,7 +297,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             />
           </button>
 
-          <span className="font-mono text-[11px] truncate" title={m.id}>
+          <span className="font-mono text-xs truncate" title={m.id}>
             {m.id}
           </span>
         </div>
@@ -307,7 +307,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Loaded in VRAM Badge */}
           {inVram && (
             <span
-              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1"
               title="Caricato in VRAM"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
@@ -318,7 +318,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Loading Badge */}
           {isLoading && (
             <span
-              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse"
               title="Caricamento in corso..."
             >
               <Loader2 size={9} className="animate-spin text-amber-400" />
@@ -329,7 +329,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Disponibilità secondo il watchdog */}
           {isBlocked && (
             <span
-              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1"
               title={m.availability_note ?? 'Modello non disponibile'}
             >
               <Ban size={9} />
@@ -338,7 +338,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           )}
           {m.would_block && (
             <span
-              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"
               title={m.availability_note ?? 'Sconsigliato ora'}
             >
               <AlertTriangle size={9} />
@@ -349,7 +349,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Vision Modality Badge */}
           {m.is_vision && (
             <span
-              className="px-1.5 py-0.5 rounded text-[9px] font-sans font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 flex items-center gap-0.5"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 flex items-center gap-0.5"
               title="Supporta visione multimodale"
             >
               <Eye size={9} />

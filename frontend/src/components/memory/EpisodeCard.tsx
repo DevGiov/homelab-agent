@@ -23,7 +23,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
   <article className="group rounded-xl border border-border bg-panel/60 p-3 hover:border-accent/30 transition" aria-label={`Episodio ${episode.id}`}>
     <div className="flex items-start gap-2">
       <p className="flex-1 text-[13px] text-fg leading-relaxed">{episode.task ?? episode.content}</p>
-      {episode.outcome && <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold ${outcomeClass(episode.outcome)}`}>{episode.outcome}</span>}
+      {episode.outcome && <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-xs font-semibold ${outcomeClass(episode.outcome)}`}>{episode.outcome}</span>}
       <button onClick={onDelete} className="p-1 rounded-md text-fg-muted hover:text-rose-400 hover:bg-panel-hover cursor-pointer shrink-0 opacity-60 group-hover:opacity-100" title="Elimina episodio">
         <Trash2 size={13} />
       </button>
@@ -32,7 +32,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
     {episode.steps.length > 0 && (
       <ol className="mt-2 space-y-1">
         {episode.steps.map((step, i) => (
-          <li key={i} className="flex items-start gap-1.5 text-[11px]">
+          <li key={i} className="flex items-start gap-1.5 text-xs">
             {step.error ? (
               <XCircle size={12} className="text-rose-400 shrink-0 mt-0.5" />
             ) : step.rolled_back ? (
@@ -50,7 +50,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
       </ol>
     )}
 
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-fg-muted">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-fg-muted">
       {episode.mode && <span className="uppercase tracking-wide">{episode.mode}</span>}
       {episode.thread_id &&
         (threadTitle && onOpenThread ? (

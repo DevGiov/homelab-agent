@@ -79,7 +79,7 @@ export const McpTab: React.FC = () => {
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] text-fg-muted leading-relaxed">
+        <p className="text-xs text-fg-muted leading-relaxed">
           Server MCP collegati all'agente. I tool dei server aggiunti qui prendono il prefisso <code>id__</code>. Rischio{' '}
           <strong>Lettura</strong> esegue senza conferma, <strong>Conferma</strong> chiede sempre approvazione, <strong>Bloccato</strong> non
           esegue mai; <strong>Automatico</strong> usa la classificazione per nome.
@@ -96,7 +96,7 @@ export const McpTab: React.FC = () => {
 
       {feedback && (
         <div
-          className={`p-2 rounded-lg text-[11px] border ${
+          className={`p-2 rounded-lg text-xs border ${
             feedback.type === 'success' ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
           }`}
         >

@@ -59,7 +59,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
           <span className="font-medium text-fg">
             Pending Approvals
             {pending.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
+              <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
                 {pending.length}
               </span>
             )}
@@ -96,17 +96,17 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       {item.tool_name}
                     </div>
                     {item.risk_reason && (
-                      <div className="text-[10px] text-amber-200/90 truncate mt-0.5">
+                      <div className="text-xs text-amber-200/90 truncate mt-0.5">
                         {item.risk_reason}
                       </div>
                     )}
                     {item.command_preview && (
-                      <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-300/90 truncate mt-0.5">
+                      <div className="flex items-center gap-1 font-mono text-xs text-emerald-300/90 truncate mt-0.5">
                         <Terminal size={9} />
                         <span className="truncate">$ {item.command_preview}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-1 text-[10px] text-fg-muted mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-fg-muted mt-0.5">
                       <Clock size={9} />
                       <span>{formatAge(item.age_seconds)} fa</span>
                       {item.mode && <span className="uppercase">· {item.mode}</span>}
@@ -116,7 +116,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'approve')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/40 transition text-[10px] font-semibold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/40 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       title="Approva per una sola esecuzione"
                     >
                       <Check size={11} />
@@ -126,7 +126,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'approve_always')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/50 transition text-[10px] font-bold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600/30 border border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/50 transition text-xs font-bold disabled:opacity-50 cursor-pointer"
                       title={
                         isNet
                           ? "Aggiungi l'host alla lista degli host ammessi"
@@ -140,7 +140,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                     <button
                       onClick={() => handleResolveAction(item.request_id, 'deny')}
                       disabled={busyId === item.request_id}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/40 transition text-[10px] font-semibold disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/40 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       title="Rifiuta richiesta"
                     >
                       <X size={11} />
@@ -155,13 +155,13 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       <button
                         onClick={() => handleResolveAction(item.request_id, 'approve_thread')}
                         disabled={busyId === item.request_id}
-                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/40 text-sky-200 hover:bg-sky-600/35 transition text-[10px] font-semibold disabled:opacity-50 cursor-pointer"
+                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/40 text-sky-200 hover:bg-sky-600/35 transition text-xs font-semibold disabled:opacity-50 cursor-pointer"
                       >
                         <MessageSquare size={11} />
                         Approva per tutta questa chat
                       </button>
                     )}
-                    <pre className="bg-panel border border-border rounded-md p-2 text-[10px] font-mono text-fg-muted overflow-x-auto max-h-32">
+                    <pre className="bg-panel border border-border rounded-md p-2 text-xs font-mono text-fg-muted overflow-x-auto max-h-32">
                       {JSON.stringify(item.arguments, null, 2)}
                     </pre>
                   </div>

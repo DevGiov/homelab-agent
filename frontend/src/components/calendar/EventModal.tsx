@@ -311,7 +311,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-fg/90 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-medium text-fg/90 mb-1 flex items-center gap-1">
                   <Clock size={12} /> {allDay ? 'Data' : 'Inizio'}
                 </label>
                 <input
@@ -327,13 +327,13 @@ export const EventModal: React.FC<EventModalProps> = ({
               {!allDay && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-medium text-fg/90">
+                    <label className="text-xs font-medium text-fg/90">
                       {useDuration ? 'Durata' : 'Fine'}
                     </label>
                     <button
                       type="button"
                       onClick={() => setUseDuration(!useDuration)}
-                      className="text-[10px] text-accent hover:underline cursor-pointer font-medium"
+                      className="text-xs text-accent hover:underline cursor-pointer font-medium"
                     >
                       {useDuration ? 'Specifica orario fine' : 'Usa durata'}
                     </button>

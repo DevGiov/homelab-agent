@@ -43,7 +43,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
               setDraft(content);
               setIsEditing(true);
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer"
           >
             <Pencil size={11} /> Modifica
           </button>
@@ -62,7 +62,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
             autoFocus
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] text-fg-muted">
+            <span className="text-xs text-fg-muted">
               {draft.length}/{PROFILE_MAX_CHARS}
             </span>
             <div className="flex gap-1.5">
@@ -79,7 +79,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
       ) : content ? (
         <p className="text-xs text-fg whitespace-pre-wrap leading-relaxed">{content}</p>
       ) : (
-        <p className="text-[11px] text-fg-muted">
+        <p className="text-xs text-fg-muted">
           {content === null ? 'Caricamento…' : "Nessun profilo. Quello che scrivi qui l'agente lo legge a ogni turno, in tutte le modalità."}
         </p>
       )}

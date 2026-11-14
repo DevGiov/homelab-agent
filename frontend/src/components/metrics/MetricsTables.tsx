@@ -19,10 +19,10 @@ function Table<T>({ title, rows, columns, rowKey, empty }: {
     <section className="rounded-2xl border border-border bg-panel/60 p-3 min-w-0">
       <h2 className="text-xs font-semibold text-fg mb-2">{title}</h2>
       {rows.length === 0 ? (
-        <p className="text-[11px] text-fg-muted py-2">{empty}</p>
+        <p className="text-xs text-fg-muted py-2">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[11px]">
+          <table className="w-full text-xs">
             <thead>
               <tr className="text-fg-muted border-b border-border">
                 {columns.map((c) => (
@@ -77,7 +77,7 @@ export const ToolsTable: React.FC<{ tools: ToolStats[] }> = ({ tools }) => (
     rowKey={(t) => t.tool}
     empty="Nessuna chiamata a tool nella finestra."
     columns={[
-      { label: 'Tool', render: (t) => <code className="text-[11px]">{t.tool}</code> },
+      { label: 'Tool', render: (t) => <code className="text-xs">{t.tool}</code> },
       { label: 'Chiamate', numeric: true, render: (t) => formatCompact(t.calls) },
       { label: 'Errori', numeric: true, render: (t) => errorsCell(t.errors) },
       { label: 'Media', numeric: true, render: (t) => formatDuration(t.avg_ms) },

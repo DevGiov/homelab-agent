@@ -46,7 +46,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-white' : 'bg-input-bg text-fg'}`}>
                     {DAY_NAMES_SHORT[idx]} {day.getDate()} {MONTH_NAMES[day.getMonth()].substring(0, 3)}
                   </span>
-                  {isToday && <span className="text-[10px] text-accent font-semibold uppercase tracking-wider">Oggi</span>}
+                  {isToday && <span className="text-xs text-accent font-semibold uppercase tracking-wider">Oggi</span>}
                 </div>
                 <span className="text-xs text-fg-muted">{dayEvents.length} eventi</span>
               </div>
@@ -69,7 +69,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ev.calendar_color || DEFAULT_CALENDAR_COLOR }} />
                           <span className="text-xs font-semibold text-fg truncate">{ev.summary}</span>
                         </div>
-                        <div className="text-[11px] text-fg-muted flex items-center gap-2">
+                        <div className="text-xs text-fg-muted flex items-center gap-2">
                           <span className="flex items-center gap-1">
                             <Clock size={11} />
                             {ev.all_day ? 'Tutto il giorno' : `${eventStartTime(ev)} - ${eventEndTime(ev)}`}

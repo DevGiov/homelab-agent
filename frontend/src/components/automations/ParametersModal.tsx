@@ -233,7 +233,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 </h2>
                 {isLoading && <RefreshCw size={12} className="animate-spin text-accent" />}
               </div>
-              <p className="text-[11px] text-fg-muted font-mono">{automation.name} ({automation.id})</p>
+              <p className="text-xs text-fg-muted font-mono">{automation.name} ({automation.id})</p>
             </div>
           </div>
 
@@ -247,7 +247,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
         {/* Content */}
         <div className="p-5 overflow-y-auto space-y-5 text-xs">
-          <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-[11px] text-fg-muted">
+          <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-xs text-fg-muted">
             <Info size={14} className="text-accent shrink-0 mt-0.5" />
             <span>
               {mode === 'run'
@@ -260,11 +260,11 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           {detectedParamsList.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold text-fg flex items-center gap-1.5">
+                <label className="text-xs font-semibold text-fg flex items-center gap-1.5">
                   <Code2 size={13} className="text-accent" />
                   Parametri Rilevati dal Workflow ({detectedParamsList.length})
                 </label>
-                <span className="text-[10px] text-fg-muted">Rilevamento AST automatico</span>
+                <span className="text-xs text-fg-muted">Rilevamento AST automatico</span>
               </div>
 
               <div className="space-y-2">
@@ -284,7 +284,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                             {param.name}
                           </span>
                           <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-mono border ${getTypeBadgeClass(
+                            className={`px-1.5 py-0.2 rounded text-xs font-mono border ${getTypeBadgeClass(
                               param.type
                             )}`}
                           >
@@ -292,14 +292,14 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                           </span>
                         </div>
                         {param.default !== undefined && param.default !== null && (
-                          <span className="text-[10px] text-fg-muted font-mono">
+                          <span className="text-xs text-fg-muted font-mono">
                             default: {String(param.default)}
                           </span>
                         )}
                       </div>
 
                       {param.description && (
-                        <p className="text-[11px] text-fg-muted">{param.description}</p>
+                        <p className="text-xs text-fg-muted">{param.description}</p>
                       )}
 
                       <div>
@@ -342,23 +342,23 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           {/* Section 2: Detected Secrets */}
           {introspection && introspection.secrets && introspection.secrets.length > 0 && (
             <div className="p-3 rounded-xl bg-panel border border-purple-500/30 space-y-2">
-              <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-[11px]">
+              <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-xs">
                 <Key size={13} className="text-purple-400" />
                 <span>Credenziali & Segreti Rilevati ({introspection.secrets.length})</span>
               </div>
-              <p className="text-[11px] text-fg-muted">
+              <p className="text-xs text-fg-muted">
                 Questo workflow referenzia le seguenti chiavi segrete risolte tramite il Tier 1/2 delle Integrazioni:
               </p>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {introspection.secrets.map((sec) => (
                   <span
                     key={sec.name}
-                    className="px-2 py-0.5 rounded-md bg-purple-950/40 border border-purple-800/50 text-[11px] font-mono text-purple-300 flex items-center gap-1"
+                    className="px-2 py-0.5 rounded-md bg-purple-950/40 border border-purple-800/50 text-xs font-mono text-purple-300 flex items-center gap-1"
                     title={sec.description || sec.service}
                   >
                     <span>{sec.name}</span>
                     {sec.service && (
-                      <span className="text-[9px] text-purple-400/70">({sec.service})</span>
+                      <span className="text-xs text-purple-400/70">({sec.service})</span>
                     )}
                   </span>
                 ))}
@@ -368,12 +368,12 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
           {/* Section 3: Custom / Additional Parameters */}
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-fg block">
+            <label className="text-xs font-semibold text-fg block">
               {detectedParamsList.length > 0 ? 'Parametri Aggiuntivi (Custom)' : 'Parametri Workflow'} ({paramsList.length})
             </label>
 
             {paramsList.length === 0 && detectedParamsList.length === 0 ? (
-              <div className="p-4 border border-dashed border-border rounded-xl text-center text-fg-muted text-[11px]">
+              <div className="p-4 border border-dashed border-border rounded-xl text-center text-fg-muted text-xs">
                 Nessun parametro configurato. Aggiungi variabili sotto (es. <code>email_recipient</code>, <code>max_items</code>).
               </div>
             ) : (
@@ -381,7 +381,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 {paramsList.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-bg border border-border/80">
                     <div className="w-1/3">
-                      <span className="font-mono text-[11px] text-accent font-semibold block truncate" title={item.key}>
+                      <span className="font-mono text-xs text-accent font-semibold block truncate" title={item.key}>
                         {item.key}
                       </span>
                     </div>
@@ -443,7 +443,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 <Shield size={16} className="text-purple-400" />
                 <div>
                   <span className="text-xs font-medium text-fg block">Esegui in modalità Dry-Run</span>
-                  <span className="text-[11px] text-fg-muted">Simula i passaggi senza apportare modifiche o side effect</span>
+                  <span className="text-xs text-fg-muted">Simula i passaggi senza apportare modifiche o side effect</span>
                 </div>
               </div>
 

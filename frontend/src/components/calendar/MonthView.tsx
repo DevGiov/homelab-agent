@@ -82,12 +82,13 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                   />
                 ))}
                 {dayEvents.length > 3 && (
-                  <span className="text-[9px] text-fg-muted font-bold leading-none">+{dayEvents.length - 3}</span>
+                  <span className="text-xs text-fg-muted font-bold leading-none">+{dayEvents.length - 3}</span>
                 )}
               </div>
 
               {/* Desktop: pillole complete */}
-              <div className="hidden sm:block space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
+              {/* Container: nelle celle strette il titolo dell'evento ha la precedenza sull'ora */}
+              <div className="@container hidden sm:block space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
                 {dayEvents.map((ev) => {
                   const color = ev.calendar_color || DEFAULT_CALENDAR_COLOR;
                   const time = ev.all_day ? 'Tutto il giorno' : eventStartTime(ev);
@@ -95,13 +96,13 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                     <div
                       key={ev.uid || ev.id}
                       onClick={(e) => openEvent(e, ev)}
-                      className="px-2 py-1 rounded-md text-[11px] leading-tight font-medium truncate flex items-center gap-1.5 transition shadow-sm hover:scale-[1.01]"
+                      className="px-2 py-1 rounded-md text-xs leading-tight font-medium truncate flex items-center gap-1.5 transition shadow-sm hover:scale-[1.01]"
                       style={{ backgroundColor: `${color}20`, borderLeft: `3px solid ${color}`, color: 'var(--fg)' }}
                       title={`${time} - ${ev.summary}${ev.location ? ` @ ${ev.location}` : ''}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-[10px] text-fg-muted shrink-0 font-mono">{ev.all_day ? 'ALL' : time}</span>
-                      <span className="truncate">{ev.summary}</span>
+                      <span className="hidden @[8rem]:inline text-xs text-fg-muted shrink-0 tabular-nums">{ev.all_day ? 'ALL' : time}</span>
+                      <span className="truncate min-w-0">{ev.summary}</span>
                     </div>
                   );
                 })}
@@ -142,7 +143,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.calendar_color || DEFAULT_CALENDAR_COLOR }} />
                     <span className="font-medium text-fg truncate">{ev.summary}</span>
                   </div>
-                  <span className="text-[10px] text-fg-muted font-mono shrink-0">
+                  <span className="text-xs text-fg-muted font-mono shrink-0">
                     {ev.all_day ? 'Tutto il giorno' : eventStartTime(ev)}
                   </span>
                 </div>

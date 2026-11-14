@@ -21,7 +21,7 @@ const GoogleHelp: React.FC = () => {
       </button>
 
       {open && (
-        <ol className="list-decimal pl-5 space-y-1 text-fg-muted text-[11px] leading-relaxed pt-1">
+        <ol className="list-decimal pl-5 space-y-1 text-fg-muted text-xs leading-relaxed pt-1">
           <li>
             Apri Google Calendar da browser (
             <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-accent underline inline-flex items-center gap-0.5">

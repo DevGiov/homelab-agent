@@ -4,11 +4,14 @@ import { useSecurityMode } from './useSecurityMode';
 import type { SendOptions } from './useChat';
 
 const WEB_SEARCH_KEY = 'homelab_web_search_mode';
-const NEXT_WEB_SEARCH: Record<WebSearchMode, WebSearchMode> = { auto: 'on', on: 'off', off: 'auto' };
 
 function storedWebSearch(): WebSearchMode {
-  const saved = localStorage.getItem(WEB_SEARCH_KEY);
-  return saved === 'on' || saved === 'off' ? saved : 'auto';
+  try {
+    const saved = localStorage.getItem(WEB_SEARCH_KEY);
+    return saved === 'on' || saved === 'off' ? saved : 'auto';
+  } catch {
+    return 'auto';
+  }
 }
 
 /**
@@ -25,7 +28,7 @@ export function useChatOptions(threadId: string | null = null, loadedModel: stri
   const [model, setModelState] = useState(loadedModel ?? 'default');
   const [modelChosen, setModelChosen] = useState(false);
   const [incognito, setIncognito] = useState(false);
-  const [webSearch, setWebSearch] = useState<WebSearchMode>(storedWebSearch);
+  const [webSearch, setWebSearchState] = useState<WebSearchMode>(storedWebSearch);
   const [securityMode, setSecurityMode] = useSecurityMode();
 
   const previousThread = useRef(threadId);
@@ -42,10 +45,13 @@ export function useChatOptions(threadId: string | null = null, loadedModel: stri
     setModelState(next);
   };
 
-  const cycleWebSearch = () => {
-    const next = NEXT_WEB_SEARCH[webSearch];
-    localStorage.setItem(WEB_SEARCH_KEY, next);
-    setWebSearch(next);
+  const setWebSearch = (next: WebSearchMode) => {
+    try {
+      localStorage.setItem(WEB_SEARCH_KEY, next);
+    } catch {
+      // La scelta vale per questa pagina
+    }
+    setWebSearchState(next);
   };
 
   /** 'auto' e 'default' lasciano la scelta al backend. */
@@ -72,7 +78,7 @@ export function useChatOptions(threadId: string | null = null, loadedModel: stri
     incognito,
     setIncognito,
     webSearch,
-    cycleWebSearch,
+    setWebSearch,
     securityMode,
     setSecurityMode,
     toSendOptions,

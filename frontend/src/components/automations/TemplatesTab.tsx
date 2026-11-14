@@ -31,7 +31,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
             key={tpl.id}
             className="p-5 rounded-2xl bg-panel border border-accent/40 shadow-md flex flex-col justify-between space-y-4 relative overflow-hidden"
           >
-            <div className="absolute top-0 right-0 bg-accent/20 px-3 py-1 text-[10px] font-bold text-accent rounded-bl-xl border-l border-b border-accent/30">
+            <div className="absolute top-0 right-0 bg-accent/20 px-3 py-1 text-xs font-bold text-accent rounded-bl-xl border-l border-b border-accent/30">
               MVP READY
             </div>
 
@@ -42,24 +42,24 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-fg">{tpl.name}</h3>
-                  <span className="text-[11px] font-mono text-fg-muted">{tpl.id}</span>
+                  <span className="text-xs font-mono text-fg-muted">{tpl.id}</span>
                 </div>
               </div>
 
               <p className="text-xs text-fg-muted mt-3">{tpl.description}</p>
 
               <div className="mt-4 p-3 rounded-xl bg-bg/50 border border-border/60 space-y-2 text-xs">
-                <span className="font-semibold text-fg block text-[11px]">Workflow Steps:</span>
-                <ol className="list-decimal list-inside space-y-1 text-fg-muted text-[11px]">
+                <span className="font-semibold text-fg block text-xs">Workflow Steps:</span>
+                <ol className="list-decimal list-inside space-y-1 text-fg-muted text-xs">
                   {tpl.workflow?.steps?.map((st: any) => (
                     <li key={st.step_id}>
-                      <span className="font-medium text-fg">{st.name}</span> <span className="text-[10px] font-mono">({st.type})</span>
+                      <span className="font-medium text-fg">{st.name}</span> <span className="text-xs font-mono">({st.type})</span>
                     </li>
                   ))}
                 </ol>
               </div>
 
-              <div className="mt-3 p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-[11px] text-emerald-300 flex items-center gap-2">
+              <div className="mt-3 p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-xs text-emerald-300 flex items-center gap-2">
                 <Shield size={14} className="shrink-0 text-emerald-400" />
                 <span>Sicurezza: Nessun invio automatico. Genera solo bozze e report Markdown.</span>
               </div>

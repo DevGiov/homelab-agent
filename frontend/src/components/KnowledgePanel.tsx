@@ -92,7 +92,7 @@ export const KnowledgePanel: React.FC = () => {
   };
 
   const tabClass = (active: boolean) =>
-    `flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+    `flex-1 px-1.5 py-1 rounded-md text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
       active ? 'bg-accent/20 text-accent border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
     }`;
 
@@ -131,25 +131,25 @@ export const KnowledgePanel: React.FC = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-[10px] text-fg-muted hover:border-accent hover:text-accent transition disabled:opacity-50 cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-dashed border-border text-xs text-fg-muted hover:border-accent hover:text-accent transition disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
             Upload .md / .txt / .pdf
           </button>
-          <div className="flex items-center justify-between gap-2 text-[10px] text-fg-muted">
+          <div className="flex items-center justify-between gap-2 text-xs text-fg-muted">
             <span>Etichetta dei nuovi documenti</span>
             <SensitivitySelect value={uploadLevel} onChange={setUploadLevel} label="Etichetta dei nuovi documenti" />
           </div>
-          {uploadMsg && <p className="text-[10px] text-fg-muted italic">{uploadMsg}</p>}
+          {uploadMsg && <p className="text-xs text-fg-muted italic">{uploadMsg}</p>}
 
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-            {docs.length === 0 && !isLoading && <p className="text-[11px] text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>}
+            {docs.length === 0 && !isLoading && <p className="text-xs text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>}
             {docs.map((doc) => (
               <div key={doc.filename} className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group">
                 <div className="min-w-0 flex-1 flex items-center gap-1.5">
                   <FileText size={12} className="text-accent shrink-0" />
-                  <span className="text-[11px] font-mono text-fg truncate">{doc.filename}</span>
-                  <span className="text-[9px] text-fg-muted shrink-0">{doc.chunks}ch</span>
+                  <span className="text-xs font-mono text-fg truncate">{doc.filename}</span>
+                  <span className="text-xs text-fg-muted shrink-0">{doc.chunks}ch</span>
                 </div>
                 <SensitivitySelect
                   value={doc.sensitivity ?? 'internal'}
@@ -177,7 +177,7 @@ export const KnowledgePanel: React.FC = () => {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Cerca nei documenti per significato…"
-              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-[11px] text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
+              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-xs text-fg placeholder:text-fg-muted/50 focus:outline-none focus:border-accent"
             />
             <button
               onClick={handleSearch}
@@ -192,12 +192,12 @@ export const KnowledgePanel: React.FC = () => {
           <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
             {results.map((r) => (
               <div key={r.filename} className="bg-panel-header/50 border border-border rounded-lg p-2 space-y-1">
-                <div className="flex items-center justify-between gap-1 text-[10px]">
+                <div className="flex items-center justify-between gap-1 text-xs">
                   <span className="font-mono text-fg truncate">{r.filename}</span>
                   <span className="text-fg-muted tabular-nums shrink-0">{Math.round(r.chunks[0].score * 100)}%</span>
                 </div>
                 {r.chunks.slice(0, 2).map((c, i) => (
-                  <p key={i} className="text-[11px] text-fg-muted leading-snug line-clamp-3">
+                  <p key={i} className="text-xs text-fg-muted leading-snug line-clamp-3">
                     {c.content}
                   </p>
                 ))}

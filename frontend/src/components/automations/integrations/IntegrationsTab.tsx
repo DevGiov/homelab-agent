@@ -58,7 +58,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-fg">Policy di Sicurezza e Zero Auto-Send</h3>
-                <span className="text-[11px] text-fg-muted">Garanzie operative del runtime Homelab</span>
+                <span className="text-xs text-fg-muted">Garanzie operative del runtime Homelab</span>
               </div>
             </div>
             <ul className="space-y-2 text-xs text-fg-muted">

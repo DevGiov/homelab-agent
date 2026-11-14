@@ -90,30 +90,30 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           <div>
             <h3 className="text-sm font-bold text-fg flex items-center gap-2">
               {auto.name}
-              <span className="text-[10px] px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
+              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
                 v{auto.version}
               </span>
             </h3>
-            <span className="text-[11px] font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
+            <span className="text-xs font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
           </div>
 
           <div className="flex items-center gap-2">
             {isRunning ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-pulse">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
               </span>
             ) : isPaused ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 In Pausa
               </span>
             ) : activeStatus === 'waiting_approval' ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
                 Attesa Approvazione
               </span>
             ) : null}
 
             <div className="flex items-center gap-2 bg-panel-header/60 px-2.5 py-1 rounded-xl border border-border/60">
-              <span className={`text-[11px] font-semibold transition ${auto.enabled ? 'text-emerald-400' : 'text-fg-muted'}`}>
+              <span className={`text-xs font-semibold transition ${auto.enabled ? 'text-emerald-400' : 'text-fg-muted'}`}>
                 {auto.enabled ? 'Attiva' : 'Inattiva'}
               </span>
               <Toggle
@@ -138,7 +138,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
 
             <button
               onClick={() => actions.openTriggers(auto)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition text-[11px] font-medium cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition text-xs font-medium cursor-pointer"
               title="Configura Schedulazione Cron e Webhook HTTP"
             >
               <Clock size={12} className="text-emerald-400" />
@@ -148,7 +148,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             {auto.triggers?.some((t) => t.type === 'webhook') && (
               <button
                 onClick={copyWebhookUrl}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition text-[11px] font-medium cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition text-xs font-medium cursor-pointer"
                 title="Fai clic per copiare l'URL Webhook negli appunti"
               >
                 <Globe size={12} className="text-sky-400" />
@@ -160,7 +160,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           {auto.last_artifact_id && (
             <button
               onClick={() => actions.openReport(auto.last_artifact_id!)}
-              className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
               title={`Apri report: ${auto.last_artifact_name || 'Ultimo Report'}`}
             >
               <FileText size={12} />
@@ -171,21 +171,21 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
 
         {parameters.length > 0 && (
           <div className="mt-3 pt-2.5 border-t border-border/40">
-            <div className="text-[10px] text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+            <div className="text-xs text-fg-muted uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
               <Sliders size={11} className="text-accent" /> Parametri di default
             </div>
             <div className="flex flex-wrap gap-1.5">
               {parameters.slice(0, 3).map(([key, value]) => (
                 <span
                   key={key}
-                  className="text-[10px] px-2 py-0.5 rounded-md bg-panel-header/70 border border-border text-fg-muted font-mono"
+                  className="text-xs px-2 py-0.5 rounded-md bg-panel-header/70 border border-border text-fg-muted font-mono"
                   title={`${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`}
                 >
                   {key}: <span className="text-fg font-medium">{typeof value === 'object' ? '{...}' : String(value)}</span>
                 </span>
               ))}
               {parameters.length > 3 && (
-                <span className="text-[10px] text-fg-muted self-center">+{parameters.length - 3} altri</span>
+                <span className="text-xs text-fg-muted self-center">+{parameters.length - 3} altri</span>
               )}
             </div>
           </div>
@@ -193,7 +193,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
       </div>
 
       <div className="space-y-2 pt-1">
-        <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-fg-muted">
+        <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs text-fg-muted">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-1 hover:text-fg transition cursor-pointer font-medium"
@@ -201,7 +201,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             <span>{isExpanded ? 'Nascondi Pipeline & Statistiche' : 'Mostra Pipeline & Statistiche'}</span>
           </button>
-          <span className="font-mono text-[10px]">TTL: {auto.retention_days || 14} giorni</span>
+          <span className="font-mono text-xs">TTL: {auto.retention_days || 14} giorni</span>
         </div>
         {isExpanded && <AutomationCardDetails automation={auto} runsCount={runs.length} />}
       </div>

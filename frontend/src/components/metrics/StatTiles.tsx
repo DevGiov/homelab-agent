@@ -4,9 +4,9 @@ import { formatCompact, formatDuration, formatPct, formatRate } from '../../util
 
 const Tile: React.FC<{ label: string; value: string; detail: string; alert?: boolean }> = ({ label, value, detail, alert }) => (
   <div className="rounded-2xl border border-border bg-panel/60 px-3 py-2.5 min-w-0">
-    <div className="text-[11px] text-fg-muted truncate">{label}</div>
+    <div className="text-xs text-fg-muted truncate">{label}</div>
     <div className={`text-xl font-semibold mt-0.5 truncate ${alert ? 'text-rose-400' : 'text-fg'}`}>{value}</div>
-    <div className="text-[11px] text-fg-muted mt-0.5 truncate" title={detail}>
+    <div className="text-xs text-fg-muted mt-0.5 truncate" title={detail}>
       {detail}
     </div>
   </div>
@@ -18,7 +18,7 @@ export const StatTiles: React.FC<{ summary: MetricsSummary }> = ({ summary }) =>
   const errors = turns.by_status.error ?? 0;
   const stopped = turns.by_status.stopped ?? 0;
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6 gap-2">
       <Tile
         label="Turni"
         value={formatCompact(turns.total)}

@@ -85,7 +85,7 @@ export const AssistantDetails: React.FC<AssistantDetailsProps> = ({
 
       {sources.length > 0 && (
         <div className="mt-3 pt-2.5 border-t border-border/60">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-accent mb-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-accent mb-1.5">
             <Globe size={12} className="text-accent" />
             <span>Fonti web consultate:</span>
           </div>
@@ -96,7 +96,7 @@ export const AssistantDetails: React.FC<AssistantDetailsProps> = ({
                 href={src.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-panel/80 hover:bg-panel border border-border/80 hover:border-accent text-fg-muted hover:text-fg text-[10px] transition group"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-panel/80 hover:bg-panel border border-border/80 hover:border-accent text-fg-muted hover:text-fg text-xs transition group"
                 title={`${src.title}\n${src.url}`}
               >
                 <span className="truncate max-w-[140px]">{domainOf(src.url)}</span>

@@ -4,6 +4,7 @@ import { Chat } from './components/chat/Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
+import { useDiagnosticsPanel } from './hooks/useDiagnosticsPanel';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -79,7 +80,7 @@ function MainLayout() {
   // Mobile Drawers Navigation state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isMobileToolLogOpen, setIsMobileToolLogOpen] = useState<boolean>(false);
-  const [isToolLogOpen, setIsToolLogOpen] = useState<boolean>(true);
+  const diagnosticsPanel = useDiagnosticsPanel();
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   // Reset selected message when thread changes
@@ -169,12 +170,12 @@ function MainLayout() {
             onClearError={clearErrors}
             onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
             onOpenMobileToolLog={() => {
-              setIsToolLogOpen(true);
+              diagnosticsPanel.reveal();
               setIsMobileToolLogOpen(true);
             }}
             onInspectMessage={(msgId) => {
               setSelectedMessageId(msgId);
-              setIsToolLogOpen(true);
+              diagnosticsPanel.reveal();
               setIsMobileToolLogOpen(true);
             }}
           />
@@ -194,8 +195,8 @@ function MainLayout() {
               mode={diagnostics.activeMode}
               webPrefetch={diagnostics.activeWebPrefetch}
               currentThreadId={currentThreadId}
-              isOpen={isToolLogOpen}
-              onToggle={() => setIsToolLogOpen(!isToolLogOpen)}
+              isOpen={diagnosticsPanel.open}
+              onToggle={diagnosticsPanel.toggle}
               onCloseMobile={() => setIsMobileToolLogOpen(false)}
               messages={currentMessages}
               selectedMessageId={selectedMessageId}

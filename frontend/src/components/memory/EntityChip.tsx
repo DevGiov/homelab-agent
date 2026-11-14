@@ -15,7 +15,7 @@ interface EntityChipProps {
 /** Entità con l'icona del suo tipo; cliccabile per filtrare, rimovibile in modifica. */
 export const EntityChip: React.FC<EntityChipProps> = ({ entity, active, onClick, onRemove, suffix }) => {
   const { icon: Icon, label } = ENTITY_TYPE_INFO[entity.type] ?? ENTITY_TYPE_INFO.other;
-  const className = `inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-md border text-[11px] transition ${
+  const className = `inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-md border text-xs transition ${
     active ? 'bg-accent/15 border-accent/50 text-fg' : 'bg-panel-header/60 border-border text-fg-muted'
   } ${onClick ? 'hover:text-fg hover:border-accent/40 cursor-pointer' : ''}`;
   const content = (

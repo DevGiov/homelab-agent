@@ -10,7 +10,7 @@ type Draft = Omit<McpFlowSetting, 'scope'>;
 
 const STRICTEST: Draft = { result_label: 'private', result_untrusted: false, clearance: 'public' };
 
-const selectClass = 'bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-[11px] text-fg focus:outline-none focus:border-accent cursor-pointer';
+const selectClass = 'bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg focus:outline-none focus:border-accent cursor-pointer';
 
 /**
  * Classificazione dei server per la sensibilità dei dati: quanto sono riservati i loro risultati e quali dati possono
@@ -93,25 +93,25 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
         <Lock size={14} className="text-amber-400" />
         <h4 className="text-xs font-semibold text-fg">Sensibilità dei dati per server</h4>
       </div>
-      <p className="text-[11px] text-fg-muted leading-relaxed">
+      <p className="text-xs text-fg-muted leading-relaxed">
         <strong>Risultati</strong>: quanto sono riservati i dati che il server restituisce (l'output di comandi e log resta sempre
         privato). <strong>Può ricevere</strong>: l'etichetta più alta che gli argomenti possono avere; oltre, l'agente chiede
         conferma mostrando cosa invierebbe. Un server che inoltra le richieste a servizi esterni dovrebbe ricevere solo dati
         pubblici. Un server non classificato vale come il più stretto.
       </p>
-      {scopes.length === 0 && <p className="text-[11px] text-fg-muted italic">Nessun server MCP nel catalogo.</p>}
+      {scopes.length === 0 && <p className="text-xs text-fg-muted italic">Nessun server MCP nel catalogo.</p>}
       <div className="space-y-1.5">
         {scopes.map((scope) => (
           <div key={scope} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2 rounded-lg border border-border bg-bg/40">
             <span className="font-mono text-xs text-fg min-w-[8rem]">{scope}</span>
-            {loaded && !saved[scope] && <span className="text-[10px] text-amber-300">non classificato</span>}
-            <label className="flex items-center gap-1 text-[11px] text-fg-muted">
+            {loaded && !saved[scope] && <span className="text-xs text-amber-300">non classificato</span>}
+            <label className="flex items-center gap-1 text-xs text-fg-muted">
               Risultati {levelSelect(scope, 'result_label', 'Etichetta dei risultati')}
             </label>
-            <label className="flex items-center gap-1 text-[11px] text-fg-muted">
+            <label className="flex items-center gap-1 text-xs text-fg-muted">
               Può ricevere {levelSelect(scope, 'clearance', 'Etichetta più alta degli argomenti')}
             </label>
-            <label className="flex items-center gap-1 text-[11px] text-fg-muted cursor-pointer" title="I risultati contengono testo scritto da altri (web, cataloghi esterni)">
+            <label className="flex items-center gap-1 text-xs text-fg-muted cursor-pointer" title="I risultati contengono testo scritto da altri (web, cataloghi esterni)">
               <input
                 type="checkbox"
                 checked={draftOf(scope).result_untrusted}

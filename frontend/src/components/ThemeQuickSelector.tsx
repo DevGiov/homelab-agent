@@ -109,7 +109,7 @@ export const ThemeQuickSelector: React.FC = () => {
                     </div>
                     {isActive && <Check size={12} className="text-accent shrink-0" />}
                   </div>
-                  <span className="text-[11px] font-medium text-fg truncate">{t.name}</span>
+                  <span className="text-xs font-medium text-fg truncate">{t.name}</span>
                 </button>
               );
             })}
@@ -123,7 +123,7 @@ export const ThemeQuickSelector: React.FC = () => {
                 <Sparkles size={13} className={isFrosted ? 'text-accent' : 'text-fg-muted'} />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-fg">Frosted Glass</span>
-                  <span className="text-[10px] text-fg-muted">Trasparenze & blur pannelli</span>
+                  <span className="text-xs text-fg-muted">Trasparenze & blur pannelli</span>
                 </div>
               </div>
               <button
@@ -148,7 +148,7 @@ export const ThemeQuickSelector: React.FC = () => {
                 <SunMedium size={13} className={hasGlow ? 'text-accent' : 'text-fg-muted'} />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-fg">Ambient Glow</span>
-                  <span className="text-[10px] text-fg-muted">Bagliori colorati di sfondo</span>
+                  <span className="text-xs text-fg-muted">Bagliori colorati di sfondo</span>
                 </div>
               </div>
               <button

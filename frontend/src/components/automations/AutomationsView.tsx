@@ -129,7 +129,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           >
             <Icon size={15} /> {label}
             {Boolean(badge) && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-bold">{badge}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-xs bg-rose-500 text-white font-bold">{badge}</span>
             )}
           </button>
         ))}

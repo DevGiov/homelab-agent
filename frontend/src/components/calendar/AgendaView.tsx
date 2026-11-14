@@ -32,7 +32,7 @@ const TodayMarker: React.FC<{ markerRef: RefObject<HTMLDivElement | null> }> = (
           Oggi — {now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </span>
       </div>
-      <span className="text-[10px] text-fg-muted font-mono">
+      <span className="text-xs text-fg-muted font-mono">
         {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
@@ -60,12 +60,12 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent transition">{ev.summary}</h4>
             {ev.category && (
-              <span className="px-2 py-0.5 rounded-md bg-input-bg text-[10px] text-fg-muted font-medium border border-input-border uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-input-bg text-xs text-fg-muted font-medium border border-input-border uppercase">
                 {ev.category}
               </span>
             )}
             {isImportant && (
-              <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[10px] font-medium border border-rose-500/30">
+              <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-xs font-medium border border-rose-500/30">
                 {ev.importance}
               </span>
             )}
@@ -75,7 +75,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             <span className="flex items-center gap-1">
               <CalIcon size={12} /> {start.getDate()} {MONTH_NAMES[start.getMonth()]} {start.getFullYear()}
             </span>
-            <span className="flex items-center gap-1 font-mono text-[11px]">
+            <span className="flex items-center gap-1 font-mono text-xs">
               <Clock size={12} /> {timeRange}
             </span>
             {ev.location && (
@@ -149,7 +149,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
                       {MONTH_NAMES[group.month.getMonth()]} {group.month.getFullYear()}
                     </h3>
                   </div>
-                  <span className="text-[11px] text-fg-muted">
+                  <span className="text-xs text-fg-muted">
                     {group.events.length} {group.events.length === 1 ? 'evento' : 'eventi'}
                   </span>
                 </div>

@@ -74,16 +74,16 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                   <ArrowLeft size={13} />
                   <span>Elenco</span>
                 </button>
-                <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-[11px] flex items-center gap-1 truncate max-w-[140px] sm:max-w-[180px]">
+                <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent font-semibold text-xs flex items-center gap-1 truncate max-w-[140px] sm:max-w-[180px]">
                   <Sparkles size={11} className="shrink-0" />
                   <span className="truncate">{artifact.automation_name || artifact.automation_id || 'Report'}</span>
                 </span>
-                <span className="text-[11px] text-fg-muted flex items-center gap-1 shrink-0">
+                <span className="text-xs text-fg-muted flex items-center gap-1 shrink-0">
                   <Calendar size={11} />
                   {artifact.created_at ? new Date(artifact.created_at).toLocaleDateString() : 'N/A'}
                 </span>
                 {artifact.is_preserved && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] flex items-center gap-1 shrink-0">
+                  <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-1 shrink-0">
                     <Lock size={10} /> Protetto
                   </span>
                 )}
@@ -107,7 +107,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                     }`}
                   >
                     <Icon size={12} />
-                    <span className="text-[11px]">{label}</span>
+                    <span className="text-xs">{label}</span>
                   </button>
                 ))}
               </div>

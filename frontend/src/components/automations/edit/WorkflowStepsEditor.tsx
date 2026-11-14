@@ -42,7 +42,7 @@ const ParametersField: React.FC<{ value: Record<string, any>; onChange: (value: 
 
   return (
     <div>
-      <label className="block text-[11px] font-medium text-fg-muted mb-1">Parametri Tool (JSON)</label>
+      <label className="block text-xs font-medium text-fg-muted mb-1">Parametri Tool (JSON)</label>
       <textarea
         value={text}
         onChange={(e) => edit(e.target.value)}
@@ -50,7 +50,7 @@ const ParametersField: React.FC<{ value: Record<string, any>; onChange: (value: 
         className={`${fieldClass} p-2.5 font-mono ${error ? 'border-rose-500/60' : ''}`}
         placeholder='{"query": "trending github repositories"}'
       />
-      {error && <p className="text-[10px] text-rose-400 mt-1">JSON non valido, modifica non applicata: {error}</p>}
+      {error && <p className="text-xs text-rose-400 mt-1">JSON non valido, modifica non applicata: {error}</p>}
     </div>
   );
 };
@@ -102,7 +102,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
           <div key={step.step_id} className="p-4 bg-panel-header/20 border border-border/70 rounded-xl space-y-3">
             <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold flex items-center justify-center">{idx + 1}</span>
+                <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-xs font-bold flex items-center justify-center">{idx + 1}</span>
                 <input
                   type="text"
                   value={step.name}
@@ -110,7 +110,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   className="font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent focus:outline-none px-1 py-0.5"
                   placeholder="Nome dello step"
                 />
-                <span className="text-[10px] font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded border border-border">{step.step_id}</span>
+                <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded border border-border">{step.step_id}</span>
               </div>
 
               <div className="flex items-center gap-1">
@@ -134,7 +134,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-[11px] font-medium text-fg-muted mb-1">Tipologia Step</label>
+                <label className="block text-xs font-medium text-fg-muted mb-1">Tipologia Step</label>
                 <select value={step.type} onChange={(e) => update(idx, changeStepType(step, e.target.value))} className={fieldClass}>
                   {withCurrent(STEP_TYPES, step.type).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -146,7 +146,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
 
               {step.type === 'deterministic_action' && (
                 <div>
-                  <label className="block text-[11px] font-medium text-fg-muted mb-1">Tool da Eseguire</label>
+                  <label className="block text-xs font-medium text-fg-muted mb-1">Tool da Eseguire</label>
                   <select
                     value={step.action_or_tool || ''}
                     onChange={(e) => update(idx, { ...step, action_or_tool: e.target.value })}
@@ -164,7 +164,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
 
             {step.type === 'agentic_task' ? (
               <div>
-                <label className="block text-[11px] font-medium text-fg-muted mb-1">Prompt Template per LLM</label>
+                <label className="block text-xs font-medium text-fg-muted mb-1">Prompt Template per LLM</label>
                 <textarea
                   value={step.prompt_template || ''}
                   onChange={(e) => update(idx, { ...step, prompt_template: e.target.value })}
@@ -172,10 +172,10 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   className={`${fieldClass} p-2.5 font-mono`}
                   placeholder="Analizza i risultati: {{steps.step_1_search.output.text}} e genera un report strutturato."
                 />
-                <p className="text-[10px] text-fg-muted mt-1">
+                <p className="text-xs text-fg-muted mt-1">
                   Usa <code>{'{{steps.<step_id>.output.text}}'}</code> per passare i dati elaborati dagli step precedenti.
                 </p>
-                <label className="flex items-center gap-2 mt-2 text-[11px] text-fg cursor-pointer select-none">
+                <label className="flex items-center gap-2 mt-2 text-xs text-fg cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={step.tools == null || step.tools.length > 0}
@@ -184,7 +184,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   />
                   Può usare i tool consentiti dall'automazione
                 </label>
-                <p className="text-[10px] text-fg-muted mt-1">
+                <p className="text-xs text-fg-muted mt-1">
                   Spento, lo step risponde solo con il testo. Un tool che chiede conferma sospende la run fino alla tua decisione.
                 </p>
               </div>

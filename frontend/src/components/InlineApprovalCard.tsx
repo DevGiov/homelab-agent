@@ -97,12 +97,12 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <h4 className="text-xs font-semibold text-amber-200 truncate">
               {flow ? 'Uscita di dati: serve la tua conferma' : 'Autorizzazione Tool Richiesta (Guardrail)'}
             </h4>
-            <div className="text-[10px] text-amber-300/80 font-mono">
+            <div className="text-xs text-amber-300/80 font-mono">
               ID: {requestId}
             </div>
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/20 px-2.5 py-0.5 font-mono text-[11px] font-bold text-amber-300">
+        <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/20 px-2.5 py-0.5 font-mono text-xs font-bold text-amber-300">
           {toolName}
         </span>
       </div>
@@ -130,7 +130,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
         {/* Command Terminal Preview */}
         {previewCmd && (
           <div className="rounded-lg border border-border/80 bg-bg/60 p-3 font-mono text-xs text-emerald-400 overflow-x-auto shadow-inner">
-            <div className="flex items-center justify-between gap-2 mb-1.5 text-[10px] text-fg-muted select-none">
+            <div className="flex items-center justify-between gap-2 mb-1.5 text-xs text-fg-muted select-none">
               <span className="flex items-center gap-1.5">
                 <Terminal size={12} className="text-accent" />
                 {flow ? 'Testo che uscirebbe:' : isCodePreview ? 'Codice proposto:' : 'Comando shell proposto:'}
@@ -152,13 +152,13 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
           <div>
             <button
               onClick={() => setIsArgsExpanded(!isArgsExpanded)}
-              className="flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg transition cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg transition cursor-pointer"
             >
               {isArgsExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               <span>{isArgsExpanded ? 'Nascondi parametri completi' : 'Mostra parametri completi'}</span>
             </button>
             {isArgsExpanded && (
-              <pre className="mt-2 rounded-lg border border-border bg-panel/90 p-2.5 font-mono text-[10px] text-fg-muted overflow-x-auto max-h-48">
+              <pre className="mt-2 rounded-lg border border-border bg-panel/90 p-2.5 font-mono text-xs text-fg-muted overflow-x-auto max-h-48">
                 {JSON.stringify(argumentsData, null, 2)}
               </pre>
             )}
@@ -211,8 +211,8 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
             {/* Execution Result summary if available */}
             {resolvedResult && (
-              <div className="mt-2.5 rounded-lg border border-border bg-panel p-2.5 font-mono text-[10px] text-fg-muted overflow-x-auto max-h-48">
-                <div className="text-[11px] font-semibold text-fg mb-1">Risultato esecuzione:</div>
+              <div className="mt-2.5 rounded-lg border border-border bg-panel p-2.5 font-mono text-xs text-fg-muted overflow-x-auto max-h-48">
+                <div className="text-xs font-semibold text-fg mb-1">Risultato esecuzione:</div>
                 <pre>{typeof resolvedResult === 'string' ? resolvedResult : JSON.stringify(resolvedResult, null, 2)}</pre>
               </div>
             )}
@@ -220,7 +220,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
         ) : (
           /* The 4 Action Buttons */
           <div className="space-y-2 pt-1">
-            <div className="text-[11px] font-medium text-fg-muted">
+            <div className="text-xs font-medium text-fg-muted">
               Scegli come procedere per questo tool:
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

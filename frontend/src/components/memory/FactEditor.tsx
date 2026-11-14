@@ -62,7 +62,7 @@ export const FactEditor: React.FC<FactEditorProps> = ({ initial, known, submitLa
         {entities.map((entity) => (
           <EntityChip key={entity.name} entity={entity} onRemove={() => setEntities(entities.filter((e) => e !== entity))} />
         ))}
-        {entities.length === 0 && <span className="text-[11px] text-fg-muted">Nessuna entità</span>}
+        {entities.length === 0 && <span className="text-xs text-fg-muted">Nessuna entità</span>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input

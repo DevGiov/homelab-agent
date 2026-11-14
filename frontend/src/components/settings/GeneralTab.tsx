@@ -92,7 +92,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
           placeholder="Inserisci la chiave API del backend..."
           className={`${fieldClass} font-mono placeholder:text-fg-muted/50`}
         />
-        <p className="text-[10px] text-fg-muted leading-snug">Salvata in localStorage e inviata automaticamente alle chiamate API.</p>
+        <p className="text-xs text-fg-muted leading-snug">Salvata in localStorage e inviata automaticamente alle chiamate API.</p>
       </div>
 
       <div className="border-t border-border pt-3 space-y-3">
@@ -138,7 +138,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
             ))}
             {models.length === 0 && !loadingModels && <option value="" className="bg-panel text-fg">Nessun modello trovato</option>}
           </select>
-          <p className="text-[10px] text-fg-muted leading-snug">Imposta il modello predefinito usato dall'agente se non sovrascritto in chat.</p>
+          <p className="text-xs text-fg-muted leading-snug">Imposta il modello predefinito usato dall'agente se non sovrascritto in chat.</p>
         </div>
       </div>
 

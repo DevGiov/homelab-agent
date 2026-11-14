@@ -15,8 +15,8 @@ interface MessageMetaProps {
   onInspect?: (messageId: string) => void;
 }
 
-const badge = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[9px] sm:text-[10px]';
-const actionButton = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono transition cursor-pointer';
+const badge = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-xs';
+const actionButton = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-mono transition cursor-pointer';
 
 /** Riga sotto il messaggio: versioni, orario, azioni e badge di modalità, modello, tool, fonti e metriche. */
 export const MessageMeta: React.FC<MessageMetaProps> = ({
@@ -37,9 +37,9 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
   const metrics = msg.metrics;
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex items-center gap-1.5 text-xs text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
       {versionCount > 1 && (
-        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-[9px] font-mono text-fg-muted shadow-sm select-none">
+        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-xs font-mono text-fg-muted shadow-sm select-none">
           <button
             type="button"
             onClick={() => onSwitchVersion?.(msg.id, versionIndex - 1)}
@@ -49,7 +49,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
           >
             <ChevronLeft size={11} />
           </button>
-          <span className="px-1 text-[9px] font-semibold text-fg">
+          <span className="px-1 text-xs font-semibold text-fg">
             {versionIndex + 1} / {versionCount}
           </span>
           <button
@@ -113,7 +113,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
 
       {!isUser && <SensitivityChip tag={msg.sensitivity} />}
       {modeName && (
-        <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-[9px] uppercase font-mono tracking-wider">
+        <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-xs uppercase font-mono tracking-wider">
           {modeName}
         </span>
       )}
@@ -137,7 +137,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
       )}
       {metrics && (
         <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono text-[9px] sm:text-[10px] bg-panel border border-border text-fg-muted"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono text-xs bg-panel border border-border text-fg-muted"
           title={`Generati: ${metrics.completion_tokens ?? 0} tok • Prompt: ${metrics.prompt_tokens ?? 0} tok • Totale contesto: ${metrics.total_tokens ?? 0} tok • Velocità LLM: ${metrics.tok_per_s ?? 0} tok/s • Tempo LLM: ${metrics.llm_duration_s ?? metrics.duration_s ?? 0}s • Durata turno: ${metrics.duration_s ?? 0}s`}
         >
           <Zap size={10} className="text-amber-400" />

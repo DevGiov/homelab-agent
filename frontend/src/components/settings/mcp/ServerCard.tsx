@@ -52,14 +52,14 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-semibold text-fg">{server.name}</span>
-              <span className="font-mono text-[10px] text-fg-muted">{server.id}</span>
+              <span className="font-mono text-xs text-fg-muted">{server.id}</span>
               {server.builtin && (
-                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">.env</span>
+                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">.env</span>
               )}
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${badge.className}`}>{badge.label}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${badge.className}`}>{badge.label}</span>
             </div>
-            <p className="font-mono text-[10px] text-fg-muted truncate">{server.url}</p>
-            {server.enabled && server.status?.error && <p className="text-[10px] text-rose-400 mt-0.5 line-clamp-2">{server.status.error}</p>}
+            <p className="font-mono text-xs text-fg-muted truncate">{server.url}</p>
+            {server.enabled && server.status?.error && <p className="text-xs text-rose-400 mt-0.5 line-clamp-2">{server.status.error}</p>}
           </div>
         </div>
 
@@ -85,7 +85,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
         <>
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="w-full px-3 py-1.5 border-t border-border/60 flex items-center justify-between text-[11px] text-fg-muted hover:text-fg cursor-pointer"
+            className="w-full px-3 py-1.5 border-t border-border/60 flex items-center justify-between text-xs text-fg-muted hover:text-fg cursor-pointer"
           >
             <span className="flex items-center gap-1">
               {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -99,9 +99,9 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
                   <Toggle checked={tool.enabled} onChange={(enabled) => onToolChange(tool, { enabled, risk: tool.risk })} size="sm" title={tool.enabled ? 'Disattiva tool' : 'Attiva tool'} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[11px] text-fg truncate">{shortName(tool)}</span>
+                      <span className="font-mono text-xs text-fg truncate">{shortName(tool)}</span>
                       <span
-                        className={`text-[9px] px-1 rounded border ${
+                        className={`text-xs px-1 rounded border ${
                           tool.access === 'view' ? 'text-emerald-300 border-emerald-500/30' : 'text-amber-300 border-amber-500/30'
                         }`}
                         title={tool.access === 'view' ? 'Eseguito senza conferma in modalità Normal' : 'Soggetto alle regole di approvazione'}
@@ -109,14 +109,14 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
                         {tool.access === 'view' ? 'lettura' : 'esecuzione'}
                       </span>
                     </div>
-                    <p className="text-[10px] text-fg-muted truncate" title={tool.description}>
+                    <p className="text-xs text-fg-muted truncate" title={tool.description}>
                       {tool.description}
                     </p>
                   </div>
                   <select
                     value={tool.risk}
                     onChange={(e) => onToolChange(tool, { enabled: tool.enabled, risk: e.target.value as ToolRisk })}
-                    className={`bg-input-bg border border-input-border rounded-md px-1.5 py-0.5 text-[10px] focus:outline-none focus:border-accent ${
+                    className={`bg-input-bg border border-input-border rounded-md px-1.5 py-0.5 text-xs focus:outline-none focus:border-accent ${
                       tool.risk === 'blocked' ? 'text-rose-400' : 'text-fg'
                     }`}
                     title="Rischio: Automatico usa la classificazione per nome"

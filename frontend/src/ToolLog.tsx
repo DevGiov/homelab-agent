@@ -143,7 +143,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           <div className="flex gap-1 bg-panel/80 rounded-xl p-1 border border-border">
             <button
               onClick={() => setTab('diagnostics')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'diagnostics'
                   ? 'bg-accent text-white shadow-sm shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
@@ -154,7 +154,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
             </button>
             <button
               onClick={() => setTab('knowledge')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'knowledge'
                   ? 'bg-accent text-white shadow-sm shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
@@ -178,14 +178,14 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-fg-muted min-w-0">
                       <MessageSquare size={13} className="text-accent shrink-0" />
-                      <span className="text-[11px] font-medium truncate">Messaggio:</span>
+                      <span className="text-xs font-medium truncate">Messaggio:</span>
                     </div>
                     <select
                       value={selectedMessageId || 'latest'}
                       onChange={(e) =>
                         onSelectMessageId?.(e.target.value === 'latest' ? null : e.target.value)
                       }
-                      className="bg-input-bg border border-input-border text-fg rounded-lg px-2 py-1 text-[11px] max-w-[170px] sm:max-w-[200px] truncate focus:outline-none focus:border-accent"
+                      className="bg-input-bg border border-input-border text-fg rounded-lg px-2 py-1 text-xs max-w-[170px] sm:max-w-[200px] truncate focus:outline-none focus:border-accent"
                     >
                       <option value="latest">⚡ Ultimo / Live ({assistantMessages.length})</option>
                       {assistantMessages.map((m, idx) => {
@@ -210,13 +210,13 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
 
                   {selectedMessageId && (
-                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-accent text-[11px]">
+                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-accent text-xs">
                       <span className="truncate">
                         Ispezione msg #{assistantMessages.findIndex((m) => m.id === selectedMessageId) + 1}
                       </span>
                       <button
                         onClick={() => onSelectMessageId?.(null)}
-                        className="underline text-[10px] hover:text-white font-medium ml-2 cursor-pointer shrink-0"
+                        className="underline text-xs hover:text-white font-medium ml-2 cursor-pointer shrink-0"
                       >
                         Torna a Live
                       </button>
@@ -263,25 +263,25 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-[10px] text-fg-muted">Velocità LLM</div>
+                      <div className="text-xs text-fg-muted">Velocità LLM</div>
                       <div className="text-amber-400 font-bold text-sm mt-0.5">
-                        {activeMetrics.tok_per_s ?? 0} <span className="text-[10px] font-normal text-fg-muted">tok/s</span>
+                        {activeMetrics.tok_per_s ?? 0} <span className="text-xs font-normal text-fg-muted">tok/s</span>
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-[10px] text-fg-muted">Token Generati</div>
+                      <div className="text-xs text-fg-muted">Token Generati</div>
                       <div className="text-fg font-bold text-sm mt-0.5">
-                        {activeMetrics.completion_tokens ?? 0} <span className="text-[10px] font-normal text-fg-muted">tok</span>
+                        {activeMetrics.completion_tokens ?? 0} <span className="text-xs font-normal text-fg-muted">tok</span>
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-[10px] text-fg-muted">Prompt Token</div>
+                      <div className="text-xs text-fg-muted">Prompt Token</div>
                       <div className="text-fg font-medium mt-0.5">
                         {activeMetrics.prompt_tokens ?? 0}
                       </div>
                     </div>
                     <div className="bg-panel border border-border/70 rounded-lg p-2">
-                      <div className="text-[10px] text-fg-muted">Durata Turno</div>
+                      <div className="text-xs text-fg-muted">Durata Turno</div>
                       <div className="text-fg font-medium mt-0.5">
                         {activeMetrics.duration_s ?? 0}s
                       </div>
@@ -320,20 +320,20 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       <span className="font-medium text-fg">Web Context (Prefetch)</span>
                     </div>
                     {activeWebPrefetch.provider_used && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
                         {activeWebPrefetch.provider_used}
                         {activeWebPrefetch.latency_ms ? ` (${activeWebPrefetch.latency_ms}ms)` : ''}
                       </span>
                     )}
                   </div>
 
-                  <div className="text-[11px] text-fg-muted bg-panel border border-border/70 rounded-lg p-2 space-y-1">
-                    <div className="font-mono text-[10px] text-fg-muted truncate">
+                  <div className="text-xs text-fg-muted bg-panel border border-border/70 rounded-lg p-2 space-y-1">
+                    <div className="font-mono text-xs text-fg-muted truncate">
                       Query: <span className="text-fg">"{activeWebPrefetch.query}"</span>
                     </div>
                     {activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0 ? (
                       <div className="space-y-1.5 pt-1">
-                        <div className="text-[10px] text-accent font-semibold uppercase tracking-wider">
+                        <div className="text-xs text-accent font-semibold uppercase tracking-wider">
                           {activeWebPrefetch.sources.length}{' '}
                           {activeWebPrefetch.sources.length === 1
                             ? 'Fonte Recuperata'
@@ -349,7 +349,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                               className="block p-1.5 rounded bg-panel-header border border-border/80 hover:border-accent transition group"
                             >
                               <div className="flex items-center justify-between gap-1">
-                                <span className="text-[11px] font-medium text-fg group-hover:text-accent truncate">
+                                <span className="text-xs font-medium text-fg group-hover:text-accent truncate">
                                   {src.title || src.url}
                                 </span>
                                 <ExternalLink
@@ -358,7 +358,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                                 />
                               </div>
                               {src.snippet && (
-                                <p className="text-[10px] text-fg-muted line-clamp-2 mt-0.5 leading-tight">
+                                <p className="text-xs text-fg-muted line-clamp-2 mt-0.5 leading-tight">
                                   {src.snippet}
                                 </p>
                               )}
@@ -367,7 +367,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <p className="text-[10px] text-fg-muted italic">
+                      <p className="text-xs text-fg-muted italic">
                         Nessun risultato web trovato per questa query.
                       </p>
                     )}

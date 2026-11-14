@@ -15,7 +15,7 @@ export const SensitivityChip: React.FC<{ tag?: SensitivityTag | null; always?: b
   if (untrusted.length) lines.push(`Ha letto contenuto non attendibile: ${untrusted.map((u) => u.replace(/^contenuto non attendibile: /, '')).join('; ')}`);
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] sm:text-[10px] font-medium ${LABEL_CHIPS[tag.label]} ${className}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-xs font-medium ${LABEL_CHIPS[tag.label]} ${className}`}
       title={lines.join('\n')}
       data-testid="sensitivity-chip"
     >
