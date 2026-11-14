@@ -83,7 +83,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
       <div className="space-y-1.5">
         <label className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
           <KeyRound size={12} className="text-amber-400" />
-          API Key (header X-API-Key)
+          Chiave API (header X-API-Key)
         </label>
         <input
           type="password"

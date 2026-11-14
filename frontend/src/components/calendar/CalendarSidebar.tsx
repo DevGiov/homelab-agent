@@ -5,7 +5,7 @@ import { DEFAULT_CALENDAR_COLOR } from '../../utils/calendarDates';
 
 const CATEGORIES = [
   { id: 'all', label: 'Tutte' },
-  { id: 'meeting', label: 'Meeting' },
+  { id: 'meeting', label: 'Riunioni' },
   { id: 'personal', label: 'Personale' },
   { id: 'homelab', label: 'Homelab' },
   { id: 'flight', label: 'Viaggi' },

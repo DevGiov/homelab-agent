@@ -101,7 +101,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                       title={`${time} - ${ev.summary}${ev.location ? ` @ ${ev.location}` : ''}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                      <span className="hidden @[8rem]:inline text-xs text-fg-muted shrink-0 tabular-nums">{ev.all_day ? 'ALL' : time}</span>
+                      <span className="hidden @[8rem]:inline text-xs text-fg-muted shrink-0 tabular-nums">{ev.all_day ? 'Giornata' : time}</span>
                       <span className="truncate min-w-0">{ev.summary}</span>
                     </div>
                   );

@@ -42,7 +42,7 @@ const MODES: Array<{
     mode: 'normal',
     label: 'Normal',
     icon: ShieldCheck,
-    tagline: 'Bilanciata (Default)',
+    tagline: 'Bilanciata (predefinita)',
     description: (
       <>
         I tool <strong>VIEW</strong> (lettura) sono automatici. Tool di scrittura e comandi shell richiedono conferma (con allow-list
@@ -58,10 +58,10 @@ const MODES: Array<{
     mode: 'dangerous',
     label: 'Dangerous',
     icon: Zap,
-    tagline: 'Autonoma (No Prompt)',
+    tagline: 'Autonoma (senza conferme)',
     description: (
       <>
-        Esecuzione autonoma senza prompt UI. La salvaguardia deterministica Tier 1 (<code>rm -rf /</code>) rimane comunque{' '}
+        Esecuzione autonoma senza conferme nell'interfaccia. La salvaguardia deterministica di livello 1 (<code>rm -rf /</code>) rimane comunque{' '}
         <strong>attiva e inviolabile</strong>.
       </>
     ),
@@ -73,7 +73,7 @@ const MODES: Array<{
 ];
 
 const BLOCKED_COMMANDS: React.ReactNode[] = [
-  <>Wipe ricorsivo root/sistema (<code>rm -rf /</code>, <code>rm -rf /etc</code>, <code>~</code>, ecc.)</>,
+  <>Cancellazione ricorsiva della root o del sistema (<code>rm -rf /</code>, <code>rm -rf /etc</code>, <code>~</code>, ecc.)</>,
   <>Formattazione dischi & firme filesystem (<code>mkfs</code>, <code>wipefs</code>)</>,
   <>Scrittura grezza su blocchi disco (<code>dd of=/dev/sd*</code>, <code>&gt; /dev/nvme*</code>)</>,
   <>Fork bomb, DoS di sistema e manomissione credenziali (<code>/etc/shadow</code>)</>,
@@ -139,7 +139,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield size={15} className="text-accent" />
-            <h3 className="text-xs font-semibold text-fg">Modalità di Rischio & Human-in-the-Loop</h3>
+            <h3 className="text-xs font-semibold text-fg">Modalità di rischio e conferme umane</h3>
           </div>
           <span className="text-xs text-fg-muted font-mono">Sincronizzata con toolbar</span>
         </div>
@@ -177,7 +177,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert size={15} className="text-rose-400" />
-            <h3 className="text-xs font-semibold text-fg">Tier 1: Guardrail Deterministici (Automatici)</h3>
+            <h3 className="text-xs font-semibold text-fg">Livello 1: guardrail deterministici (automatici)</h3>
           </div>
           <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
             Attivo & Inviolabile
@@ -205,7 +205,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-emerald-400" />
-            <h3 className="text-xs font-semibold text-fg">Tier 2: Permessi Tool Accordati (Human-in-the-Loop)</h3>
+            <h3 className="text-xs font-semibold text-fg">Livello 2: permessi accordati ai tool (conferma umana)</h3>
           </div>
           <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna permessi">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
@@ -213,7 +213,7 @@ export const SecurityTab: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Permessi Permanenti (Always)</div>
+          <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Permessi permanenti</div>
           {loading ? (
             <div className="flex items-center justify-center p-4 text-xs text-fg-muted">
               <Loader2 size={14} className="animate-spin mr-2" />
@@ -239,7 +239,7 @@ export const SecurityTab: React.FC = () => {
                     )}
                   </div>
                   <div className="text-xs text-fg-muted mt-0.5">
-                    Scope: sempre · ID: #{perm.id} {perm.created_by ? `· da: ${perm.created_by}` : ''}
+                    Ambito: sempre · ID: #{perm.id} {perm.created_by ? `· da: ${perm.created_by}` : ''}
                   </div>
                 </div>
                 <button
@@ -260,13 +260,13 @@ export const SecurityTab: React.FC = () => {
             {sessions.map(([threadId, tools]) => (
               <div key={threadId} className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-sky-500/20 bg-sky-950/10">
                 <div className="min-w-0">
-                  <div className="text-xs font-mono font-medium text-sky-300 truncate">Thread: {threadId}</div>
+                  <div className="text-xs font-mono font-medium text-sky-300 truncate">Conversazione: {threadId}</div>
                   <div className="text-xs text-fg-muted mt-0.5">Tool consentiti: {tools.join(', ')}</div>
                 </div>
                 <button
-                  onClick={() => revoke(() => revokeThreadPermissions(threadId), `Permessi per il thread "${threadId}" revocati.`)}
+                  onClick={() => revoke(() => revokeThreadPermissions(threadId), `Permessi per la conversazione "${threadId}" revocati.`)}
                   className={revokeButton}
-                  title="Revoca permessi per questo thread"
+                  title="Revoca i permessi di questa conversazione"
                 >
                   <Trash2 size={13} />
                 </button>

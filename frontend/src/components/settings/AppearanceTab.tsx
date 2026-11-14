@@ -75,16 +75,16 @@ export const AppearanceTab: React.FC = () => {
       <div className="space-y-2.5 pt-2 border-t border-border">
         <label className="text-xs font-medium text-fg flex items-center gap-1.5">
           <Sparkles size={13} className="text-accent" />
-          Effetti Visivi & Glassmorphism
+          Effetti visivi
         </label>
         <Switch
-          label="Frosted Glass (Trasparenze)"
+          label="Trasparenze"
           description="Applica sfocatura dinamica (blur) e trasparenze a pannelli, sidebar, header e modali."
           checked={isFrosted}
           onChange={setIsFrosted}
         />
         <Switch
-          label="Ambient Glow (Bagliore di Sfondo)"
+          label="Bagliore di sfondo"
           description="Attiva orbi luminosi fluttuanti coordinati al tema che traspaiono attraverso il vetro."
           checked={hasGlow}
           onChange={setHasGlow}

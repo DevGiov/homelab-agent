@@ -372,7 +372,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           {/* Section 3: Custom / Additional Parameters */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-fg block">
-              {detectedParamsList.length > 0 ? 'Parametri Aggiuntivi (Custom)' : 'Parametri Workflow'} ({paramsList.length})
+              {detectedParamsList.length > 0 ? 'Parametri aggiuntivi (personalizzati)' : 'Parametri Workflow'} ({paramsList.length})
             </label>
 
             {paramsList.length === 0 && detectedParamsList.length === 0 ? (
