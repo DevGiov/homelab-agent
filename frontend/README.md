@@ -52,7 +52,20 @@ Il server Vite espone la porta `5173`, già ammessa nei `CORS_ORIGINS` di defaul
 - `src/api/`: un modulo per gruppo di route del backend su un client `fetch` comune (`http.ts`: API key, timeout, `ApiError` con il `detail` di FastAPI già leggibile; `sse.ts`: parser degli stream).
 - `src/components/`: viste e componenti; `chat/`, `automations/` e `calendar/` divisi per area. Le viste secondarie (automazioni, calendario, knowledge, impostazioni) sono caricate on demand con `React.lazy`.
 - `src/hooks/`: stato e logica delle viste (`useChat`, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …).
-- `src/utils/`: funzioni pure (`chatMessages`, `calendarDates`, `messageAdapter`).
+- `src/utils/`: funzioni pure (`chatMessages`, `calendarDates`, `messageAdapter`, `route`).
+
+### URL
+
+Vista e conversazione stanno nella URL, che è la fonte di verità: `src/utils/route.ts` (`parseRoute`, `formatRoute`, funzioni pure) e `src/hooks/useRoute.ts` (History API: `navigate` aggiunge una voce o, con `replace`, sostituisce quella corrente; indietro e avanti arrivano con `popstate`).
+
+| URL | Posto |
+|---|---|
+| `/` | chat, conversazione nuova |
+| `/c/<id>` | chat sulla conversazione `<id>` (codificato con `encodeURIComponent`) |
+| `/automazioni`, `/memoria`, `/metriche` | le altre viste |
+| `/calendario`, `/calendario?evento=<uid>` | calendario, con l'evento aperto da un link della chat |
+
+Le correzioni automatiche sostituiscono la voce invece di aggiungerne una: un percorso sconosciuto torna a `/`, la conversazione nuova diventa `/c/<id>` al primo messaggio, una conversazione eliminata o inesistente torna a `/`, un evento chiuso o inesistente torna a `/calendario`. I link diretti richiedono che il server risponda con `index.html` a ogni percorso dell'app (vedi *Routing SPA* sotto); `vite` e `vite preview` lo fanno già.
 
 ### Colori e temi
 
@@ -109,3 +122,4 @@ In produzione il frontend è compilato e servito tramite container Nginx dedicat
        try_files $uri $uri/ /index.html;
    }
    ```
+   Ogni percorso dell'app (`/c/<id>`, `/memoria`, `/calendario?evento=…`) riceve `index.html`, che resta senza cache (`location = /index.html`, `Cache-Control: no-cache`); i chunk in `/assets/` sono immutabili e un chunk assente è un 404, non la pagina. Un reverse proxy davanti al container deve inoltrare tutti i percorsi, non solo `/`, e non mettere in cache `index.html`.
