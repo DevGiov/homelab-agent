@@ -109,7 +109,17 @@ Verificata il 2026-11-02 con prove reali su CT 125 (Qwen3.8-27B-Atomic-Vision-64
 
 **Rimandati**: revisione di ProxmoxMcp ([ISS-27](02-ISSUES.md#iss-27), tool composti) e tool calling nativo (opzione D di [INTERLEAVED_THINKING.md](../reasoning/INTERLEAVED_THINKING.md)), da decidere insieme dopo G2.
 
-**Fatta, in osservazione**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)). Decisioni prese il 2026-11-13; fasi S0 (host ammessi) e S1 (etichette e controllo delle uscite) il 2026-11-13, S2 (interfaccia) e S3 (suite `flows`, vista delle uscite di dati) il 2026-11-14. Resta da misurare quante conferme arrivano nell'uso normale; S4 arriva con il primo provider cloud.
+**Fatta, in osservazione**: sensibilità dei dati, cioè etichette sulle sorgenti e un controllo unico su ciò che esce dal backend ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)). Decisioni prese il 2026-11-13; fasi S0 (host ammessi) e S1 (etichette e controllo delle uscite) il 2026-11-13, S2 (interfaccia) e S3 (suite `flows`, vista delle uscite di dati) il 2026-11-14. Nell'uso reale quasi ogni uscita verso ricerca web e `scout` chiede conferma, per la memoria richiamata nel turno; le opzioni 1 e 2 della sezione 9.4 (episodi senza etichetta `internal`, fatti etichettati a mano) sono applicate dal 2026-11-14 ma non tolgono quelle conferme. Il passo che le toglie è la separazione tra la chiamata che scrive la query e quella che legge la memoria (opzione 3). S4 arriva con il primo provider cloud.
+
+## Fase H — Interfaccia
+
+Dall'analisi della Web UI del 2026-11-14 (schermate headless a 390–1920 px, axe-core): con le barre laterali fisse e la diagnostica sempre aperta la colonna della chat era il 31% della finestra a 1024 px e il 45% a 1280 px, sei controlli sotto la casella di testo andavano su 2–4 righe, il testo da 9–11 px compariva 367 volte.
+
+| # | Passo | Note |
+| :--- | :--- | :--- |
+| H1 | ~~**Spazio**: diagnostica chiusa sotto i 1600 px (la scelta resta), opzioni dell'invio in un pannello con le sole scelte diverse dal default come chip, container query su intestazione e controlli, testo minimo 12 px~~ ✅ 2026-11-14 (colonna della chat 64% a 1024 px e 71% a 1280 px, zona di scrittura da 151–255 a 113 px; fascia della sensibilità su una riga e nascondibile) | |
+| H2 | **Coerenza e accessibilità**: tutto in italiano (oggi "New Thread", "Send message", "Pending Approvals"...), focus visibile ovunque, conversazioni come pulsanti raggiungibili da tastiera, zoom non bloccato (campi a 16 px su mobile, poi via `user-scalable=no`), `prefers-reduced-motion`, landmark (`main`, `nav`), monospazio solo per codice e numeri, font serviti in locale (oggi l'unico host esterno contattato dalla UI è Google Fonts) | axe-core sulla pagina: restano `meta-viewport` (critico), `color-contrast` (3 elementi), landmark |
+| H3 | **URL per vista e conversazione** (link diretti, tasto indietro), migrazione a Tailwind 4 | Non urgente |
 
 ## Storico
 

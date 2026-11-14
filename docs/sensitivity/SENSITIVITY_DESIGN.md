@@ -385,7 +385,14 @@ Si rifà a ogni modello nuovo: `make eval MODELS=<modello> ARGS="--suites flows 
 2. Etichettare a mano i fatti che non sono privati (vista Memoria).
 3. La separazione già decisa tra la chiamata che scrive la query e quella che legge la memoria: è l'unica che toglie il costo senza abbassare etichette.
 
-**Vista delle uscite di dati** (Impostazioni > Sicurezza, `GET /v1/security/flows?hours=`): per destinazione quante uscite consentite, conferme chieste, autorizzate dopo una conferma e bloccate, e le ultime richieste con la query o l'indirizzo. Serve a misurare le conferme nell'uso normale, che le valutazioni non vedono.
+**Opzioni 1 e 2 applicate il 14/11/2026.** Un episodio senza etichetta è `internal` e i rilevatori dei risultati lo alzano se nel testo c'è un dato personale (`retrieve_memory.episode_tag`); un episodio etichettato tiene la sua etichetta, come un fatto. I 5 fatti validi dell'installazione sono stati etichettati a mano: 3 `public` (conoscenza pubblica e preferenze generiche nate da messaggi pubblici), 1 `internal` (stato di una fonte di Scout), 1 `private` esplicito (un evento con indirizzo e ora). Abbassare l'etichetta di un fatto o di un documento ora resta nell'audit, come per le conversazioni.
+
+**Effetto misurato: nessuno sulle conferme osservate.** Tutte e 10 sono andate a destinazioni che ammettono solo `public` (`scout`, classificato `public`; ricerca web; `http`), quindi un turno `internal` chiede conferma come uno `private`. Ricalcolando la memoria richiamata per la richiesta che le ha prodotte, i fatti passano da `private` a `internal`, ma i 2 episodi richiamati restano `private`: sono stati salvati dopo S1 in turni privati a causa dei fatti privati. È un ciclo (fatto privato, turno privato, episodio privato) che le etichette a mano non rompono. Due conseguenze:
+
+- l'opzione 3 è l'unica che toglie queste conferme, e conviene anticiparla;
+- da decidere: un fatto estratto da una conversazione potrebbe ereditare l'etichetta dei messaggi da cui nasce (pubblici per default, decisione 1) invece di partire `private`. È la versione automatica dell'opzione 2, coerente con la propagazione per provenienza, ma cambia il default dei fatti.
+
+**Vista delle uscite di dati** (Impostazioni > Sicurezza, `GET /v1/security/flows?hours=`): per destinazione quante uscite consentite, conferme chieste, autorizzate dopo una conferma e bloccate, e le ultime richieste con la query o l'indirizzo, insieme alle etichette abbassate a mano (conversazioni, fatti, documenti). Serve a misurare le conferme nell'uso normale, che le valutazioni non vedono.
 
 ## 10. Decisioni
 
