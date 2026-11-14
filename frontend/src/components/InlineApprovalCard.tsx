@@ -97,7 +97,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <h3 className="text-xs font-semibold text-amber-200 truncate">
               {flow ? 'Uscita di dati: serve la tua conferma' : 'Autorizzazione Tool Richiesta (Guardrail)'}
             </h3>
-            <div className="text-xs text-amber-300/80 font-mono">
+            <div className="text-xs text-amber-300 font-mono">
               ID: {requestId}
             </div>
           </div>
@@ -121,7 +121,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
 
         {/* Risk motivation */}
         {riskReason && (
-          <div className="flex items-start gap-2 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
+          <div className="flex items-start gap-2 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
             <AlertTriangle size={15} className="shrink-0 mt-0.5 text-amber-400" />
             <span>{riskReason}</span>
           </div>

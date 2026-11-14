@@ -17,6 +17,14 @@ const contrast = (a: string, b: string) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
+// Colore `top` con opacità `alpha` sopra `bottom`, come lo compone il browser
+const over = (top: string, bottom: string, alpha: number) =>
+  '#' +
+  [1, 3, 5]
+    .map((i) => Math.round(parseInt(top.slice(i, i + 2), 16) * alpha + parseInt(bottom.slice(i, i + 2), 16) * (1 - alpha)))
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('');
+
 const SURFACES: Array<keyof ThemeColors> = ['bg', 'bgSecondary', 'panel', 'panelHeader', 'agentBubble', 'inputBg'];
 
 describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ colors }) => {
@@ -32,6 +40,10 @@ describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ color
 
   it("testo nel fumetto dell'utente", () => {
     expect(contrast(colors.userBubbleText, colors.userBubble)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(SURFACES)('testo al 80%% di opacità (text-fg/80, la più bassa usata) su %s', (surface) => {
+    expect(contrast(over(colors.fg, colors[surface], 0.8), colors[surface])).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -90,5 +102,29 @@ describe('fondi di stato pieni con testo bianco', () => {
   it('nel codice nessun testo bianco su fondi di stato chiari, traslucidi o 900/950', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(50);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('testo e icone attenuati', () => {
+  const sources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+  const classStrings = Object.entries(sources).flatMap(([file, text]) =>
+    [...text.matchAll(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)].map((m) => ({ file: file.replace('../', 'src/'), classes: m[0].slice(1, -1) })),
+  );
+
+  // Il colore viene da una regola sola in index.css (`::placeholder` col testo attenuato, controllato qui sopra per ogni tema)
+  it('i segnaposto non hanno classi di colore per campo', () => {
+    expect(classStrings.filter(({ classes }) => /(^|\s)placeholder:text-/.test(classes))).toEqual([]);
+  });
+
+  it('il testo di stato non ha opacità: i temi chiari rimappano solo la classe piena', () => {
+    const faded = classStrings.filter(({ classes }) => /(^|[\s:])text-[a-z]+-[1-4]00\/\d+/.test(classes));
+    expect(faded.map(({ file, classes }) => `${file}: ${classes}`)).toEqual([]);
+  });
+
+  it('un controllo a icona non è attenuato: text-fg-muted/NN solo su icone decorative o disattivate', () => {
+    const faded = classStrings.filter(
+      ({ classes }) => /(^|\s)text-fg-muted\/\d+/.test(classes) && /(^|\s)[\w-]*hover:/.test(classes) && !classes.includes('cursor-not-allowed'),
+    );
+    expect(faded.map(({ file, classes }) => `${file}: ${classes}`)).toEqual([]);
   });
 });

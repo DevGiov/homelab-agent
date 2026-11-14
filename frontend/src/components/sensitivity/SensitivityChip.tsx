@@ -21,7 +21,7 @@ export const SensitivityChip: React.FC<{ tag?: SensitivityTag | null; always?: b
     >
       <Lock size={9} className="shrink-0" />
       {LABEL_NAMES[tag.label]}
-      {tag.untrusted ? <span className="opacity-70">· non attendibile</span> : null}
+      {tag.untrusted ? <span>· non attendibile</span> : null}
     </span>
   );
 };

@@ -14,7 +14,7 @@ interface FactEditorProps {
 }
 
 const inputClass =
-  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent';
+  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg focus:border-accent';
 
 /** Testo del fatto ed entità che cita, per un fatto nuovo o in modifica. */
 export const FactEditor: React.FC<FactEditorProps> = ({ initial, known, submitLabel, onSubmit, onCancel }) => {

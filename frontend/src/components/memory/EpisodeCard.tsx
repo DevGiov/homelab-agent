@@ -24,7 +24,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
     <div className="flex items-start gap-2">
       <p className="flex-1 text-[13px] text-fg leading-relaxed">{episode.task ?? episode.content}</p>
       {episode.outcome && <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-xs font-semibold ${outcomeClass(episode.outcome)}`}>{episode.outcome}</span>}
-      <button onClick={onDelete} className="p-1 rounded-md text-fg-muted hover:text-rose-400 hover:bg-panel-hover cursor-pointer shrink-0 opacity-60 group-hover:opacity-100" title="Elimina episodio">
+      <button onClick={onDelete} className="p-1 rounded-md text-fg-muted hover:text-rose-400 hover:bg-panel-hover cursor-pointer shrink-0" title="Elimina episodio">
         <Trash2 size={13} />
       </button>
     </div>
@@ -43,7 +43,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
             <span className="min-w-0">
               <code className="text-fg">{step.tool}</code>
               {step.args !== '{}' && <code className="text-fg-muted break-all"> {step.args}</code>}
-              {step.error && <span className="block text-rose-300/90 break-words">{step.error}</span>}
+              {step.error && <span className="block text-rose-300 break-words">{step.error}</span>}
             </span>
           </li>
         ))}

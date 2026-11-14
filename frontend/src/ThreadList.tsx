@@ -209,7 +209,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             aria-label="Filtra conversazioni"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:border-accent transition"
+            className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg focus:border-accent transition"
           />
         </div>
       </div>

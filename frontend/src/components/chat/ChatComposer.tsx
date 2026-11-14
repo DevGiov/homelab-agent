@@ -56,7 +56,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <>
       {images.length > 0 && textOnlyModel && (
-        <div className="max-w-4xl mx-auto w-full px-1 text-xs text-amber-400/90 flex items-center gap-1.5">
+        <div className="max-w-4xl mx-auto w-full px-1 text-xs text-amber-400 flex items-center gap-1.5">
           <AlertTriangle size={12} className="shrink-0" />
           <span>
             Il modello selezionato (<strong>{textOnlyModel}</strong>) potrebbe non supportare la visione. Scegli un modello che
@@ -155,7 +155,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           placeholder={placeholder}
           aria-label="Messaggio"
           disabled={isLoading}
-          className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg placeholder:text-fg-muted/50 focus:border-accent resize-none transition"
+          className="w-full bg-input-bg border border-input-border rounded-xl pl-9 sm:pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-fg focus:border-accent resize-none transition"
         />
         {isLoading ? (
           <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">

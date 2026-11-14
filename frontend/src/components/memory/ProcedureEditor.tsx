@@ -14,7 +14,7 @@ interface ProcedureEditorProps {
 }
 
 const inputClass =
-  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent';
+  'bg-input-bg border border-input-border rounded-lg px-2 py-1.5 text-xs text-fg focus:border-accent';
 
 /** Tipo, tool (per le note), titolo e contenuto di una procedura nuova o in modifica. */
 export const ProcedureEditor: React.FC<ProcedureEditorProps> = ({ initial, kindLocked, tools, submitLabel, onSubmit, onCancel }) => {

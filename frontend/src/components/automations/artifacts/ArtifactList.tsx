@@ -75,7 +75,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
                         <button
                           onClick={() => onToggleFavorite(art)}
                           className={`p-1 rounded-md transition hover:scale-110 cursor-pointer ${
-                            art.is_favorite ? 'text-amber-400' : 'text-fg-muted/40 hover:text-amber-400'
+                            art.is_favorite ? 'text-amber-400' : 'text-fg-muted hover:text-amber-400'
                           }`}
                           title={art.is_favorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
                         >
@@ -84,7 +84,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
                         <button
                           onClick={() => onTogglePreserve(art)}
                           className={`p-1 rounded-md transition hover:scale-110 cursor-pointer ${
-                            art.is_preserved ? 'text-indigo-400' : 'text-fg-muted/40 hover:text-indigo-400'
+                            art.is_preserved ? 'text-indigo-400' : 'text-fg-muted hover:text-indigo-400'
                           }`}
                           title={art.is_preserved ? 'Protetto da pulizia' : 'Blocca per non eliminare'}
                         >

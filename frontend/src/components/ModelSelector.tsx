@@ -202,7 +202,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca modello..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-panel-header/70 border border-border rounded-lg text-fg placeholder:text-fg-muted/60 focus:border-accent"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-panel-header/70 border border-border rounded-lg text-fg focus:border-accent"
             />
           </div>
 
@@ -293,7 +293,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           >
             <Star
               size={12}
-              className={isFav ? 'text-amber-400 fill-amber-400' : 'text-fg-muted/40 group-hover:text-fg-muted'}
+              className={isFav ? 'text-amber-400 fill-amber-400' : 'text-fg-muted group-hover:text-fg'}
             />
           </button>
 

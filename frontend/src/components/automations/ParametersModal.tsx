@@ -361,7 +361,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                   >
                     <span>{sec.name}</span>
                     {sec.service && (
-                      <span className="text-xs text-purple-400/70">({sec.service})</span>
+                      <span className="text-xs text-purple-400">({sec.service})</span>
                     )}
                   </span>
                 ))}

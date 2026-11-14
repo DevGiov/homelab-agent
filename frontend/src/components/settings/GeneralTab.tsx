@@ -92,7 +92,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
           value={apiKey}
           onChange={(e) => setLocalApiKey(e.target.value)}
           placeholder="Inserisci la chiave API del backend..."
-          className={`${fieldClass} font-mono placeholder:text-fg-muted/50`}
+          className={`${fieldClass} font-mono`}
         />
         <p className="text-xs text-fg-muted leading-snug">Salvata in localStorage e inviata automaticamente alle chiamate API.</p>
       </div>

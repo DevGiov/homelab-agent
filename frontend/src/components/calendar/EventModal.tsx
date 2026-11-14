@@ -255,7 +255,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               onChange={e => setSummary(e.target.value)}
               placeholder="es. Riunione Team Progetto, Manutenzione Homelab..."
               required
-              className="w-full px-3.5 py-2.5 bg-input-bg text-fg border border-input-border rounded-xl text-sm placeholder:text-fg-muted/70 focus:border-accent transition shadow-inner"
+              className="w-full px-3.5 py-2.5 bg-input-bg text-fg border border-input-border rounded-xl text-sm focus:border-accent transition shadow-inner"
             />
           </div>
 
@@ -382,7 +382,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={location}
               onChange={e => setLocation(e.target.value)}
               placeholder="es. Stanza 3A, oppure https://meet.google.com/xyz..."
-              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs placeholder:text-fg-muted/70 focus:border-accent transition"
+              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:border-accent transition"
             />
           </div>
 
@@ -396,7 +396,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Aggiungi ordine del giorno, codici prenotazione, note o dettagli..."
-              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs placeholder:text-fg-muted/70 focus:border-accent transition resize-none"
+              className="w-full px-3.5 py-2 bg-input-bg text-fg border border-input-border rounded-xl text-xs focus:border-accent transition resize-none"
             />
           </div>
 

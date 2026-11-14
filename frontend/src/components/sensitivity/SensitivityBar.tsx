@@ -41,10 +41,10 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
         <Lock size={13} className="shrink-0" aria-hidden="true" />
         <p className="min-w-0 flex-1 truncate">
           <strong>Dati {name}</strong>
-          {reasons.length > 0 && <span className="opacity-80"> · {reasons.join(', ')}</span>}
+          {reasons.length > 0 && <span> · {reasons.join(', ')}</span>}
         </p>
         {untrusted.length > 0 && (
-          <span className="shrink-0 rounded-full border border-current px-1.5 text-xs opacity-80">non attendibile</span>
+          <span className="shrink-0 rounded-full border border-current px-1.5 text-xs">non attendibile</span>
         )}
         <button
           type="button"
@@ -68,7 +68,7 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
         )}
       </div>
       {expanded && (
-        <div id={detailsId} className="pb-2 pl-5 space-y-1 opacity-90">
+        <div id={detailsId} className="pb-2 pl-5 space-y-1">
           {reasons.length > 0 && <p>Perché: {reasons.join('; ')}.</p>}
           {raised && (
             <p>

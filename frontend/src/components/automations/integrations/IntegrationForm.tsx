@@ -80,7 +80,7 @@ const TestResult: React.FC<{ result: IntegrationTestResult; labels: IntegrationS
     }`}
   >
     <p className="font-medium">{result.success ? labels.success : labels.failure}:</p>
-    <p className="mt-0.5 text-[10.5px] opacity-90">{result.message || result.error}</p>
+    <p className="mt-0.5 text-[10.5px]">{result.message || result.error}</p>
   </div>
 );
 

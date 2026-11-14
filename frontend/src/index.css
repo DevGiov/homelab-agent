@@ -62,6 +62,14 @@ body:not(.dark) {
     outline-offset: 2px;
   }
 
+  /* Segnaposto nel colore del testo attenuato, che ogni tema tiene ad almeno 4.5:1 sulle sue superfici
+     (themes.test.ts); il preflight usa un grigio fisso, illeggibile sui temi chiari. Le classi `placeholder:` non servono. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--fg-muted);
+    opacity: 1;
+  }
+
   /* Un controllo nascosto alla vista (interruttori, caselle `sr-only`) passa l'anello alla sua etichetta */
   .sr-only:focus-visible {
     outline: none;

@@ -167,7 +167,7 @@ export const SecurityTab: React.FC = () => {
                 </div>
                 <p className="text-xs text-fg-muted leading-snug">{description}</p>
               </div>
-              <div className={`mt-2 text-xs font-medium uppercase tracking-wider ${color} opacity-80`}>{tagline}</div>
+              <div className={`mt-2 text-xs font-medium uppercase tracking-wider ${color}`}>{tagline}</div>
             </div>
           ))}
         </div>

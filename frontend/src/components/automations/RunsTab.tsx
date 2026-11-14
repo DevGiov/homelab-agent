@@ -165,7 +165,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       className="p-1 text-fg-muted hover:text-amber-400 transition cursor-pointer"
                       title={r.is_favorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
                     >
-                      <Star size={14} className={r.is_favorite ? 'text-amber-400 fill-amber-400' : 'text-fg-muted/40 hover:text-amber-400'} />
+                      <Star size={14} className={r.is_favorite ? 'text-amber-400 fill-amber-400' : 'text-fg-muted hover:text-amber-400'} />
                     </button>
                   </td>
                   <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -177,7 +177,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       {r.is_preserved ? (
                         <Lock size={14} className="text-purple-400" />
                       ) : (
-                        <Unlock size={14} className="text-fg-muted/40 hover:text-purple-400" />
+                        <Unlock size={14} className="text-fg-muted hover:text-purple-400" />
                       )}
                     </button>
                   </td>

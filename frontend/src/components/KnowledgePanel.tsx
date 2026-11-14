@@ -177,7 +177,7 @@ export const KnowledgePanel: React.FC = () => {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Cerca nei documenti per significato…"
-              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-xs text-fg placeholder:text-fg-muted/50 focus:border-accent"
+              className="flex-1 bg-input-bg border border-input-border rounded-lg px-2 py-1 text-xs text-fg focus:border-accent"
             />
             <button
               onClick={handleSearch}

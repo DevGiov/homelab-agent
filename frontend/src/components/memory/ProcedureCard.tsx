@@ -39,12 +39,12 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
 
   return (
     <article
-      className={`group rounded-xl border p-3 transition ${procedure.status === 'proposed' ? 'border-amber-400/40 bg-amber-400/5' : 'border-border bg-panel/60 hover:border-accent/30'} ${procedure.status === 'rejected' ? 'opacity-60' : ''}`}
+      className={`group rounded-xl border p-3 transition ${procedure.status === 'proposed' ? 'border-amber-400/40 bg-amber-400/5' : 'border-border bg-panel/60 hover:border-accent/30'}`}
       aria-label={`Procedura ${procedure.title}`}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-fg">{procedure.title}</p>
+          <p className={`text-[13px] font-semibold ${procedure.status === 'rejected' ? 'text-fg-muted' : 'text-fg'}`}>{procedure.title}</p>
           <p className="text-xs text-fg-muted mt-0.5">
             {KIND_LABELS[procedure.kind]}
             {procedure.tool_name && (
@@ -56,7 +56,7 @@ export const ProcedureCard: React.FC<ProcedureCardProps> = ({ procedure, tools, 
           </p>
         </div>
         <span className={`shrink-0 px-1.5 py-0.5 rounded-md border text-xs font-semibold ${status.className}`}>{status.label}</span>
-        <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition">
+        <div className="flex items-center gap-0.5 shrink-0">
           <button onClick={() => setIsEditing(true)} className="p-1 rounded-md text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer" title="Modifica procedura">
             <Pencil size={13} />
           </button>

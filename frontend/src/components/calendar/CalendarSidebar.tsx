@@ -51,7 +51,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
           placeholder="Cerca eventi..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 bg-input-bg border border-input-border rounded-xl text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent transition"
+          className="w-full pl-8 pr-3 py-1.5 bg-input-bg border border-input-border rounded-xl text-xs text-fg focus:border-accent transition"
         />
       </div>
 

@@ -40,10 +40,10 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
   }
 
   return (
-    <article className={`group rounded-xl border border-border p-3 hover:border-accent/30 transition ${fact.invalid_at ? 'bg-panel/30 opacity-70' : 'bg-panel/60'}`} aria-label={`Fatto ${fact.id}`}>
+    <article className={`group rounded-xl border border-border p-3 hover:border-accent/30 transition ${fact.invalid_at ? 'bg-panel/30' : 'bg-panel/60'}`} aria-label={`Fatto ${fact.id}`}>
       <div className="flex items-start gap-2">
         <p className={`flex-1 text-[13px] leading-relaxed ${fact.invalid_at ? 'text-fg-muted line-through decoration-fg-muted/50' : 'text-fg'}`}>{fact.content}</p>
-        <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition">
+        <div className="flex items-center gap-0.5 shrink-0">
           {fact.invalid_at && (
             <button onClick={onRestore} className="p-1 rounded-md text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer" title="Rendi di nuovo valido">
               <RotateCcw size={13} />
@@ -93,7 +93,7 @@ export const FactCard: React.FC<FactCardProps> = ({ fact, known, selectedEntityI
           />
         )}
         {fact.invalid_at && (
-          <span className="flex items-center gap-1 text-amber-400/90">
+          <span className="flex items-center gap-1 text-amber-400">
             <History size={11} /> {fact.superseded_by ? `superato da #${fact.superseded_by}` : 'non più valido'} il {formatDateTime(fact.invalid_at)}
           </span>
         )}

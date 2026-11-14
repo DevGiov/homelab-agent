@@ -96,12 +96,12 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                       {item.tool_name}
                     </div>
                     {item.risk_reason && (
-                      <div className="text-xs text-amber-200/90 truncate mt-0.5">
+                      <div className="text-xs text-amber-200 truncate mt-0.5">
                         {item.risk_reason}
                       </div>
                     )}
                     {item.command_preview && (
-                      <div className="flex items-center gap-1 font-mono text-xs text-emerald-300/90 truncate mt-0.5">
+                      <div className="flex items-center gap-1 font-mono text-xs text-emerald-300 truncate mt-0.5">
                         <Terminal size={9} />
                         <span className="truncate">$ {item.command_preview}</span>
                       </div>

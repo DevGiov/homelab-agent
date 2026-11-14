@@ -95,11 +95,11 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
           {isOpen && (
             <div className="border-t border-border/60 divide-y divide-border/40 max-h-72 overflow-y-auto custom-scrollbar">
               {tools.map((tool) => (
-                <div key={tool.name} className={`px-3 py-1.5 flex items-center gap-2 ${tool.enabled ? '' : 'opacity-50'}`}>
+                <div key={tool.name} className="px-3 py-1.5 flex items-center gap-2">
                   <Toggle checked={tool.enabled} onChange={(enabled) => onToolChange(tool, { enabled, risk: tool.risk })} size="sm" title={tool.enabled ? 'Disattiva tool' : 'Attiva tool'} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs text-fg truncate">{shortName(tool)}</span>
+                      <span className={`font-mono text-xs truncate ${tool.enabled ? 'text-fg' : 'text-fg-muted'}`}>{shortName(tool)}</span>
                       <span
                         className={`text-xs px-1 rounded border ${
                           tool.access === 'view' ? 'text-emerald-300 border-emerald-500/30' : 'text-amber-300 border-amber-500/30'

@@ -161,7 +161,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                     {/* Step-level Reasoning if present */}
                     {tr.reasoning && (
-                      <div className="text-xs text-accent/90 bg-accent/10 p-2 rounded-lg border border-accent/20 flex items-start gap-2">
+                      <div className="text-xs text-fg bg-accent/10 p-2 rounded-lg border border-accent/20 flex items-start gap-2">
                         <Brain size={13} className="text-accent shrink-0 mt-0.5" />
                         <span className="italic leading-relaxed">{tr.reasoning}</span>
                       </div>
@@ -229,7 +229,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                   <div key={idx} className="bg-panel p-2 rounded-lg border border-amber-900/40 font-mono text-xs">
                     <div className="flex items-center justify-between text-amber-300">
                       <span>Annulla: {act.tool_name}</span>
-                      <span className="text-xs text-amber-400/80">{act.status || 'eseguita'}</span>
+                      <span className="text-xs text-amber-400">{act.status || 'eseguita'}</span>
                     </div>
                     {act.args && (
                       <div className="text-xs text-fg-muted mt-1 truncate">

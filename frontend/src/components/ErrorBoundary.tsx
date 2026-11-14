@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <h3 className="font-semibold text-base">
                 {this.props.title || 'Si è verificato un errore di visualizzazione'}
               </h3>
-              <p className="text-xs text-rose-300/80">
+              <p className="text-xs text-rose-300">
                 La componente ha riscontrato un problema imprevisto durante il rendering.
               </p>
             </div>

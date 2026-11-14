@@ -19,7 +19,7 @@ export const EpisodesPanel: React.FC<EpisodesPanelProps> = ({ state, threadTitle
         value={state.query}
         onChange={(e) => state.setQuery(e.target.value)}
         placeholder="Cerca tra le esecuzioni (es. 'riavvio container')"
-        className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-2 text-xs text-fg placeholder:text-fg-muted/60 focus:border-accent"
+        className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-2 text-xs text-fg focus:border-accent"
         aria-label="Cerca negli episodi"
       />
     </div>
