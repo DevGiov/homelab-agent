@@ -8,6 +8,22 @@ const threads: ThreadItem[] = [
   { thread_id: 'thread_b', title: 'Aggiornamento Debian', last_message: null, checkpoint_count: 0, is_active: true },
 ];
 
+/**
+ * Clic con modificatori: vero se la pagina lo lascia al browser (nessun preventDefault). Il listener sul documento lo
+ * ferma dopo, perché jsdom non sa aprire un'altra scheda.
+ */
+function leftToBrowser(el: HTMLElement, init: MouseEventInit) {
+  let prevented = true;
+  const observe = (e: Event) => {
+    prevented = e.defaultPrevented;
+    e.preventDefault();
+  };
+  document.addEventListener('click', observe);
+  fireEvent.click(el, init);
+  document.removeEventListener('click', observe);
+  return !prevented;
+}
+
 function renderList(overrides: Partial<React.ComponentProps<typeof ThreadList>> = {}) {
   const props = {
     threads,
@@ -29,32 +45,43 @@ function renderList(overrides: Partial<React.ComponentProps<typeof ThreadList>> 
 describe('ThreadList', () => {
   afterEach(cleanup);
 
-  it('mostra ogni conversazione come pulsante, con quella corrente marcata', () => {
-    renderList();
+  it('mostra ogni conversazione come link alla sua URL, con quella corrente marcata', () => {
+    renderList({ threads: [...threads, { thread_id: 'id con/spazio', title: 'Strana', last_message: null, checkpoint_count: 0 }] });
     const list = screen.getByRole('list', { name: 'Conversazioni' });
-    const current = within(list).getByRole('button', { name: /^Backup del NAS/ });
-    const other = within(list).getByRole('button', { name: /^Aggiornamento Debian/ });
+    const current = within(list).getByRole('link', { name: /^Backup del NAS/ });
+    const other = within(list).getByRole('link', { name: /^Aggiornamento Debian/ });
 
-    expect(current.tagName).toBe('BUTTON');
-    expect(current.getAttribute('type')).toBe('button');
+    expect(current.tagName).toBe('A');
+    expect(current.getAttribute('href')).toBe('/c/thread_a');
+    expect(within(list).getByRole('link', { name: /^Strana/ }).getAttribute('href')).toBe('/c/id%20con%2Fspazio');
     expect(current.getAttribute('aria-current')).toBe('true');
     expect(other.hasAttribute('aria-current')).toBe(false);
   });
 
-  it('apre una conversazione dalla tastiera: il pulsante riceve il focus e si attiva', () => {
+  it('apre una conversazione dalla tastiera: il link riceve il focus e si attiva', () => {
     const { props } = renderList();
-    const other = screen.getByRole('button', { name: /^Aggiornamento Debian/ });
+    const other = screen.getByRole('link', { name: /^Aggiornamento Debian/ });
     other.focus();
     expect(document.activeElement).toBe(other);
-    // Invio e Spazio attivano un <button> nativo con un click
-    fireEvent.click(other);
+    // Invio su un link nativo arriva come click, senza tasti modificatori
+    const plain = fireEvent.click(other);
+    expect(plain).toBe(false); // preventDefault: la pagina non viene ricaricata
     expect(props.onSelectThread).toHaveBeenCalledWith('thread_b');
+  });
+
+  it('Ctrl, Cmd e Maiusc sul link lasciano al browser la nuova scheda o finestra', () => {
+    const { props } = renderList();
+    const other = screen.getByRole('link', { name: /^Aggiornamento Debian/ });
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      expect(leftToBrowser(other, modifier)).toBe(true);
+    }
+    expect(props.onSelectThread).not.toHaveBeenCalled();
   });
 
   it("elimina con un pulsante a parte, etichettato e non annidato in quello della conversazione", () => {
     const { props, container } = renderList();
     const remove = screen.getByRole('button', { name: 'Elimina la conversazione Aggiornamento Debian' });
-    const select = screen.getByRole('button', { name: /^Aggiornamento Debian/ });
+    const select = screen.getByRole('link', { name: /^Aggiornamento Debian/ });
 
     expect(select.contains(remove)).toBe(false);
     expect(container.querySelectorAll('button button, button a, a button, button input')).toHaveLength(0);
@@ -68,11 +95,38 @@ describe('ThreadList', () => {
     const { props } = renderList({ currentView: 'memory' });
     expect(screen.getByRole('complementary', { name: 'Barra laterale' })).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Viste' });
-    expect(within(nav).getByRole('button', { name: 'Memoria' }).getAttribute('aria-current')).toBe('page');
-    expect(within(nav).getByRole('button', { name: 'Chat' }).hasAttribute('aria-current')).toBe(false);
+    expect(within(nav).getByRole('link', { name: 'Memoria' }).getAttribute('aria-current')).toBe('page');
+    expect(within(nav).getByRole('link', { name: 'Chat' }).hasAttribute('aria-current')).toBe(false);
 
-    fireEvent.click(within(nav).getByRole('button', { name: 'Automazioni' }));
+    expect(fireEvent.click(within(nav).getByRole('link', { name: 'Automazioni' }))).toBe(false);
     expect(props.onViewChange).toHaveBeenCalledWith('automations');
+  });
+
+  it('ogni vista è un link alla sua URL, che si apre anche in un’altra scheda', () => {
+    const { props } = renderList({ viewHref: (view) => (view === 'chat' ? '/c/thread_a' : `/vista-${view}`) });
+    const nav = screen.getByRole('navigation', { name: 'Viste' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '/c/thread_a',
+      '/vista-automations',
+      '/vista-calendar',
+      '/vista-memory',
+      '/vista-metrics',
+    ]);
+    expect(leftToBrowser(links[3], { ctrlKey: true })).toBe(true);
+    expect(props.onViewChange).not.toHaveBeenCalled();
+  });
+
+  it('senza viewHref i link portano all’ingresso di ogni vista', () => {
+    renderList();
+    const nav = screen.getByRole('navigation', { name: 'Viste' });
+    expect(within(nav).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual([
+      '/',
+      '/automazioni',
+      '/calendario',
+      '/memoria',
+      '/metriche',
+    ]);
   });
 
   it('non lascia testi in inglese', () => {

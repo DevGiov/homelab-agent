@@ -1,9 +1,11 @@
-import { lazy, useState, useEffect, useRef } from 'react';
-import { ThreadList, type AppView } from './ThreadList';
+import { lazy, useCallback, useState, useEffect, useRef } from 'react';
+import { ThreadList } from './ThreadList';
 import { Chat } from './components/chat/Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
+import { navigate, useRoute } from './hooks/useRoute';
+import { documentTitle, formatRoute, HOME, viewRoute, type AppView, type Route } from './utils/route';
 import { useDiagnosticsPanel } from './hooks/useDiagnosticsPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useModalFocus } from './hooks/useModalFocus';
@@ -26,19 +28,44 @@ const MetricsView = lazy(() =>
 );
 
 function MainLayout() {
+  const route = useRoute();
+  const currentView = route.view;
   const {
     threads,
-    currentThreadId,
     isLoadingThreads,
     isBackendHealthy,
     error: threadError,
     setError: setThreadError,
     loadThreads,
-    selectThread,
-    createNewThread,
+    registerThread,
+    isMissingThread,
     deleteThread,
     deleteAllThreads,
   } = useThreads();
+
+  // Conversazione della chat: quella della URL. Sulle altre viste resta l'ultima aperta, così "Chat" ci torna e lo stream
+  // in corso non si ricarica. Una che non esiste più (eliminata, o un link vecchio) vale come una conversazione nuova.
+  const urlThreadId = route.view === 'chat' ? route.threadId : null;
+  const isUrlThreadMissing = urlThreadId !== null && isMissingThread(urlThreadId);
+  const [lastChatThreadId, setLastChatThreadId] = useState<string | null>(urlThreadId);
+  if (route.view === 'chat' && lastChatThreadId !== urlThreadId) setLastChatThreadId(urlThreadId);
+  const shownThreadId = route.view === 'chat' ? urlThreadId : lastChatThreadId;
+  const currentThreadId = shownThreadId !== null && isMissingThread(shownThreadId) ? null : shownThreadId;
+
+  // La URL di una conversazione che non c'è torna alla pagina iniziale senza lasciare la voce morta nella cronologia
+  useEffect(() => {
+    if (isUrlThreadMissing) navigate(HOME, { replace: true });
+  }, [isUrlThreadMissing]);
+
+  // Il primo messaggio dà l'id alla conversazione nuova: / diventa /c/<id> al posto della voce corrente, così
+  // indietro non riporta a una chat vuota
+  const handleThreadCreated = useCallback(
+    (threadId: string) => {
+      registerThread(threadId);
+      navigate({ view: 'chat', threadId }, { replace: true });
+    },
+    [registerThread],
+  );
 
   const {
     currentMessages,
@@ -59,25 +86,30 @@ function MainLayout() {
     loadThreadHistory,
     handleApprovalResolved,
     diagnostics,
-  } = useChat(currentThreadId, (newId) => selectThread(newId));
+  } = useChat(currentThreadId, handleThreadCreated);
 
-  const [currentView, setCurrentView] = useState<AppView>('chat');
-  const [targetEventUid, setTargetEventUid] = useState<string | null>(null);
+  // Dove porta ogni vista: la chat riapre l'ultima conversazione
+  const routeForView = (view: AppView): Route => (view === 'chat' ? { view, threadId: currentThreadId } : viewRoute(view));
+  const openThread = (threadId: string) => {
+    setThreadError(null);
+    navigate({ view: 'chat', threadId });
+  };
 
-  // Ascolta eventi globali da link markdown #event-<uid>
+  // Link markdown #event-<uid>: il calendario con l'evento, come posto nuovo nella cronologia
   useEffect(() => {
-    const handleOpenEvent = (e: any) => {
-      const eventUid = e.detail?.eventUid;
-      if (eventUid) {
-        setTargetEventUid(eventUid);
-        setCurrentView('calendar');
-        setIsMobileSidebarOpen(false);
-      }
+    const handleOpenEvent = (e: Event) => {
+      const eventUid = (e as CustomEvent<{ eventUid?: string }>).detail?.eventUid;
+      if (eventUid) navigate({ view: 'calendar', eventUid });
     };
-
     window.addEventListener('open-calendar-event', handleOpenEvent);
     return () => window.removeEventListener('open-calendar-event', handleOpenEvent);
   }, []);
+
+  // Titolo della scheda: il posto, con il titolo della conversazione appena si conosce
+  const threadTitle = currentThreadTitle || threads.find((t) => t.thread_id === currentThreadId)?.title;
+  useEffect(() => {
+    document.title = documentTitle(route.view === 'chat' ? { view: 'chat', threadId: currentThreadId } : route, threadTitle);
+  }, [route, currentThreadId, threadTitle]);
 
   // Mobile Drawers Navigation state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -99,6 +131,13 @@ function MainLayout() {
     setIsMobileSidebarOpen(false);
     setIsMobileToolLogOpen(false);
   }, [isDesktop]);
+
+  // Cambiando posto, anche con indietro e avanti del browser, i cassetti si chiudono: la cronologia ha solo i posti
+  const routeUrl = formatRoute(route);
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+    setIsMobileToolLogOpen(false);
+  }, [routeUrl]);
 
   // Reset selected message when thread changes
   useEffect(() => {
@@ -139,14 +178,12 @@ function MainLayout() {
           threads={threads}
           currentThreadId={currentThreadId}
           onSelectThread={(id) => {
-            setCurrentView('chat');
-            selectThread(id);
-            loadThreadHistory(id);
+            openThread(id);
             setIsMobileSidebarOpen(false);
           }}
           onNewThread={() => {
-            setCurrentView('chat');
-            createNewThread();
+            setThreadError(null);
+            navigate(HOME);
             setIsMobileSidebarOpen(false);
           }}
           onDeleteThread={deleteThread}
@@ -159,8 +196,9 @@ function MainLayout() {
           isBackendHealthy={isBackendHealthy}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           currentView={currentView}
+          viewHref={(v) => formatRoute(routeForView(v))}
           onViewChange={(v) => {
-            setCurrentView(v);
+            navigate(routeForView(v));
             setIsMobileSidebarOpen(false);
           }}
         />
@@ -208,11 +246,7 @@ function MainLayout() {
           <LazyBoundary title="Errore nella vista memoria">
             <MemoryView
               threads={threads}
-              onOpenThread={(id) => {
-                setCurrentView('chat');
-                selectThread(id);
-                loadThreadHistory(id);
-              }}
+              onOpenThread={openThread}
               onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
             />
           </LazyBoundary>
@@ -223,8 +257,8 @@ function MainLayout() {
         ) : (
           <LazyBoundary title="Errore nella vista calendario">
             <CalendarView
-              initialEventUid={targetEventUid}
-              onClearInitialEvent={() => setTargetEventUid(null)}
+              initialEventUid={route.view === 'calendar' ? route.eventUid : null}
+              onClearInitialEvent={() => navigate(viewRoute('calendar'), { replace: true })}
               onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
             />
           </LazyBoundary>

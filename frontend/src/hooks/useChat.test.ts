@@ -215,6 +215,37 @@ describe('useChat — turni in corso', () => {
     expect(result.current.isLoadingChat).toBe(false);
     expect(result.current.chatError).toBeNull();
   });
+
+  it('aprendo un altro thread durante uno stream ne carica lo storico una volta; tornando, lo stream non si ricarica', async () => {
+    const { requests } = mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () => jsonResponse({ thread_id: THREAD, messages: [] }),
+      'GET /v1/threads/t2': () =>
+        jsonResponse({ thread_id: 't2', title: 'Altro', messages: [{ id: 'u9', sender: 'user', content: 'storico di t2', timestamp: '09:00' }] }),
+      'POST /v1/chat/stop': () => jsonResponse({ status: 'stopped' }),
+      'POST /v1/invoke_stream': (_req, init) =>
+        new Promise<Response>((_resolve, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        ),
+    });
+    const { result, rerender } = renderHook(({ id }) => useChat(id), { initialProps: { id: THREAD } });
+    await waitFor(() => expect(result.current.isLoadingChat).toBe(false));
+    let sending: Promise<void> = Promise.resolve();
+    act(() => {
+      sending = result.current.handleSendMessage('lungo', { execute: true });
+    });
+
+    rerender({ id: 't2' });
+    await waitFor(() => expect(contents(result.current.currentMessages)).toEqual(['user: storico di t2']));
+    expect(result.current.currentThreadTitle).toBe('Altro');
+    expect(requests.filter((r) => r.path === '/v1/threads/t2')).toHaveLength(1);
+
+    rerender({ id: THREAD });
+    expect(contents(result.current.currentMessages)).toEqual(['user: lungo', 'assistant: ']);
+    expect(requests.filter((r) => r.path === `/v1/threads/${THREAD}`)).toHaveLength(1);
+
+    await act(() => result.current.handleStop());
+    await act(() => sending);
+  });
 });
 
 describe('useChat — ripresa dopo un\'approvazione', () => {

@@ -60,8 +60,9 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [diagnostics, setDiagnostics] = useState<ChatDiagnostics>({});
   // Livello minimo della conversazione aperta, come salvato dal backend
   const [threadLevel, setThreadLevel] = useState<SensitivityLevel | null>(null);
-  // Cambiando conversazione il livello è quello del thread nuovo, che arriva con il suo storico
+  // Cambiando conversazione titolo e livello sono quelli del thread nuovo, che arrivano con il suo storico
   useEffect(() => {
+    setCurrentThreadTitle(null);
     setThreadLevel(null);
   }, [currentThreadId]);
 
@@ -165,10 +166,10 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     [updateThread, messageUpdater, liveHandlers, startStream, endStream]
   );
 
+  // Una volta per ogni conversazione aperta, anche mentre un'altra è in streaming. Non ricarica quella dello stream in
+  // corso (la conversazione nuova del primo messaggio, o una a cui si torna): il controllo è in loadThreadHistory.
   useEffect(() => {
-    if (currentThreadId && !isSendingRef.current) {
-      loadThreadHistory(currentThreadId);
-    }
+    if (currentThreadId) loadThreadHistory(currentThreadId);
   }, [currentThreadId, loadThreadHistory]);
 
   const handleSendMessage = useCallback(

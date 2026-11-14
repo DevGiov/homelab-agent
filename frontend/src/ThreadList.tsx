@@ -17,16 +17,22 @@ import {
 } from 'lucide-react';
 import { LazyBoundary } from './components/LazyBoundary';
 import { STATUS_BUTTON } from './theme/statusFill';
+import { formatRoute, isPlainClick, VIEW_LABELS, viewRoute, type AppView } from './utils/route';
 
-export type AppView = 'chat' | 'automations' | 'calendar' | 'memory' | 'metrics';
-
-const VIEWS: Array<{ id: AppView; label: string; title: string; icon: typeof MessageSquare }> = [
-  { id: 'chat', label: 'Chat', title: "Chat con l'Agente", icon: MessageSquare },
-  { id: 'automations', label: 'Automazioni', title: 'Automazioni e Task Periodici', icon: Workflow },
-  { id: 'calendar', label: 'Calendario', title: 'Calendario ed Eventi', icon: Calendar },
-  { id: 'memory', label: 'Memoria', title: "Memoria a lungo termine: fatti ed entità", icon: Brain },
-  { id: 'metrics', label: 'Metriche', title: 'Metriche di esecuzione e salute dei servizi', icon: Activity },
+const VIEWS: Array<{ id: AppView; title: string; icon: typeof MessageSquare }> = [
+  { id: 'chat', title: "Chat con l'Agente", icon: MessageSquare },
+  { id: 'automations', title: 'Automazioni e Task Periodici', icon: Workflow },
+  { id: 'calendar', title: 'Calendario ed Eventi', icon: Calendar },
+  { id: 'memory', title: "Memoria a lungo termine: fatti ed entità", icon: Brain },
+  { id: 'metrics', title: 'Metriche di esecuzione e salute dei servizi', icon: Activity },
 ];
+
+/** Link interno: il clic normale lo gestisce la pagina, quelli per una nuova scheda o finestra restano al browser. */
+const onPlainClick = (action: () => void) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+  if (!isPlainClick(e)) return;
+  e.preventDefault();
+  action();
+};
 
 const SettingsModal = lazy(() =>
   import('./components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal })),
@@ -45,6 +51,8 @@ interface ThreadListProps {
   onCloseMobile?: () => void;
   currentView?: AppView;
   onViewChange?: (view: AppView) => void;
+  /** URL di ogni vista, per aprirla anche in un'altra scheda; senza, l'ingresso della vista. */
+  viewHref?: (view: AppView) => string;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -60,6 +68,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   onCloseMobile,
   currentView = 'chat',
   onViewChange,
+  viewHref = (view) => formatRoute(viewRoute(view)),
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfirmClearAll, setShowConfirmClearAll] = useState(false);
@@ -145,11 +154,11 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       {/* Selettore della vista principale */}
       {onViewChange && (
         <nav aria-label="Viste" className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
-          {VIEWS.map(({ id, label, title, icon: Icon }, i) => (
-            <button
+          {VIEWS.map(({ id, title, icon: Icon }, i) => (
+            <a
               key={id}
-              type="button"
-              onClick={() => onViewChange(id)}
+              href={viewHref(id)}
+              onClick={onPlainClick(() => onViewChange(id))}
               aria-current={currentView === id ? 'page' : undefined}
               // Due viste nella prima riga (le etichette lunghe), tre nella seconda
               className={`${i < 2 ? 'col-span-3' : 'col-span-2'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
@@ -158,8 +167,8 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               title={title}
             >
               <Icon size={13} />
-              <span className="truncate">{label}</span>
-            </button>
+              <span className="truncate">{VIEW_LABELS[id]}</span>
+            </a>
           ))}
         </nav>
       )}
@@ -214,7 +223,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
         </div>
       </div>
 
-      {/* Thread List: ogni conversazione è un pulsante; l'eliminazione è un pulsante a parte, non annidato */}
+      {/* Thread List: ogni conversazione è un link alla sua URL; l'eliminazione è un pulsante a parte, non annidato */}
       <div className="flex-1 overflow-y-auto px-2 py-1 custom-scrollbar">
         {filteredThreads.length === 0 ? (
           <p className="p-4 text-center text-xs text-fg-muted">
@@ -227,9 +236,9 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               const label = thread.title || thread.thread_id;
               return (
                 <li key={thread.thread_id} className="relative group">
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(thread.thread_id)}
+                  <a
+                    href={formatRoute({ view: 'chat', threadId: thread.thread_id })}
+                    onClick={onPlainClick(() => handleSelect(thread.thread_id))}
                     aria-current={isSelected ? 'true' : undefined}
                     className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1 cursor-pointer ${
                       isSelected
@@ -275,7 +284,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                         (Nessun messaggio / in attesa)
                       </span>
                     )}
-                  </button>
+                  </a>
                   <button
                     type="button"
                     onClick={() => onDeleteThread(thread.thread_id)}
