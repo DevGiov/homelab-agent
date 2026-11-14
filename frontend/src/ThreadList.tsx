@@ -95,7 +95,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             <Cpu size={18} />
           </div>
           <div>
-            <h1 className="font-semibold text-sm text-fg leading-tight">Main-Agent UI</h1>
+            <p className="font-semibold text-sm text-fg leading-tight">Main-Agent UI</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={`w-2 h-2 rounded-full ${isBackendHealthy === true ? 'bg-emerald-400 animate-pulse' : isBackendHealthy === false ? 'bg-rose-500' : 'bg-amber-400'}`}></span>
               <span role="status" className="text-xs text-fg-muted">

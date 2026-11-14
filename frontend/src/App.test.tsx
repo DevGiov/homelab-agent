@@ -84,6 +84,8 @@ describe('App: cassetti laterali su schermi piccoli', () => {
     expect(sidebar.hasAttribute('inert')).toBe(true);
     expect(toolLog.hasAttribute('inert')).toBe(true);
     expect(container.querySelector('main')!.closest('[inert]')).toBeNull();
+    // Il titolo dell'app resta raggiungibile anche con la barra laterale chiusa
+    expect(screen.getByRole('heading', { level: 1, name: 'Main-Agent UI' }).closest('[inert]')).toBeNull();
   });
 
   it('da 768 px in su le barre laterali restano interattive', async () => {

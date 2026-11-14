@@ -113,6 +113,9 @@ function MainLayout() {
 
   return (
     <div className="flex h-dvh w-screen bg-bg text-fg overflow-hidden font-sans relative transition-colors duration-300">
+      {/* Il titolo dell'app sta fuori dai cassetti: su mobile la barra laterale chiusa è inert, e con lei il suo nome */}
+      <h1 className="sr-only">Main-Agent UI</h1>
+
       {/* Ambient Animated Glow Background (behind all glass panels) */}
       <AmbientBackground />
 
