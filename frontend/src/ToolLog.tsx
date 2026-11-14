@@ -107,25 +107,26 @@ export const ToolLog: React.FC<ToolLogProps> = ({
       }}
     >
       {/* Header / Toggle Button */}
-      <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
+      {/* Compresso (striscia da 48 px, da md in su) l'icona e la freccia stanno una sopra l'altra; il nome resta per gli
+          screen reader. La freccia indica dove va il pannello: a destra per comprimerlo, a sinistra per aprirlo. */}
+      <div className={`p-3 border-b border-border flex items-center justify-between shrink-0 ${isOpen ? '' : 'md:px-0'}`}>
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
-          className="flex items-center gap-2 text-fg-muted hover:text-fg transition w-full cursor-pointer min-w-0"
+          className={`flex items-center gap-2 text-fg-muted hover:text-fg transition w-full cursor-pointer min-w-0 ${
+            isOpen ? '' : 'md:flex-col md:justify-center md:gap-1'
+          }`}
           title={isOpen ? 'Collassa pannello' : 'Espandi la diagnostica'}
         >
-          <Activity size={18} className="text-accent shrink-0" />
-          {isOpen && (
-            <span className="font-semibold text-xs text-fg flex-1 text-left truncate">
-              Diagnostica dell'agente
-            </span>
-          )}
+          <Activity size={18} className="text-accent shrink-0" aria-hidden="true" />
+          <span className={isOpen ? 'font-semibold text-xs text-fg flex-1 text-left truncate' : 'sr-only'}>
+            Diagnostica dell'agente
+          </span>
           <ChevronRight
             size={16}
-            className={`text-fg-muted transition-transform shrink-0 hidden md:block ${
-              isOpen ? 'rotate-180' : ''
-            }`}
+            aria-hidden="true"
+            className={`text-fg-muted transition-transform shrink-0 hidden md:block ${isOpen ? '' : 'rotate-180'}`}
           />
         </button>
 
