@@ -40,6 +40,21 @@ describe('titoli del testo', () => {
   });
 });
 
+describe('colori dei blocchi di codice', () => {
+  afterEach(cleanup);
+
+  it('fondo e testo vengono da .hljs, che segue il tema: nessuna classe di colore sul riquadro li copre', () => {
+    const { getByRole } = render(<MarkdownRenderer content={'```python\nprint("ciao")\n```'} />);
+    const code = getByRole('group', { name: 'Codice python' });
+    const pre = code.closest('pre')!;
+    for (const element of [pre, code]) {
+      const classes = element.className.split(/\s+/);
+      expect(classes).toContain('hljs');
+      expect(classes.filter((c) => /^(bg|text)-(?!xs$|sm$|base$|left$|right$|center$)/.test(c))).toEqual([]);
+    }
+  });
+});
+
 describe('link agli eventi del calendario', () => {
   afterEach(() => {
     cleanup();

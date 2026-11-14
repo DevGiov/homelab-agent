@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import palette from 'tailwindcss/colors';
 import tailwindConfig, { lightThemeStatusColors } from '../../tailwind.config.js';
+import indexCss from '../index.css?raw';
 import { LABEL_CHIPS } from '../utils/sensitivity';
+import { CODE_COLORS, codeColorsFor, codeVariables, type CodeColors } from './codeColors';
 import { STATUS_BUTTON, STATUS_FILL } from './statusFill';
 import { THEME_LIST } from './themes';
 import { USER_BUBBLE_BUTTON } from './userBubble';
@@ -122,6 +124,41 @@ describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ color
 
   it.each(SURFACES)('testo al 80%% di opacità (text-fg/80, la più bassa usata) su %s', (surface) => {
     expect(contrast(over(colors.fg, colors[surface], 0.8), colors[surface])).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('blocchi di codice', () => {
+  // Ogni colore di testo sta sul fondo del blocco, tranne aggiunte e rimozioni dei diff, che hanno il loro
+  const BACKGROUND_OF: Partial<Record<keyof CodeColors, keyof CodeColors>> = { additionFg: 'additionBg', deletionFg: 'deletionBg' };
+  const TEXT_KEYS = (Object.keys(CODE_COLORS.dark) as Array<keyof CodeColors>).filter((key) => !/(^b|B)g$/.test(key));
+
+  describe.each(THEME_LIST)('tema $id', (theme) => {
+    const code = codeColorsFor(theme);
+
+    it('il blocco è scuro nei temi scuri e chiaro in quelli chiari', () => {
+      expect(luminance(code.bg) > 0.5).toBe(!theme.isDark);
+    });
+
+    it.each(TEXT_KEYS)('%s almeno 4.5:1 sul suo fondo', (key) => {
+      const background = code[BACKGROUND_OF[key] ?? 'bg'];
+      expect(contrast(code[key], background), `${code[key]} su ${background}`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  it('i colori del testo sono tutti controllati', () => {
+    expect(TEXT_KEYS).toEqual(expect.arrayContaining(['fg', 'keyword', 'string', 'comment', 'additionFg', 'deletionFg']));
+    expect(TEXT_KEYS).not.toContain('bg');
+  });
+
+  it('index.css usa ogni variabile e parte dalla tavolozza scura, quella del tema predefinito', () => {
+    for (const [name, value] of codeVariables(CODE_COLORS.dark)) {
+      expect(indexCss, name).toContain(`var(${name})`);
+      expect(indexCss, name).toContain(`${name}: ${value};`);
+    }
+  });
+
+  it('nessun foglio di stile di highlight.js: i suoi colori fissi coprirebbero quelli del tema', () => {
+    expect(Object.keys(SOURCES).filter((file) => /highlight\.js\/styles/.test(SOURCES[file]))).toEqual([]);
   });
 });
 

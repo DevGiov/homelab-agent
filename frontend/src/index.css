@@ -34,6 +34,22 @@
   --chart-grid: color-mix(in srgb, var(--fg) 10%, transparent);
   --chart-axis: color-mix(in srgb, var(--fg) 25%, transparent);
   --chart-hover: color-mix(in srgb, var(--fg) 6%, transparent);
+  /* Blocchi di codice: la tavolozza scura di theme/codeColors.ts, che il tema sostituisce all'avvio */
+  --code-bg: #0d1117;
+  --code-fg: #c9d1d9;
+  --code-keyword: #ff7b72;
+  --code-title: #d2a8ff;
+  --code-constant: #79c0ff;
+  --code-string: #a5d6ff;
+  --code-builtin: #ffa657;
+  --code-comment: #8b949e;
+  --code-tag: #7ee787;
+  --code-section: #58a6ff;
+  --code-bullet: #f2cc60;
+  --code-addition-fg: #aff5b4;
+  --code-addition-bg: #033a16;
+  --code-deletion-fg: #ffdcd7;
+  --code-deletion-bg: #67060c;
 }
 
 body:not(.dark) {
@@ -195,6 +211,107 @@ body.theme-frosted .glass-card {
 .glass-card {
   background-color: var(--bg-secondary);
   border-color: var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Blocchi di codice (highlight.js): i gruppi di token di GitHub Dark/Light, con i colori dalle variabili --code-* che il
+   tema imposta (theme/codeColors.ts, controllati in themes.test.ts). Fuori da @layer: le classi `hljs-*` le aggiunge
+   rehype-highlight a runtime e Tailwind non le troverebbe nel codice.
+   ───────────────────────────────────────────────────────────────────────────── */
+.hljs {
+  color: var(--code-fg);
+  background-color: var(--code-bg);
+}
+
+pre code.hljs {
+  padding: 1em;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: var(--code-keyword);
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: var(--code-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--code-constant);
+}
+
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--code-string);
+}
+
+.hljs-built_in,
+.hljs-symbol {
+  color: var(--code-builtin);
+}
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--code-comment);
+}
+
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--code-tag);
+}
+
+.hljs-subst,
+.hljs-emphasis,
+.hljs-strong {
+  color: var(--code-fg);
+}
+
+.hljs-section {
+  color: var(--code-section);
+  font-weight: bold;
+}
+
+.hljs-bullet {
+  color: var(--code-bullet);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-addition {
+  color: var(--code-addition-fg);
+  background-color: var(--code-addition-bg);
+}
+
+.hljs-deletion {
+  color: var(--code-deletion-fg);
+  background-color: var(--code-deletion-bg);
 }
 
 /* Custom Themed Scrollbars */

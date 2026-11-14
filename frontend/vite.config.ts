@@ -19,5 +19,7 @@ export default defineConfig({
     environment: 'jsdom',
     restoreMocks: true,
     unstubGlobals: true,
+    // Vitest svuota i CSS importati; il testo grezzo (`index.css?raw`) serve ai test che ne controllano le regole
+    css: { include: [/\.css\?raw$/] },
   },
 })

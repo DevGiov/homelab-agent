@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ThemeContext } from './context';
 import type { ThemeContextType, ThemeDefinition, ThemeId } from './types';
 import { THEMES, THEME_LIST, DEFAULT_THEME_ID } from './themes';
+import { codeColorsFor, codeVariables } from './codeColors';
 
 const STORAGE_THEME_KEY = 'homelab-agent-theme';
 const STORAGE_FROSTED_KEY = 'homelab-agent-frosted';
@@ -62,6 +63,8 @@ function applyThemeVariables(def: ThemeDefinition, isFrosted: boolean, hasGlow: 
   root.style.setProperty('--input-border', colors.inputBorder);
   root.style.setProperty('--glow-1', colors.glow1);
   root.style.setProperty('--glow-2', colors.glow2);
+  // Blocchi di codice: la tavolozza scura o chiara secondo il tema
+  for (const [name, value] of codeVariables(codeColorsFor(def))) root.style.setProperty(name, value);
 
   // Sync mobile meta theme-color
   const metaTheme = document.querySelector('meta[name="theme-color"]');

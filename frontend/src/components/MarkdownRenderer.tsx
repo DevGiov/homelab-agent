@@ -274,8 +274,9 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
         </button>
       </div>
 
-      {/* Il codice scorre in orizzontale nel suo riquadro, raggiungibile col Tab per scorrerlo da tastiera */}
-      <pre className="p-3 text-fg leading-relaxed font-mono text-xs whitespace-pre hljs bg-bg/40">
+      {/* Il codice scorre in orizzontale nel suo riquadro, raggiungibile col Tab per scorrerlo da tastiera.
+          Fondo e testo vengono da `.hljs` (index.css), scuri o chiari secondo il tema: niente classi di colore qui */}
+      <pre className="p-3 leading-relaxed font-mono text-xs whitespace-pre hljs">
         <code
           tabIndex={0}
           role="group"
