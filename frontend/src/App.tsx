@@ -1,10 +1,12 @@
-import { lazy, useState, useEffect } from 'react';
+import { lazy, useState, useEffect, useRef } from 'react';
 import { ThreadList, type AppView } from './ThreadList';
 import { Chat } from './components/chat/Chat';
 import { ToolLog } from './ToolLog';
 import { useThreads } from './hooks/useThreads';
 import { useChat } from './hooks/useChat';
 import { useDiagnosticsPanel } from './hooks/useDiagnosticsPanel';
+import { useMediaQuery } from './hooks/useMediaQuery';
+import { useModalFocus } from './hooks/useModalFocus';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AmbientBackground } from './components/AmbientBackground';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -83,6 +85,21 @@ function MainLayout() {
   const diagnosticsPanel = useDiagnosticsPanel();
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
+  // Sotto `md` le barre laterali sono cassetti fuori schermo: chiusi sono `inert` (fuori dal Tab e dagli screen reader),
+  // aperti tengono il focus come una finestra modale. Da `md` in su sono sempre visibili e interattive.
+  const isDesktop = useMediaQuery('(min-width: 768px)', true);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const toolLogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(sidebarRef, { active: !isDesktop && isMobileSidebarOpen, onClose: () => setIsMobileSidebarOpen(false) });
+  useModalFocus(toolLogRef, { active: !isDesktop && isMobileToolLogOpen, onClose: () => setIsMobileToolLogOpen(false) });
+
+  // Passando a uno schermo largo i cassetti si chiudono: tornando stretti non riappaiono aperti
+  useEffect(() => {
+    if (!isDesktop) return;
+    setIsMobileSidebarOpen(false);
+    setIsMobileToolLogOpen(false);
+  }, [isDesktop]);
+
   // Reset selected message when thread changes
   useEffect(() => {
     setSelectedMessageId(null);
@@ -112,6 +129,8 @@ function MainLayout() {
 
       {/* Left Sidebar: Threads & Navigation (Responsive Drawer) */}
       <div
+        ref={sidebarRef}
+        inert={!isDesktop && !isMobileSidebarOpen}
         className={`fixed md:relative inset-y-0 left-0 z-50 md:z-auto transform ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } transition-transform duration-300 ease-in-out flex shrink-0`}
@@ -213,6 +232,8 @@ function MainLayout() {
       {/* Right Sidebar: Tool & Plan Log (Responsive Drawer), solo nella chat */}
       {currentView === 'chat' && (
         <div
+          ref={toolLogRef}
+          inert={!isDesktop && !isMobileToolLogOpen}
           className={`fixed md:relative inset-y-0 right-0 z-50 md:z-auto transform ${
             isMobileToolLogOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
           } transition-transform duration-300 ease-in-out flex shrink-0`}
