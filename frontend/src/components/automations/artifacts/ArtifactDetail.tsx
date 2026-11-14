@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ArrowLeft, Calendar, Check, Code, Copy, Download, Eye, FileText, Lock, Maximize2, Minimize2, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import type { AutomationArtifact } from '../../../api/artifacts';
 import { useCopyFeedback } from '../../../hooks/useCopyFeedback';
 import type { Notify } from '../../../hooks/useFeedback';
+import { useModalFocus } from '../../../hooks/useModalFocus';
 import { MarkdownRenderer } from '../../MarkdownRenderer';
 
 interface ArtifactDetailProps {
@@ -37,12 +38,9 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { copied, copy } = useCopyFeedback();
 
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const handleKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && setIsFullscreen(false);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // A schermo intero il contenitore diventa una finestra modale
+  useModalFocus(containerRef, { active: isFullscreen, onClose: () => setIsFullscreen(false) });
 
   const containerClass = isFullscreen
     ? 'fixed inset-0 z-50 flex flex-col p-2 sm:p-5 overflow-hidden animate-in fade-in duration-200'
@@ -50,6 +48,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
 
   return (
     <div
+      ref={containerRef}
       className={containerClass}
       {...(isFullscreen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Artefatto a schermo intero' } : {})}
       style={isFullscreen ? { backgroundColor: 'var(--panel)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' } : undefined}

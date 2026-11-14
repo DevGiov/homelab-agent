@@ -1,8 +1,9 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { AlertCircle, RefreshCw, Sliders, X, Zap } from 'lucide-react';
 import { updateAutomationTriggers, type AutomationSummary } from '../../../api/automations';
 import { buildTriggers, parseCron, toCron, type Schedule, type Trigger } from '../../../utils/cronSchedule';
 import { formatApiError } from '../../../utils/error';
+import { useModalFocus } from '../../../hooks/useModalFocus';
 import { CronScheduleSection } from './CronScheduleSection';
 import { WebhookSection } from './WebhookSection';
 
@@ -27,6 +28,8 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
   const [webhookEnabled, setWebhookEnabled] = useState(Boolean(webhookTrigger));
   const [webhookToken, setWebhookToken] = useState(webhookTrigger?.webhook_token || '');
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { onClose: saving ? undefined : onClose });
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
@@ -48,7 +51,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent">

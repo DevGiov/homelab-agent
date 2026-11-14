@@ -1,8 +1,9 @@
-import React, { useId, useState, useEffect } from 'react';
+import React, { useId, useRef, useState, useEffect } from 'react';
 import { X, Trash2, Calendar as CalIcon, Clock, MapPin, Tag, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
 import { calendarApi } from '../../api/calendar';
 import { formatApiError } from '../../utils/error';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -35,6 +36,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [importance, setImportance] = useState('normal');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { active: isOpen, onClose: isSaving || isDeleting ? undefined : onClose });
   const [error, setError] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
@@ -198,6 +201,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -1,7 +1,8 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { AlertCircle, Code2, Layers, Save, Settings, Shield, Sliders, X, type LucideIcon } from 'lucide-react';
 import { updateAutomation } from '../../../api/automations';
 import type { Notify } from '../../../hooks/useFeedback';
+import { useModalFocus } from '../../../hooks/useModalFocus';
 import { buildAutomation, formFromAutomation, stepsFromAutomation } from '../../../utils/automationForm';
 import { formatApiError } from '../../../utils/error';
 import { BudgetFields, GeneralFields } from './AutomationFields';
@@ -26,6 +27,8 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { onClose: saving ? undefined : onClose });
 
   const changeTab = (tab: Tab) => {
     // La scheda JSON parte sempre dallo stato corrente del form
@@ -93,7 +96,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent/10 border border-accent/20 rounded-xl text-accent">

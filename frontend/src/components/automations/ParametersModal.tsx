@@ -1,4 +1,4 @@
-import React, { useId, useState, useEffect } from 'react';
+import React, { useId, useRef, useState, useEffect } from 'react';
 import {
   Sliders,
   Play,
@@ -22,6 +22,7 @@ import {
   type IntrospectedParameter,
 } from '../../api/automations';
 import { formatApiError } from '../../utils/error';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 interface ParametersModalProps {
   automation: AutomationSummary | null;
@@ -47,6 +48,8 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   const [isDryRun, setIsDryRun] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { onClose: isSaving ? undefined : onClose });
   const [newKey, setNewKey] = useState<string>('');
   const [newValue, setNewValue] = useState<string>('');
 
@@ -220,7 +223,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="p-4 border-b border-border bg-panel-header/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">

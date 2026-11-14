@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useModalFocus } from '../hooks/useModalFocus';
 import { STATUS_BUTTON } from '../theme/statusFill';
 
 export interface ConfirmRequest {
@@ -15,22 +16,15 @@ interface ConfirmDialogProps {
 
 /** Conferma di un'azione distruttiva dentro l'app: il `confirm()` nativo può essere soppresso dal browser senza avvisi. */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!request) return;
-    confirmRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onAnswer(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [request, onAnswer]);
+  useModalFocus(dialogRef, { active: request !== null, onClose: () => onAnswer(false), initialFocus: confirmRef });
 
   if (!request) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => onAnswer(false)}>
       <div
+        ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-label="Conferma"

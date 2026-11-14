@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Check, Plus, Search, Settings, X } from 'lucide-react';
 import type { CalendarItem } from '../../api/calendar';
 import { DEFAULT_CALENDAR_COLOR } from '../../utils/calendarDates';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 const CATEGORIES = [
   { id: 'all', label: 'Tutte' },
@@ -42,6 +43,9 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useModalFocus(drawerRef, { active: isMobileOpen, onClose: onCloseMobile });
+
   const content = (
     <div className="p-4 space-y-5 overflow-y-auto flex-1">
       <div className="relative">
@@ -155,6 +159,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         <div className="fixed inset-0 z-40 md:hidden flex">
           <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm transition-opacity" onClick={onCloseMobile} />
           <div
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Filtri e calendari"

@@ -1,10 +1,11 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
 import { GeneralTab } from './GeneralTab';
 import { McpTab } from './mcp/McpTab';
 import { SecurityTab } from './SecurityTab';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 type SettingsTab = 'general' | 'appearance' | 'security' | 'mcp';
 
@@ -12,6 +13,8 @@ type SettingsTab = 'general' | 'appearance' | 'security' | 'mcp';
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const titleId = useId();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { onClose });
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
     { id: 'general', label: 'Generale', icon: Cpu },
@@ -24,7 +27,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
             <SettingsIcon size={16} className="text-accent" />

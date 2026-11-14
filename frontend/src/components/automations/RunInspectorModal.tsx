@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import {
   X,
   Clock,
@@ -20,6 +20,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AutomationRunDetails, StepRun } from '../../api/automationRuns';
 import { runStatusLabel, triggerLabel } from '../../utils/runLabels';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 interface RunInspectorModalProps {
   run: AutomationRunDetails | null;
@@ -37,6 +38,8 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
   const [copiedArtifactId, setCopiedArtifactId] = useState<string | null>(null);
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { active: isOpen && Boolean(run), onClose });
 
   if (!isOpen || !run) return null;
 
@@ -94,7 +97,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
           <div className="flex items-center gap-3">

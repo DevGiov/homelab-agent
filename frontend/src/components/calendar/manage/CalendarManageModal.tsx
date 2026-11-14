@@ -1,7 +1,8 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { Calendar as CalIcon, Globe, Plus, Upload, X, type LucideIcon } from 'lucide-react';
 import type { CalendarItem } from '../../../api/calendar';
 import { useFeedback } from '../../../hooks/useFeedback';
+import { useModalFocus } from '../../../hooks/useModalFocus';
 import { formatApiError } from '../../../utils/error';
 import { CalendarListTab } from './CalendarListTab';
 import { ImportFileForm } from './ImportFileForm';
@@ -22,6 +23,8 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
   const titleId = useId();
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [isBusy, setIsBusy] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, { onClose: isBusy ? undefined : onClose });
   const { feedback, notify, clear } = useFeedback();
 
   const submit: Submit = async (action, failure) => {
@@ -54,6 +57,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
