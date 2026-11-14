@@ -125,6 +125,20 @@ Dall'analisi della Web UI del 2026-11-14 (schermate headless a 390–1920 px, ax
 | H2e | **Resti di H2d**: `alert()` nativo quando si elimina un artefatto protetto, giorni ed eventi della vista settimana non raggiungibili da tastiera, anello del focus poco visibile sopra il fumetto dell'utente (modifica del messaggio), data ISO nel titolo del dettaglio del giorno su mobile, classe inesistente `py-0.2` sul distintivo delle schede, interruttore "Inattiva" tagliato nelle schede delle automazioni a 320 px | Dalla verifica di H2d |
 | H3 | ~~**URL per vista e conversazione**~~ ✅ 2026-11-14: `/`, `/c/<id>`, `/automazioni`, `/calendario` (con `?evento=<uid>`), `/memoria`, `/metriche`; link diretti, ricarica che resta sul posto, avanti e indietro del browser, titolo della scheda (`utils/route.ts`, `hooks/useRoute.ts`, senza librerie). Viste e conversazioni sono link: si aprono in un'altra scheda (518 test; con i dati reali axe-core 0 violazioni). **Resta la migrazione a Tailwind 4** | Aprire `/` dà una conversazione nuova (prima riapriva l'ultima); eliminare la conversazione aperta porta a `/`. Davanti al container un reverse proxy deve inoltrare ogni percorso e non mettere in cache `index.html` |
 
+## Fase P — Provider di modelli
+
+Provider cloud (prima AWS Bedrock, poi OpenRouter), costo di ogni chiamata, tetti di spesa dalla Web UI, scelta del provider per chiamata secondo etichetta, tetto e ruolo. Design e decisioni: [PROVIDERS_DESIGN.md](../providers/PROVIDERS_DESIGN.md). È anche la fase S4 della sensibilità dei dati.
+
+| # | Passo | Note |
+| :--- | :--- | :--- |
+| P0 | **Ruoli**: argomento `role` obbligatorio su ogni chiamata a un modello, colonna nelle metriche, riepilogo per ruolo | Non serve nessuna chiave |
+| P1 | **Costo e tetti**: prezzi per modello e tetti (per provider e totale) dalla Web UI, costo salvato a ogni chiamata, spesa del mese; scheda "Provider" nelle impostazioni, costo nelle Metriche | Si prova con un prezzo finto sul modello locale |
+| P2 | **Provider cloud**: `CloudOpenAIProvider`, variabili di Bedrock, `choose_provider` con ripiego sul modello locale per etichetta e per tetto | Test automatici con un server finto; quelli veri chiedono la chiave del maintainer |
+| P3 | **Misura**: suite di valutazione su uno o due modelli cloud, quante volte scatta il ripiego | Costa crediti |
+| P4 | **OpenRouter** | Chiede la chiave |
+| P5 | **Preferenza per ruolo** (il cloud pianifica, il locale legge) | Solo se P3 lo giustifica |
+
+
 ## Storico
 
 | Periodo | Contenuto |
