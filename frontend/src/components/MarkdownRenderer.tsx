@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Copy, Check, ExternalLink, Calendar } from 'lucide-react';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { RehypePlugins } from './highlightPlugins';
+import { shallowestHeading } from '../utils/headings';
 
 const AutomationProposalCard = lazy(() =>
   import('./automations/AutomationProposalCard').then((m) => ({ default: m.AutomationProposalCard })),
@@ -30,6 +31,23 @@ function useHighlightPlugins(content: string): RehypePlugins | undefined {
   return plugins ?? undefined;
 }
 
+const HEADING_STYLES: Record<number, string> = {
+  1: 'text-base sm:text-lg font-bold text-fg mt-3 mb-2 pb-1 border-b border-border',
+  2: 'text-sm sm:text-base font-semibold text-fg/90 mt-2.5 mb-1.5 pb-0.5 border-b border-border/60',
+  3: 'text-xs sm:text-sm font-semibold text-accent mt-2 mb-1',
+};
+
+/**
+ * Titoli del testo: nella pagina stanno sotto il titolo della vista (h2), quindi il più alto diventa h3 e gli altri
+ * seguono, qualunque sia il livello da cui parte il testo. L'aspetto resta quello del livello scritto.
+ */
+function headingComponents(content: string) {
+  const shift = 3 - shallowestHeading(content);
+  const heading = (written: number) => ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(`h${Math.min(6, written + shift)}`, { className: HEADING_STYLES[written] }, children);
+  return { h1: heading(1), h2: heading(2), h3: heading(3), h4: heading(4), h5: heading(5), h6: heading(6) };
+}
+
 interface MarkdownRendererProps {
   content: string;
   className?: string;
@@ -43,25 +61,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypePlugins}
         components={{
-          // Titoli spostati di due livelli: nella pagina stanno sotto il titolo della vista (h2)
-          h1: ({ children }) => (
-            <h3 className="text-base sm:text-lg font-bold text-fg mt-3 mb-2 pb-1 border-b border-border">
-              {children}
-            </h3>
-          ),
-          h2: ({ children }) => (
-            <h4 className="text-sm sm:text-base font-semibold text-fg/90 mt-2.5 mb-1.5 pb-0.5 border-b border-border/60">
-              {children}
-            </h4>
-          ),
-          h3: ({ children }) => (
-            <h5 className="text-xs sm:text-sm font-semibold text-accent mt-2 mb-1">
-              {children}
-            </h5>
-          ),
-          h4: ({ children }) => <h6>{children}</h6>,
-          h5: ({ children }) => <h6>{children}</h6>,
-          h6: ({ children }) => <h6>{children}</h6>,
+          ...headingComponents(content),
           
           // Styled Paragraphs
           p: ({ children }) => (
@@ -126,7 +126,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
 
           // Styled GFM Tables
           table: ({ children }) => (
-            <div className="overflow-x-auto my-3 rounded-xl border border-border shadow-sm bg-panel/40 backdrop-blur-md">
+            <div
+              tabIndex={0}
+              role="group"
+              aria-label="Tabella"
+              className="overflow-x-auto my-3 rounded-xl border border-border shadow-sm bg-panel/40 backdrop-blur-md"
+            >
               <table className="w-full text-left text-xs border-collapse font-sans">
                 {children}
               </table>

@@ -21,7 +21,7 @@ function Table<T>({ title, rows, columns, rowKey, empty }: {
       {rows.length === 0 ? (
         <p className="text-xs text-fg-muted py-2">{empty}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={title}>
           <table className="w-full text-xs">
             <thead>
               <tr className="text-fg-muted border-b border-border">
