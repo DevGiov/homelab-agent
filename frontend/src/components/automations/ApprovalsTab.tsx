@@ -48,7 +48,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Richieste di Approvazione in Sospeso</h2>
+        <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Richieste di Approvazione in Sospeso</h3>
         <button
           onClick={clearExpired}
           className="px-2.5 py-1 text-xs text-fg-muted hover:text-fg bg-panel border border-border hover:border-accent/40 rounded-lg flex items-center gap-1.5 transition"
@@ -62,7 +62,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
       {approvals.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-xl p-6 bg-panel/20">
           <CheckCircle className="mx-auto text-emerald-400 mb-2" size={32} />
-          <h3 className="text-sm font-semibold text-fg">Nessuna approvazione pendente</h3>
+          <h4 className="text-sm font-semibold text-fg">Nessuna approvazione pendente</h4>
           <p className="text-xs text-fg-muted mt-1">
             Tutti i workflow e le sessioni stanno procedendo normalmente entro i limiti autorizzati.
           </p>

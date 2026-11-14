@@ -106,6 +106,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
 
   return (
     <header className="px-3 sm:px-5 py-3 border-b border-border/70 glass-panel bg-panel/70 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0">
+      <h2 className="sr-only">Calendario</h2>
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {onOpenMobileSidebar && (
           <button

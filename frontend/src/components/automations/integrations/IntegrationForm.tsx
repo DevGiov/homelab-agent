@@ -114,7 +114,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
               <Icon size={16} />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-fg">{spec.title}</h3>
+              <h4 className="text-sm font-semibold text-fg">{spec.title}</h4>
               <span className="text-xs text-fg-muted">{spec.subtitle}</span>
             </div>
           </div>

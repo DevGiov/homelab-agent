@@ -66,7 +66,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             <Brain size={18} />
           </div>
           <div className="min-w-0">
-            <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h1>
+            <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h2>
             <p className="text-xs text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente, le sue esecuzioni passate e le procedure</p>
           </div>
         </div>
@@ -124,7 +124,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
       <ConfirmDialog {...dialog} />
 
       <div className="flex-1 min-h-0 flex">
-        <aside
+        <section
+          aria-label="Elenco delle entità"
           className={`${showEntities ? 'flex' : 'hidden'} ${tab === 'facts' ? 'md:flex' : ''} flex-col w-full md:w-64 shrink-0 border-r border-border p-3 min-h-0 absolute md:static inset-x-0 top-[57px] bottom-0 z-20 bg-panel md:bg-transparent`}
         >
           <EntityPanel
@@ -139,9 +140,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               setShowEntities(false);
             }}
           />
-        </aside>
+        </section>
 
-        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 space-y-3">
+        <div className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 space-y-3">
           <ProfileCard notify={notify} />
 
           <div className="flex gap-1 border-b border-border" role="tablist">
@@ -300,7 +301,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           )}
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

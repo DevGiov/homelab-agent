@@ -65,7 +65,7 @@ export const DataExitsSection: React.FC = () => {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ArrowUpRight size={15} className="text-amber-400" />
-          <h4 className="text-xs font-semibold text-fg">Uscite di dati</h4>
+          <h3 className="text-xs font-semibold text-fg">Uscite di dati</h3>
         </div>
         <div className="flex items-center gap-1.5">
           <select

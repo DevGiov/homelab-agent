@@ -39,7 +39,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({ entity, others, onCl
           <Icon size={16} />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-fg truncate">{entity.name}</h2>
+          <h3 className="text-sm font-semibold text-fg truncate">{entity.name}</h3>
           <p className="text-xs text-fg-muted">
             {label} · {entity.fact_count} {entity.fact_count === 1 ? 'fatto' : 'fatti'}
           </p>

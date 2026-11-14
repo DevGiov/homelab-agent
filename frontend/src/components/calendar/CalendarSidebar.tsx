@@ -147,17 +147,22 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
 
   return (
     <>
-      <aside className="hidden md:flex w-64 border-r border-border/60 glass-panel bg-panel/40 flex-col shrink-0 overflow-hidden">
+      <section aria-label="Calendari e filtri" className="hidden md:flex w-64 border-r border-border/60 glass-panel bg-panel/40 flex-col shrink-0 overflow-hidden">
         {content}
-      </aside>
+      </section>
 
       {isMobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden flex">
           <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm transition-opacity" onClick={onCloseMobile} />
-          <div className="relative w-72 max-w-[85vw] h-full bg-panel border-r border-border flex flex-col shadow-2xl z-50">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtri e calendari"
+            className="relative w-72 max-w-[85vw] h-full bg-panel border-r border-border flex flex-col shadow-2xl z-50"
+          >
             <div className="p-3 border-b border-border flex items-center justify-between">
               <span className="text-xs font-semibold text-fg uppercase tracking-wider">Filtri & Calendari</span>
-              <button onClick={onCloseMobile} className="p-1 text-fg-muted hover:text-fg rounded-lg">
+              <button type="button" onClick={onCloseMobile} className="p-1 text-fg-muted hover:text-fg rounded-lg" aria-label="Chiudi">
                 <X size={16} />
               </button>
             </div>

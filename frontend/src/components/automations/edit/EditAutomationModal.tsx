@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { AlertCircle, Code2, Layers, Save, Settings, Shield, Sliders, X, type LucideIcon } from 'lucide-react';
 import { updateAutomation } from '../../../api/automations';
 import type { Notify } from '../../../hooks/useFeedback';
@@ -18,6 +18,7 @@ interface EditAutomationModalProps {
 
 /** Modifica di definizione, step e budget di un'automazione; la scheda JSON permette di modificare la specifica intera. */
 export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automation, onClose, onSuccess, onFeedback }) => {
+  const titleId = useId();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [form, setForm] = useState(() => formFromAutomation(automation));
   const [steps, setSteps] = useState(() => stepsFromAutomation(automation));
@@ -92,7 +93,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-      <div className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent/10 border border-accent/20 rounded-xl text-accent">
@@ -100,7 +101,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-fg">Modifica Automazione</h3>
+                <h2 id={titleId} className="text-base font-bold text-fg">Modifica Automazione</h2>
                 <span className="font-mono text-xs px-2 py-0.5 bg-panel border border-border rounded-md text-fg-muted">{automation.id}</span>
                 <span className="text-xs font-semibold px-2 py-0.5 bg-accent/15 text-accent rounded-full border border-accent/30">
                   v{automation.version || 1}
@@ -109,7 +110,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
               <p className="text-xs text-fg-muted mt-0.5">Modifica descrizione, step della pipeline e budget per aggiornare il comportamento del workflow.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
             <X size={18} />
           </button>
         </div>

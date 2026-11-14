@@ -91,7 +91,7 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
     <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5" data-testid="mcp-flows">
       <div className="flex items-center gap-2">
         <Lock size={14} className="text-amber-400" />
-        <h4 className="text-xs font-semibold text-fg">Sensibilità dei dati per server</h4>
+        <h3 className="text-xs font-semibold text-fg">Sensibilità dei dati per server</h3>
       </div>
       <p className="text-xs text-fg-muted leading-relaxed">
         <strong>Risultati</strong>: quanto sono riservati i dati che il server restituisce (l'output di comandi e log resta sempre

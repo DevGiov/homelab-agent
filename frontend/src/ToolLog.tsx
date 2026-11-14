@@ -97,7 +97,8 @@ export const ToolLog: React.FC<ToolLogProps> = ({
   );
 
   return (
-    <div
+    <aside
+      aria-label="Diagnostica"
       className={`border-l border-border glass-panel flex flex-col transition-all duration-300 h-full w-[85vw] max-w-sm md:max-w-none shadow-2xl md:shadow-none ${
         isOpen ? 'md:w-80 lg:w-96' : 'md:w-12'
       }`}
@@ -108,7 +109,9 @@ export const ToolLog: React.FC<ToolLogProps> = ({
       {/* Header / Toggle Button */}
       <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
         <button
+          type="button"
           onClick={onToggle}
+          aria-expanded={isOpen}
           className="flex items-center gap-2 text-fg-muted hover:text-fg transition w-full cursor-pointer min-w-0"
           title={isOpen ? 'Collassa pannello' : 'Espandi log Tool & Diagnostica'}
         >
@@ -142,7 +145,9 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           {/* Tab switcher: Diagnostics | Knowledge */}
           <div className="flex gap-1 bg-panel/80 rounded-xl p-1 border border-border">
             <button
+              type="button"
               onClick={() => setTab('diagnostics')}
+              aria-pressed={tab === 'diagnostics'}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'diagnostics'
                   ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
@@ -153,7 +158,9 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               Diagnostics
             </button>
             <button
+              type="button"
               onClick={() => setTab('knowledge')}
+              aria-pressed={tab === 'knowledge'}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'knowledge'
                   ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
@@ -185,6 +192,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       onChange={(e) =>
                         onSelectMessageId?.(e.target.value === 'latest' ? null : e.target.value)
                       }
+                      aria-label="Messaggio da ispezionare"
                       className="bg-input-bg border border-input-border text-fg rounded-lg px-2 py-1 text-xs max-w-[170px] sm:max-w-[200px] truncate focus:border-accent"
                     >
                       <option value="latest">⚡ Ultimo / Live ({assistantMessages.length})</option>
@@ -402,13 +410,14 @@ export const ToolLog: React.FC<ToolLogProps> = ({
       ) : (
         /* Collapsed Vertical Icons */
         <div className="flex-1 py-4 flex flex-col items-center gap-4">
-          <div
+          <button
+            type="button"
             onClick={onToggle}
-            className="p-2 text-fg-muted hover:text-fg transition cursor-pointer"
+            className="p-2 rounded-lg text-fg-muted hover:text-fg transition cursor-pointer"
             title="Apri pannello diagnostica"
           >
             <Wrench size={16} />
-          </div>
+          </button>
           {activeWebPrefetch && (
             <div className="p-2 text-cyan-400" title="Web Retrieval (Prefetch) attivo">
               <Globe size={16} />
@@ -422,6 +431,6 @@ export const ToolLog: React.FC<ToolLogProps> = ({
           )}
         </div>
       )}
-    </div>
+    </aside>
   );
 };

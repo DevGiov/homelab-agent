@@ -43,22 +43,25 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypePlugins}
         components={{
-          // Styled headings
+          // Titoli spostati di due livelli: nella pagina stanno sotto il titolo della vista (h2)
           h1: ({ children }) => (
-            <h1 className="text-base sm:text-lg font-bold text-fg mt-3 mb-2 pb-1 border-b border-border">
-              {children}
-            </h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-sm sm:text-base font-semibold text-fg/90 mt-2.5 mb-1.5 pb-0.5 border-b border-border/60">
-              {children}
-            </h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-xs sm:text-sm font-semibold text-accent mt-2 mb-1">
+            <h3 className="text-base sm:text-lg font-bold text-fg mt-3 mb-2 pb-1 border-b border-border">
               {children}
             </h3>
           ),
+          h2: ({ children }) => (
+            <h4 className="text-sm sm:text-base font-semibold text-fg/90 mt-2.5 mb-1.5 pb-0.5 border-b border-border/60">
+              {children}
+            </h4>
+          ),
+          h3: ({ children }) => (
+            <h5 className="text-xs sm:text-sm font-semibold text-accent mt-2 mb-1">
+              {children}
+            </h5>
+          ),
+          h4: ({ children }) => <h6>{children}</h6>,
+          h5: ({ children }) => <h6>{children}</h6>,
+          h6: ({ children }) => <h6>{children}</h6>,
           
           // Styled Paragraphs
           p: ({ children }) => (

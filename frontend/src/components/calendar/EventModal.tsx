@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useId, useState, useEffect } from 'react';
 import { X, Trash2, Calendar as CalIcon, Clock, MapPin, Tag, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
 import { calendarApi } from '../../api/calendar';
@@ -21,6 +21,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   eventToEdit,
   defaultDate,
 }) => {
+  const titleId = useId();
   const [summary, setSummary] = useState('');
   const [calendarId, setCalendarId] = useState('');
   const [dtstart, setDtstart] = useState('');
@@ -196,7 +197,10 @@ export const EventModal: React.FC<EventModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div 
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="w-full max-w-lg glass-panel border border-border/70 rounded-2xl shadow-2xl bg-panel overflow-hidden flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
@@ -207,7 +211,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <CalIcon size={18} />
             </div>
             <div>
-              <h2 className="font-semibold text-base text-fg">
+              <h2 id={titleId} className="font-semibold text-base text-fg">
                 {eventToEdit ? 'Modifica Evento' : 'Nuovo Evento'}
               </h2>
               <p className="text-xs text-fg-muted">

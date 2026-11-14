@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Calendar as CalIcon, Globe, Plus, Upload, X, type LucideIcon } from 'lucide-react';
 import type { CalendarItem } from '../../../api/calendar';
 import { useFeedback } from '../../../hooks/useFeedback';
@@ -19,6 +19,7 @@ interface CalendarManageModalProps {
 
 /** Gestione dei calendari: elenco, creazione, sottoscrizione a feed e import di file .ics. */
 export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calendars, onClose, onCalendarsUpdated }) => {
+  const titleId = useId();
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [isBusy, setIsBusy] = useState(false);
   const { feedback, notify, clear } = useFeedback();
@@ -53,6 +54,9 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="w-full max-w-2xl bg-panel border border-border/80 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -62,7 +66,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
               <CalIcon size={18} />
             </div>
             <div>
-              <h2 className="font-semibold text-base text-fg">Gestisci Calendari</h2>
+              <h2 id={titleId} className="font-semibold text-base text-fg">Gestisci Calendari</h2>
               <p className="text-xs text-fg-muted">Configura i tuoi calendari locali, feed remoti o importa file .ics</p>
             </div>
           </div>

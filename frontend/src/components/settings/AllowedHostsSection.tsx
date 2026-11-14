@@ -108,7 +108,7 @@ export const AllowedHostsSection: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Globe size={15} className="text-accent" />
-          <h4 className="text-xs font-semibold text-fg">Host ammessi per le richieste web</h4>
+          <h3 className="text-xs font-semibold text-fg">Host ammessi per le richieste web</h3>
         </div>
         <div className="flex items-center gap-1.5">
           {hasMissingDefaults && (

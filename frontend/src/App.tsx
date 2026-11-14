@@ -147,9 +147,9 @@ function MainLayout() {
         />
       </div>
 
-      {/* Center Area: Chat OR Automations Hub */}
-      {currentView === 'chat' ? (
-        <>
+      {/* Area centrale: la chat o una delle viste, l'unico <main> della pagina */}
+      <main className="flex-1 min-w-0 flex">
+        {currentView === 'chat' ? (
           <Chat
             currentThreadId={currentThreadId}
             currentThreadTitle={currentThreadTitle}
@@ -179,59 +179,61 @@ function MainLayout() {
               setIsMobileToolLogOpen(true);
             }}
           />
-
-          {/* Right Sidebar: Tool & Plan Log (Responsive Drawer) */}
-          <div
-            className={`fixed md:relative inset-y-0 right-0 z-50 md:z-auto transform ${
-              isMobileToolLogOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
-            } transition-transform duration-300 ease-in-out flex shrink-0`}
-          >
-            <ToolLog
-              toolUsed={diagnostics.activeTool}
-              planSteps={diagnostics.activePlan}
-              planStructure={diagnostics.activePlanStructure}
-              executionTrace={diagnostics.activeExecutionTrace}
-              rollbackTrace={diagnostics.activeRollbackTrace}
-              mode={diagnostics.activeMode}
-              webPrefetch={diagnostics.activeWebPrefetch}
-              currentThreadId={currentThreadId}
-              isOpen={diagnosticsPanel.open}
-              onToggle={diagnosticsPanel.toggle}
-              onCloseMobile={() => setIsMobileToolLogOpen(false)}
-              messages={currentMessages}
-              selectedMessageId={selectedMessageId}
-              onSelectMessageId={setSelectedMessageId}
+        ) : currentView === 'automations' ? (
+          <LazyBoundary title="Errore nella vista automazioni">
+            <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+          </LazyBoundary>
+        ) : currentView === 'memory' ? (
+          <LazyBoundary title="Errore nella vista memoria">
+            <MemoryView
+              threads={threads}
+              onOpenThread={(id) => {
+                setCurrentView('chat');
+                selectThread(id);
+                loadThreadHistory(id);
+              }}
+              onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
             />
-          </div>
-        </>
-      ) : currentView === 'automations' ? (
-        <LazyBoundary title="Errore nella vista automazioni">
-          <AutomationsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
-        </LazyBoundary>
-      ) : currentView === 'memory' ? (
-        <LazyBoundary title="Errore nella vista memoria">
-          <MemoryView
-            threads={threads}
-            onOpenThread={(id) => {
-              setCurrentView('chat');
-              selectThread(id);
-              loadThreadHistory(id);
-            }}
-            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          </LazyBoundary>
+        ) : currentView === 'metrics' ? (
+          <LazyBoundary title="Errore nella vista metriche">
+            <MetricsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
+          </LazyBoundary>
+        ) : (
+          <LazyBoundary title="Errore nella vista calendario">
+            <CalendarView
+              initialEventUid={targetEventUid}
+              onClearInitialEvent={() => setTargetEventUid(null)}
+              onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+            />
+          </LazyBoundary>
+        )}
+      </main>
+
+      {/* Right Sidebar: Tool & Plan Log (Responsive Drawer), solo nella chat */}
+      {currentView === 'chat' && (
+        <div
+          className={`fixed md:relative inset-y-0 right-0 z-50 md:z-auto transform ${
+            isMobileToolLogOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
+          } transition-transform duration-300 ease-in-out flex shrink-0`}
+        >
+          <ToolLog
+            toolUsed={diagnostics.activeTool}
+            planSteps={diagnostics.activePlan}
+            planStructure={diagnostics.activePlanStructure}
+            executionTrace={diagnostics.activeExecutionTrace}
+            rollbackTrace={diagnostics.activeRollbackTrace}
+            mode={diagnostics.activeMode}
+            webPrefetch={diagnostics.activeWebPrefetch}
+            currentThreadId={currentThreadId}
+            isOpen={diagnosticsPanel.open}
+            onToggle={diagnosticsPanel.toggle}
+            onCloseMobile={() => setIsMobileToolLogOpen(false)}
+            messages={currentMessages}
+            selectedMessageId={selectedMessageId}
+            onSelectMessageId={setSelectedMessageId}
           />
-        </LazyBoundary>
-      ) : currentView === 'metrics' ? (
-        <LazyBoundary title="Errore nella vista metriche">
-          <MetricsView onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
-        </LazyBoundary>
-      ) : (
-        <LazyBoundary title="Errore nella vista calendario">
-          <CalendarView
-            initialEventUid={targetEventUid}
-            onClearInitialEvent={() => setTargetEventUid(null)}
-            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          />
-        </LazyBoundary>
+        </div>
       )}
     </div>
   );

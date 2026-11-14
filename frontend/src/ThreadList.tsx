@@ -21,7 +21,7 @@ export type AppView = 'chat' | 'automations' | 'calendar' | 'memory' | 'metrics'
 
 const VIEWS: Array<{ id: AppView; label: string; title: string; icon: typeof MessageSquare }> = [
   { id: 'chat', label: 'Chat', title: "Chat con l'Agente", icon: MessageSquare },
-  { id: 'automations', label: 'Automations', title: 'Automazioni e Task Periodici', icon: Workflow },
+  { id: 'automations', label: 'Automazioni', title: 'Automazioni e Task Periodici', icon: Workflow },
   { id: 'calendar', label: 'Calendario', title: 'Calendario ed Eventi', icon: Calendar },
   { id: 'memory', label: 'Memoria', title: "Memoria a lungo termine: fatti ed entità", icon: Brain },
   { id: 'metrics', label: 'Metriche', title: 'Metriche di esecuzione e salute dei servizi', icon: Activity },
@@ -80,18 +80,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
     if (onCloseMobile) onCloseMobile();
   };
 
-  const handleDeleteItem = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    onDeleteThread(id);
-  };
-
   const handleConfirmClearAll = () => {
     onDeleteAllThreads();
     setShowConfirmClearAll(false);
   };
 
   return (
-    <div className="w-80 glass-panel border-r border-border flex flex-col h-full shrink-0 relative transition-all duration-300">
+    <aside aria-label="Barra laterale" className="w-80 glass-panel border-r border-border flex flex-col h-full shrink-0 relative transition-all duration-300">
       {/* App Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -102,8 +97,8 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             <h1 className="font-semibold text-sm text-fg leading-tight">Main-Agent UI</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={`w-2 h-2 rounded-full ${isBackendHealthy === true ? 'bg-emerald-400 animate-pulse' : isBackendHealthy === false ? 'bg-rose-500' : 'bg-amber-400'}`}></span>
-              <span className="text-xs text-fg-muted">
-                {isBackendHealthy === true ? 'API Connected' : isBackendHealthy === false ? 'API Offline' : 'Connecting...'}
+              <span role="status" className="text-xs text-fg-muted">
+                {isBackendHealthy === true ? 'API connessa' : isBackendHealthy === false ? 'API offline' : 'Connessione...'}
               </span>
             </div>
           </div>
@@ -121,7 +116,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             <button
               onClick={() => setShowConfirmClearAll(true)}
               className="p-1.5 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-md transition cursor-pointer"
-              title="Clear all threads"
+              title="Elimina tutte le conversazioni"
             >
               <Trash2 size={15} />
             </button>
@@ -130,7 +125,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             onClick={onRefresh}
             disabled={isLoading}
             className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-md transition cursor-pointer"
-            title="Refresh threads"
+            title="Aggiorna le conversazioni"
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
           </button>
@@ -138,7 +133,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             <button
               onClick={onCloseMobile}
               className="md:hidden p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-md transition cursor-pointer"
-              title="Close sidebar"
+              title="Chiudi la barra laterale"
             >
               <X size={18} />
             </button>
@@ -148,11 +143,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
       {/* Selettore della vista principale */}
       {onViewChange && (
-        <div className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
+        <nav aria-label="Viste" className="p-2 border-b border-border bg-panel-header/30 grid grid-cols-6 gap-1 text-xs">
           {VIEWS.map(({ id, label, title, icon: Icon }, i) => (
             <button
               key={id}
+              type="button"
               onClick={() => onViewChange(id)}
+              aria-current={currentView === id ? 'page' : undefined}
               // Due viste nella prima riga (le etichette lunghe), tre nella seconda
               className={`${i < 2 ? 'col-span-3' : 'col-span-2'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
                 currentView === id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
@@ -163,7 +160,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               <span className="truncate">{label}</span>
             </button>
           ))}
-        </div>
+        </nav>
       )}
 
       {/* Clear All Confirmation Banner */}
@@ -171,20 +168,20 @@ export const ThreadList: React.FC<ThreadListProps> = ({
         <div className="p-3 bg-rose-950/85 border-b border-rose-800 backdrop-blur-md flex flex-col gap-2">
           <div className="flex items-center gap-2 text-xs text-rose-200 font-medium">
             <AlertTriangle size={15} className="text-rose-400 shrink-0" />
-            <span>Delete all threads and history?</span>
+            <span>Eliminare tutte le conversazioni e la loro cronologia?</span>
           </div>
           <div className="flex items-center justify-end gap-2 text-xs">
             <button
               onClick={() => setShowConfirmClearAll(false)}
               className="px-2.5 py-1 text-fg-muted hover:bg-panel rounded transition cursor-pointer"
             >
-              Cancel
+              Annulla
             </button>
             <button
               onClick={handleConfirmClearAll}
               className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded transition shadow-sm cursor-pointer"
             >
-              Clear All
+              Elimina tutte
             </button>
           </div>
         </div>
@@ -197,7 +194,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
           className="w-full py-2.5 px-3 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl font-medium text-xs flex items-center justify-center gap-2 shadow-lg shadow-accent/25 transition active:scale-[0.98] cursor-pointer"
         >
           <Plus size={16} />
-          <span>New Thread</span>
+          <span>Nuova conversazione</span>
         </button>
       </div>
 
@@ -207,7 +204,8 @@ export const ThreadList: React.FC<ThreadListProps> = ({
           <Search size={14} className="absolute left-2.5 top-2.5 text-fg-muted" />
           <input
             type="text"
-            placeholder="Filter threads..."
+            placeholder="Filtra conversazioni..."
+            aria-label="Filtra conversazioni"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-input-bg border border-input-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder:text-fg-muted/50 focus:border-accent transition"
@@ -215,71 +213,81 @@ export const ThreadList: React.FC<ThreadListProps> = ({
         </div>
       </div>
 
-      {/* Thread List */}
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1 custom-scrollbar">
+      {/* Thread List: ogni conversazione è un pulsante; l'eliminazione è un pulsante a parte, non annidato */}
+      <div className="flex-1 overflow-y-auto px-2 py-1 custom-scrollbar">
         {filteredThreads.length === 0 ? (
-          <div className="p-4 text-center text-xs text-fg-muted">
-            {searchTerm ? 'No matching threads found' : 'No active threads yet'}
-          </div>
+          <p className="p-4 text-center text-xs text-fg-muted">
+            {searchTerm ? 'Nessuna conversazione trovata' : 'Ancora nessuna conversazione'}
+          </p>
         ) : (
-          filteredThreads.map((thread) => {
-            const isSelected = thread.thread_id === currentThreadId;
-            return (
-              <div
-                key={thread.thread_id}
-                onClick={() => handleSelect(thread.thread_id)}
-                className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1 cursor-pointer group relative ${
-                  isSelected
-                    ? 'bg-accent/15 border-accent/40 text-fg shadow-sm shadow-accent/15 ring-1 ring-accent/30'
-                    : 'glass-card border-border/60 text-fg-muted hover:text-fg hover:border-border hover:bg-panel-header/50'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 font-medium text-xs truncate">
-                    {thread.is_active ? (
-                      <span className="relative flex h-2 w-2 shrink-0 my-auto">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          <ul aria-label="Conversazioni" className="space-y-1">
+            {filteredThreads.map((thread) => {
+              const isSelected = thread.thread_id === currentThreadId;
+              const label = thread.title || thread.thread_id;
+              return (
+                <li key={thread.thread_id} className="relative group">
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(thread.thread_id)}
+                    aria-current={isSelected ? 'true' : undefined}
+                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1 cursor-pointer ${
+                      isSelected
+                        ? 'bg-accent/15 border-accent/40 text-fg shadow-sm shadow-accent/15 ring-1 ring-accent/30'
+                        : 'glass-card border-border/60 text-fg-muted hover:text-fg hover:border-border hover:bg-panel-header/50'
+                    }`}
+                  >
+                    <span className="w-full flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 font-medium text-xs truncate">
+                        {thread.is_active ? (
+                          <span className="relative flex h-2 w-2 shrink-0 my-auto">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+                          </span>
+                        ) : (
+                          <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
+                        )}
+                        <span className="truncate font-medium text-xs" title={thread.title ? `${thread.title} (${thread.thread_id})` : thread.thread_id}>
+                          {label}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {thread.is_active && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
+                            In corso
+                          </span>
+                        )}
+                        {thread.checkpoint_count > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
+                            {thread.checkpoint_count}
+                          </span>
+                        )}
+                        {/* Posto del pulsante di eliminazione, che sta sopra il pulsante della conversazione */}
+                        <span aria-hidden="true" className="w-5 shrink-0" />
+                      </span>
+                    </span>
+                    {thread.last_message ? (
+                      <span className="block w-full text-xs text-fg-muted truncate pl-5">
+                        {thread.last_message}
                       </span>
                     ) : (
-                      <MessageSquare size={14} className={isSelected ? 'text-accent' : 'text-fg-muted'} />
-                    )}
-                    <span className="truncate font-medium text-xs" title={thread.title ? `${thread.title} (${thread.thread_id})` : thread.thread_id}>
-                      {thread.title || thread.thread_id}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {thread.is_active && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
-                        In corso
+                      <span className="block w-full text-xs text-fg-muted italic truncate pl-5">
+                        (Nessun messaggio / in attesa)
                       </span>
                     )}
-                    {thread.checkpoint_count > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted font-mono">
-                        {thread.checkpoint_count}
-                      </span>
-                    )}
-                    <button
-                      onClick={(e) => handleDeleteItem(e, thread.thread_id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded transition cursor-pointer"
-                      title="Delete thread"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-                {thread.last_message ? (
-                  <p className="text-xs text-fg-muted truncate pl-5">
-                    {thread.last_message}
-                  </p>
-                ) : (
-                  <p className="text-xs text-fg-muted/60 italic truncate pl-5">
-                    (Nessun messaggio / in attesa)
-                  </p>
-                )}
-              </div>
-            );
-          })
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteThread(thread.thread_id)}
+                    className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded transition cursor-pointer"
+                    title="Elimina conversazione"
+                    aria-label={`Elimina la conversazione ${label}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 
@@ -295,6 +303,6 @@ export const ThreadList: React.FC<ThreadListProps> = ({
           <SettingsModal onClose={() => setIsSettingsOpen(false)} />
         </LazyBoundary>
       )}
-    </div>
+    </aside>
   );
 };

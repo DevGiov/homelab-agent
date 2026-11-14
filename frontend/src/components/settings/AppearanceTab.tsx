@@ -17,6 +17,7 @@ const Switch: React.FC<{ label: string; description: string; checked: boolean; o
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       onClick={() => onChange(!checked)}
       className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${checked ? 'bg-accent' : 'bg-border'}`}
     >

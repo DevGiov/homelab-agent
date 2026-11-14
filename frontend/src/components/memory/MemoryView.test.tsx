@@ -220,7 +220,7 @@ describe('MemoryView', () => {
     expect(within(card).getByText('fallito')).toBeTruthy();
     expect(within(card).getByText('Unit immich.service not found')).toBeTruthy();
     expect(within(card).getByText('Setup del CT 125')).toBeTruthy();
-    expect(screen.queryByRole('list', { name: 'Entità' })?.closest('aside')?.className).not.toContain('md:flex');
+    expect(screen.queryByRole('list', { name: 'Entità' })?.closest('section')?.className).not.toContain('md:flex');
 
     fireEvent.click(within(card).getByTitle('Elimina episodio'));
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Elimina' }));

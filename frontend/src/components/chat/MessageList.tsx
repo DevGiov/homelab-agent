@@ -51,7 +51,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [messages, isLoading, scrollKey]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+    // Regione con focus: chi usa la tastiera può scorrere i messaggi anche quando non contengono controlli
+    <section
+      aria-label="Messaggi"
+      tabIndex={0}
+      className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 focus-visible:outline-offset-[-2px]"
+    >
       {messages.length === 0 && !isLoading && <EmptyState />}
 
       {messages.map((msg, index) => (
@@ -80,6 +85,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       )}
       <div ref={endRef} />
-    </div>
+    </section>
   );
 };

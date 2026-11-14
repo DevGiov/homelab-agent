@@ -94,9 +94,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <ShieldAlert size={16} />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-semibold text-amber-200 truncate">
+            <h3 className="text-xs font-semibold text-amber-200 truncate">
               {flow ? 'Uscita di dati: serve la tua conferma' : 'Autorizzazione Tool Richiesta (Guardrail)'}
-            </h4>
+            </h3>
             <div className="text-xs text-amber-300/80 font-mono">
               ID: {requestId}
             </div>

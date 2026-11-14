@@ -26,7 +26,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
             <Key size={18} />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-fg">Integrazioni & Credenziali Servizi</h2>
+            <h3 className="text-sm font-bold text-fg">Integrazioni & Credenziali Servizi</h3>
             <p className="text-xs text-fg-muted mt-0.5 leading-relaxed">
               Configura in sicurezza gli account esterni (posta IMAP per i briefing, GitHub per gli auto-repair, Home Assistant per la
               domotica). Le credenziali sensibili sono cifrate a riposo con crittografia simmetrica AES e non vengono mai esposte in chiaro.
@@ -57,7 +57,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
                 <Shield size={16} />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-fg">Policy di Sicurezza e Zero Auto-Send</h3>
+                <h4 className="text-sm font-semibold text-fg">Policy di Sicurezza e Zero Auto-Send</h4>
                 <span className="text-xs text-fg-muted">Garanzie operative del runtime Homelab</span>
               </div>
             </div>

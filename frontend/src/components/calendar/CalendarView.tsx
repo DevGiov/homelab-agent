@@ -101,7 +101,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
           onCloseMobile={() => setIsSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto p-2 sm:p-6 flex flex-col min-w-0">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-6 flex flex-col min-w-0">
           {data.isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex items-center gap-2 text-fg-muted text-sm">
@@ -132,7 +132,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ initialEventUid, onC
               onOpenEvent={openEvent}
             />
           )}
-        </main>
+        </div>
       </div>
 
       <EventModal

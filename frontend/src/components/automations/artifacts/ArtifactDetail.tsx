@@ -51,6 +51,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
   return (
     <div
       className={containerClass}
+      {...(isFullscreen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Artefatto a schermo intero' } : {})}
       style={isFullscreen ? { backgroundColor: 'var(--panel)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' } : undefined}
     >
       {isLoading ? (
@@ -88,7 +89,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                   </span>
                 )}
               </div>
-              <h2 className="text-sm sm:text-lg font-bold text-fg leading-tight truncate">{artifact.title || artifact.name}</h2>
+              <h3 className="text-sm sm:text-lg font-bold text-fg leading-tight truncate">{artifact.title || artifact.name}</h3>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -172,7 +173,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-8 text-fg-muted">
           <FileText className="text-fg-muted/30 mb-3" size={48} />
-          <h3 className="text-sm font-semibold text-fg">Nessun artefatto selezionato</h3>
+          <h4 className="text-sm font-semibold text-fg">Nessun artefatto selezionato</h4>
           <p className="text-xs text-fg-muted mt-1 max-w-sm">
             Seleziona un report o documento dalla colonna a sinistra per leggerne il testo formattato, scaricarlo o copiarne il contenuto.
           </p>

@@ -34,9 +34,9 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
   return (
     <section className="rounded-xl border border-border bg-panel/60 p-3 space-y-2" aria-label="Profilo dell'utente">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-fg">
           <UserRound size={13} className="text-accent" /> Profilo
-        </h2>
+        </h3>
         {!isEditing && content !== null && (
           <button
             onClick={() => {

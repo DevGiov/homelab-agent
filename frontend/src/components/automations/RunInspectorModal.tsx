@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import {
   X,
   Clock,
@@ -35,6 +35,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
   const [activeTab, setActiveTab] = useState<'timeline' | 'artifacts' | 'raw'>('timeline');
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
   const [copiedArtifactId, setCopiedArtifactId] = useState<string | null>(null);
+  const titleId = useId();
 
   if (!isOpen || !run) return null;
 
@@ -92,7 +93,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
           <div className="flex items-center gap-3">
@@ -101,7 +102,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-fg font-mono">
+                <h2 id={titleId} className="text-base font-semibold text-fg font-mono">
                   Run: {run.run_id}
                 </h2>
                 {getStatusBadge(run.status, run.is_dry_run)}
@@ -113,7 +114,9 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Chiudi"
             className="p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
           >
             <X size={20} />
@@ -217,9 +220,9 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                             {idx + 1}
                           </span>
                           <div>
-                            <h4 className="text-xs font-semibold text-fg">
+                            <h3 className="text-xs font-semibold text-fg">
                               Step: {sr.step_id}
-                            </h4>
+                            </h3>
                             <span className="text-xs text-fg-muted flex items-center gap-2 mt-0.5">
                               <span>Tentativo {sr.attempt}</span>
                               {sr.tokens_consumed > 0 && (

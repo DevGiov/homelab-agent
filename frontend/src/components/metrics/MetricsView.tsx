@@ -45,7 +45,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
             <Activity size={18} />
           </div>
           <div className="min-w-0">
-            <h1 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Metriche</h1>
+            <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Metriche</h2>
             <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
               Turni, velocità dei modelli, tool e salute dei servizi
             </p>

@@ -88,12 +88,12 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
       <div>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-fg flex items-center gap-2">
+            <h4 className="text-sm font-bold text-fg flex items-center gap-2">
               {auto.name}
               <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent border border-accent/30 font-mono">
                 v{auto.version}
               </span>
-            </h3>
+            </h4>
             <span className="text-xs font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
@@ -10,6 +10,7 @@ type SettingsTab = 'general' | 'appearance' | 'security' | 'mcp';
 
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const titleId = useId();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
@@ -23,13 +24,13 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
-      <div className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
             <SettingsIcon size={16} className="text-accent" />
-            <span className="font-semibold text-sm">Impostazioni & Personalizzazione</span>
+            <h2 id={titleId} className="font-semibold text-sm">Impostazioni & Personalizzazione</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="p-1 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
             <X size={16} />
           </button>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useId, useState, useEffect } from 'react';
 import {
   Sliders,
   Play,
@@ -40,6 +40,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   onFeedback,
   onSuccess,
 }) => {
+  const titleId = useId();
   const [paramsList, setParamsList] = useState<Array<{ key: string; value: string }>>([]);
   const [detectedValues, setDetectedValues] = useState<Record<string, any>>({});
   const [introspection, setIntrospection] = useState<IntrospectionResult | null>(null);
@@ -219,7 +220,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="p-4 border-b border-border bg-panel-header/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -228,7 +229,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-fg">
+                <h2 id={titleId} className="text-sm font-bold text-fg">
                   {mode === 'run' ? 'Esegui con Parametri' : 'Configura Parametri'}
                 </h2>
                 {isLoading && <RefreshCw size={12} className="animate-spin text-accent" />}
@@ -238,7 +239,9 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Chiudi"
             className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
           >
             <X size={16} />

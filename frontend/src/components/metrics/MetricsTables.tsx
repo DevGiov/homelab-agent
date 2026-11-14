@@ -17,7 +17,7 @@ function Table<T>({ title, rows, columns, rowKey, empty }: {
 }) {
   return (
     <section className="rounded-2xl border border-border bg-panel/60 p-3 min-w-0">
-      <h2 className="text-xs font-semibold text-fg mb-2">{title}</h2>
+      <h3 className="text-xs font-semibold text-fg mb-2">{title}</h3>
       {rows.length === 0 ? (
         <p className="text-xs text-fg-muted py-2">{empty}</p>
       ) : (

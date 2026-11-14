@@ -139,7 +139,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield size={15} className="text-accent" />
-            <h4 className="text-xs font-semibold text-fg">Modalità di Rischio & Human-in-the-Loop</h4>
+            <h3 className="text-xs font-semibold text-fg">Modalità di Rischio & Human-in-the-Loop</h3>
           </div>
           <span className="text-xs text-fg-muted font-mono">Sincronizzata con toolbar</span>
         </div>
@@ -177,7 +177,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert size={15} className="text-rose-400" />
-            <h4 className="text-xs font-semibold text-fg">Tier 1: Guardrail Deterministici (Automatici)</h4>
+            <h3 className="text-xs font-semibold text-fg">Tier 1: Guardrail Deterministici (Automatici)</h3>
           </div>
           <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
             Attivo & Inviolabile
@@ -205,7 +205,7 @@ export const SecurityTab: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-emerald-400" />
-            <h4 className="text-xs font-semibold text-fg">Tier 2: Permessi Tool Accordati (Human-in-the-Loop)</h4>
+            <h3 className="text-xs font-semibold text-fg">Tier 2: Permessi Tool Accordati (Human-in-the-Loop)</h3>
           </div>
           <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna permessi">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />

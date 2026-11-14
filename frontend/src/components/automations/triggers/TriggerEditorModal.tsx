@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { AlertCircle, RefreshCw, Sliders, X, Zap } from 'lucide-react';
 import { updateAutomationTriggers, type AutomationSummary } from '../../../api/automations';
 import { buildTriggers, parseCron, toCron, type Schedule, type Trigger } from '../../../utils/cronSchedule';
@@ -21,6 +21,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
   const webhookTrigger = existing.find((t) => t.type === 'webhook');
   const timezone = cronTrigger?.timezone || DEFAULT_TIMEZONE;
 
+  const titleId = useId();
   const [cronEnabled, setCronEnabled] = useState(Boolean(cronTrigger));
   const [schedule, setSchedule] = useState<Schedule>(() => parseCron(cronTrigger?.cron_expression));
   const [webhookEnabled, setWebhookEnabled] = useState(Boolean(webhookTrigger));
@@ -47,20 +48,20 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-fg flex items-center gap-2">Pianificazione & Trigger</h2>
+              <h2 id={titleId} className="text-lg font-semibold text-fg flex items-center gap-2">Pianificazione & Trigger</h2>
               <p className="text-xs text-fg-muted">
                 Automazione: <span className="text-accent font-mono">{automation.name}</span>
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-panel-header transition">
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-panel-header transition">
             <X className="w-5 h-5" />
           </button>
         </div>

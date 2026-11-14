@@ -59,6 +59,8 @@ export const ThemeQuickSelector: React.FC = () => {
       {isOpen && (
         <div
           ref={popoverRef}
+          role="dialog"
+          aria-label="Temi e aspetto"
           className="fixed sm:absolute top-16 right-3 sm:top-full sm:right-0 sm:mt-2 w-[calc(100vw-24px)] max-w-xs sm:w-80 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border text-fg"
           style={{
             backgroundColor: 'var(--panel)',
@@ -122,7 +124,7 @@ export const ThemeQuickSelector: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Sparkles size={13} className={isFrosted ? 'text-accent' : 'text-fg-muted'} />
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-fg">Frosted Glass</span>
+                  <span className="text-xs font-medium text-fg">Trasparenze</span>
                   <span className="text-xs text-fg-muted">Trasparenze & blur pannelli</span>
                 </div>
               </div>
@@ -132,7 +134,9 @@ export const ThemeQuickSelector: React.FC = () => {
                 className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
                   isFrosted ? 'bg-accent' : 'bg-border'
                 }`}
-                aria-label="Toggle Frosted Glass"
+                role="switch"
+                aria-checked={isFrosted}
+                aria-label="Trasparenze"
               >
                 <div
                   className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-sm ${
@@ -147,7 +151,7 @@ export const ThemeQuickSelector: React.FC = () => {
               <div className="flex items-center gap-2">
                 <SunMedium size={13} className={hasGlow ? 'text-accent' : 'text-fg-muted'} />
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-fg">Ambient Glow</span>
+                  <span className="text-xs font-medium text-fg">Bagliore di sfondo</span>
                   <span className="text-xs text-fg-muted">Bagliori colorati di sfondo</span>
                 </div>
               </div>
@@ -157,7 +161,9 @@ export const ThemeQuickSelector: React.FC = () => {
                 className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
                   hasGlow ? 'bg-accent' : 'bg-border'
                 }`}
-                aria-label="Toggle Ambient Glow"
+                role="switch"
+                aria-checked={hasGlow}
+                aria-label="Bagliore di sfondo"
               >
                 <div
                   className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-sm ${

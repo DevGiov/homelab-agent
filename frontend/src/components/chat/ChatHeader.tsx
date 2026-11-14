@@ -47,8 +47,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       )}
       {status}
 
-      {/* Titolo: solo se la colonna lo tiene accanto ai controlli */}
-      <div className="hidden @lg/chat:block truncate min-w-0 max-w-xs">
+      {/* Titolo: visibile solo se la colonna lo tiene accanto ai controlli, per i lettori di schermo sempre */}
+      <div className="sr-only @lg/chat:not-sr-only @lg/chat:block truncate min-w-0 max-w-xs">
         <h2 className="text-xs sm:text-sm font-semibold text-fg truncate" title={title}>
           {title}
         </h2>

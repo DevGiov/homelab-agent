@@ -231,9 +231,9 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                 v{proposal.version || 1}
               </span>
             </div>
-            <h4 className="text-sm sm:text-base font-semibold text-fg">
+            <h3 className="text-sm sm:text-base font-semibold text-fg">
               {proposal.name || 'Nuova Automazione'}
-            </h4>
+            </h3>
           </div>
         </div>
 

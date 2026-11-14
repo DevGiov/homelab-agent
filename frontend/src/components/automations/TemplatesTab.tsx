@@ -23,7 +23,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Template Pronti all'Uso (Homelab Best Practices)</h2>
+      <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Template Pronti all'Uso (Homelab Best Practices)</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {templates.map((tpl) => (
@@ -41,7 +41,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
                   <Mail size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-fg">{tpl.name}</h3>
+                  <h4 className="text-sm font-bold text-fg">{tpl.name}</h4>
                   <span className="text-xs font-mono text-fg-muted">{tpl.id}</span>
                 </div>
               </div>

@@ -143,7 +143,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           {activeTab === 'automations' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2">
-                <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Definizioni di Workflow Attive</h2>
+                <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Definizioni di Workflow Attive</h3>
                 <button
                   onClick={() => setActiveTab('templates')}
                   className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
@@ -155,7 +155,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
               {data.automations.length === 0 ? (
                 <div className="text-center py-16 border border-dashed border-border rounded-2xl p-6 bg-panel/20">
                   <Workflow className="mx-auto text-fg-muted mb-3" size={36} />
-                  <h3 className="text-sm font-semibold text-fg">Nessuna automazione attiva</h3>
+                  <h4 className="text-sm font-semibold text-fg">Nessuna automazione attiva</h4>
                   <p className="text-xs text-fg-muted mt-1 max-w-sm mx-auto">
                     Configura la tua prima automazione homelab partendo dalla galleria template (es. Daily Email Briefing).
                   </p>

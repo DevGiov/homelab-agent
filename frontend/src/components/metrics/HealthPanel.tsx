@@ -32,7 +32,7 @@ interface HealthPanelProps {
 export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, points }) => (
   <section className="rounded-2xl border border-border bg-panel/60 p-3">
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
-      <h2 className="text-xs font-semibold text-fg">Salute dei servizi</h2>
+      <h3 className="text-xs font-semibold text-fg">Salute dei servizi</h3>
       <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
         {LEGEND.map((l) => (
           <span key={l.label} className="flex items-center gap-1.5">
