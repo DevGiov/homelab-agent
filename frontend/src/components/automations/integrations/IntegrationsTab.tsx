@@ -1,7 +1,9 @@
 import React from 'react';
 import { Check, Key, RefreshCw, Shield } from 'lucide-react';
+import { useConfirm } from '../../../hooks/useConfirm';
 import type { Notify } from '../../../hooks/useFeedback';
 import { useIntegrations } from '../../../hooks/useIntegrations';
+import { ConfirmDialog } from '../../ConfirmDialog';
 import { IntegrationForm } from './IntegrationForm';
 import { INTEGRATION_SPECS } from './specs';
 
@@ -16,10 +18,12 @@ const GUARANTEES = [
 
 /** Credenziali dei servizi esterni usati dalle automazioni. */
 export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }) => {
-  const actions = useIntegrations(onFeedback);
+  const { confirm, dialog } = useConfirm();
+  const actions = useIntegrations(onFeedback, confirm);
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog {...dialog} />
       <div className="p-4 rounded-2xl bg-panel border border-border/80 flex items-start justify-between gap-3 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shrink-0 mt-0.5">

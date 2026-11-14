@@ -7,7 +7,9 @@ import {
   toggleArtifactPreserve,
   type AutomationArtifact,
 } from '../../../api/artifacts';
+import { useConfirm } from '../../../hooks/useConfirm';
 import type { Notify } from '../../../hooks/useFeedback';
+import { ConfirmDialog } from '../../ConfirmDialog';
 import { ArtifactDetail } from './ArtifactDetail';
 import { ArtifactFilters, type ArtifactFilterState } from './ArtifactFilters';
 import { ArtifactList } from './ArtifactList';
@@ -28,6 +30,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({ initialArtifactId,
   const [selectedId, setSelectedId] = useState<string | null>(initialArtifactId || null);
   const [selected, setSelected] = useState<AutomationArtifact | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -108,7 +111,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({ initialArtifactId,
       alert('Questo report è protetto da cancellazione (bloccato con lucchetto). Sbloccalo prima di eliminarlo.');
       return;
     }
-    if (!confirm('Sei sicuro di voler eliminare definitivamente questo artefatto/report?')) return;
+    if (!(await confirm({ message: 'Sei sicuro di voler eliminare definitivamente questo artefatto/report?' }))) return;
     try {
       await deleteArtifact(art.artifact_id);
       setArtifacts((prev) => prev.filter((a) => a.artifact_id !== art.artifact_id));
@@ -158,6 +161,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({ initialArtifactId,
           notify={notify}
         />
       </div>
+      <ConfirmDialog {...dialog} />
     </div>
   );
 };

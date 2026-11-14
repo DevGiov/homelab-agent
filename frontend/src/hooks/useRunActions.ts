@@ -9,13 +9,15 @@ import {
   type AutomationRunSummary,
 } from '../api/automationRuns';
 import { formatApiError } from '../utils/error';
+import type { Confirm } from './useConfirm';
 import type { Notify } from './useFeedback';
 
-/** Azioni sulle run delle automazioni, condivise tra le card e lo storico. */
+/** Azioni sulle run delle automazioni, condivise tra le card e lo storico. Le eliminazioni passano da `confirm`. */
 export function useRunActions(
   notify: Notify,
   reload: () => void,
-  setRuns: Dispatch<SetStateAction<AutomationRunSummary[]>>
+  setRuns: Dispatch<SetStateAction<AutomationRunSummary[]>>,
+  confirm: Confirm
 ) {
   const patchRun = (runId: string, patch: Partial<AutomationRunSummary>) =>
     setRuns((prev) => prev.map((r) => (r.run_id === runId ? { ...r, ...patch } : r)));
@@ -40,7 +42,7 @@ export function useRunActions(
       attempt(() => resumeAutomationRun(runId), `Run ${runId} ripresa con successo.`, 'Errore ripresa run'),
 
     remove: async (runId: string) => {
-      if (!confirm(`Sei sicuro di voler eliminare la run ${runId}?`)) return;
+      if (!(await confirm({ message: `Sei sicuro di voler eliminare la run ${runId}?` }))) return;
       const ok = await attempt(() => deleteAutomationRun(runId), `Run ${runId} eliminata.`, 'Errore eliminazione run', false);
       if (ok) setRuns((prev) => prev.filter((r) => r.run_id !== runId));
     },
@@ -71,9 +73,8 @@ export function useRunActions(
     removeMany: async (runIds: string[]) => {
       const count = runIds.length;
       const label = count === 1 ? 'esecuzione selezionata' : 'esecuzioni selezionate';
-      if (!confirm(`Sei sicuro di voler eliminare ${count} ${label}? Le run protette da lucchetto non verranno eliminate.`)) {
-        return false;
-      }
+      const message = `Sei sicuro di voler eliminare ${count} ${label}? Le run protette da lucchetto non verranno eliminate.`;
+      if (!(await confirm({ message }))) return false;
       try {
         const res = await bulkDeleteAutomationRuns({ run_ids: runIds });
         notify('success', `Eliminate ${res.deleted_count} esecuzioni con successo.`);

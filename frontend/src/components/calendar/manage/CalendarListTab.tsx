@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Edit2, Save, Trash2 } from 'lucide-react';
 import { calendarApi, type CalendarItem } from '../../../api/calendar';
+import { useConfirm } from '../../../hooks/useConfirm';
 import type { Notify } from '../../../hooks/useFeedback';
 import { DEFAULT_CALENDAR_COLOR } from '../../../utils/calendarDates';
 import { formatApiError } from '../../../utils/error';
+import { ConfirmDialog } from '../../ConfirmDialog';
 
 interface CalendarListTabProps {
   calendars: CalendarItem[];
@@ -16,6 +18,7 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
   const [editing, setEditing] = useState<{ id: string; name: string; color: string } | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const isLast = calendars.length <= 1;
+  const { confirm, dialog } = useConfirm();
 
   const run = async (action: () => Promise<unknown>, success: string, failure: string) => {
     setIsBusy(true);
@@ -42,17 +45,19 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
     if (ok) setEditing(null);
   };
 
-  const remove = (cal: CalendarItem) => {
+  const remove = async (cal: CalendarItem) => {
     if (isLast) {
       notify('error', "Non puoi eliminare l'unico calendario rimasto nel sistema.");
       return;
     }
-    if (!window.confirm(`Sei sicuro di voler eliminare il calendario '${cal.name}' e tutti i suoi eventi associati?`)) return;
+    const message = `Sei sicuro di voler eliminare il calendario '${cal.name}' e tutti i suoi eventi associati?`;
+    if (!(await confirm({ message }))) return;
     run(() => calendarApi.deleteCalendar(cal.id), `Calendario '${cal.name}' eliminato.`, 'Errore eliminazione.');
   };
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialog} />
       <p className="text-xs text-fg-muted">
         Gestisci i calendari registrati. Puoi rinominarli, cambiare il colore di visualizzazione o eliminarli.
       </p>

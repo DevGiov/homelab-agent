@@ -6,9 +6,11 @@ import {
   resolveAutomationApproval,
   type AutomationApprovalItem,
 } from '../../api/automationRuns';
+import { useConfirm } from '../../hooks/useConfirm';
 import type { Notify } from '../../hooks/useFeedback';
 import { formatApiError } from '../../utils/error';
 import { STATUS_BUTTON } from '../../theme/statusFill';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface ApprovalsTabProps {
   approvals: AutomationApprovalItem[];
@@ -17,6 +19,7 @@ interface ApprovalsTabProps {
 }
 
 export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, reload }) => {
+  const { confirm, dialog } = useConfirm();
   const attempt = async (action: () => Promise<string>, failure: string) => {
     try {
       notify('success', await action());
@@ -32,8 +35,8 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
       return `Richiesta ${action === 'approve' ? 'approvata ed eseguita' : 'negata'} con successo.`;
     }, 'Errore risoluzione');
 
-  const remove = (requestId: string) => {
-    if (!confirm('Sei sicuro di voler eliminare questa richiesta di approvazione?')) return;
+  const remove = async (requestId: string) => {
+    if (!(await confirm({ message: 'Sei sicuro di voler eliminare questa richiesta di approvazione?' }))) return;
     attempt(async () => {
       await deleteAutomationApproval(requestId);
       return 'Richiesta di approvazione eliminata.';
@@ -48,6 +51,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
 
   return (
     <div className="space-y-4">
+      <ConfirmDialog {...dialog} />
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Richieste di Approvazione in Sospeso</h3>
         <button

@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useModalFocus } from '../hooks/useModalFocus';
 import { STATUS_BUTTON } from '../theme/statusFill';
@@ -17,6 +18,8 @@ interface ConfirmDialogProps {
 /**
  * Conferma di un'azione distruttiva dentro l'app: il `confirm()` nativo può essere soppresso dal browser senza avvisi.
  * All'apertura il focus va su Annulla: un Invio dato di slancio, o già premuto, non deve eliminare nulla.
+ * Va nel `body` sopra ogni altra finestra: aperta da una modale (impostazioni, evento) resterebbe chiusa nel suo pannello,
+ * che col tema vetro (`backdrop-filter`) fa da riferimento alle `fixed`. Il clic sul fondo non risale alla modale sotto.
  */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -24,8 +27,14 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
   useModalFocus(dialogRef, { active: request !== null, onClose: () => onAnswer(false), initialFocus: cancelRef });
 
   if (!request) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => onAnswer(false)}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => {
+        e.stopPropagation();
+        onAnswer(false);
+      }}
+    >
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -39,14 +48,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
           <p className="text-xs text-fg leading-relaxed">{request.message}</p>
         </div>
         <div className="flex justify-end gap-1.5">
-          <button ref={cancelRef} onClick={() => onAnswer(false)} className="px-3 py-1.5 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
+          <button ref={cancelRef} type="button" onClick={() => onAnswer(false)} className="px-3 py-1.5 rounded-lg text-xs text-fg-muted hover:text-fg hover:bg-panel-hover cursor-pointer">
             Annulla
           </button>
-          <button onClick={() => onAnswer(true)} className={`px-3 py-1.5 rounded-lg ${STATUS_BUTTON.danger} text-xs font-semibold cursor-pointer`}>
+          <button type="button" onClick={() => onAnswer(true)} className={`px-3 py-1.5 rounded-lg ${STATUS_BUTTON.danger} text-xs font-semibold cursor-pointer`}>
             {request.confirmLabel ?? 'Elimina'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

@@ -12,8 +12,10 @@ import {
   type MCPServer,
   type MCPTool,
 } from '../../../api/mcp';
+import { useConfirm } from '../../../hooks/useConfirm';
 import { useFeedback } from '../../../hooks/useFeedback';
 import { formatApiError } from '../../../utils/error';
+import { ConfirmDialog } from '../../ConfirmDialog';
 import { ServerCard } from './ServerCard';
 import { ServerForm } from './ServerForm';
 import { McpFlowsSection } from './McpFlowsSection';
@@ -25,6 +27,7 @@ export const McpTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<{ server?: MCPServer } | null>(null);
   const { feedback, notify } = useFeedback();
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(
     async (refresh = false) => {
@@ -78,6 +81,7 @@ export const McpTab: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialog} />
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-fg-muted leading-relaxed">
           Server MCP collegati all'agente. I tool dei server aggiunti qui prendono il prefisso <code>id__</code>. Rischio{' '}
@@ -144,8 +148,8 @@ export const McpTab: React.FC = () => {
               )
             }
             onEdit={() => setForm({ server })}
-            onDelete={() => {
-              if (confirm(`Eliminare il server '${server.name}'? I suoi tool spariranno dal catalogo dell'agente.`)) {
+            onDelete={async () => {
+              if (await confirm({ message: `Eliminare il server '${server.name}'? I suoi tool spariranno dal catalogo dell'agente.` })) {
                 attempt(() => deleteMcpServer(server.id), `Server '${server.name}' eliminato.`);
               }
             }}

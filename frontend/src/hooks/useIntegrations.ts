@@ -8,10 +8,11 @@ import {
   type ServiceIntegration,
 } from '../api/integrations';
 import { formatApiError } from '../utils/error';
+import type { Confirm } from './useConfirm';
 import type { Notify } from './useFeedback';
 
-/** Integrazioni configurate con salvataggio, test di connessione ed eliminazione. */
-export function useIntegrations(notify: Notify) {
+/** Integrazioni configurate con salvataggio, test di connessione ed eliminazione (dopo `confirm`). */
+export function useIntegrations(notify: Notify, confirm: Confirm) {
   const [integrations, setIntegrations] = useState<ServiceIntegration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export function useIntegrations(notify: Notify) {
   };
 
   const remove = async (id: string) => {
-    if (!confirm(`Sei sicuro di voler rimuovere l'integrazione "${id}"?`)) return;
+    if (!(await confirm({ message: `Sei sicuro di voler rimuovere l'integrazione "${id}"?`, confirmLabel: 'Rimuovi' }))) return;
     try {
       await deleteIntegration(id);
       notify('success', `Integrazione "${id}" rimossa.`);

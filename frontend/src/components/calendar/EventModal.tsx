@@ -3,7 +3,9 @@ import { X, Trash2, Calendar as CalIcon, Clock, MapPin, Tag, AlertCircle, CheckC
 import type { CalendarItem, CalendarEventItem } from '../../api/calendar';
 import { calendarApi } from '../../api/calendar';
 import { formatApiError } from '../../utils/error';
+import { useConfirm } from '../../hooks/useConfirm';
 import { useModalFocus } from '../../hooks/useModalFocus';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -40,6 +42,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalFocus(dialogRef, { active: isOpen, onClose: isSaving || isDeleting ? undefined : onClose });
+  const { confirm, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
@@ -185,7 +188,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
   const handleDelete = async () => {
     if (!eventToEdit) return;
-    if (!window.confirm(`Sei sicuro di voler eliminare l'evento "${eventToEdit.summary}"?`)) return;
+    if (!(await confirm({ message: `Sei sicuro di voler eliminare l'evento "${eventToEdit.summary}"?` }))) return;
 
     setIsDeleting(true);
     setError(null);
@@ -454,6 +457,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
           </div>
         </form>
+        <ConfirmDialog {...dialog} />
       </div>
     </div>
   );

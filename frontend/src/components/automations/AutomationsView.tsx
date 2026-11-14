@@ -3,10 +3,12 @@ import { FileText, Inbox, Key, Layers, Plus, Sparkles, Workflow, Zap, type Lucid
 import { getAutomationRunDetails, triggerAutomationRun, type AutomationRunDetails } from '../../api/automationRuns';
 import { deleteAutomation, getAutomation, toggleAutomationEnabled, type AutomationSummary } from '../../api/automations';
 import { useAutomationsData } from '../../hooks/useAutomationsData';
+import { useConfirm } from '../../hooks/useConfirm';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useRunActions } from '../../hooks/useRunActions';
 import { STATUS_FILL } from '../../theme/statusFill';
 import { formatApiError } from '../../utils/error';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { FeedbackToast } from '../FeedbackToast';
 import { ApprovalsTab } from './ApprovalsTab';
 import { ArtifactsView } from './artifacts/ArtifactsView';
@@ -29,7 +31,8 @@ interface AutomationsViewProps {
 export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSidebar }) => {
   const { feedback, notify } = useFeedback();
   const data = useAutomationsData(notify);
-  const runActions = useRunActions(notify, data.reload, data.setRuns);
+  const { confirm, dialog } = useConfirm();
+  const runActions = useRunActions(notify, data.reload, data.setRuns, confirm);
 
   const [activeTab, setActiveTab] = useState<Tab>('automations');
   const [artifactToOpen, setArtifactToOpen] = useState<string | null>(null);
@@ -62,7 +65,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       }
     },
     remove: async (id) => {
-      if (!confirm(`Sei sicuro di voler eliminare l'automazione "${id}"?`)) return;
+      if (!(await confirm({ message: `Sei sicuro di voler eliminare l'automazione "${id}"?` }))) return;
       try {
         await deleteAutomation(id);
         notify('success', `Automazione "${id}" eliminata.`);
@@ -239,6 +242,8 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
           }}
         />
       )}
+
+      <ConfirmDialog {...dialog} />
     </div>
   );
 };

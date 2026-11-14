@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Check, Code, Copy, Globe, RefreshCw } from 'lucide-react';
 import { regenerateWebhookToken } from '../../../api/automations';
+import { useConfirm } from '../../../hooks/useConfirm';
 import { useCopyFeedback } from '../../../hooks/useCopyFeedback';
 import { formatApiError } from '../../../utils/error';
+import { ConfirmDialog } from '../../ConfirmDialog';
 import { Toggle } from '../../Toggle';
 
 interface WebhookSectionProps {
@@ -18,12 +20,14 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
   const [isRegenerating, setIsRegenerating] = useState(false);
   const urlCopy = useCopyFeedback();
   const curlCopy = useCopyFeedback();
+  const { confirm, dialog } = useConfirm();
 
   const url = `${window.location.origin}/v1/automations/${automationId}/webhook/${token || '<GENERA_TOKEN>'}`;
   const curl = `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"inputs": {}}'`;
 
   const regenerate = async () => {
-    if (!confirm('Sei sicuro di voler rigenerare il token webhook? Il token precedente non funzionerà più.')) return;
+    const message = 'Sei sicuro di voler rigenerare il token webhook? Il token precedente non funzionerà più.';
+    if (!(await confirm({ message, confirmLabel: 'Rigenera' }))) return;
     setIsRegenerating(true);
     onError(null);
     try {
@@ -39,6 +43,7 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
 
   return (
     <div className="p-4 rounded-xl bg-panel-header/20 border border-border/70 space-y-4">
+      <ConfirmDialog {...dialog} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <Globe className="w-4 h-4 text-sky-400" />

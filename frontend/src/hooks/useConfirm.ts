@@ -22,3 +22,6 @@ export function useConfirm() {
 
   return { confirm, dialog: { request, onAnswer: answer } };
 }
+
+/** La funzione `confirm` di `useConfirm`, per gli hook che chiedono conferma ma lasciano il dialogo al componente. */
+export type Confirm = ReturnType<typeof useConfirm>['confirm'];
