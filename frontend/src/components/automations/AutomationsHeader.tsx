@@ -13,7 +13,9 @@ const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border bo
 export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, isLoading, onRefresh, onOpenMobileSidebar }) => {
   const hasApprovals = counts.approvals > 0;
   return (
-    <div className="p-2.5 sm:p-3.5 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between gap-2 shrink-0">
+    // Container query: la vista è più stretta della finestra quando la barra laterale è aperta, quindi etichette, sottotitolo e
+    // pillola delle run seguono la larghezza dell'intestazione, non quella della finestra
+    <div className="@container p-2.5 sm:p-3.5 border-b border-border bg-panel-header/40 backdrop-blur-md flex items-center justify-between gap-2 shrink-0">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {onOpenMobileSidebar && (
           <button
@@ -29,7 +31,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
         </div>
         <div className="min-w-0">
           <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Automazioni e loop</h2>
-          <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
+          <p className="text-xs text-fg-muted mt-0.5 hidden @4xl:block">
             Workflow schedulati, task ricorrenti e loop agentici supervisionati
           </p>
         </div>
@@ -38,15 +40,15 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
       <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
         <div className={pill}>
           <Layers size={12} className="text-accent" />
-          <span className="hidden xs:inline">Auto:</span>
+          <span className="hidden @3xl:inline">Auto:</span>
           <span className="font-bold text-fg">{counts.automations}</span>
         </div>
         <div className={pill}>
           <Calendar size={12} className="text-emerald-400" />
-          <span className="hidden xs:inline">Job:</span>
+          <span className="hidden @3xl:inline">Job:</span>
           <span className="font-bold text-emerald-400">{counts.jobs}</span>
         </div>
-        <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0">
+        <div className="hidden @xl:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0">
           <Zap size={12} className="text-amber-400" />
           <span>Run:</span>
           <span className="font-bold text-fg">{counts.runs}</span>
@@ -57,7 +59,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           }`}
         >
           <Shield size={12} className={hasApprovals ? 'text-rose-400' : 'text-fg-muted'} />
-          <span className="hidden xs:inline">Approvazioni:</span>
+          <span className="hidden @3xl:inline">Approvazioni:</span>
           <span className={`font-bold ${hasApprovals ? 'text-rose-400' : 'text-fg'}`}>{counts.approvals}</span>
         </div>
 

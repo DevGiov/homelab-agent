@@ -14,5 +14,7 @@ describe('ExecutionTraceViewer: intestazione compressa', () => {
     // Container query sul pulsante: la larghezza che conta è la sua, nel messaggio o nel pannello della diagnostica
     expect(header.className.split(/\s+/)).toContain('@container');
     expect(screen.getByText('Mostra').className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', '@xs:inline']));
+    // Lo stato tra parentesi solo nei pulsanti larghi (28rem): sotto basta la scritta Mostra o Nascondi
+    expect(screen.getByText('(compresso)').className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', '@md:inline']));
   });
 });

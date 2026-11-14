@@ -57,7 +57,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
             </span>
           )}
 
-          <span className="text-xs text-fg-muted hidden xs:inline ml-1">
+          <span className="text-xs text-fg-muted hidden @md:inline ml-1">
             {isCollapsed ? '(compresso)' : '(espanso)'}
           </span>
         </div>
