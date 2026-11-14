@@ -82,7 +82,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               <button
                 type="button"
                 onClick={() => attachments.remove(img.id)}
-                className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white/90 hover:text-white hover:bg-rose-600 transition shadow cursor-pointer"
+                className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white/90 hover:text-white hover:bg-rose-600 transition shadow-sm cursor-pointer"
                 title="Rimuovi immagine"
               >
                 <X size={12} />

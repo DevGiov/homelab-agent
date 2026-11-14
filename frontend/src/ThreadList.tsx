@@ -100,7 +100,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
       {/* App Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shadow-accent/15">
+          <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-xs shadow-accent/15">
             <Cpu size={18} />
           </div>
           <div>
@@ -162,7 +162,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               aria-current={currentView === id ? 'page' : undefined}
               // Due viste nella prima riga (le etichette lunghe), tre nella seconda
               className={`${i < 2 ? 'col-span-3' : 'col-span-2'} py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
-                currentView === id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel'
+                currentView === id ? 'bg-accent text-accent-contrast shadow-xs' : 'text-fg-muted hover:text-fg hover:bg-panel'
               }`}
               title={title}
             >
@@ -183,13 +183,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
           <div className="flex items-center justify-end gap-2 text-xs">
             <button
               onClick={() => setShowConfirmClearAll(false)}
-              className="px-2.5 py-1 text-fg-muted hover:bg-panel rounded transition cursor-pointer"
+              className="px-2.5 py-1 text-fg-muted hover:bg-panel rounded-sm transition cursor-pointer"
             >
               Annulla
             </button>
             <button
               onClick={handleConfirmClearAll}
-              className={`px-2.5 py-1 ${STATUS_BUTTON.danger} font-medium rounded transition shadow-sm cursor-pointer`}
+              className={`px-2.5 py-1 ${STATUS_BUTTON.danger} font-medium rounded-sm transition shadow-xs cursor-pointer`}
             >
               Elimina tutte
             </button>
@@ -242,7 +242,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                     aria-current={isSelected ? 'true' : undefined}
                     className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1 cursor-pointer ${
                       isSelected
-                        ? 'bg-accent/15 border-accent/40 text-fg shadow-sm shadow-accent/15 ring-1 ring-accent/30'
+                        ? 'bg-accent/15 border-accent/40 text-fg shadow-xs shadow-accent/15 ring-1 ring-accent/30'
                         : 'glass-card border-border/60 text-fg-muted hover:text-fg hover:border-border hover:bg-panel-header/50'
                     }`}
                   >
@@ -262,12 +262,12 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                       </span>
                       <span className="flex items-center gap-1 shrink-0">
                         {thread.is_active && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent-text font-medium animate-tint-pulse">
+                          <span className="text-xs px-1.5 py-0.5 rounded-sm bg-accent/20 border border-accent/40 text-accent-text font-medium animate-tint-pulse">
                             In corso
                           </span>
                         )}
                         {thread.checkpoint_count > 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-panel border border-border/80 text-fg-muted tabular-nums">
+                          <span className="text-xs px-1.5 py-0.5 rounded-sm bg-panel border border-border/80 text-fg-muted tabular-nums">
                             {thread.checkpoint_count}
                           </span>
                         )}
@@ -288,7 +288,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   <button
                     type="button"
                     onClick={() => onDeleteThread(thread.thread_id)}
-                    className="absolute top-2.5 right-2.5 can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded transition cursor-pointer"
+                    className="absolute top-2.5 right-2.5 can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-fg-muted hover:text-rose-400 hover:bg-panel rounded-sm transition cursor-pointer"
                     title="Elimina conversazione"
                     aria-label={`Elimina la conversazione ${label}`}
                   >

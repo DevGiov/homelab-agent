@@ -80,7 +80,7 @@ export const DataExitsSection: React.FC = () => {
               </option>
             ))}
           </select>
-          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna">
+          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>

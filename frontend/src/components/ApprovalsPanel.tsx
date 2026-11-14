@@ -67,7 +67,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
         </div>
         <button
           onClick={refresh}
-          className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer"
+          className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer"
           title="Aggiorna le approvazioni"
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />

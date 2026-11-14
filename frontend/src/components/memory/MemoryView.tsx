@@ -62,7 +62,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               <Menu size={20} />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-xs shrink-0">
             <Brain size={18} />
           </div>
           <div className="min-w-0">
@@ -88,7 +88,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             <button
               onClick={() => setIsAdding(true)}
               aria-label="Aggiungi un fatto"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-accent-contrast text-xs font-semibold shadow-sm cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-accent-contrast text-xs font-semibold shadow-xs cursor-pointer"
             >
               <Plus size={13} /> <span className="hidden sm:inline">Fatto</span>
             </button>

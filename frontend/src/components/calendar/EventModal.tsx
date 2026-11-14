@@ -204,7 +204,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div
         ref={dialogRef}
         role="dialog"
@@ -316,7 +316,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               id={`${fieldId}-all-day`}
               checked={allDay}
               onChange={e => setAllDay(e.target.checked)}
-              className="rounded border-input-border text-accent-text bg-input-bg"
+              className="rounded-sm border-input-border text-accent-text bg-input-bg"
             />
             <label htmlFor={`${fieldId}-all-day`} className="text-xs font-medium text-fg cursor-pointer select-none">
               Evento per l'intera giornata
@@ -443,7 +443,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               <button
                 type="submit"
                 disabled={isSaving || isDeleting}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs shadow-accent/20 transition cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
                   <span>Salvataggio...</span>

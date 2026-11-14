@@ -90,13 +90,13 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: c.color || DEFAULT_CALENDAR_COLOR }} />
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" style={{ backgroundColor: c.color || DEFAULT_CALENDAR_COLOR }} />
                   <span className="truncate font-medium">{c.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {c.event_count !== undefined && <span className="text-xs text-fg-muted">{c.event_count}</span>}
                   <div
-                    className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition ${
+                    className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center border transition ${
                       isChecked ? 'bg-accent border-accent text-accent-contrast' : 'border-border/80 bg-input-bg'
                     }`}
                   >
@@ -157,7 +157,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
 
       {isMobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden flex">
-          <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm transition-opacity" onClick={onCloseMobile} />
+          <div className="fixed inset-0 bg-bg/80 backdrop-blur-xs transition-opacity" onClick={onCloseMobile} />
           <div
             ref={drawerRef}
             role="dialog"

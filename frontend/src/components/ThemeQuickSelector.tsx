@@ -97,7 +97,7 @@ export const ThemeQuickSelector: React.FC = () => {
                   onClick={() => setTheme(t.id)}
                   className={`flex flex-col gap-1.5 p-2 rounded-xl text-left transition-all duration-200 cursor-pointer border ${
                     isActive
-                      ? 'border-accent bg-accent/10 shadow-sm shadow-accent/20 ring-1 ring-accent/40'
+                      ? 'border-accent bg-accent/10 shadow-xs shadow-accent/20 ring-1 ring-accent/40'
                       : 'border-border/60 hover:border-border hover:bg-panel-header/50'
                   }`}
                 >
@@ -139,7 +139,7 @@ export const ThemeQuickSelector: React.FC = () => {
                 aria-label="Trasparenze"
               >
                 <div
-                  className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-sm ${
+                  className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-xs ${
                     isFrosted ? 'translate-x-4' : 'translate-x-0'
                   }`}
                 />
@@ -166,7 +166,7 @@ export const ThemeQuickSelector: React.FC = () => {
                 aria-label="Bagliore di sfondo"
               >
                 <div
-                  className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-sm ${
+                  className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 absolute top-[3px] left-[3px] shadow-xs ${
                     hasGlow ? 'translate-x-4' : 'translate-x-0'
                   }`}
                 />

@@ -150,7 +150,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
                 <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Definizioni di Workflow Attive</h3>
                 <button
                   onClick={() => setActiveTab('templates')}
-                  className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                 >
                   <Plus size={14} /> Da Template
                 </button>

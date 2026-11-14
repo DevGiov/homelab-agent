@@ -39,7 +39,7 @@ const bubbleClass = (msg: FormattedMessage) =>
     ? 'glass-bubble-user text-userBubble-text rounded-tr-none shadow-md'
     : msg.isError
     ? 'bg-rose-950/70 border border-rose-800/80 text-rose-200 rounded-tl-none'
-    : 'glass-bubble-agent text-fg border border-border rounded-tl-none shadow-sm';
+    : 'glass-bubble-agent text-fg border border-border rounded-tl-none shadow-xs';
 
 const avatarClass = (msg: FormattedMessage) =>
   msg.sender === 'user'
@@ -91,7 +91,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               <img src={img} alt="" className="max-h-48 max-w-[220px] sm:max-w-[280px] object-cover rounded-xl" />
               {/* Solo un suggerimento: il pulsante è l'immagine, che su un telefono si tocca senza */}
               <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 group-focus-visible/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
-                <Maximize2 size={16} className="drop-shadow" />
+                <Maximize2 size={16} className="drop-shadow-sm" />
               </div>
             </button>
           ))}
@@ -102,7 +102,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         <button
           type="button"
           onClick={() => copy(msg.content)}
-          className="p-1 rounded text-userBubble-text hover:bg-white/10 transition cursor-pointer"
+          className="p-1 rounded-sm text-userBubble-text hover:bg-white/10 transition cursor-pointer"
           title="Copia prompt"
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -111,7 +111,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           <button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="p-1 rounded text-userBubble-text hover:bg-white/10 transition cursor-pointer"
+            className="p-1 rounded-sm text-userBubble-text hover:bg-white/10 transition cursor-pointer"
             title="Modifica prompt"
           >
             <Pencil size={12} />
@@ -135,7 +135,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   return (
     <div className={`flex gap-2.5 sm:gap-3 max-w-3xl ${isUser ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
       <div
-        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${avatarClass(msg)}`}
+        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 shadow-xs mt-0.5 ${avatarClass(msg)}`}
       >
         {isUser ? <User size={14} /> : <Bot size={14} />}
       </div>

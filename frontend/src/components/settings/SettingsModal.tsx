@@ -46,7 +46,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 key={id}
                 onClick={() => setActiveTab(id)}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  isActive ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25' : 'text-fg-muted hover:text-fg'
+                  isActive ? 'bg-accent text-accent-contrast shadow-xs shadow-accent/25' : 'text-fg-muted hover:text-fg'
                 }`}
               >
                 <Icon size={13} className={isActive ? 'text-accent-contrast' : iconColor} />

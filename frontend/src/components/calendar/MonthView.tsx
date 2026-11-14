@@ -79,7 +79,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                   title={isDesktop ? 'Aggiungi evento qui' : undefined}
                   className={`text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full transition cursor-pointer ${
                     day.isToday
-                      ? 'bg-accent text-accent-contrast font-bold shadow-sm shadow-accent/40'
+                      ? 'bg-accent text-accent-contrast font-bold shadow-xs shadow-accent/40'
                       : day.isCurrentMonth
                         ? 'text-fg'
                         : 'text-fg-muted group-hover:text-fg'
@@ -90,7 +90,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                 {/* Solo un segno: il clic passa alla cella, e da tastiera aggiunge il pulsante del giorno, che lo fa comparire */}
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none can-hover:opacity-0 group-hover:opacity-100 group-focus-within/day:opacity-100 p-0.5 text-fg-muted rounded transition hidden sm:block"
+                  className="pointer-events-none can-hover:opacity-0 group-hover:opacity-100 group-focus-within/day:opacity-100 p-0.5 text-fg-muted rounded-sm transition hidden sm:block"
                 >
                   <Plus size={13} />
                 </span>
@@ -122,7 +122,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
                       type="button"
                       key={ev.uid || ev.id}
                       onClick={(e) => openEvent(e, ev)}
-                      className="w-full text-left px-2 py-1 rounded-md text-xs leading-tight font-medium truncate flex items-center gap-1.5 transition shadow-sm hover:scale-[1.01] cursor-pointer focus-visible:outline-offset-[-2px]"
+                      className="w-full text-left px-2 py-1 rounded-md text-xs leading-tight font-medium truncate flex items-center gap-1.5 transition shadow-xs hover:scale-[1.01] cursor-pointer focus-visible:outline-offset-[-2px]"
                       style={{ backgroundColor: `${color}20`, borderLeft: `3px solid ${color}`, color: 'var(--fg)' }}
                       title={`${time} - ${ev.summary}${ev.location ? ` @ ${ev.location}` : ''}`}
                     >

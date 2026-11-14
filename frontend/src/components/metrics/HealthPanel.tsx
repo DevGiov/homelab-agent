@@ -36,7 +36,7 @@ export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, poi
       <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
         {LEGEND.map((l) => (
           <span key={l.label} className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: l.color }} />
+            <span className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: l.color }} />
             {l.label}
           </span>
         ))}

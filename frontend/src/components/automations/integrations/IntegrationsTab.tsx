@@ -24,7 +24,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
   return (
     <div className="space-y-6">
       <ConfirmDialog {...dialog} />
-      <div className="p-4 rounded-2xl bg-panel border border-border/80 flex items-start justify-between gap-3 shadow-sm">
+      <div className="p-4 rounded-2xl bg-panel border border-border/80 flex items-start justify-between gap-3 shadow-xs">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shrink-0 mt-0.5">
             <Key size={18} />
@@ -54,7 +54,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
           return <IntegrationForm key={`${spec.id}:${integration?.updated_at ?? 'new'}`} spec={spec} integration={integration} actions={actions} />;
         })}
 
-        <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-sm">
+        <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-xs">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5 pb-3 border-b border-border/60">
               <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center">

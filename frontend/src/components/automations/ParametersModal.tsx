@@ -290,7 +290,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                             {param.name}
                           </span>
                           <span
-                            className={`px-1.5 py-0.2 rounded text-xs font-mono border ${getTypeBadgeClass(
+                            className={`px-1.5 py-0.2 rounded-sm text-xs font-mono border ${getTypeBadgeClass(
                               param.type
                             )}`}
                           >
@@ -317,7 +317,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                               onChange={(e) =>
                                 handleUpdateDetectedValue(param.name, e.target.checked)
                               }
-                              className="rounded border-border text-accent-text w-4 h-4 cursor-pointer"
+                              className="rounded-sm border-border text-accent-text w-4 h-4 cursor-pointer"
                             />
                             <span className="text-xs text-fg">
                               {val ? 'Attivato (true)' : 'Disattivato (false)'}
@@ -457,7 +457,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="checkbox"
                 checked={isDryRun}
                 onChange={(e) => setIsDryRun(e.target.checked)}
-                className="rounded border-border cursor-pointer w-4 h-4"
+                className="rounded-sm border-border cursor-pointer w-4 h-4"
               />
             </div>
           )}
@@ -477,7 +477,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
               <button
                 onClick={handleSaveDefaults}
                 disabled={isSaving}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
               >
                 <Save size={13} /> {isSaving ? 'Salvataggio...' : 'Salva Parametri Predefiniti'}
               </button>
@@ -485,7 +485,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
               <button
                 onClick={handleExecute}
                 disabled={isSaving}
-                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
               >
                 <Play size={13} /> {isSaving ? 'Avvio in corso...' : isDryRun ? 'Avvia Dry-Run' : 'Avvia Esecuzione'}
               </button>

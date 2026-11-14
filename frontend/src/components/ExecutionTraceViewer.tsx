@@ -39,7 +39,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         aria-expanded={!isCollapsed}
-        className="@container w-full glass-card hover:bg-panel border border-border rounded-xl p-2.5 flex items-center justify-between gap-2 transition-all cursor-pointer group shadow-sm"
+        className="@container w-full glass-card hover:bg-panel border border-border rounded-xl p-2.5 flex items-center justify-between gap-2 transition-all cursor-pointer group shadow-xs"
         title={isCollapsed ? 'Mostra ragionamento e dettagli dei tool eseguiti' : 'Nascondi i dettagli'}
       >
         <div className="flex items-center gap-2 text-xs font-medium min-w-0">
@@ -111,7 +111,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                         {/* Firecracker Sandbox Badge */}
                         {tr.sandboxed !== undefined && (
                           <span
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-xs border ${
                               isSandboxed
                                 ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
                                 : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
@@ -125,7 +125,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                         {tr.clean_rewrite && (
                           <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border bg-sky-500/10 border-sky-500/30 text-sky-300"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-xs border bg-sky-500/10 border-sky-500/30 text-sky-300"
                             title="La destinazione non poteva ricevere i dati di questo turno: gli argomenti li ha scritti una chiamata che vedeva solo la richiesta e i dati pubblici"
                             data-testid="clean-rewrite"
                           >
@@ -136,7 +136,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                         {/* Status indicator */}
                         <span
-                          className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                          className={`text-xs font-bold px-1.5 py-0.5 rounded-sm ${
                             tr.error
                               ? 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
                               : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'

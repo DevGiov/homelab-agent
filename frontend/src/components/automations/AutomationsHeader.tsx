@@ -8,7 +8,7 @@ interface AutomationsHeaderProps {
   onOpenMobileSidebar?: () => void;
 }
 
-const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0';
+const pill = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-xs shrink-0';
 // Nell'intestazione stretta la pillola mostra icona e numero; l'etichetta resta per i lettori di schermo
 const pillLabel = 'sr-only @3xl:not-sr-only';
 
@@ -33,7 +33,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           </button>
         )}
         {/* Il logo cede il posto al titolo quando l'intestazione ha meno di 24rem di contenuto (@sm, padding escluso) */}
-        <div className="hidden @sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 items-center justify-center text-accent-text shadow-sm shrink-0">
+        <div className="hidden @sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 items-center justify-center text-accent-text shadow-xs shrink-0">
           <Workflow size={18} />
         </div>
         <div>
@@ -55,13 +55,13 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           <span className={pillLabel}>Job:</span>
           <span className="font-bold text-emerald-400">{counts.jobs}</span>
         </div>
-        <div className="hidden @xl:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-sm shrink-0">
+        <div className="hidden @xl:flex items-center gap-1 px-2 py-1 rounded-lg bg-panel/80 border border-border/70 text-xs font-medium text-fg-muted shadow-xs shrink-0">
           <Zap size={12} className="text-amber-400" />
           <span>Run:</span>
           <span className="font-bold text-fg">{counts.runs}</span>
         </div>
         <div
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium shadow-sm shrink-0 ${
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium shadow-xs shrink-0 ${
             hasApprovals ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 animate-tint-pulse' : 'bg-panel/80 border-border/70 text-fg-muted'
           }`}
         >

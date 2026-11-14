@@ -87,7 +87,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                       <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold text-fg">Azione Richiesta: {apr.tool_name}</h4>
                         <span
-                          className={`px-2 py-0.5 rounded text-xs font-semibold border ${
+                          className={`px-2 py-0.5 rounded-sm text-xs font-semibold border ${
                             isWorkflow ? 'bg-accent/15 text-accent-text border-accent/30' : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                           }`}
                         >
@@ -103,7 +103,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => resolve(apr, 'approve')}
-                      className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition`}
+                      className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs transition`}
                     >
                       <Check size={14} /> Approva ed Esegui
                     </button>

@@ -152,7 +152,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               aria-pressed={tab === 'diagnostics'}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'diagnostics'
-                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
+                  ? 'bg-accent text-accent-contrast shadow-xs shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
               }`}
             >
@@ -165,7 +165,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               aria-pressed={tab === 'knowledge'}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 tab === 'knowledge'
-                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/25'
+                  ? 'bg-accent text-accent-contrast shadow-xs shadow-accent/25'
                   : 'text-fg-muted hover:text-fg'
               }`}
             >
@@ -307,7 +307,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                   <span className="font-medium text-fg">Tool eseguito</span>
                 </div>
                 {activeTool ? (
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-lg text-xs font-mono flex items-center justify-between shadow-sm">
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-lg text-xs font-mono flex items-center justify-between shadow-xs">
                     <span className="truncate">{activeTool}</span>
                     <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
                   </div>
@@ -330,7 +330,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                       <span className="font-medium text-fg">Contesto web (prefetch)</span>
                     </div>
                     {activeWebPrefetch.provider_used && (
-                      <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded-sm bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
                         {activeWebPrefetch.provider_used}
                         {activeWebPrefetch.latency_ms ? ` (${activeWebPrefetch.latency_ms}ms)` : ''}
                       </span>
@@ -356,7 +356,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                               href={src.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block p-1.5 rounded bg-panel-header border border-border/80 hover:border-accent transition group"
+                              className="block p-1.5 rounded-sm bg-panel-header border border-border/80 hover:border-accent transition group"
                             >
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-xs font-medium text-fg group-hover:text-accent-text truncate">

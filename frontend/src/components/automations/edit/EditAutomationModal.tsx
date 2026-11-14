@@ -95,7 +95,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40 shrink-0">
           <div className="flex items-center gap-3">

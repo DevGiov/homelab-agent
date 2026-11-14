@@ -91,7 +91,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
 
           // Styled Blockquotes
           blockquote: ({ children }) => (
-            <blockquote className="border-l-3 border-accent bg-panel/50 px-3 py-1.5 my-2 rounded-r-lg text-xs sm:text-sm text-fg/80 italic backdrop-blur-sm">
+            <blockquote className="border-accent bg-panel/50 px-3 py-1.5 my-2 rounded-r-lg text-xs sm:text-sm text-fg/80 italic backdrop-blur-xs">
               {children}
             </blockquote>
           ),
@@ -137,7 +137,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               tabIndex={0}
               role="group"
               aria-label="Tabella"
-              className="overflow-x-auto my-3 rounded-xl border border-border shadow-sm bg-panel/40 backdrop-blur-md"
+              className="overflow-x-auto my-3 rounded-xl border border-border shadow-xs bg-panel/40 backdrop-blur-md"
             >
               <table className="w-full text-left text-xs border-collapse font-sans">
                 {children}
@@ -179,7 +179,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               // Inline code snippet
               return (
                 <code
-                  className="bg-panel/80 border border-border text-accent-text px-1.5 py-0.5 rounded font-mono text-xs"
+                  className="bg-panel/80 border border-border text-accent-text px-1.5 py-0.5 rounded-sm font-mono text-xs"
                   {...props}
                 >
                   {children}
@@ -249,7 +249,7 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
   };
 
   return (
-    <div className="my-3 rounded-xl border border-border/80 bg-panel/70 backdrop-blur-md overflow-hidden shadow-sm font-mono text-xs">
+    <div className="my-3 rounded-xl border border-border/80 bg-panel/70 backdrop-blur-md overflow-hidden shadow-xs font-mono text-xs">
       {/* Header bar */}
       <div className="bg-panel/90 border-b border-border/60 px-3 py-1.5 flex items-center justify-between text-fg-muted">
         <span className="text-xs font-semibold uppercase text-accent-text tracking-wider">
@@ -257,7 +257,7 @@ const CodeBlock: React.FC<{ language: string; rawCode: string; children: React.R
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition bg-panel/60 hover:bg-panel px-2 py-0.5 rounded border border-border/60 cursor-pointer"
+          className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition bg-panel/60 hover:bg-panel px-2 py-0.5 rounded-sm border border-border/60 cursor-pointer"
           title="Copia il codice negli appunti"
         >
           {copied ? (

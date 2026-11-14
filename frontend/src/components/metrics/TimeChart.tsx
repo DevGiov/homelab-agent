@@ -84,7 +84,7 @@ export const TimeChart: React.FC<TimeChartProps> = ({ title, kind, series, point
           <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
             {series.map((s) => (
               <span key={s.key} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+                <span className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: s.color }} />
                 {s.label}
               </span>
             ))}
@@ -182,7 +182,7 @@ export const TimeChart: React.FC<TimeChartProps> = ({ title, kind, series, point
             <div className="text-fg-muted mb-0.5">{new Date(hovered.start).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
             {series.map((s) => (
               <div key={s.key} className="flex items-center gap-1.5 text-fg">
-                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
+                <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: s.color }} />
                 <span className="text-fg-muted">{s.label}</span>
                 <span className="font-semibold tabular-nums ml-auto pl-2">
                   {hovered.values[s.key] == null ? '—' : formatValue(hovered.values[s.key] as number)}

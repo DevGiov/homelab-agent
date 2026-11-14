@@ -148,7 +148,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
           <span>Anteprima proposta automazione (JSON non valido)</span>
         </div>
         <p className="text-fg-muted mb-2">Il blocco di proposta non ha una sintassi JSON valida:</p>
-        <pre className="bg-panel/80 p-2 rounded text-xs font-mono text-fg-muted overflow-x-auto max-h-40">{rawJson}</pre>
+        <pre className="bg-panel/80 p-2 rounded-sm text-xs font-mono text-fg-muted overflow-x-auto max-h-40">{rawJson}</pre>
       </div>
     );
   }
@@ -288,7 +288,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                   <div>
                     <div className="font-semibold text-fg text-xs">{s.name || s.step_id}</div>
                     <div className="text-xs font-mono text-fg-muted flex items-center gap-1 mt-0.5">
-                      <span className="px-1.5 py-0.5 rounded bg-panel border border-border/60">
+                      <span className="px-1.5 py-0.5 rounded-sm bg-panel border border-border/60">
                         {s.type}
                       </span>
                       {s.action_or_tool && (
@@ -298,7 +298,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
                   </div>
                 </div>
                 {s.requires_approval && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded-sm bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
                     Richiede Approvazione
                   </span>
                 )}
@@ -316,7 +316,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
             {allowedTools.map((t: string, idx: number) => (
               <span
                 key={idx}
-                className="px-2 py-0.5 rounded bg-panel border border-border text-xs font-mono text-accent-text"
+                className="px-2 py-0.5 rounded-sm bg-panel border border-border text-xs font-mono text-accent-text"
               >
                 {t}
               </span>

@@ -208,7 +208,7 @@ export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models,
                 type="checkbox"
                 checked={options.incognito}
                 onChange={(e) => options.setIncognito(e.target.checked)}
-                className="mt-0.5 rounded border-border bg-input-bg text-accent-text"
+                className="mt-0.5 rounded-sm border-border bg-input-bg text-accent-text"
               />
               <span>
                 <span className="block text-xs font-semibold text-fg-muted">Incognito</span>

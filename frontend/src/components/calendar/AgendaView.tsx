@@ -24,7 +24,7 @@ const TodayMarker: React.FC<{ markerRef: RefObject<HTMLDivElement | null> }> = (
     <div
       ref={markerRef}
       id="agenda-today-marker"
-      className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-sm animate-in fade-in duration-300"
+      className="my-3 py-2 px-3 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-between shadow-xs animate-in fade-in duration-300"
     >
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
@@ -49,11 +49,11 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
   return (
     <div
       onClick={onOpen}
-      className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition cursor-pointer group"
+      className="p-3.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs transition cursor-pointer group"
     >
       <div className="flex items-start gap-3 min-w-0">
         <div
-          className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-sm"
+          className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-xs"
           style={{ backgroundColor: ev.calendar_color || DEFAULT_CALENDAR_COLOR }}
         />
         <div className="space-y-1 min-w-0">
@@ -110,7 +110,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
             onOpen();
           }}
           aria-label={`Modifica l'evento ${ev.summary}`}
-          className="px-1 rounded text-xs text-fg-muted hover:text-fg can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition cursor-pointer"
+          className="px-1 rounded-sm text-xs text-fg-muted hover:text-fg can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition cursor-pointer"
         >
           Modifica →
         </button>

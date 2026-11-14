@@ -68,7 +68,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                     setIsFullscreen(false);
                     onBack();
                   }}
-                  className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent-text font-medium transition cursor-pointer shadow-sm shrink-0"
+                  className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-panel border border-border text-xs text-fg hover:text-accent-text font-medium transition cursor-pointer shadow-xs shrink-0"
                   title="Torna all'elenco dei report"
                 >
                   <ArrowLeft size={13} />
@@ -103,7 +103,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                     key={mode}
                     onClick={() => setViewMode(mode)}
                     className={`px-2 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
-                      viewMode === mode ? 'bg-accent text-accent-contrast font-medium shadow-sm' : 'text-fg-muted hover:text-fg'
+                      viewMode === mode ? 'bg-accent text-accent-contrast font-medium shadow-xs' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <Icon size={12} />
@@ -159,7 +159,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
 
           <div className={`flex-1 overflow-y-auto p-3 sm:p-6 w-full mx-auto ${isFullscreen ? 'max-w-7xl' : 'max-w-5xl'}`}>
             {viewMode === 'rendered' ? (
-              <div className="bg-panel/40 border border-border/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm overflow-x-auto break-words">
+              <div className="bg-panel/40 border border-border/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs overflow-x-auto break-words">
                 <MarkdownRenderer content={artifact.content || '*Nessun contenuto nel report.*'} />
               </div>
             ) : (

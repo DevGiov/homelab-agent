@@ -62,7 +62,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
                         e.stopPropagation();
                         onOpenEvent(ev);
                       }}
-                      className="p-2.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex items-start justify-between gap-2 shadow-sm transition"
+                      className="p-2.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex items-start justify-between gap-2 shadow-xs transition"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 mb-1">

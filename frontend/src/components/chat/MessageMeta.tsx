@@ -39,7 +39,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
   return (
     <div className={`flex items-center gap-1.5 text-xs text-fg-muted px-1 flex-wrap ${isUser ? 'justify-end' : 'justify-start'}`}>
       {versionCount > 1 && (
-        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-xs tabular-nums text-fg-muted shadow-sm select-none">
+        <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-panel border border-border text-xs tabular-nums text-fg-muted shadow-xs select-none">
           <button
             type="button"
             onClick={() => onSwitchVersion?.(msg.id, versionIndex - 1)}
@@ -91,7 +91,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         <button
           type="button"
           onClick={() => onRegenerate(msg.id)}
-          className={`${actionButton} bg-panel hover:bg-panel-header border border-border hover:border-accent text-fg-muted hover:text-fg shadow-sm`}
+          className={`${actionButton} bg-panel hover:bg-panel-header border border-border hover:border-accent text-fg-muted hover:text-fg shadow-xs`}
           title="Rigenera risposta dal prompt precedente"
         >
           <RefreshCw size={9} />
@@ -103,7 +103,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         <button
           type="button"
           onClick={() => onInspect(msg.id)}
-          className={`${actionButton} bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent-text shadow-sm`}
+          className={`${actionButton} bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent-text shadow-xs`}
           title="Ispeziona parametri, trace e tool nel pannello diagnostica"
         >
           <Activity size={9} />
@@ -113,7 +113,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
 
       {!isUser && <SensitivityChip tag={msg.sensitivity} />}
       {modeName && (
-        <span className="px-1.5 py-0.5 rounded bg-panel border border-border text-xs uppercase font-mono tracking-wider">
+        <span className="px-1.5 py-0.5 rounded-sm bg-panel border border-border text-xs uppercase font-mono tracking-wider">
           {modeName}
         </span>
       )}

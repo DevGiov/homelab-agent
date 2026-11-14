@@ -93,7 +93,7 @@ export const KnowledgePanel: React.FC = () => {
 
   const tabClass = (active: boolean) =>
     `flex-1 px-1.5 py-1 rounded-md text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
-      active ? 'bg-accent/20 text-accent-text border border-accent/30 shadow-sm' : 'text-fg-muted hover:text-fg'
+      active ? 'bg-accent/20 text-accent-text border border-accent/30 shadow-xs' : 'text-fg-muted hover:text-fg'
     }`;
 
   return (
@@ -103,7 +103,7 @@ export const KnowledgePanel: React.FC = () => {
           <BookOpen size={14} className="text-accent-text" />
           <span className="font-medium text-fg">Knowledge base</span>
         </div>
-        <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna">
+        <button onClick={refresh} className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna">
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>

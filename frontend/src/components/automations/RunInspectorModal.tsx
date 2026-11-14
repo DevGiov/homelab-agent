@@ -96,7 +96,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
         {/* Header */}
         <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
@@ -261,7 +261,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                                 {sr.tool_calls.map((tc, tcIdx) => (
                                   <div
                                     key={tcIdx}
-                                    className="p-2 rounded bg-bg/60 border border-border/60 font-mono text-xs"
+                                    className="p-2 rounded-sm bg-bg/60 border border-border/60 font-mono text-xs"
                                   >
                                     <div className="text-accent-text font-semibold">
                                       {tc.tool_name}
@@ -313,13 +313,13 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                       <div className="flex items-center gap-2">
                         <FileText size={16} className="text-accent-text" />
                         <h3 className="text-xs font-semibold text-fg">{art.title}</h3>
-                        <span className="text-xs px-2 py-0.5 rounded bg-panel border border-border text-fg-muted uppercase">
+                        <span className="text-xs px-2 py-0.5 rounded-sm bg-panel border border-border text-fg-muted uppercase">
                           {art.type}
                         </span>
                       </div>
                       <button
                         onClick={() => copyToClipboard(art.content || '', art.artifact_id)}
-                        className="px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-panel rounded flex items-center gap-1 transition"
+                        className="px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-panel rounded-sm flex items-center gap-1 transition"
                         title="Copia Markdown"
                       >
                         {copiedArtifactId === art.artifact_id ? (

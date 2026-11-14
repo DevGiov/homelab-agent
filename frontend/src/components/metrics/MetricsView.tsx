@@ -41,7 +41,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
               <Menu size={20} />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-sm shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text shadow-xs shrink-0">
             <Activity size={18} />
           </div>
           <div className="min-w-0">
@@ -61,7 +61,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
                 aria-pressed={w.id === range.id}
                 aria-label={w.label}
                 className={`px-2 py-1 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap ${
-                  w.id === range.id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel-hover'
+                  w.id === range.id ? 'bg-accent text-accent-contrast shadow-xs' : 'text-fg-muted hover:text-fg hover:bg-panel-hover'
                 }`}
               >
                 <span className="sm:hidden">{w.short}</span>

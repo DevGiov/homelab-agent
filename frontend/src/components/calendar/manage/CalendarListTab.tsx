@@ -77,7 +77,7 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
                       type="color"
                       value={editing.color}
                       onChange={(e) => setEditing({ ...editing, color: e.target.value })}
-                      className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent"
+                      className="w-7 h-7 rounded-sm border border-border cursor-pointer bg-transparent"
                     />
                     <input
                       type="text"
@@ -88,11 +88,11 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
                   </div>
                 ) : (
                   <>
-                    <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: cal.color || DEFAULT_CALENDAR_COLOR }} />
+                    <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style={{ backgroundColor: cal.color || DEFAULT_CALENDAR_COLOR }} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs text-fg truncate">{cal.name}</span>
-                        <span className="text-xs uppercase font-mono px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted">
+                        <span className="text-xs uppercase font-mono px-1.5 py-0.5 rounded-sm bg-panel border border-border text-fg-muted">
                           {cal.source}
                         </span>
                       </div>

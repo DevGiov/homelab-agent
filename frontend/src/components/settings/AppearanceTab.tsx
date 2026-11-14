@@ -22,7 +22,7 @@ const Switch: React.FC<{ label: string; description: string; checked: boolean; o
       className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${checked ? 'bg-accent' : 'bg-border'}`}
     >
       <div
-        className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 absolute top-1 left-1 shadow-sm ${
+        className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 absolute top-1 left-1 shadow-xs ${
           checked ? 'translate-x-5' : 'translate-x-0'
         }`}
       />

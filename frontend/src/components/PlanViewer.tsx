@@ -26,31 +26,31 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
     switch (status) {
       case 'success':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 text-xs font-medium border border-emerald-500/20">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-300 text-xs font-medium border border-emerald-500/20">
             <CheckCircle2 size={10} /> Riuscito
           </span>
         );
       case 'failed':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 text-xs font-medium border border-rose-500/20">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-rose-500/10 text-rose-300 text-xs font-medium border border-rose-500/20">
             <XCircle size={10} /> Fallito
           </span>
         );
       case 'rolled_back':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-xs font-medium border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-300 text-xs font-medium border border-amber-500/20">
             <RotateCcw size={10} /> Annullato (rollback)
           </span>
         );
       case 'running':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent-text text-xs font-medium border border-accent/30 animate-tint-pulse">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent-text text-xs font-medium border border-accent/30 animate-tint-pulse">
             <Clock size={10} /> In corso
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-panel border border-border text-fg-muted text-xs">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-panel border border-border text-fg-muted text-xs">
             In attesa
           </span>
         );
@@ -99,7 +99,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
                 <div className="pl-7 flex items-center gap-1.5 text-xs text-fg-muted">
                   <span>Dipende da:</span>
                   {node.depends_on.map((dep) => (
-                    <span key={dep} className="px-1.5 py-0.5 rounded bg-panel border border-border text-fg font-mono">
+                    <span key={dep} className="px-1.5 py-0.5 rounded-sm bg-panel border border-border text-fg font-mono">
                       {dep}
                     </span>
                   ))}

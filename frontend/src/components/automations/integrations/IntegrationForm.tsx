@@ -43,7 +43,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
           id={id}
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="rounded border-border text-accent-text cursor-pointer"
+          className="rounded-sm border-border text-accent-text cursor-pointer"
         />
         <label htmlFor={id} className="text-fg-muted text-xs cursor-pointer">
           {field.label}
@@ -106,7 +106,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
   };
 
   return (
-    <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-sm">
+    <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-xs">
       <div>
         <div className="flex items-center justify-between pb-3 border-b border-border/60">
           <div className="flex items-center gap-2.5">
@@ -149,7 +149,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs font-medium transition shadow-sm cursor-pointer"
+                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs font-medium transition shadow-xs cursor-pointer"
               >
                 {isSaving ? 'Salvataggio...' : spec.saveLabel}
               </button>

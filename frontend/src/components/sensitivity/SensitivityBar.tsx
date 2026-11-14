@@ -51,7 +51,7 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
           aria-controls={detailsId}
-          className="shrink-0 rounded px-1.5 py-0.5 underline-offset-2 hover:underline cursor-pointer"
+          className="shrink-0 rounded-sm px-1.5 py-0.5 underline-offset-2 hover:underline cursor-pointer"
         >
           {expanded ? 'Meno' : 'Dettagli'}
         </button>
@@ -61,7 +61,7 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
             onClick={onHide}
             aria-label="Nascondi l'avviso"
             title="Nascondi: resta l'icona nell'intestazione. Ricompare se il livello sale."
-            className="shrink-0 rounded p-1 opacity-80 hover:opacity-100 hover:bg-white/10 cursor-pointer"
+            className="shrink-0 rounded-sm p-1 opacity-80 hover:opacity-100 hover:bg-white/10 cursor-pointer"
           >
             <X size={14} aria-hidden="true" />
           </button>

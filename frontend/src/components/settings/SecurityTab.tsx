@@ -207,7 +207,7 @@ export const SecurityTab: React.FC = () => {
             <ShieldCheck size={15} className="text-emerald-400" />
             <h3 className="text-xs font-semibold text-fg">Livello 2: permessi accordati ai tool (conferma umana)</h3>
           </div>
-          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer" title="Aggiorna permessi">
+          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna permessi">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -233,7 +233,7 @@ export const SecurityTab: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-emerald-300">{perm.tool_name}</span>
                     {perm.command_prefix && (
-                      <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg/60 border border-border text-fg-muted">
+                      <span className="font-mono text-xs px-1.5 py-0.5 rounded-sm bg-bg/60 border border-border text-fg-muted">
                         prefisso: {perm.command_prefix}
                       </span>
                     )}

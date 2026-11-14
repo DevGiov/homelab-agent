@@ -17,7 +17,7 @@ export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, activeClass =
     <label className={`relative inline-flex items-center cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`} title={title}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
       <div
-        className={`${track} bg-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:shadow-sm after:transition-all ${activeClass}`}
+        className={`${track} bg-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:shadow-xs after:transition-all ${activeClass}`}
       />
     </label>
   );

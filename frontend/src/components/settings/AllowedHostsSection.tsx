@@ -129,7 +129,7 @@ export const AllowedHostsSection: React.FC = () => {
           <button
             onClick={load}
             disabled={loading}
-            className="p-1 text-fg-muted hover:text-fg transition rounded cursor-pointer"
+            className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer"
             title="Aggiorna host ammessi"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
@@ -166,7 +166,7 @@ export const AllowedHostsSection: React.FC = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-xs font-semibold text-fg">{item.host}</span>
                     <span
-                      className={`px-1.5 py-0.5 rounded text-xs font-medium border ${
+                      className={`px-1.5 py-0.5 rounded-sm text-xs font-medium border ${
                         ORIGIN_BADGES[item.origin] || 'bg-bg/60 border-border text-fg-muted'
                       }`}
                     >

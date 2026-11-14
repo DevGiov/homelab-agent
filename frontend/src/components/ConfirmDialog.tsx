@@ -29,7 +29,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
   if (!request) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
       onClick={(e) => {
         e.stopPropagation();
         onAnswer(false);

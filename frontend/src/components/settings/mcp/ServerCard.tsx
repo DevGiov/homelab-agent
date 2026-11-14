@@ -54,7 +54,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
               <span className="text-xs font-semibold text-fg">{server.name}</span>
               <span className="font-mono text-xs text-fg-muted">{server.id}</span>
               {server.builtin && (
-                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-text border border-accent/30">.env</span>
+                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-accent/10 text-accent-text border border-accent/30">.env</span>
               )}
               <span className={`text-xs px-1.5 py-0.5 rounded-full border ${badge.className}`}>{badge.label}</span>
             </div>
@@ -101,7 +101,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
                     <div className="flex items-center gap-1.5">
                       <span className={`font-mono text-xs truncate ${tool.enabled ? 'text-fg' : 'text-fg-muted'}`}>{shortName(tool)}</span>
                       <span
-                        className={`text-xs px-1 rounded border ${
+                        className={`text-xs px-1 rounded-sm border ${
                           tool.access === 'view' ? 'text-emerald-300 border-emerald-500/30' : 'text-amber-300 border-amber-500/30'
                         }`}
                         title={tool.access === 'view' ? 'Eseguito senza conferma in modalità Normal' : 'Soggetto alle regole di approvazione'}

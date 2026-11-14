@@ -110,23 +110,23 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                   className="font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent px-1 py-0.5"
                   placeholder="Nome dello step"
                 />
-                <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded border border-border">{step.step_id}</span>
+                <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded-sm border border-border">{step.step_id}</span>
               </div>
 
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="p-1 text-fg-muted hover:text-fg disabled:opacity-30 rounded hover:bg-panel" title="Sposta in alto">
+                <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="p-1 text-fg-muted hover:text-fg disabled:opacity-30 rounded-sm hover:bg-panel" title="Sposta in alto">
                   <ChevronUp size={13} />
                 </button>
                 <button
                   type="button"
                   onClick={() => move(idx, 1)}
                   disabled={idx === steps.length - 1}
-                  className="p-1 text-fg-muted hover:text-fg disabled:opacity-30 rounded hover:bg-panel"
+                  className="p-1 text-fg-muted hover:text-fg disabled:opacity-30 rounded-sm hover:bg-panel"
                   title="Sposta in basso"
                 >
                   <ChevronDown size={13} />
                 </button>
-                <button type="button" onClick={() => remove(idx)} className="p-1 text-fg-muted hover:text-rose-400 rounded hover:bg-panel ml-1" title="Elimina step">
+                <button type="button" onClick={() => remove(idx)} className="p-1 text-fg-muted hover:text-rose-400 rounded-sm hover:bg-panel ml-1" title="Elimina step">
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -180,7 +180,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
                     type="checkbox"
                     checked={step.tools == null || step.tools.length > 0}
                     onChange={(e) => update(idx, { ...step, tools: e.target.checked ? null : [] })}
-                    className="w-3.5 h-3.5 rounded border-border text-accent-text"
+                    className="w-3.5 h-3.5 rounded-sm border-border text-accent-text"
                   />
                   Può usare i tool consentiti dall'automazione
                 </label>

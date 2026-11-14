@@ -30,7 +30,7 @@ const MonthPicker: React.FC<{ navigation: CalendarNavigation; onClose: () => voi
         <button
           type="button"
           onClick={() => navigation.shiftYear(-1)}
-          className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
+          className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded-sm transition cursor-pointer"
           title="Anno precedente"
         >
           <ChevronLeft size={14} />
@@ -39,7 +39,7 @@ const MonthPicker: React.FC<{ navigation: CalendarNavigation; onClose: () => voi
         <button
           type="button"
           onClick={() => navigation.shiftYear(1)}
-          className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded transition cursor-pointer"
+          className="p-1 text-fg-muted hover:text-fg hover:bg-panel-header rounded-sm transition cursor-pointer"
           title="Anno successivo"
         >
           <ChevronRight size={14} />
@@ -56,7 +56,7 @@ const MonthPicker: React.FC<{ navigation: CalendarNavigation; onClose: () => voi
               onClose();
             }}
             className={`p-1.5 text-xs rounded-lg font-medium transition cursor-pointer ${
-              currentDate.getMonth() === idx ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-panel-header'
+              currentDate.getMonth() === idx ? 'bg-accent text-accent-contrast shadow-xs' : 'text-fg-muted hover:text-fg hover:bg-panel-header'
             }`}
           >
             {name.substring(0, 3)}
@@ -166,7 +166,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
               key={id}
               onClick={() => navigation.setViewMode(id)}
               className={`px-2.5 sm:px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
-                viewMode === id ? 'bg-accent text-accent-contrast shadow-sm' : 'text-fg-muted hover:text-fg'
+                viewMode === id ? 'bg-accent text-accent-contrast shadow-xs' : 'text-fg-muted hover:text-fg'
               }`}
             >
               {label}
@@ -185,7 +185,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
         <button
           onClick={onNewEvent}
           aria-label="Nuovo evento"
-          className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm shadow-accent/20 transition cursor-pointer"
+          className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs shadow-accent/20 transition cursor-pointer"
         >
           <Plus size={15} />
           <span className="hidden sm:inline">Nuovo Evento</span>

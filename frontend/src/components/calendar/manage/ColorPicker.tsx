@@ -29,7 +29,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, color
         type="color"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`${size === 'md' ? 'w-8 h-8 rounded-full' : 'w-7 h-7 rounded'} border border-border cursor-pointer bg-transparent`}
+        className={`${size === 'md' ? 'w-8 h-8 rounded-full' : 'w-7 h-7 rounded-sm'} border border-border cursor-pointer bg-transparent`}
         title="Colore personalizzato"
       />
     </div>

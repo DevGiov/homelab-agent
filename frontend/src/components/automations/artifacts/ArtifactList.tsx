@@ -65,7 +65,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
                     onClick={() => onSelect(art.artifact_id)}
                     className={`p-2.5 rounded-xl border text-xs transition cursor-pointer flex flex-col gap-1.5 relative group ${
                       selectedId === art.artifact_id
-                        ? 'bg-accent/15 border-accent text-fg shadow-sm'
+                        ? 'bg-accent/15 border-accent text-fg shadow-xs'
                         : 'bg-panel/60 hover:bg-panel border-border/60 hover:border-border text-fg-muted hover:text-fg'
                     }`}
                   >

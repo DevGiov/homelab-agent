@@ -91,7 +91,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
               key={status}
               onClick={() => setStatusFilter(status)}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
-                statusFilter === status ? 'bg-accent text-accent-contrast shadow-sm' : 'bg-panel border border-border text-fg-muted hover:text-fg'
+                statusFilter === status ? 'bg-accent text-accent-contrast shadow-xs' : 'bg-panel border border-border text-fg-muted hover:text-fg'
               }`}
             >
               {FILTER_LABELS[status]}
@@ -103,7 +103,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
           <button
             onClick={deleteSelected}
             disabled={selected.size === 0 || isDeleting}
-            className="px-2.5 py-1 text-xs text-rose-300 hover:text-rose-100 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            className="px-2.5 py-1 text-xs text-rose-300 hover:text-rose-100 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
             title="Elimina le esecuzioni selezionate tramite checkbox"
           >
             <Trash2 size={13} />
@@ -127,7 +127,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="rounded bg-input-bg border-border text-accent-text cursor-pointer"
+                    className="rounded-sm bg-input-bg border-border text-accent-text cursor-pointer"
                     aria-label="Seleziona tutte le esecuzioni visibili"
                     title="Seleziona tutte le esecuzioni visibili"
                   />
@@ -160,7 +160,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                       type="checkbox"
                       checked={selected.has(r.run_id)}
                       onChange={() => toggleRun(r.run_id)}
-                      className="rounded bg-input-bg border-border text-accent-text cursor-pointer"
+                      className="rounded-sm bg-input-bg border-border text-accent-text cursor-pointer"
                       aria-label={`Seleziona l'esecuzione ${r.run_id}`}
                       title="Seleziona l'esecuzione"
                     />

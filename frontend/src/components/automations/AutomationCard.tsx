@@ -83,7 +83,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           ? 'border-accent shadow-lg shadow-accent/20 ring-1 ring-accent animate-in fade-in'
           : isPaused
           ? 'border-amber-500/50 shadow-md shadow-amber-500/10'
-          : 'border-border/80 hover:border-accent/40 shadow-sm'
+          : 'border-border/80 hover:border-accent/40 shadow-xs'
       }`}
     >
       <div>
@@ -213,7 +213,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             {isRunning ? (
               <button
                 onClick={() => runActions.pause(activeRun.run_id)}
-                className={`px-3 py-1.5 ${STATUS_BUTTON.warning} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer`}
+                className={`px-3 py-1.5 ${STATUS_BUTTON.warning} rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs transition cursor-pointer`}
                 title="Metti in pausa l'esecuzione al termine del passo corrente"
               >
                 <Pause size={12} /> Pausa
@@ -221,7 +221,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
             ) : (
               <button
                 onClick={() => runActions.resume(activeRun.run_id)}
-                className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer`}
+                className={`px-3 py-1.5 ${STATUS_BUTTON.success} rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs transition cursor-pointer`}
                 title="Riprendi l'esecuzione dal passo corrente"
               >
                 <Play size={12} /> Riprendi
@@ -242,7 +242,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => actions.run(auto.id, false)}
-              className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-contrast rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs transition cursor-pointer"
               title="Lancia esecuzione completa con parametri di default"
             >
               <Play size={12} /> Esegui
