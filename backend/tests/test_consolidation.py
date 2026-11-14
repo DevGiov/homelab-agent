@@ -218,3 +218,94 @@ def test_manual_run_uses_the_requested_or_saved_model(sandbox, body, saved, expe
             result = mc.run(chosen)
     assert consolidate.call_args.args[0] == expected
     assert result["model"] == (expected or "modello-predefinito")
+
+
+# --- Etichetta dei fatti per provenienza (decisione del 14/11/2026) ---
+
+def _say_labeled(thread, user, user_label, assistant, assistant_label):
+    thread_store.save_user_message(thread, user, user_msg_id=f"{thread}-u", sensitivity=user_label)
+    thread_store.save_assistant_message(thread, {"response": assistant, "mode": "ask",
+                                                 "sensitivity": {"label": assistant_label}}, ast_msg_id=f"{thread}-a")
+
+
+def _labels():
+    return {f["content"]: f["sensitivity"] for f in facts.list_facts()[0]}
+
+
+def test_a_fact_takes_the_label_of_the_message_it_comes_from(sandbox):
+    # La risposta è privata perché il turno aveva memoria privata: ciò che riporta resta privato
+    _say_labeled("p1", "Uso Linux per giocare.", "public", "Il tuo NAS ha 4 dischi da 8 TB.", "private")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="L'utente gioca su Linux"),
+            FactOperation(op="add", message=2, fact="Il NAS dell'utente ha 4 dischi da 8 TB"),
+            FactOperation(op="add", message=99, fact="Numero di messaggio fuori dal blocco"))):
+        mc.consolidate_messages()
+    assert _labels() == {"L'utente gioca su Linux": "public", "Il NAS dell'utente ha 4 dischi da 8 TB": "private",
+                         "Numero di messaggio fuori dal blocco": "private"}
+
+
+def test_messages_saved_before_labels_count_as_public(sandbox):
+    _say("p2", "2026-10-01", ("Il mio editor è Neovim.", "Annotato."))
+    with patch.object(mc, "propose_operations", return_value=_ops(FactOperation(op="add", message=1, fact="L'utente usa Neovim"))):
+        mc.consolidate_messages()
+    assert _labels() == {"L'utente usa Neovim": "public"}
+
+
+def test_an_update_keeps_at_least_the_label_of_the_fact_it_replaces(sandbox):
+    old, _ = facts.add_fact("Il router di casa è un Fritz!Box 7590", entities=[], entities_checked=True)  # senza etichetta: privato
+    _say_labeled("p3", "Ho cambiato il router con un Fritz!Box 5690.", "public", "Ricevuto.", "public")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="update", message=1, fact="Il router di casa è un Fritz!Box 5690", replaces=old))):
+        mc.consolidate_messages()
+    assert _labels() == {"Il router di casa è un Fritz!Box 5690": "private"}
+
+
+def test_personal_data_in_a_fact_makes_it_private(sandbox):
+    facts.add_fact("Mario Rossi è il commercialista dell'utente", entities=[{"name": "Mario Rossi", "type": "person"}],
+                   entities_checked=True, sensitivity="private")
+    _say_labeled("p4", "Scrivo a Mario e a Giulia.", "public", "Ok.", "public")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="L'email dell'utente per le fatture è fatture@example.org"),
+            FactOperation(op="add", message=1, fact="L'utente sente spesso Mario Rossi per le tasse"),
+            FactOperation(op="add", message=1, fact="Giulia è la collega che gestisce i turni",
+                          entities=[{"name": "Giulia", "type": "person"}]),
+            FactOperation(op="add", message=1, fact="L'utente usa Proxmox VE 9 sul server di casa",
+                          entities=[{"name": "Proxmox VE", "type": "software"}]))):
+        mc.consolidate_messages()
+    labels = _labels()
+    assert labels["L'email dell'utente per le fatture è fatture@example.org"] == "private"
+    assert labels["L'utente sente spesso Mario Rossi per le tasse"] == "private"
+    assert labels["Giulia è la collega che gestisce i turni"] == "private"
+    assert labels["L'utente usa Proxmox VE 9 sul server di casa"] == "public"
+
+
+def test_a_near_duplicate_keeps_the_label_of_the_existing_fact(sandbox):
+    """Un fatto privato ripetuto dall'assistente e attribuito al messaggio dell'utente non diventa pubblico."""
+    facts.add_fact("Il codice cliente dell'utente presso il fornitore di energia è 4458812", entities=[],
+                   entities_checked=True, sensitivity="private")
+    _say_labeled("p5", "Grazie.", "public", "Il tuo codice cliente è 4458812.", "private")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="Il codice cliente dell'utente presso il fornitore di energia è 4458812"))):
+        mc.consolidate_messages()
+    assert _labels() == {"Il codice cliente dell'utente presso il fornitore di energia è 4458812": "private"}
+
+
+def test_secrets_never_reach_the_memory(sandbox):
+    _say_labeled("p6", "La chiave è sk-proj-abcdefghijklmnopqrstuvwx123456", "private", "Ok.", "private")
+    with patch.object(mc, "propose_operations", return_value=_ops(
+            FactOperation(op="add", message=1, fact="La chiave API dell'utente è sk-proj-abcdefghijklmnopqrstuvwx123456"))):
+        mc.consolidate_messages()
+    (content,) = _labels()
+    assert "sk-proj-" not in content and "[RIMOSSO: segreto]" in content
+
+
+def test_fact_label_never_goes_above_private():
+    from app.security.flows import Label
+    op = FactOperation(op="add", message=1, fact="token ghp_abcdefghijklmnopqrstuvwxyz0123456789")
+    tag = mc.fact_label(op, [{"role": "user", "content": "x", "sensitivity": None}], [], [])
+    assert tag.label == Label.PRIVATE
+
+
+def test_add_fact_rejects_an_unknown_label(sandbox):
+    with pytest.raises(ValueError):
+        facts.add_fact("Fatto qualsiasi", sensitivity="secret")

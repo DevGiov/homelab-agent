@@ -312,17 +312,26 @@ def add_fact(
     entities_checked: bool = False,
     created_at: Optional[str] = None,
     dedupe: bool = True,
+    sensitivity: Optional[str] = None,
 ) -> Tuple[Optional[int], bool]:
     """Salva un fatto con le sue entità. Restituisce (id, creato): un quasi-duplicato non viene riscritto ma
     riceve le entità nuove, e l'id è quello del fatto esistente. `entities_checked` segna che le entità sono già
     state cercate (dall'estrazione), così il fatto non torna tra quelli da analizzare anche se non ne ha.
     `created_at` è la data da cui il fatto vale (per i fatti consolidati, quella del messaggio da cui vengono).
-    `dedupe=False` salta il controllo dei quasi-duplicati (un aggiornamento esplicito del consolidamento)."""
+    `dedupe=False` salta il controllo dei quasi-duplicati (un aggiornamento esplicito del consolidamento).
+    `sensitivity`: etichetta del fatto nuovo (public, internal, private); senza, al richiamo vale il default `private`.
+    Un quasi-duplicato tiene l'etichetta del fatto esistente."""
     content = content.strip()
     if not content:
         return None, False
     duplicate = find_duplicate(content) if dedupe else None
-    fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata={"source": source}, created_at=created_at)
+    from app.security.flows import USER_LEVELS
+    if sensitivity is not None and sensitivity not in USER_LEVELS:
+        raise ValueError(f"Sensibilità non valida: {sensitivity!r} ({', '.join(USER_LEVELS)})")
+    metadata: Dict[str, Any] = {"source": source}
+    if sensitivity is not None:
+        metadata["sensitivity"] = sensitivity
+    fact_id = duplicate or vector_store.add_memory(content, kind="fact", thread_id=thread_id, metadata=metadata, created_at=created_at)
     if fact_id is None:
         return None, False
     if entities_checked:

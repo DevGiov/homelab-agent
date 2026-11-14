@@ -12,6 +12,10 @@ vengono, così le domande temporali ("cosa ho installato ad agosto") hanno la da
 
 La deduplicazione confronta i fatti salvati dall'ultima esecuzione con tutti gli altri: i gruppi molto simili passano al
 modello, che indica quali ripetono o contraddicono un altro fatto.
+
+Un fatto nuovo prende l'etichetta di sensibilità del messaggio da cui viene (`fact_label`): pubblico se l'ha scritto
+l'utente in una conversazione pubblica, privato se viene da una risposta data in un turno con dati privati; per un
+aggiornamento anche quella del fatto sostituito; i dati personali (rilevatori, persone) lo alzano a privato.
 """
 import json
 import logging
@@ -27,7 +31,7 @@ from app.agent import llm_calls
 from app.agent.fact_extraction import ENTITY_GUIDE, ExtractedEntity, entity_refs
 from app.llm.providers import LLMUnavailableError, get_provider, resolve_model
 from app.memory import facts, thread_store, vector_store
-from app.security import flows
+from app.security import detectors, flows
 
 logger = logging.getLogger("consolidation")
 
@@ -214,9 +218,39 @@ def _related_facts(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(found.values())[:RELATED_MAX]
 
 
+def fact_label(op: FactOperation, messages: List[Dict[str, Any]], related: List[Dict[str, Any]],
+               person_names: List[str]) -> flows.Tag:
+    """Etichetta di un fatto proposto dal consolidamento, per provenienza (decisione presa il 14/11/2026):
+    - il messaggio indicato da `op.message`; se il numero è fuori dal blocco, tutti i messaggi del blocco;
+    - per un aggiornamento, anche il fatto sostituito;
+    - privato se il testo contiene un dato personale (segreto, IBAN, codice fiscale, email, persona della memoria) o
+      se tra le entità c'è una persona.
+    I fatti già in memoria mostrati al modello non entrano: un fatto che li ripete è un quasi-duplicato e tiene
+    l'etichetta di quello esistente (facts.add_fact)."""
+    if 1 <= op.message <= len(messages):
+        sources = [messages[op.message - 1]]
+    else:
+        sources = messages
+    tags = [flows.message_tag(m.get("sensitivity"), m.get("role", "user")) for m in sources]
+    if op.op == "update":
+        replaced = next((f for f in related if f.get("id") == op.replaces), None)
+        tags.append(flows.memory_item_tag("fatto", replaced))
+    tags.append(detectors.tag_for(op.fact, "fatto", person_names, kinds=detectors.RESULT_KINDS))
+    if any(e.type == "person" for e in op.entities):
+        tags.append(flows.tag_of(flows.Label.PRIVATE, "fatto:person"))
+    tag = flows.join(*tags)
+    # I fatti accettano le etichette che l'utente può scegliere: un segreto non diventa un fatto più alto di privato
+    return flows.Tag(min(tag.label, flows.Label.PRIVATE), tag.untrusted, tag.reasons)
+
+
 def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], related: List[Dict[str, Any]], thread_id: str) -> Dict[str, int]:
     counts = {"added": 0, "updated": 0, "invalidated": 0}
     known = {f["id"] for f in related}
+    try:
+        person_names = [e["name"] for e in facts.list_entities(entity_type="person") if e.get("name")]
+    except Exception as e:
+        logger.warning(f"Persone della memoria non lette (non bloccante): {e}")
+        person_names = []
     for op in operations:
         date = messages[min(max(op.message, 1), len(messages)) - 1].get("created_at")
         if op.op in ("update", "invalidate") and op.replaces not in known:
@@ -229,10 +263,16 @@ def _apply(operations: List[FactOperation], messages: List[Dict[str, Any]], rela
             continue
         if len(op.fact.strip()) <= 5:
             continue
+        # Un segreto non va in memoria: verrebbe richiamato nel contesto di un modello
+        op.fact, removed = detectors.redact_secrets(op.fact)
+        if removed:
+            logger.warning(f"Fatto dal thread '{thread_id}': {removed} segreti rimossi prima del salvataggio")
         # Un aggiornamento esplicito non passa dal controllo dei quasi-duplicati: il fatto nuovo somiglia per forza
         # a quello che sostituisce
+        label = fact_label(op, messages, related, person_names)
         fact_id, created = facts.add_fact(op.fact, thread_id=thread_id, entities=entity_refs(op.entities), source="conversation",
-                                          entities_checked=True, created_at=date, dedupe=op.op != "update")
+                                          entities_checked=True, created_at=date, dedupe=op.op != "update",
+                                          sensitivity=label.label.key)
         if fact_id is None:
             continue
         if op.op == "update" and fact_id != op.replaces:
