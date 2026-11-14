@@ -11,7 +11,7 @@ const GUARANTEES = [
     "l'agente può leggere le email e creare bozze di risposta (Draft), ma non invierà mai email senza autorizzazione esplicita.",
   ],
   ['Cifratura AES a Riposo', 'tutte le password e token sono memorizzati cifrati con Fernet AES nel database dedicato delle automazioni.'],
-  ['Scoped Secret Whitelist', 'ogni workflow accede unicamente ai secret esplicitamente dichiarati nella propria permission policy.'],
+  ['Segreti limitati per workflow', 'ogni workflow accede solo ai segreti dichiarati esplicitamente nella propria policy dei permessi.'],
 ];
 
 /** Credenziali dei servizi esterni usati dalle automazioni. */

@@ -97,8 +97,8 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
     { id: 'automations', icon: Layers, label: `Automazioni (${data.automations.length})` },
     { id: 'artifacts', icon: FileText, label: 'Artefatti & Report' },
     { id: 'runs', icon: Zap, label: `Storico Run (${data.runs.length})` },
-    { id: 'approvals', icon: Inbox, label: 'Approvazioni Inbox', badge: data.approvals.length },
-    { id: 'templates', icon: Sparkles, label: `Template Gallery (${data.templates.length})` },
+    { id: 'approvals', icon: Inbox, label: 'Approvazioni in attesa', badge: data.approvals.length },
+    { id: 'templates', icon: Sparkles, label: `Galleria template (${data.templates.length})` },
     { id: 'integrations', icon: Key, label: 'Integrazioni & Servizi' },
   ];
 
@@ -163,7 +163,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
                     onClick={() => setActiveTab('templates')}
                     className="mt-4 px-4 py-2 bg-accent hover:bg-accent-hover text-accent-contrast rounded-xl text-xs font-medium transition"
                   >
-                    Esplora Template Gallery
+                    Esplora la galleria dei template
                   </button>
                 </div>
               ) : (

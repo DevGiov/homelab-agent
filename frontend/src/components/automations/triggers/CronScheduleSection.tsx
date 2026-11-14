@@ -118,7 +118,7 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
 
           {frequency === 'custom' && (
             <div>
-              <label className="block text-xs text-fg-muted mb-1">Espressione Cron standard (5 campi: m h dom mon dow)</label>
+              <label className="block text-xs text-fg-muted mb-1">Espressione cron standard (5 campi: minuto, ora, giorno del mese, mese, giorno della settimana)</label>
               <input
                 type="text"
                 value={schedule.custom}

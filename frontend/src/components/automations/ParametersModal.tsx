@@ -296,7 +296,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                         </div>
                         {param.default !== undefined && param.default !== null && (
                           <span className="text-xs text-fg-muted font-mono">
-                            default: {String(param.default)}
+                            predefinito: {String(param.default)}
                           </span>
                         )}
                       </div>

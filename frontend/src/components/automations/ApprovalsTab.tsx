@@ -86,11 +86,11 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                             isWorkflow ? 'bg-accent/15 text-accent border-accent/30' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'
                           }`}
                         >
-                          {isWorkflow ? 'Workflow' : 'Chat Session'}
+                          {isWorkflow ? 'Workflow' : 'Conversazione'}
                         </span>
                       </div>
                       <span className="text-xs font-mono text-fg-muted">
-                        {isWorkflow ? 'Run' : 'Session'}: {apr.run_id} • Req: {apr.request_id}
+                        {isWorkflow ? 'Run' : 'Conversazione'}: {apr.run_id} • Richiesta: {apr.request_id}
                       </span>
                     </div>
                   </div>
@@ -122,7 +122,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   <div className="text-fg-muted">
                     <span className="font-semibold text-fg">Motivo Guardrail:</span> {apr.risk_reason || 'Conferma richiesta da policy.'}
                   </div>
-                  {apr.command_preview && <div className="font-mono text-xs text-amber-300">preview: {apr.command_preview}</div>}
+                  {apr.command_preview && <div className="font-mono text-xs text-amber-300">anteprima: {apr.command_preview}</div>}
                   {apr.arguments && (
                     <pre className="text-xs text-fg-muted overflow-x-auto max-h-32 mt-1">
                       {JSON.stringify(apr.arguments, null, 2)}

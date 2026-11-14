@@ -39,7 +39,7 @@ export const AutomationCardDetails: React.FC<AutomationCardDetailsProps> = ({ au
           </span>
         </div>
         <div className="p-2 rounded-lg bg-panel border border-border/60">
-          <span className="text-fg-muted text-xs block">Runs Storico</span>
+          <span className="text-fg-muted text-xs block">Run eseguite</span>
           <span className="font-semibold text-fg">{runsCount}</span>
         </div>
       </div>

@@ -23,7 +23,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Template Pronti all'Uso (Homelab Best Practices)</h3>
+      <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Template pronti all'uso (buone pratiche per l'homelab)</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {templates.map((tpl) => (
@@ -32,7 +32,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
             className="p-5 rounded-2xl bg-panel border border-accent/40 shadow-md flex flex-col justify-between space-y-4 relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 bg-accent/20 px-3 py-1 text-xs font-bold text-accent rounded-bl-xl border-l border-b border-accent/30">
-              MVP READY
+              PRONTO
             </div>
 
             <div>
@@ -49,7 +49,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({ templates, notify, o
               <p className="text-xs text-fg-muted mt-3">{tpl.description}</p>
 
               <div className="mt-4 p-3 rounded-xl bg-bg/50 border border-border/60 space-y-2 text-xs">
-                <span className="font-semibold text-fg block text-xs">Workflow Steps:</span>
+                <span className="font-semibold text-fg block text-xs">Step del workflow:</span>
                 <ol className="list-decimal list-inside space-y-1 text-fg-muted text-xs">
                   {tpl.workflow?.steps?.map((st: any) => (
                     <li key={st.step_id}>

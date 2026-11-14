@@ -2,8 +2,20 @@ import React, { useState } from 'react';
 import { Eye, FileText, Lock, Pause, Play, Star, Trash2, Unlock } from 'lucide-react';
 import type { AutomationRunSummary } from '../../api/automationRuns';
 import type { RunActions } from '../../hooks/useRunActions';
+import { runStatusLabel, triggerLabel } from '../../utils/runLabels';
 
 const STATUS_FILTERS = ['all', 'completed', 'waiting_approval', 'failed', 'running', 'paused', 'dry_run'];
+
+/** Etichette dei filtri; i valori restano quelli del backend. */
+const FILTER_LABELS: Record<string, string> = {
+  all: 'Tutte',
+  completed: 'Completate',
+  waiting_approval: 'In attesa di approvazione',
+  failed: 'Fallite',
+  running: 'In corso',
+  paused: 'In pausa',
+  dry_run: 'Dry-Run',
+};
 
 const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
@@ -23,12 +35,12 @@ const StatusBadge: React.FC<{ run: AutomationRunSummary }> = ({ run }) =>
     </span>
   ) : (
     <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${
+      className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${
         STATUS_BADGE[run.status] ?? 'bg-zinc-500/20 text-zinc-300'
       }`}
     >
       {run.status === 'running' && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" />}
-      {run.status}
+      {runStatusLabel(run.status)}
     </span>
   );
 
@@ -78,11 +90,11 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition capitalize cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                 statusFilter === status ? 'bg-accent text-accent-contrast shadow-sm' : 'bg-panel border border-border text-fg-muted hover:text-fg'
               }`}
             >
-              {status.replace('_', ' ')}
+              {FILTER_LABELS[status]}
             </button>
           ))}
         </div>
@@ -174,7 +186,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                   <td className="p-3">
                     <StatusBadge run={r} />
                   </td>
-                  <td className="p-3 capitalize text-fg-muted">{r.trigger_type}</td>
+                  <td className="p-3 text-fg-muted">{triggerLabel(r.trigger_type)}</td>
                   <td className="p-3">
                     {r.artifacts_count ? (
                       <button

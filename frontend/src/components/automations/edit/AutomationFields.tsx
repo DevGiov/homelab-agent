@@ -31,7 +31,7 @@ export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
         value={form.name}
         onChange={(e) => onChange({ name: e.target.value })}
         className={inputClass}
-        placeholder="es. GitHub Trending Daily Report"
+        placeholder="es. Report giornaliero delle tendenze su GitHub"
       />
     </div>
 
@@ -72,7 +72,7 @@ export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
           min={1}
           max={365}
           className={`${inputClass} py-1.5`}
-          placeholder="14 (default)"
+          placeholder="14 (predefinito)"
         />
         <p className="text-xs text-fg-muted mt-1">Le run non protette con lucchetto verranno rimosse dopo questo intervallo dal cleanup notturno.</p>
       </div>

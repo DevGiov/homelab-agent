@@ -12,7 +12,7 @@ const TOOLS: Array<[string, string]> = [
   ['web_search', 'web_search (Ricerca Web & Fetch)'],
   ['save_artifact', 'save_artifact (Salvataggio Report Markdown)'],
   ['email_fetch_unread', 'email_fetch_unread (Lettura Email)'],
-  ['email_create_draft', 'email_create_draft (Bozza Email - No auto send)'],
+  ['email_create_draft', 'email_create_draft (Bozza email, senza invio automatico)'],
   ['exec_lxc_command', 'exec_lxc_command (Comando Shell LXC)'],
   ['http_get', 'http_get (Chiamata HTTP REST)'],
 ];
@@ -48,7 +48,7 @@ const ParametersField: React.FC<{ value: Record<string, any>; onChange: (value: 
         onChange={(e) => edit(e.target.value)}
         rows={2}
         className={`${fieldClass} p-2.5 font-mono ${error ? 'border-rose-500/60' : ''}`}
-        placeholder='{"query": "trending github repositories"}'
+        placeholder='{"query": "repository di tendenza su GitHub"}'
       />
       {error && <p className="text-xs text-rose-400 mt-1">JSON non valido, modifica non applicata: {error}</p>}
     </div>

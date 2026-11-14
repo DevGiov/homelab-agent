@@ -19,6 +19,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AutomationRunDetails, StepRun } from '../../api/automationRuns';
+import { runStatusLabel, triggerLabel } from '../../utils/runLabels';
 
 interface RunInspectorModalProps {
   run: AutomationRunDetails | null;
@@ -61,31 +62,31 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
       case 'completed':
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-            <CheckCircle size={12} /> Completed
+            <CheckCircle size={12} /> Completata
           </span>
         );
       case 'running':
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1 animate-pulse">
-            <PlayCircle size={12} /> Running
+            <PlayCircle size={12} /> In corso
           </span>
         );
       case 'waiting_approval':
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-            <PauseCircle size={12} /> Waiting Approval
+            <PauseCircle size={12} /> In attesa di approvazione
           </span>
         );
       case 'failed':
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-            <AlertCircle size={12} /> Failed
+            <AlertCircle size={12} /> Fallita
           </span>
         );
       default:
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-500/20 text-zinc-300 border border-zinc-500/30">
-            {status}
+            {runStatusLabel(status)}
           </span>
         );
     }
@@ -109,7 +110,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
               </div>
               <p className="text-xs text-fg-muted mt-0.5">
                 Automazione: <span className="font-semibold text-fg">{run.automation_id}</span> • Trigger:{' '}
-                <span className="capitalize">{run.trigger_type}</span>
+                <span>{triggerLabel(run.trigger_type)}</span>
               </p>
             </div>
           </div>
@@ -165,7 +166,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                 : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
-            Step Timeline ({run.step_runs?.length || 0})
+            Cronologia degli step ({run.step_runs?.length || 0})
           </button>
           <button
             onClick={() => setActiveTab('artifacts')}
@@ -190,7 +191,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                 : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
-            JSON Raw
+            JSON grezzo
           </button>
         </div>
 
@@ -226,7 +227,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                             <span className="text-xs text-fg-muted flex items-center gap-2 mt-0.5">
                               <span>Tentativo {sr.attempt}</span>
                               {sr.tokens_consumed > 0 && (
-                                <span>• {sr.tokens_consumed} tokens</span>
+                                <span>• {sr.tokens_consumed} token</span>
                               )}
                             </span>
                           </div>

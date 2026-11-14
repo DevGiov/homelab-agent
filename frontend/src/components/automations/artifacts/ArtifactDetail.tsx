@@ -97,7 +97,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                 {(
                   [
                     ['rendered', Eye, 'Anteprima'],
-                    ['raw', Code, 'Raw'],
+                    ['raw', Code, 'Sorgente'],
                   ] as const
                 ).map(([mode, Icon, label]) => (
                   <button
@@ -140,7 +140,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                 title="Scarica file su disco locale"
               >
                 <Download size={13} />
-                <span className="hidden sm:inline">Download</span>
+                <span className="hidden sm:inline">Scarica</span>
               </button>
 
               <button
