@@ -258,10 +258,14 @@ describe('MemoryView', () => {
     );
   });
 
+  // Sotto carico (suite intera in parallelo) la vista completa impiega più del secondo di attesa predefinito di findBy e waitFor:
+  // stesse verifiche, con più tempo per arrivarci
+  const SLOW = { timeout: 5000 };
+
   it('mostra il consolidamento e lo avvia; i fatti superati si vedono a richiesta e si ripristinano', async () => {
     const { requests } = setup();
     render(<MemoryView threads={threads} onOpenThread={vi.fn()} />);
-    const bar = await screen.findByLabelText('Consolidamento della memoria');
+    const bar = await screen.findByLabelText('Consolidamento della memoria', {}, SLOW);
     expect(within(bar).getByText('6')).toBeTruthy();
     expect(within(bar).getByText(/3 fatti nuovi, 1 aggiornati/)).toBeTruthy();
     expect(within(bar).getByText(/ogni giorno alle 03:00 \(Europe\/Rome\) con il modello caricato in quel momento/)).toBeTruthy();
@@ -269,28 +273,33 @@ describe('MemoryView', () => {
     expect((within(bar).getByLabelText('Modello per consolidare ora') as HTMLSelectElement).value).toBe('loaded');
     fireEvent.change(within(bar).getByLabelText('Modello per consolidare ora'), { target: { value: '' } });
     fireEvent.click(within(bar).getByRole('button', { name: /Consolida ora/ }));
-    await waitFor(() =>
-      expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')?.body).toEqual({ model: null })
+    await waitFor(
+      () => expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')?.body).toEqual({ model: null }),
+      SLOW
     );
 
     fireEvent.click(within(bar).getByTitle('Programmazione del consolidamento'));
     fireEvent.change(within(bar).getByLabelText('Orario del consolidamento'), { target: { value: '22:30' } });
     fireEvent.click(within(bar).getByRole('button', { name: 'Salva' }));
-    await waitFor(() =>
-      expect(requests.find((r) => r.method === 'PUT' && r.path === '/v1/memory/consolidation/settings')?.body).toMatchObject({
-        enabled: true,
-        time: '22:30',
-        model: 'loaded',
-      })
+    await waitFor(
+      () =>
+        expect(requests.find((r) => r.method === 'PUT' && r.path === '/v1/memory/consolidation/settings')?.body).toMatchObject({
+          enabled: true,
+          time: '22:30',
+          model: 'loaded',
+        }),
+      SLOW
     );
 
     expect(screen.queryByText('Il CT 125 usa Debian 11')).toBeNull();
     fireEvent.click(screen.getByLabelText(/Mostra i 1 superati/));
-    const card = await screen.findByRole('article', { name: 'Fatto 9' });
+    // Prima la richiesta (controllo leggero), poi la scheda: la ricerca per ruolo percorre tutta la vista a ogni tentativo
+    await waitFor(() => expect(requests.some((r) => r.path === '/v1/memory/facts' && r.search.includes('include_superseded'))).toBe(true), SLOW);
+    const card = await screen.findByRole('article', { name: 'Fatto 9' }, SLOW);
     expect(within(card).getByText(/superato da #11/)).toBeTruthy();
     fireEvent.click(within(card).getByTitle('Rendi di nuovo valido'));
-    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/facts/9/restore')).toBe(true));
-  });
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/v1/memory/facts/9/restore')).toBe(true), SLOW);
+  }, 20000);
 
   it('scrive il profilo che l\'agente legge a ogni turno', async () => {
     const { requests } = setup();
