@@ -216,6 +216,23 @@ describe('testo di stato su fondi di stato tinti', () => {
   });
 });
 
+describe('distintivi che pulsano', () => {
+  // `animate-pulse` porta l'opacità a 0.5: su un distintivo tinto il testo scende sotto 4.5:1 a ogni ciclo.
+  // `animate-tint-pulse` fa svanire solo la tinta, e il contrasto del testo può solo salire.
+  it("pulsano nella tinta, non nell'opacità del testo", () => {
+    const pulsing = CLASS_STRINGS.filter(({ classes }) => {
+      const utilities = tokensOf(classes).map((token) => token.split(':').pop() ?? '');
+      return (
+        utilities.includes('animate-pulse') &&
+        utilities.some((u) => /^bg-[\w-]+\/\d+$/.test(u)) &&
+        utilities.some((u) => /^text-(accent|fg|fg-muted|[a-z]+-\d00)$/.test(u))
+      );
+    });
+    expect(pulsing.map(({ file, classes }) => `${file}: ${classes}`)).toEqual([]);
+    expect(CLASS_STRINGS.some(({ classes }) => tokensOf(classes).includes('animate-tint-pulse'))).toBe(true);
+  });
+});
+
 describe("testo d'accento", () => {
   it("text-accent usa il testo d'accento del tema; fondi, bordi e anelli restano sull'accento", () => {
     expect(tailwindConfig.theme.extend.textColor.accent).toEqual({ DEFAULT: expect.stringContaining('var(--accent-text)') });

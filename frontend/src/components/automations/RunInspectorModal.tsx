@@ -70,7 +70,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
         );
       case 'running':
         return (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1 animate-pulse">
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1 animate-tint-pulse">
             <PlayCircle size={12} /> In corso
           </span>
         );

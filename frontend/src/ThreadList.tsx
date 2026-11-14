@@ -253,7 +253,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                       </span>
                       <span className="flex items-center gap-1 shrink-0">
                         {thread.is_active && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-pulse">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 border border-accent/40 text-accent font-medium animate-tint-pulse">
                             In corso
                           </span>
                         )}

@@ -100,7 +100,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
 
           <div className="flex items-center gap-2">
             {isRunning ? (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-pulse">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/40 flex items-center gap-1.5 animate-tint-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
               </span>
             ) : isPaused ? (
@@ -108,7 +108,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
                 In Pausa
               </span>
             ) : activeStatus === 'waiting_approval' ? (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-tint-pulse">
                 Attesa Approvazione
               </span>
             ) : null}

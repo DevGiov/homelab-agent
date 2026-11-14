@@ -93,7 +93,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             </div>
           ))}
           {isProcessing && (
-            <div className="h-14 sm:h-16 px-3 rounded-xl border border-dashed border-accent/40 bg-accent/10 flex items-center gap-2 text-accent text-xs shrink-0 animate-pulse">
+            <div className="h-14 sm:h-16 px-3 rounded-xl border border-dashed border-accent/40 bg-accent/10 flex items-center gap-2 text-accent text-xs shrink-0 animate-tint-pulse">
               <Loader2 size={16} className="animate-spin" />
               <span>Ottimizzazione...</span>
             </div>

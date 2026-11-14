@@ -122,11 +122,17 @@ export default {
           '0%, 100%': { opacity: '0.3', transform: 'scale(0.95)' },
           '50%': { opacity: '0.55', transform: 'scale(1.05)' },
         },
+        // Distintivi "in corso": pulsa la tinta, non il testo. `animate-pulse` dimezza l'opacità del testo, che a metà ciclo
+        // scende sotto 4.5:1; svanendo la tinta il contrasto può solo salire.
+        'tint-pulse': {
+          '50%': { backgroundColor: 'transparent' },
+        },
       },
       animation: {
         'ambient-slow': 'ambient-slow 24s ease-in-out infinite',
         'ambient-reverse': 'ambient-reverse 28s ease-in-out infinite',
         'ambient-pulse': 'ambient-pulse 16s ease-in-out infinite',
+        'tint-pulse': 'tint-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },

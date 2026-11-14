@@ -44,7 +44,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         );
       case 'running':
         return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-xs font-medium border border-accent/30 animate-pulse">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-xs font-medium border border-accent/30 animate-tint-pulse">
             <Clock size={10} /> In corso
           </span>
         );

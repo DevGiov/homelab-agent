@@ -53,7 +53,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
         </div>
         <div
           className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium shadow-sm shrink-0 ${
-            hasApprovals ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 animate-pulse' : 'bg-panel/80 border-border/70 text-fg-muted'
+            hasApprovals ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 animate-tint-pulse' : 'bg-panel/80 border-border/70 text-fg-muted'
           }`}
         >
           <Shield size={12} className={hasApprovals ? 'text-rose-400' : 'text-fg-muted'} />

@@ -20,8 +20,8 @@ const FILTER_LABELS: Record<string, string> = {
 const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
   failed: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
-  waiting_approval: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse',
-  running: 'bg-accent/20 text-accent border border-accent/40 animate-pulse',
+  waiting_approval: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-tint-pulse',
+  running: 'bg-accent/20 text-accent border border-accent/40 animate-tint-pulse',
   paused: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
 };
 

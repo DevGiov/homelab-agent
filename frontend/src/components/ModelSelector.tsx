@@ -318,7 +318,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {/* Loading Badge */}
           {isLoading && (
             <span
-              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 animate-pulse"
+              className="px-1.5 py-0.5 rounded text-xs font-sans font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 animate-tint-pulse"
               title="Caricamento in corso..."
             >
               <Loader2 size={9} className="animate-spin text-amber-400" />

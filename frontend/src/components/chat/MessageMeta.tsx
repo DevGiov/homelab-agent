@@ -153,7 +153,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         </span>
       )}
       {showPaused && (
-        <span className={`${badge} bg-amber-500/20 border border-amber-500/40 text-amber-300 animate-pulse`}>
+        <span className={`${badge} bg-amber-500/20 border border-amber-500/40 text-amber-300 animate-tint-pulse`}>
           <Pause size={10} />
           In pausa...
         </span>
