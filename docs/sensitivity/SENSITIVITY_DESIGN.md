@@ -113,7 +113,7 @@ Tre fonti, in ordine di affidabilità. Solo le prime due sono deterministiche.
 | Risposta dell'assistente | `thread_messages` | Quella della chiamata che l'ha scritta | Come la chiamata | Colonna `sensitivity` |
 | Riassunto del thread | `thread_summaries` | La più alta tra i messaggi coperti | | Nuova colonna |
 | Profilo dell'utente | `memory/profile.py` | `private` | `trusted` | Fissa |
-| Fatti ed entità | `vec_memory`, `memory_entities` | Dal consolidamento: l'etichetta del messaggio da cui vengono ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)); scritti a mano o senza etichetta: `private`. L'utente può cambiare un singolo fatto | `trusted` | `metadata_json` del fatto (esiste già) |
+| Fatti ed entità | `vec_memory`, `memory_entities` | Dal consolidamento: l'etichetta di ciò che la chiamata ha letto, a letture per livello ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)); scritti a mano o senza etichetta: `private`. L'utente può cambiare un singolo fatto | `trusted` | `metadata_json` del fatto (esiste già) |
 | Episodi e procedure | `vec_memory` (`kind='episode'`, `'procedure'`) e tabella `procedures` | Quella del turno da cui nascono | | `metadata_json` del record; nuova colonna in `procedures` |
 | Documento della knowledge base | `vec_memory`, record `kind='kb'` | Scelta al caricamento, `internal` se non indicata | `trusted` (lo carica l'utente) | `metadata_json` dei chunk |
 | Posta | IMAP, `email_fetch_unread` | `private` | `untrusted` | Regola del tool |
@@ -412,19 +412,43 @@ Decise e costruite il 14/11/2026, dopo la misura dell'uso reale (9.4).
 
 Il tag della chiamata e degli argomenti nuovi è l'unione di ciò che ha letto: la destinazione li riceve senza chiedere. Il nome del tool scelto dal loop resta visibile (lo dice già 1, "Cosa non garantisce"). Nessun ragionamento e nessuna immagine nella chiamata.
 
-Si torna alla conferma con gli argomenti originali quando la chiamata dice che le informazioni visibili non bastano, quando gli argomenti non rispettano lo schema o cambiano destinazione verso una che non può riceverli, e quando ripetono una chiamata già fatta nel turno. Anche le automazioni restano come prima, perché non passano la richiesta separata, e così i piani strutturati: il piano eseguito deve essere quello che l'utente ha letto.
+Si torna alla conferma con gli argomenti originali quando la chiamata dice che le informazioni visibili non bastano, quando gli argomenti non rispettano lo schema o cambiano destinazione verso una che non può riceverli, e quando ripetono una chiamata già fatta nel turno o una ricerca quasi uguale. I tool che non sono di sola lettura non si riscrivono mai. Anche le automazioni restano come prima, perché non passano la richiesta separata, e così i piani strutturati: il piano eseguito deve essere quello che l'utente ha letto.
 
 Il modello che ha scelto il tool vede nel risultato che gli argomenti sono stati riscritti e perché. La traccia del passo li segna ("Senza dati riservati") e conserva quelli originali, che restano in locale. L'audit registra l'uscita come `clean`, e la vista delle uscite di dati ha la colonna "Riscritte". Una riscrittura sospesa da un'altra approvazione (un host non ammesso) riprende con il tag con cui è stata scritta.
 
 **Suite `flows`.** `fatto-non-pertinente` (memoria privata non pertinente, domanda pubblica) ora si aspetta nessuna conferma oltre a nessuna fuga; la metrica `rewritten` conta le uscite riscritte.
 
-**Fatti per provenienza** (`memory_consolidation.fact_label`). Un fatto proposto dal consolidamento prende:
+**Fatti per provenienza** (`memory_consolidation.reading_levels`, `fact_label`). Un fatto proposto dal consolidamento prende l'etichetta più alta di ciò che la chiamata ha letto per scriverlo: i messaggi e i fatti già in memoria che le sono stati mostrati. Il numero di messaggio indicato dal modello non conta, perché lo sceglie il modello.
 
-- l'etichetta del messaggio da cui viene (il numero indicato dal modello). Un messaggio dell'utente in una conversazione pubblica è `public` (decisione 1); una risposta data in un turno con memoria privata resta `private`. Con un numero fuori dal blocco, l'unione di tutti i messaggi del blocco;
-- per un aggiornamento, anche l'etichetta del fatto sostituito;
-- `private` se il testo contiene un dato personale (rilevatori dei risultati: segreto, IBAN, codice fiscale, email, persona della memoria) o se tra le entità c'è una persona.
+Per non portare ogni fatto al livello del messaggio più riservato del blocco, il blocco si legge a livelli crescenti, una chiamata per livello:
 
-I fatti già in memoria mostrati al modello non entrano nell'unione: un fatto che li ripete è un quasi-duplicato e tiene l'etichetta di quello esistente. Questo copre anche il caso in cui l'assistente ripete un fatto privato e il modello attribuisce il fatto al messaggio dell'utente. I segreti vengono tolti dal testo prima del salvataggio. I fatti scritti a mano e quelli senza etichetta restano `private`.
+| Lettura | Messaggi | Fatti in memoria mostrati |
+| :--- | :--- | :--- |
+| Una per ogni etichetta presente tra i messaggi, dalla più bassa | Quelli fino a quel livello | Quelli fino a quel livello, cercati con i soli messaggi visibili, più i fatti scritti dalle letture precedenti |
+| Una in più al livello dei fatti correlati, se supera quello dei messaggi | Tutti | Tutti: un messaggio pubblico può cambiare un fatto privato |
+
+Così un fatto detto dall'utente in una conversazione pubblica (decisione 1) esce `public` anche se nel blocco c'è una risposta data con memoria privata, e ciò che viene da quella risposta, o che sostituisce un fatto privato, esce `private`. Un blocco tutto allo stesso livello, senza fatti più riservati tra i correlati, costa una chiamata come prima; gli altri due o tre. Una lettura che vedrebbe solo risposte si salta: si leggono al livello della domanda. Se una lettura fallisce, il blocco resta da fare.
+
+In più, a ogni livello:
+
+- `private` se il testo contiene un dato personale (rilevatori dei risultati: segreto, IBAN, codice fiscale, email, persona della memoria) o se tra le entità c'è una persona. L'etichetta si calcola prima di togliere i segreti dal testo: un fatto che ne conteneva uno resta `private`;
+- una risposta dell'assistente salvata senza etichetta vale `private`, perché non si sa cosa aveva letto il turno (risposte precedenti alle etichette, o salvate da un percorso che non le calcolava). Un messaggio dell'utente senza etichetta resta `public`.
+
+I fatti scritti a mano e quelli senza etichetta restano `private`.
+
+**Revisione indipendente del 14/11/2026** (un secondo modello, sola lettura, con prove eseguite). La prima versione dava a ogni fatto l'etichetta del solo messaggio indicato dal modello: la revisione ha mostrato che un fatto privato visto dalla chiamata poteva finire in un fatto nuovo salvato `public`. Da lì le letture per livello qui sopra, e:
+
+| Punto | Correzione |
+| :--- | :--- |
+| La riscrittura valeva per ogni tool, anche quelli che agiscono: in un turno privato un comando poteva partire con argomenti scritti da chi non sapeva quale container si intendeva | Solo tool di sola lettura (`policy.classify_tool`): gli altri restano alla conferma con gli argomenti veri |
+| Risposta salvata senza etichetta dopo un'approvazione senza checkpoint del turno | Salvata con l'etichetta di ciò che la sintesi ha letto |
+| `arguments: null`, che il prompt chiede quando le informazioni non bastano, era rifiutato dallo schema | Accettato |
+| Una riscrittura quasi uguale a una ricerca già fatta chiudeva il ciclo | Si scarta e resta la conferma |
+
+Resta aperto, e accettato per ora:
+
+- **Canale nascosto nella scelta del tool.** Il modello che ha letto i dati privati decide ancora se e quale uscita fare a ogni passo: circa 3-4 bit a passo con gli strumenti di oggi, per 5 (ask), 10 (act) o 15 (plan) passi a turno. Per sfruttarlo serve una destinazione che l'attaccante osserva e istruzioni piantate nei dati privati; la conferma degli host non ammessi lo limita, la modalità `dangerous` no.
+- **Il segno "non attendibile" non arriva ai fatti.** Un fatto tratto dal riassunto di una pagina web diventa memoria attendibile. Vale anche per i messaggi recenti. Da fare: salvare il segno con il fatto.
 
 ## 10. Decisioni
 
@@ -440,7 +464,7 @@ Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-9).
 | 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile)) | Per le uscite di dati: attiva da subito (in S1). Per i comandi: da valutare | Il motivo è in 7.3: troppe conferme nascondono quella che conta |
 | 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano i loro host nella policy; lista base di host sicuri da subito, tutto modificabile dalla UI | Fatto in S0 ([9.1](#91-s0-come-è-stata-costruita)) |
 | 8 | Conferme continue nell'uso reale (9.4) | Anticipare la separazione tra chi scrive la query e chi legge la memoria (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
-| 9 | Etichetta di un fatto estratto da una conversazione | Quella dei messaggi da cui nasce, invece di `private` (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
+| 9 | Etichetta di un fatto estratto da una conversazione | Quella dei messaggi da cui nasce, invece di `private` (14/11/2026) | Fatto, con letture per livello dopo la revisione ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
 
 ## 11. Alternative scartate
 
