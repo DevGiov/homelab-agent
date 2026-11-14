@@ -1,7 +1,7 @@
 # Sensibilità dei dati: design
 
 **Data:** 13 novembre 2026
-**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite il 13/11/2026 ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)), S2 e S3 il 14/11/2026 ([9.3](#93-s2-come-è-stata-costruita), [9.4](#94-s3-come-è-stata-costruita)); S4 arriva con il primo provider cloud.
+**Stato:** decisioni prese il 13/11/2026 ([sezione 10](#10-decisioni)). Fasi S0 e S1 costruite il 13/11/2026 ([9.1](#91-s0-come-è-stata-costruita), [9.2](#92-s1-come-è-stata-costruita)), S2 e S3 il 14/11/2026 ([9.3](#93-s2-come-è-stata-costruita), [9.4](#94-s3-come-è-stata-costruita)); il 14/11/2026 anche le uscite riscritte senza i dati riservati e l'etichetta dei fatti per provenienza ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)); S4 arriva con il primo provider cloud.
 **Contesto:** oggi ogni chiamata a un modello resta su un server locale. Prima di aggiungere un provider cloud, un agente di coding esterno o un canale di chat su un servizio di terzi serve una regola, applicata dal codice, che dica quali dati possono andare dove.
 
 Il documento descrive cosa esce oggi dal backend (verificato sul codice del ramo `dev`), il modello proposto (un'etichetta su ogni dato, un livello ammesso per ogni destinazione, un solo controllo), dove si aggancia al codice esistente e in che ordine costruirlo.
@@ -113,7 +113,7 @@ Tre fonti, in ordine di affidabilità. Solo le prime due sono deterministiche.
 | Risposta dell'assistente | `thread_messages` | Quella della chiamata che l'ha scritta | Come la chiamata | Colonna `sensitivity` |
 | Riassunto del thread | `thread_summaries` | La più alta tra i messaggi coperti | | Nuova colonna |
 | Profilo dell'utente | `memory/profile.py` | `private` | `trusted` | Fissa |
-| Fatti ed entità | `vec_memory`, `memory_entities` | `private`; l'utente può abbassare un singolo fatto | `trusted` | `metadata_json` del fatto (esiste già) |
+| Fatti ed entità | `vec_memory`, `memory_entities` | Dal consolidamento: l'etichetta del messaggio da cui vengono ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)); scritti a mano o senza etichetta: `private`. L'utente può cambiare un singolo fatto | `trusted` | `metadata_json` del fatto (esiste già) |
 | Episodi e procedure | `vec_memory` (`kind='episode'`, `'procedure'`) e tabella `procedures` | Quella del turno da cui nascono | | `metadata_json` del record; nuova colonna in `procedures` |
 | Documento della knowledge base | `vec_memory`, record `kind='kb'` | Scelta al caricamento, `internal` se non indicata | `trusted` (lo carica l'utente) | `metadata_json` dei chunk |
 | Posta | IMAP, `email_fetch_unread` | `private` | `untrusted` | Regola del tool |
@@ -228,6 +228,8 @@ Ogni decisione negata e ogni autorizzazione dell'utente finiscono nell'audit. `a
 1. **Eseguire altrove.** Vale per le chiamate ai modelli: il passo gira su un provider il cui livello ammesso basta. Richiede che il provider si scelga per chiamata (`get_provider_for(tag, ruolo)`) invece che una volta per tutte: è il punto di contatto con la scelta dei modelli per ruolo.
 2. **Chiedere.** Vale per i tool e per la ricerca, che non hanno un equivalente locale. La scheda di approvazione mostra il **testo esatto** che uscirebbe e la destinazione ("Questa ricerca invierebbe ai motori pubblici: «…»"), con gli ambiti esistenti: una volta, per questa conversazione, sempre. È un tipo di approvazione distinto da quello dei comandi: aver autorizzato "sempre" `web_search` come tool non autorizza a metterci dentro dati privati.
 3. **Ripulire.** Il modello locale riscrive il testo senza le parti private e l'utente vede il risultato prima dell'invio. È il meno affidabile dei tre, perché la pulizia la fa un modello: arriva per ultimo e mai senza conferma.
+
+Costruito dopo, prima di "chiedere": **scrivere senza** ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)). Gli argomenti di un tool li riscrive una chiamata che non vede i dati riservati: solo la richiesta e ciò che la destinazione può ricevere. Non è ripulire, perché il testo non nasce da un testo privato: per provenienza è pubblico e parte senza conferma. Se non basta, si chiede.
 
 ### 7.2 Il prefetch web
 
@@ -392,11 +394,41 @@ Si rifà a ogni modello nuovo: `make eval MODELS=<modello> ARGS="--suites flows 
 - l'opzione 3 è l'unica che toglie queste conferme, e conviene anticiparla;
 - da decidere: un fatto estratto da una conversazione potrebbe ereditare l'etichetta dei messaggi da cui nasce (pubblici per default, decisione 1) invece di partire `private`. È la versione automatica dell'opzione 2, coerente con la propagazione per provenienza, ma cambia il default dei fatti.
 
+Entrambe decise e costruite il 14/11/2026: [9.5](#95-uscite-riscritte-e-fatti-per-provenienza).
+
 **Vista delle uscite di dati** (Impostazioni > Sicurezza, `GET /v1/security/flows?hours=`): per destinazione quante uscite consentite, conferme chieste, autorizzate dopo una conferma e bloccate, e le ultime richieste con la query o l'indirizzo, insieme alle etichette abbassate a mano (conversazioni, fatti, documenti). Serve a misurare le conferme nell'uso normale, che le valutazioni non vedono.
+
+### 9.5 Uscite riscritte e fatti per provenienza
+
+Decise e costruite il 14/11/2026, dopo la misura dell'uso reale (9.4).
+
+**Uscite riscritte senza i dati riservati** (`AgentLoop._clean_call`). Quando il loop sceglie un tool la cui destinazione non può ricevere i dati del turno, prima di chiedere conferma gli argomenti li scrive una seconda chiamata al modello che vede solo:
+
+| Cosa | Quando |
+| :--- | :--- |
+| La richiesta dell'utente | Sempre: se la richiesta stessa non può andare alla destinazione (livello della conversazione, IBAN nel messaggio), niente riscrittura |
+| Gli ultimi messaggi della conversazione (quelli che vede il router) | Se il loro tag può andare alla destinazione |
+| I risultati del turno, compreso il prefetch | Se l'unione del tag degli argomenti con cui sono stati chiesti e del tag del risultato può andare alla destinazione: il risultato pubblico di una ricerca fatta con la query privata resta fuori, perché può ripeterla |
+
+Il tag della chiamata e degli argomenti nuovi è l'unione di ciò che ha letto: la destinazione li riceve senza chiedere. Il nome del tool scelto dal loop resta visibile (lo dice già 1, "Cosa non garantisce"). Nessun ragionamento e nessuna immagine nella chiamata.
+
+Si torna alla conferma con gli argomenti originali quando la chiamata dice che le informazioni visibili non bastano, quando gli argomenti non rispettano lo schema o cambiano destinazione verso una che non può riceverli, e quando ripetono una chiamata già fatta nel turno. Anche le automazioni restano come prima, perché non passano la richiesta separata, e così i piani strutturati: il piano eseguito deve essere quello che l'utente ha letto.
+
+Il modello che ha scelto il tool vede nel risultato che gli argomenti sono stati riscritti e perché. La traccia del passo li segna ("Senza dati riservati") e conserva quelli originali, che restano in locale. L'audit registra l'uscita come `clean`, e la vista delle uscite di dati ha la colonna "Riscritte". Una riscrittura sospesa da un'altra approvazione (un host non ammesso) riprende con il tag con cui è stata scritta.
+
+**Suite `flows`.** `fatto-non-pertinente` (memoria privata non pertinente, domanda pubblica) ora si aspetta nessuna conferma oltre a nessuna fuga; la metrica `rewritten` conta le uscite riscritte.
+
+**Fatti per provenienza** (`memory_consolidation.fact_label`). Un fatto proposto dal consolidamento prende:
+
+- l'etichetta del messaggio da cui viene (il numero indicato dal modello). Un messaggio dell'utente in una conversazione pubblica è `public` (decisione 1); una risposta data in un turno con memoria privata resta `private`. Con un numero fuori dal blocco, l'unione di tutti i messaggi del blocco;
+- per un aggiornamento, anche l'etichetta del fatto sostituito;
+- `private` se il testo contiene un dato personale (rilevatori dei risultati: segreto, IBAN, codice fiscale, email, persona della memoria) o se tra le entità c'è una persona.
+
+I fatti già in memoria mostrati al modello non entrano nell'unione: un fatto che li ripete è un quasi-duplicato e tiene l'etichetta di quello esistente. Questo copre anche il caso in cui l'assistente ripete un fatto privato e il modello attribuisce il fatto al messaggio dell'utente. I segreti vengono tolti dal testo prima del salvataggio. I fatti scritti a mano e quelli senza etichetta restano `private`.
 
 ## 10. Decisioni
 
-Prese dal maintainer il 13/11/2026.
+Prese dal maintainer il 13/11/2026 (1-7) e il 14/11/2026 (8-9).
 
 | # | Domanda | Decisione | Note |
 | :--- | :--- | :--- | :--- |
@@ -407,6 +439,8 @@ Prese dal maintainer il 13/11/2026.
 | 5 | Un server MCP nuovo | Parte dal livello più stretto; lo classifica chi lo aggiunge | |
 | 6 | Sospensione dei permessi dopo contenuto non attendibile ([7.3](#73-contenuto-non-attendibile)) | Per le uscite di dati: attiva da subito (in S1). Per i comandi: da valutare | Il motivo è in 7.3: troppe conferme nascondono quella che conta |
 | 7 | `http_get` verso internet | Conferma, salvo host ammessi; le automazioni dichiarano i loro host nella policy; lista base di host sicuri da subito, tutto modificabile dalla UI | Fatto in S0 ([9.1](#91-s0-come-è-stata-costruita)) |
+| 8 | Conferme continue nell'uso reale (9.4) | Anticipare la separazione tra chi scrive la query e chi legge la memoria (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
+| 9 | Etichetta di un fatto estratto da una conversazione | Quella dei messaggi da cui nasce, invece di `private` (14/11/2026) | Fatto ([9.5](#95-uscite-riscritte-e-fatti-per-provenienza)) |
 
 ## 11. Alternative scartate
 
