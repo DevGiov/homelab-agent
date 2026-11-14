@@ -77,6 +77,12 @@ describe.each(THEME_LIST)('tema $id: contrasto del testo almeno 4.5:1', ({ color
     expect(contrast(colors.userBubbleText, colors.userBubble)).toBeGreaterThanOrEqual(4.5);
   });
 
+  // Col vetro smerigliato il fumetto dell'utente è al 90% (`body.theme-frosted .glass-bubble-user` in index.css) e lascia
+  // passare un poco la pagina: sui temi chiari si schiarisce
+  it.each(SURFACES)("testo nel fumetto dell'utente col vetro smerigliato, sopra %s", (surface) => {
+    expect(contrast(colors.userBubbleText, over(colors.userBubble, colors[surface], 0.9))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it.each(SURFACES)('testo al 80%% di opacità (text-fg/80, la più bassa usata) su %s', (surface) => {
     expect(contrast(over(colors.fg, colors[surface], 0.8), colors[surface])).toBeGreaterThanOrEqual(4.5);
   });

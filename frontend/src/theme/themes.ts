@@ -224,7 +224,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
       accentContrast: '#ffffff',
       accentText: '#1e50be',
       accentSubtle: 'rgba(37, 99, 235, 0.12)',
-      userBubble: '#2563eb',
+      userBubble: '#1d4ed8',
       userBubbleText: '#ffffff',
       agentBubble: '#f1f5f9',
       inputBg: '#ffffff',
