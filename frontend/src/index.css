@@ -42,7 +42,7 @@ body:not(.dark) {
   body {
     background-color: var(--bg);
     color: var(--fg);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: theme('fontFamily.sans');
     min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;

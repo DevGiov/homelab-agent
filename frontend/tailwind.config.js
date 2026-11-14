@@ -5,6 +5,7 @@
 const themed = (variable) => `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`;
 
 import plugin from 'tailwindcss/plugin';
+import defaultTheme from 'tailwindcss/defaultTheme';
 import containerQueries from '@tailwindcss/container-queries';
 
 const STATUS_HUES = ['emerald', 'green', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose', 'red', 'orange', 'amber', 'yellow', 'zinc'];
@@ -44,6 +45,11 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Font serviti in locale (@fontsource-variable, importati in main.tsx), con le pile di sistema come riserva
+      fontFamily: {
+        sans: ['"Inter Variable"', ...defaultTheme.fontFamily.sans],
+        mono: ['"JetBrains Mono Variable"', ...defaultTheme.fontFamily.mono],
+      },
       colors: {
         bg: {
           DEFAULT: themed('--bg'),
