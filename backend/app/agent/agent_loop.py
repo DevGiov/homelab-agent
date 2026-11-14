@@ -13,6 +13,10 @@ Lo storico arriva al modello in due forme, a seconda del profilo del modello (`i
   selezione, poi un messaggio `tool` per ogni risultato. Il template conserva il pensiero dei passi del turno e il
   prompt cresce solo in coda (docs/reasoning/INTERLEAVED_THINKING.md).
 
+Un'uscita di dati che la destinazione non può ricevere (memoria privata nel turno, ricerca pubblica) non chiede subito
+conferma: prima gli argomenti li riscrive una chiamata che vede solo ciò che la destinazione può ricevere (`_clean_call`,
+design della sensibilità 9.4, opzione 3). Se non basta, resta la conferma con gli argomenti originali.
+
 Una richiesta di approvazione sospende il loop: `checkpoint` ne salva lo stato con l'id della richiesta (turn_checkpoints) e
 `AgentLoop.restore` + `resume` lo riprendono dal passo dopo, con il tool eseguito o con il rifiuto come risultato del passo.
 
@@ -34,7 +38,7 @@ from app.agent.llm_calls import stream_queue
 from app.agent.mode_policy import get_mode_policy
 from app.agent.stream_session import current_session_var
 from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_catalog_response
-from app.agent.tool_schemas import ToolSelection, validate_tool_args
+from app.agent.tool_schemas import CleanArguments, ToolSelection, validate_tool_args
 from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
 from app.llm.providers import LLMUnavailableError
@@ -158,7 +162,10 @@ def _content(res: Any) -> Tuple[str, str]:
 
 # Ciò che il loop ha accumulato: si salva quando si sospende e si ripristina quando riprende
 _PROGRESS_FIELDS = ("now", "prefetch_block", "execution_trace", "observations", "history", "turn_messages", "history_truncated",
-                    "reasonings", "call_cache", "call_counts", "search_queries", "pseudo_call_retried")
+                    "reasonings", "call_cache", "call_counts", "search_queries", "pseudo_call_retried", "clean_context")
+
+# La chiamata che riscrive gli argomenti di un'uscita: un oggetto JSON piccolo, senza ragionamento
+CLEAN_MAX_TOKENS = 1024
 
 
 class AgentLoop:
@@ -182,11 +189,17 @@ class AgentLoop:
         meta: Optional[Dict[str, Any]] = None,
         checkpoint_kind: str = "loop",
         tag: Optional[Any] = None,
+        request_tag: Optional[Any] = None,
+        recent_turns: Optional[str] = None,
+        recent_tag: Optional[Any] = None,
     ):
         """`allowed_tools`, `allowed_registries` e `max_tool_calls` restringono il catalogo e i passi della modalità (step
         delle automazioni). `audit` finisce nelle chiamate ai tool; `meta` serve a chi riprende il loop dopo un'approvazione.
         `tag`: sensibilità di ciò che il turno ha già in contesto (richiesta, memoria, prefetch); sale con ogni risultato
-        letto e accompagna ogni chiamata a un modello e a un tool (app.security.flows)."""
+        letto e accompagna ogni chiamata a un modello e a un tool (app.security.flows).
+        `request_tag` (la sola richiesta), `recent_turns` e `recent_tag` (gli ultimi messaggi che vede il router): ciò che
+        può leggere la chiamata che riscrive un'uscita senza i dati riservati del turno. Senza `request_tag` (automazioni,
+        valutazioni vecchie) un'uscita negata chiede subito conferma."""
         self.task = task
         self.mode = mode
         self.memory_context = memory_context
@@ -208,6 +221,11 @@ class AgentLoop:
         self.checkpoint_kind = checkpoint_kind
         self.available_tools = [t for t in self.manager.get_tools_for_mode(self.allowed_registries) if self._tool_allowed(t["name"])]
         self.tag: Tag = flows.join(tag) if tag else flows.PUBLIC_TAG
+        self.request_tag: Optional[Tag] = flows.join(request_tag) if request_tag else None
+        self.recent_turns = recent_turns
+        self.recent_tag: Optional[Tag] = flows.join(recent_tag) if recent_tag else None
+        # Testi che la chiamata pulita può leggere, ognuno con il tag di ciò da cui viene (argomenti e risultato)
+        self.clean_context: List[Dict[str, Any]] = []
         self._mcp_flows = flows.mcp_flow_settings()
         self._person_names: Optional[List[str]] = None
         self.prefetch_block = ""
@@ -218,6 +236,9 @@ class AgentLoop:
                 formatted_content=web_prefetch_data.get("summary_text", ""),
                 sources=web_prefetch_data.get("sources", []),
             )
+            # Il prefetch parte solo con una query pubblica: i suoi risultati sono pubblici e non attendibili
+            self.clean_context.append({"text": self.prefetch_block,
+                                       "tag": flows.tag_of(flows.Label.PUBLIC, "web_prefetch", untrusted=True).to_dict()})
 
         self.execution_trace: List[Dict[str, Any]] = []
         # Risultati interi per la sintesi e la loro versione accorciata per i passi di selezione
@@ -251,6 +272,9 @@ class AgentLoop:
                 "audit": self.audit, "meta": self.meta, "checkpoint_kind": self.checkpoint_kind,
                 # Il tag di questo momento, già alzato dai risultati letti: il loop ripreso parte da qui
                 "tag": self.tag.to_dict(),
+                "request_tag": self.request_tag.to_dict() if self.request_tag else None,
+                "recent_turns": self.recent_turns,
+                "recent_tag": self.recent_tag.to_dict() if self.recent_tag else None,
             },
             "progress": {name: getattr(self, name) for name in _PROGRESS_FIELDS},
         }
@@ -273,14 +297,17 @@ class AgentLoop:
         lo è altrettanto; poi il loop continua dal passo successivo."""
         step_id, tool_name = self.pending["step_id"], self.pending["tool_name"]
         arguments, reasoning = self.pending["arguments"], self.pending["reasoning"]
+        # Una chiamata riscritta senza i dati riservati riparte con il tag con cui è stata scritta
+        call_tag = flows.join(self.pending["call_tag"]) if self.pending.get("call_tag") else self.tag
+        original = self.pending.get("original")
         if self.execution_trace and self.execution_trace[-1].get("approval_required"):
             self.execution_trace.pop()
 
         if approved:
-            res = self._execute_approved(step_id, request_id, tool_name, arguments)
+            res = self._execute_approved(step_id, request_id, tool_name, arguments, call_tag, clean=original is not None)
             if isinstance(res, dict) and res.get("approval_required"):
-                return self._approval_result(step_id, tool_name, arguments, res, reasoning)
-            self._record(step_id, tool_name, arguments, res, reasoning, False)
+                return self._approval_result(step_id, tool_name, arguments, res, reasoning, call_tag, original)
+            self._record(step_id, tool_name, arguments, res, reasoning, False, call_tag, original)
         else:
             logger.info(f"Step {step_id}: l'utente ha rifiutato '{tool_name}'")
             self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "reasoning": reasoning,
@@ -289,12 +316,13 @@ class AgentLoop:
                        "Do not try it again. Continue without it if you can, otherwise tell the user what is done and what is missing.")
         return self._react_guarded(step_id + 1)
 
-    def _execute_approved(self, step_id: int, request_id: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    def _execute_approved(self, step_id: int, request_id: str, tool_name: str, arguments: Dict[str, Any], call_tag: Tag,
+                          clean: bool = False) -> Any:
         request = approvals.approved_request_for(request_id, tool_name, arguments, self.thread_id, self.mode)
         try:
             return self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, mode=self.mode,
                                              security_mode=self.security_mode, task=self.task, approved_request=request,
-                                             tag=self.tag, **self.audit)
+                                             tag=call_tag, clean=clean, **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool approvato '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}
@@ -344,12 +372,19 @@ class AgentLoop:
                 self._person_names = []
         return self._person_names
 
-    def _observe(self, header: str, tool_name: str, res: Any, arguments: Optional[Dict[str, Any]] = None) -> str:
+    def _observe(self, header: str, tool_name: str, res: Any, arguments: Optional[Dict[str, Any]], call_tag: Tag) -> str:
+        """`call_tag`: il tag con cui sono stati scritti gli argomenti. Il risultato entra nel contesto della chiamata
+        pulita con l'unione dei due: quello di una chiamata scritta da dati privati resta fuori anche se è pubblico,
+        perché può ripetere la query."""
         # Prima di entrare nel contesto: via i segreti; poi l'etichetta del turno sale con quella del risultato
         full, _ = detectors.redact_secrets(_serialize(res))
         if not _pending_or_blocked(res):
-            self.tag = flows.join(self.tag, flows.result_tag(tool_name, arguments, res, self._mcp_flows),
-                                  detectors.tag_for(full, f"risultato:{tool_name}", self._persons(), detectors.RESULT_KINDS))
+            result = flows.join(flows.result_tag(tool_name, arguments, res, self._mcp_flows),
+                                detectors.tag_for(full, f"risultato:{tool_name}", self._persons(), detectors.RESULT_KINDS))
+            self.tag = flows.join(self.tag, result)
+            short_clean = full if len(full) <= settings.agent_observation_limit else full[:settings.agent_observation_limit] + "\n..."
+            self.clean_context.append({"text": f"{header} -> {_guarded(tool_name, short_clean)}",
+                                       "tag": flows.join(call_tag, result).to_dict()})
         self.observations.append(f"{header} -> {_guarded(tool_name, full)}")
         limit = settings.agent_observation_limit
         short = full
@@ -432,13 +467,18 @@ class AgentLoop:
                 continue
             if not self._arguments_valid(step_id, tool_name, arguments, selection.reasoning):
                 continue
+            call_tag, original = self.tag, None
+            clean = self._clean_call(tool_name, arguments)
+            if clean is not None:
+                original = arguments
+                arguments, call_tag = clean
             if self._is_repetition(step_id, tool_name, arguments, selection.reasoning):
                 break
 
-            res, cached = self._execute(step_id, tool_name, arguments)
+            res, cached = self._execute(step_id, tool_name, arguments, call_tag, clean=original is not None)
             if isinstance(res, dict) and res.get("approval_required"):
-                return self._approval_result(step_id, tool_name, arguments, res, selection.reasoning)
-            self._record(step_id, tool_name, arguments, res, selection.reasoning, cached)
+                return self._approval_result(step_id, tool_name, arguments, res, selection.reasoning, call_tag, original)
+            self._record(step_id, tool_name, arguments, res, selection.reasoning, cached, call_tag, original)
 
         return self._synthesize_after_loop()
 
@@ -596,7 +636,7 @@ class AgentLoop:
                 self.search_queries.append(str(arguments.get("query", "")).strip())
             sig = _normalize_call_signature(tool_name, arguments)
             self.call_counts[sig] = self.call_counts.get(sig, 0) + 1
-            self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res, arguments)
+            self._observe(f"Step {step_id}.{i} [parallelo]: {tool_name}({call.get('arguments')})", tool_name, res, arguments, self.tag)
         return True
 
     def _reject_tool(self, step_id: int, tool_name: str, arguments: Dict[str, Any], reasoning: Optional[str]) -> None:
@@ -642,15 +682,18 @@ class AgentLoop:
             })
         return repeated
 
-    def _execute(self, step_id: int, tool_name: str, arguments: Dict[str, Any]) -> Tuple[Any, bool]:
-        """Esegue il tool tramite il registry (guardrail, approvazione, audit); i read-only finiscono in cache."""
+    def _execute(self, step_id: int, tool_name: str, arguments: Dict[str, Any], call_tag: Tag,
+                 clean: bool = False) -> Tuple[Any, bool]:
+        """Esegue il tool tramite il registry (guardrail, approvazione, audit); i read-only finiscono in cache.
+        `call_tag`: il tag di chi ha scritto gli argomenti; `clean`: riscritti da `_clean_call` (l'audit lo segna)."""
         cache_key = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
         if cache_key in self.call_cache:
             logger.info(f"Step {step_id}: hit cache deduplicazione per '{tool_name}'")
             return self.call_cache[cache_key], True
         try:
-            res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, tag=self.tag,
-                                            mode=self.mode, security_mode=self.security_mode, task=self.task, **self.audit)
+            res = self.manager.execute_tool(tool_name, arguments, self.allowed_registries, thread_id=self.thread_id, tag=call_tag,
+                                            mode=self.mode, security_mode=self.security_mode, task=self.task, clean=clean,
+                                            **self.audit)
         except Exception as e:
             logger.error(f"Step {step_id}: eccezione esecuzione tool '{tool_name}': {e}")
             return {"error": f"Eccezione durante l'esecuzione: {str(e)}"}, False
@@ -660,7 +703,8 @@ class AgentLoop:
         return res, False
 
     def _approval_result(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Dict[str, Any],
-                         reasoning: Optional[str]) -> Dict[str, Any]:
+                         reasoning: Optional[str], call_tag: Optional[Tag] = None,
+                         original: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Il guardrail chiede conferma: salva lo stato del loop, notifica la UI e sospende il turno in attesa della decisione."""
         logger.info(f"Step {step_id}: Tool '{tool_name}' richiede approvazione esplicita ({res.get('risk_reason')}).")
         message = res.get("message", "Richiesta di approvazione richiesta.")
@@ -672,7 +716,8 @@ class AgentLoop:
         }
         if approval["request_id"]:
             turn_checkpoints.save(approval["request_id"], self.checkpoint_kind, self.checkpoint(
-                {"step_id": step_id, "tool_name": tool_name, "arguments": arguments, "reasoning": reasoning}))
+                {"step_id": step_id, "tool_name": tool_name, "arguments": arguments, "reasoning": reasoning,
+                 "call_tag": call_tag.to_dict() if call_tag is not None else None, "original": original}))
         q = stream_queue.get()
         if q:
             q.put({"type": "approval_required", "tool_name": tool_name, "arguments": arguments, "message": message, **approval})
@@ -682,12 +727,82 @@ class AgentLoop:
         return {"final_response": message, "execution_trace": self.execution_trace, "reasoning_content": reasoning,
                 "approval_required": True, "approval_prompt": message, "tag": self.tag.to_dict(), **approval}
 
-    def _record(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Any, reasoning: Optional[str], cached: bool):
-        observation = self._observe(f"Step {step_id}: {tool_name}({arguments})", tool_name, res, arguments)
+    def _record(self, step_id: int, tool_name: str, arguments: Dict[str, Any], res: Any, reasoning: Optional[str], cached: bool,
+                call_tag: Tag, original: Optional[Dict[str, Any]] = None):
+        """`original`: gli argomenti scelti dal modello, se `_clean_call` li ha riscritti (nella traccia, per la UI)."""
+        header = f"Step {step_id}: {tool_name}({arguments})"
+        if original is not None:
+            # Il modello che ha scelto la chiamata deve sapere perché gli argomenti non sono i suoi
+            header += " [arguments rewritten without the private data of this turn: the destination cannot receive them]"
+        observation = self._observe(header, tool_name, res, arguments, call_tag)
         logger.info(f"Step {step_id}: Risultato tool '{tool_name}' ({len(observation)} caratteri): {observation[:200]}...")
-        self.execution_trace.append({"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
-                                     "reasoning": reasoning, "cached": cached,
-                                     "error": res.get("error") if isinstance(res, dict) else None})
+        entry = {"step_id": step_id, "tool_name": tool_name, "args": arguments, "result": res,
+                 "reasoning": reasoning, "cached": cached, "error": res.get("error") if isinstance(res, dict) else None}
+        if original is not None:
+            entry["clean_rewrite"] = {"original_args": original, "label": call_tag.label.key, "turn_label": self.tag.label.key}
+        self.execution_trace.append(entry)
+
+    # --- uscite di dati senza i dati riservati del turno ------------------------
+
+    def _clean_call(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Tuple[Dict[str, Any], Tag]]:
+        """Opzione 3 del design della sensibilità (9.4). La destinazione del tool non può ricevere i dati del turno: prima
+        di chiedere conferma, gli argomenti li riscrive una chiamata che vede solo ciò che la destinazione può ricevere
+        (la richiesta, i messaggi recenti se possono, i risultati scritti da dati che possono). Il suo tag è l'unione di
+        ciò che ha letto, quindi la destinazione la riceve senza chiedere.
+
+        None quando non si può: la richiesta stessa non può andare alla destinazione, il modello dice che non basta,
+        gli argomenti non sono validi o ripetono una chiamata già fatta. Resta la conferma con gli argomenti originali."""
+        if self.request_tag is None or not self.call_llm_structured_fn:
+            return None
+        dest = flows.destination_for_tool(tool_name, arguments, self._mcp_flows)
+        if dest is None or flows.can_flow(self.tag, dest).allowed or not flows.can_flow(self.request_tag, dest).allowed:
+            return None
+        tool = next((t for t in self.available_tools if t.get("name") == tool_name), None)
+        if tool is None:
+            return None
+
+        read = [self.request_tag]
+        recent = None
+        if self.recent_turns and self.recent_tag is not None and flows.can_flow(self.recent_tag, dest).allowed:
+            recent = self.recent_turns
+            read.append(self.recent_tag)
+        results = []
+        for entry in self.clean_context:
+            entry_tag = flows.join(entry["tag"])
+            if flows.can_flow(entry_tag, dest).allowed:
+                results.append(entry["text"])
+                read.append(entry_tag)
+        clean_tag = flows.join(*read)
+
+        try:
+            out = self.call_llm_structured_fn(
+                prompt=prompts.clean_arguments_prompt(self.task, self.now, tool, recent, results),
+                system_prompt=prompts.clean_arguments_system_prompt(),
+                schema_cls=CleanArguments,
+                max_tokens=CLEAN_MAX_TOKENS,
+                temperature=0.1,
+                max_retries=1,
+                thinking="off",
+                reasoning_phase="Argomenti senza dati riservati",
+                images=[],
+                tag=clean_tag,
+            )
+        except Exception as e:
+            logger.warning(f"Riscrittura degli argomenti di '{tool_name}' non riuscita: {e}")
+            return None
+        if not out or not getattr(out, "enough_information", False):
+            logger.info(f"'{tool_name}': informazioni pubbliche insufficienti per riscrivere gli argomenti, si chiede conferma")
+            return None
+        clean_args = getattr(out, "arguments", None) or {}
+        if validate_tool_args(tool_name, clean_args, self.available_tools):
+            return None
+        clean_dest = flows.destination_for_tool(tool_name, clean_args, self._mcp_flows)
+        if clean_dest is not None and not flows.can_flow(clean_tag, clean_dest).allowed:
+            return None
+        if _normalize_call_signature(tool_name, clean_args) in self.call_counts:
+            return None
+        logger.info(f"'{tool_name}': argomenti riscritti senza i dati {self.tag.label.key} del turno ({clean_tag.label.key})")
+        return clean_args, clean_tag
 
     def _synthesize_after_loop(self) -> Dict[str, Any]:
         """Passi esauriti, anti-loop o stop: sintesi di quanto osservato."""

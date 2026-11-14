@@ -62,6 +62,8 @@ export interface ExecutionTraceItem {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  /** Argomenti riscritti senza i dati riservati del turno (backend: AgentLoop._clean_call). */
+  clean_rewrite?: { original_args: Record<string, any>; label: string; turn_label: string };
 }
 
 export interface PlanNode {

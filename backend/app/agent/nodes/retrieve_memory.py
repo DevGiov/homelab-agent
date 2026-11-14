@@ -193,9 +193,10 @@ def _plan_templates(task: str, policy: MemoryPolicy) -> Tuple[str, Tag]:
 
 def recent_turns_node(state: AgentState) -> AgentState:
     """Prima del router: ultimi messaggi e modalità dell'ultima risposta, senza chiamate al modello."""
+    # Qui il tag del turno è ancora quello della sola richiesta: la memoria arriva dopo il router
     input_tag = flows.join(state.get("tag"))
     if not state.get("thread_id") or state.get("incognito"):
-        return {"routing_context": None, "routing_tag": input_tag.to_dict()}
+        return {"routing_context": None, "routing_tag": input_tag.to_dict(), "request_tag": input_tag.to_dict()}
     history = _history(state)
     last_assistant = next((m for m in reversed(history) if m["role"] == "assistant"), None)
     recent = history[-ROUTING_MESSAGES:]
@@ -203,6 +204,7 @@ def recent_turns_node(state: AgentState) -> AgentState:
         "routing_context": _transcript(recent) or None,
         # Il router vede la richiesta e questi messaggi, non la memoria: è il tag della query che scrive
         "routing_tag": flows.join(input_tag, _messages_tag(recent)).to_dict(),
+        "request_tag": input_tag.to_dict(),
         "previous_mode": last_assistant["mode"] if last_assistant else None,
         "last_tool_used": last_assistant["tool_used"] if last_assistant else None,
     }

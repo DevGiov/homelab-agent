@@ -37,3 +37,6 @@ class AgentState(TypedDict, total=False):
     # il router (richiesta e ultimi messaggi, senza la memoria)
     tag: Optional[Dict[str, Any]]
     routing_tag: Optional[Dict[str, Any]]
+    # La sola richiesta (livello della conversazione, rilevatori, immagini): con `routing_tag` e `routing_context` è ciò
+    # che può leggere la chiamata che riscrive un'uscita di dati senza la memoria (AgentLoop._clean_call)
+    request_tag: Optional[Dict[str, Any]]

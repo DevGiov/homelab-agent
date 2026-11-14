@@ -53,7 +53,7 @@ class ToolRegistryManager:
                      security_mode: str = "normal", task: Optional[str] = None,
                      automation_id: Optional[str] = None, run_id: Optional[str] = None,
                      step_run_id: Optional[str] = None, approved_request: Optional[approvals.ApprovalRequest] = None,
-                     tag: Optional[Any] = None) -> Any:
+                     tag: Optional[Any] = None, clean: bool = False) -> Any:
         """Individua il registry che possiede il tool, applica i guardrail/approval, esegue e registra l'audit.
 
         `approved_request`: richiesta già approvata dall'utente. Salta la conferma preventiva (resta il
@@ -62,6 +62,9 @@ class ToolRegistryManager:
         `tag`: sensibilità di ciò che ha scritto gli argomenti (app.security.flows). Se la destinazione del tool non
         può riceverla serve un'approvazione di tipo "uscita di dati", che nessuna modalità di sicurezza salta. Senza tag
         (chiamate interne che non vengono da un modello) il controllo non si applica.
+
+        `clean`: argomenti riscritti dall'agent loop senza i dati riservati del turno (`AgentLoop._clean_call`); un'uscita
+        consentita finisce nell'audit come `clean` invece che `allow`, così si vede quante conferme la riscrittura evita.
         """
         start_ms = time.monotonic() * 1000
 
@@ -96,6 +99,8 @@ class ToolRegistryManager:
 
                 flow_record, flow_stop, flow_capability = self._flow_check(
                     tool_name, args, tag, thread_id=thread_id, mode=mode, task=task, approved_request=approved_request)
+                if clean and flow_record and flow_record["flow"] == "allow":
+                    flow_record["flow"] = "clean"
                 if flow_stop is not None:
                     audit_log.log_tool_call(
                         tool_name, args, thread_id=thread_id, mode=mode, registry=reg_name,

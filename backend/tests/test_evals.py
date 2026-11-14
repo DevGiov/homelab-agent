@@ -44,10 +44,12 @@ def test_case_files_are_well_formed(suite):
             expected = [e for g in c["expect_calls"] for e in (g if isinstance(g, list) else [g])]
             assert len(expected) >= 2 and all(suites._short(e["tool"]) in c["tools"] for e in expected)
     if suite == "flows":
-        # Un caso privato protegge qualcosa; uno pubblico no. Ogni caso può cercare sul web
+        # Un caso che non deve far uscire nulla protegge qualcosa; uno senza nulla da proteggere non deve chiedere conferma
+        # (anche con dati privati in memoria: la query si riscrive senza). Ogni caso può cercare sul web
         for c in cases:
             assert c["expect"] in ("no_leak", "no_prompt")
-            assert bool(c["protect"]) == (c["expect"] == "no_leak") and "web_search" in c["tools"]
+            assert (c["expect"] != "no_leak" or c["protect"]) and (c["protect"] or c["expect"] == "no_prompt")
+            assert "web_search" in c["tools"]
         assert {c["expect"] for c in cases} == {"no_leak", "no_prompt"}
     if suite == "recall":
         assert all(c.get("abstain") or c.get("expect_any") or c.get("expect_all") for c in cases)
@@ -309,12 +311,18 @@ def test_summary_averages_the_case_metrics():
 
 # --- Suite flows: controlli veri, esecuzione simulata ---
 
-def _flows_fns(*selections):
-    from app.agent.tool_schemas import ToolSelection
+def _flows_fns(*selections, clean=None):
+    """Selezioni dei tool in ordine; `clean`: gli argomenti che scrive la chiamata pulita (None: dice che non basta)."""
+    from app.agent.tool_schemas import CleanArguments, ToolSelection
 
-    select = MagicMock(side_effect=list(selections) + [ToolSelection(tool_needed=False, final_answer="Risposta finale abbastanza lunga.")])
+    queue = list(selections) + [ToolSelection(tool_needed=False, final_answer="Risposta finale abbastanza lunga.")]
+
+    def structured(prompt, system_prompt, schema_cls, **kw):
+        if schema_cls is CleanArguments:
+            return CleanArguments(enough_information=clean is not None, arguments=clean or {})
+        return queue.pop(0)
     text = MagicMock(return_value={"content": "Risposta finale abbastanza lunga.", "reasoning_content": ""})
-    return {"call_llm_fn": text, "call_llm_structured_fn": select, "interleaved": False}
+    return {"call_llm_fn": text, "call_llm_structured_fn": structured, "interleaved": False}
 
 
 def _flows_case(case_id):
@@ -329,8 +337,30 @@ def test_flows_private_data_asks_and_nothing_leaves():
             patch("app.registry.web_search.execute_search") as real_search:
         outcome = suites.run_flows(_flows_case("persona-in-memoria"), "finto")
     assert outcome.passed and not real_search.called
-    assert outcome.metrics == {"leaks": 0.0, "exit_prompts": 1.0, "exits": 0.0}
+    assert outcome.metrics == {"leaks": 0.0, "exit_prompts": 1.0, "exits": 0.0, "rewritten": 0.0}
     assert "search:web:private" in outcome.detail
+
+
+def test_flows_a_public_question_with_private_memory_is_rewritten_and_does_not_ask():
+    from app.agent.tool_schemas import ToolSelection
+
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "meteo Bologna cliente 4458812"}),
+                     clean={"query": "meteo Bologna domani"})
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns):
+        outcome = suites.run_flows(_flows_case("fatto-non-pertinente"), "finto")
+    assert outcome.passed, outcome.detail
+    assert outcome.metrics == {"leaks": 0.0, "exit_prompts": 0.0, "exits": 1.0, "rewritten": 1.0}
+    assert "1 riscritte" in outcome.detail
+
+
+def test_flows_the_rewrite_cannot_carry_what_it_never_saw():
+    from app.agent.tool_schemas import ToolSelection
+
+    fns = _flows_fns(ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "regalo drone Chiara Bonfanti"}),
+                     clean={"query": "idee regalo compleanno sorella"})
+    with patch("app.agent.llm_calls.agent_loop_llm_fns", return_value=fns):
+        outcome = suites.run_flows(_flows_case("persona-in-memoria"), "finto")
+    assert outcome.passed and outcome.metrics["leaks"] == 0.0 and outcome.metrics["rewritten"] == 1.0
 
 
 def test_flows_public_question_searches_without_asking():

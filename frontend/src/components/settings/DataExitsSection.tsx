@@ -50,8 +50,14 @@ export const DataExitsSection: React.FC = () => {
 
   const destinations = (data?.destinations ?? []).filter((d) => !(d.destination in LOWERED_TARGETS));
   const totals = destinations.reduce(
-    (acc, d) => ({ allow: acc.allow + d.allow, ask: acc.ask + d.ask, approved: acc.approved + d.approved, deny: acc.deny + d.deny }),
-    { allow: 0, ask: 0, approved: 0, deny: 0 }
+    (acc, d) => ({
+      allow: acc.allow + d.allow,
+      clean: acc.clean + (d.clean ?? 0),
+      ask: acc.ask + d.ask,
+      approved: acc.approved + d.approved,
+      deny: acc.deny + d.deny,
+    }),
+    { allow: 0, clean: 0, ask: 0, approved: 0, deny: 0 }
   );
 
   return (
@@ -81,8 +87,9 @@ export const DataExitsSection: React.FC = () => {
       </div>
       <p className="text-xs text-fg-muted leading-relaxed">
         Ogni chiamata che porta dati fuori dal backend passa da un controllo: <strong>consentita</strong> se la destinazione può
-        ricevere quei dati, altrimenti l'agente <strong>chiede conferma</strong> mostrando cosa invierebbe. Tante conferme sui
-        dati pubblici o interni dicono che le etichette sono troppo strette.
+        ricevere quei dati. Se non può, l'agente prova a <strong>riscrivere</strong> la chiamata vedendo solo la richiesta e i
+        dati che la destinazione può ricevere; se non basta, <strong>chiede conferma</strong> mostrando cosa invierebbe. Tante
+        conferme sui dati pubblici o interni dicono che le etichette sono troppo strette.
       </p>
 
       {error && <p className="text-xs text-rose-300">{error}</p>}
@@ -95,8 +102,9 @@ export const DataExitsSection: React.FC = () => {
       ) : (
         <>
           <div className="text-xs text-fg">
-            {totals.allow} consentite · <span className="text-amber-300">{totals.ask} conferme chieste</span> · {totals.approved} autorizzate dopo
-            una conferma · {totals.deny} bloccate
+            {totals.allow} consentite · {totals.clean} riscritte senza dati riservati ·{' '}
+            <span className="text-amber-300">{totals.ask} conferme chieste</span> · {totals.approved} autorizzate dopo una conferma ·{' '}
+            {totals.deny} bloccate
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -104,6 +112,7 @@ export const DataExitsSection: React.FC = () => {
                 <tr className="text-fg-muted text-left">
                   <th className="font-medium py-1 pr-2">Destinazione</th>
                   <th className="font-medium py-1 px-2 text-right">Consentite</th>
+                  <th className="font-medium py-1 px-2 text-right">Riscritte</th>
                   <th className="font-medium py-1 px-2 text-right">Conferme</th>
                   <th className="font-medium py-1 px-2 text-right">Autorizzate</th>
                   <th className="font-medium py-1 pl-2 text-right">Bloccate</th>
@@ -116,6 +125,7 @@ export const DataExitsSection: React.FC = () => {
                       {describeDestination(d.destination)}
                     </td>
                     <td className="py-1 px-2 text-right tabular-nums">{d.allow}</td>
+                    <td className="py-1 px-2 text-right tabular-nums">{d.clean ?? 0}</td>
                     <td className="py-1 px-2 text-right tabular-nums text-amber-300">{d.ask}</td>
                     <td className="py-1 px-2 text-right tabular-nums">{d.approved}</td>
                     <td className="py-1 pl-2 text-right tabular-nums">{d.deny}</td>

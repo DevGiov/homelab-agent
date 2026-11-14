@@ -4,6 +4,16 @@ from typing import Any, Dict
 from app.agent.state import AgentState
 
 
+def clean_sources(state: AgentState) -> Dict[str, Any]:
+    """Ciò che può leggere la chiamata che riscrive un'uscita di dati senza la memoria (AgentLoop._clean_call): la sola
+    richiesta e gli ultimi messaggi che vede il router, ognuno con il suo tag."""
+    return {
+        "request_tag": state.get("request_tag"),
+        "recent_turns": state.get("routing_context"),
+        "recent_tag": state.get("routing_tag"),
+    }
+
+
 def turn_meta(state: AgentState) -> Dict[str, Any]:
     """Quello che serve per riprendere il turno, oltre allo stato del loop o del piano."""
     return {

@@ -121,6 +121,17 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                           </span>
                         )}
 
+                        {tr.clean_rewrite && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border bg-sky-500/10 border-sky-500/30 text-sky-300"
+                            title="La destinazione non poteva ricevere i dati di questo turno: gli argomenti li ha scritti una chiamata che vedeva solo la richiesta e i dati pubblici"
+                            data-testid="clean-rewrite"
+                          >
+                            <ShieldCheck size={10} aria-hidden="true" />
+                            Senza dati riservati
+                          </span>
+                        )}
+
                         {/* Status indicator */}
                         <span
                           className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded ${
@@ -161,6 +172,17 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                             <span className="text-fg-muted block mb-0.5">Parameters:</span>
                             <pre className="bg-panel p-2 rounded-lg text-fg overflow-x-auto border border-border/60">
                               {JSON.stringify(tr.args, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+
+                        {tr.clean_rewrite && (
+                          <div>
+                            <span className="text-fg-muted block mb-0.5">
+                              Argomenti scritti dal modello con i dati {tr.clean_rewrite.turn_label} del turno (non inviati):
+                            </span>
+                            <pre className="bg-panel p-2 rounded-lg text-fg-muted overflow-x-auto border border-border/60">
+                              {JSON.stringify(tr.clean_rewrite.original_args, null, 2)}
                             </pre>
                           </div>
                         )}

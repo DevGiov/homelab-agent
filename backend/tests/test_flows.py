@@ -295,6 +295,206 @@ def test_checkpoint_keeps_the_raised_tag(manager):
     restored = AgentLoop.restore(loop.checkpoint({"step_id": 1, "tool_name": "web_search", "arguments": {}, "reasoning": None}),
                                  _llm(), MagicMock())
     assert restored.tag.label == Label.PRIVATE
+    assert restored.request_tag is None and restored.recent_turns is None
+
+
+# --- Uscite riscritte senza i dati riservati del turno (opzione 3) ------------------------------------
+
+FINAL = ToolSelection(tool_needed=False, final_answer="Risposta finale abbastanza lunga da essere accettata.")
+MEMORY = "### Fatti ricordati da altre conversazioni:\n- Il codice cliente dell'utente è 4458812"
+
+
+def _structured(selections, cleans):
+    """Funzione strutturata finta: le selezioni dei tool in ordine, e per la chiamata pulita le risposte di `cleans`."""
+    from app.agent.tool_schemas import CleanArguments
+    selections, cleans = iter(selections), iter(cleans)
+    calls = {"clean": []}
+
+    def fn(prompt, system_prompt, schema_cls, **kw):
+        if schema_cls is CleanArguments:
+            calls["clean"].append({"prompt": prompt, **kw})
+            answer = next(cleans)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        return next(selections)
+    return fn, calls
+
+
+def _clean(arguments=None, enough=True):
+    from app.agent.tool_schemas import CleanArguments
+    return CleanArguments(enough_information=enough, arguments=arguments or {})
+
+
+def _private_loop(select, request_tag=PUBLIC_TAG, **kw):
+    return AgentLoop("Che tempo farà domani a Bologna?", "ask", MEMORY, _llm(), select, "t-clean", None, None, "normal",
+                     tag=PRIVATE, request_tag=request_tag, **kw)
+
+
+def test_an_exit_the_turn_cannot_send_is_rewritten_from_the_request_alone(manager):
+    manager.execute_tool.return_value = {"result": "Domani a Bologna nuvoloso"}
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search",
+                                               arguments={"query": "meteo Bologna cliente 4458812"}), FINAL],
+                                [_clean({"query": "meteo Bologna domani"})])
+    loop = _private_loop(select)
+    loop.run()
+
+    call = manager.execute_tool.call_args
+    assert call.args[1] == {"query": "meteo Bologna domani"}
+    assert call.kwargs["tag"].label == Label.PUBLIC and call.kwargs["clean"] is True
+    # La chiamata pulita non ha visto la memoria e va al modello con il tag di ciò che ha letto
+    (clean,) = calls["clean"]
+    assert "4458812" not in clean["prompt"] and "Che tempo farà domani a Bologna?" in clean["prompt"]
+    assert clean["tag"].label == Label.PUBLIC and clean["images"] == [] and clean["thinking"] == "off"
+    entry = loop.execution_trace[0]
+    assert entry["clean_rewrite"] == {"original_args": {"query": "meteo Bologna cliente 4458812"}, "label": "public",
+                                      "turn_label": "private"}
+    assert "arguments rewritten" in loop.observations[0]
+    # Il turno resta privato: la memoria c'è ancora
+    assert loop.tag.label == Label.PRIVATE
+
+
+def test_an_exit_the_turn_may_send_is_not_rewritten(manager):
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "meteo"}), FINAL], [])
+    AgentLoop("Che tempo farà?", "ask", None, _llm(), select, "t-clean-p", None, None, "normal",
+              tag=PUBLIC_TAG, request_tag=PUBLIC_TAG).run()
+    assert calls["clean"] == [] and manager.execute_tool.call_args.args[1] == {"query": "meteo"}
+
+
+def test_a_secret_in_memory_does_not_stop_the_rewrite(manager):
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "x"}), FINAL],
+                                [_clean({"query": "meteo Bologna"})])
+    AgentLoop("Che tempo farà?", "ask", MEMORY, _llm(), select, "t-clean-s", None, None, "normal",
+              tag=tag_of("secret", "memoria:fatto"), request_tag=PUBLIC_TAG).run()
+    assert manager.execute_tool.call_args.kwargs["tag"].label == Label.PUBLIC and len(calls["clean"]) == 1
+
+
+@pytest.mark.parametrize("request_tag, clean, why", [
+    (tag_of("private", "messaggio:iban"), None, "la richiesta stessa non può uscire"),
+    (None, None, "senza la richiesta separata (automazioni)"),
+    (PUBLIC_TAG, "insufficiente", "il modello dice che non basta"),
+    (PUBLIC_TAG, "non valido", "argomenti che non rispettano lo schema"),
+    (PUBLIC_TAG, "errore", "la chiamata fallisce"),
+])
+def test_when_the_rewrite_is_not_possible_the_exit_asks_as_before(manager, request_tag, clean, why):
+    manager.execute_tool.return_value = {"result": "ok"}
+    answers = {"insufficiente": [_clean({"query": "valida ma il modello dice che non basta"}, enough=False)],
+               "non valido": [_clean({"q": "manca query"})],
+               "errore": [RuntimeError("modello giù")]}.get(clean, [])
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "originale"}),
+                                 FINAL], answers)
+    _private_loop(select, request_tag=request_tag).run()
+    call = manager.execute_tool.call_args
+    assert call.args[1] == {"query": "originale"} and call.kwargs["tag"].label == Label.PRIVATE, why
+    assert call.kwargs["clean"] is False
+    assert len(calls["clean"]) == len(answers), why
+
+
+def test_a_rewrite_that_repeats_a_call_already_made_falls_back_to_the_original(manager):
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "a 4458812"}),
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "b 4458812"}),
+        FINAL,
+    ], [_clean({"query": "meteo Bologna"}), _clean({"query": "meteo Bologna"})])
+    _private_loop(select).run()
+    first, second = manager.execute_tool.call_args_list
+    assert first.args[1] == {"query": "meteo Bologna"} and first.kwargs["clean"] is True
+    assert second.args[1] == {"query": "b 4458812"} and second.kwargs["tag"].label == Label.PRIVATE
+
+
+def test_the_clean_call_reads_only_results_written_from_data_the_destination_may_receive(manager):
+    manager.execute_tool.side_effect = [{"result": "RISULTATO-PUBBLICO"}, {"facts": ["RISULTATO-PRIVATO"]}, {"result": "ok"}]
+    select, calls = _structured([
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "uno"}),
+        ToolSelection(tool_needed=True, tool_name="recall_memory", arguments={"query": "due"}),
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "tre"}),
+        FINAL,
+    ], [_clean({"query": "meteo Bologna"}), _clean({"query": "meteo Bologna weekend"})])
+    prefetch = {"query": "meteo bologna", "summary_text": "PREFETCH-PUBBLICO", "sources": []}
+    loop = AgentLoop("Che tempo farà domani a Bologna?", "ask", MEMORY, _llm(), select, "t-clean-ctx", prefetch, None,
+                     "normal", tag=PRIVATE, request_tag=PUBLIC_TAG,
+                     recent_turns="user: e a Modena?", recent_tag=tag_of("private", "messaggio:person"))
+    loop.run()
+    first, second = calls["clean"]
+    assert "PREFETCH-PUBBLICO" in first["prompt"] and "e a Modena?" not in first["prompt"]
+    assert "RISULTATO-PUBBLICO" in second["prompt"] and "RISULTATO-PRIVATO" not in second["prompt"]
+    # Il prefetch e il risultato pubblico sono non attendibili: la chiamata lo porta con sé
+    assert second["tag"].label == Label.PUBLIC and second["tag"].untrusted
+
+
+def test_a_public_result_of_a_call_written_from_private_data_stays_out_of_the_clean_call(manager):
+    """Il risultato pubblico di una ricerca fatta con la query privata (approvata dall'utente) può ripeterla."""
+    manager.execute_tool.side_effect = [{"result": "ECO DELLA QUERY PRIVATA 4458812"}, {"result": "ok"}]
+    select, calls = _structured([
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "cliente 4458812"}),
+        ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "meteo"}),
+        FINAL,
+    ], [_clean(enough=False), _clean({"query": "meteo Bologna"})])
+    _private_loop(select).run()
+    assert manager.execute_tool.call_args_list[0].kwargs["tag"].label == Label.PRIVATE
+    assert "4458812" not in calls["clean"][1]["prompt"]
+
+
+def test_rewritten_arguments_must_still_fit_their_own_destination(manager):
+    """Se gli argomenti nuovi cambiano destinazione (un altro host), vale il livello ammesso di quella."""
+    from app.security.flows import Destination
+    manager.execute_tool.return_value = {"result": "ok"}
+    internal_dest = Destination("mcp:interno", "mcp", Label.INTERNAL)
+    public_dest = Destination("http:altrove.example.org", "http", Label.PUBLIC)
+
+    def destination(tool_name, args, table=None):
+        return public_dest if args.get("query") == "altrove" else internal_dest
+
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "x"}), FINAL],
+                                [_clean({"query": "altrove"})])
+    with patch("app.agent.agent_loop.flows.destination_for_tool", side_effect=destination):
+        _private_loop(select, request_tag=tag_of("internal", "conversazione:internal")).run()
+    assert len(calls["clean"]) == 1
+    assert manager.execute_tool.call_args.args[1] == {"query": "x"} and manager.execute_tool.call_args.kwargs["clean"] is False
+
+
+def test_recent_messages_go_to_the_clean_call_when_the_destination_may_receive_them(manager):
+    manager.execute_tool.return_value = {"result": "ok"}
+    select, calls = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "x"}), FINAL],
+                                [_clean({"query": "meteo Modena"})])
+    _private_loop(select, recent_turns="user: e a Modena?", recent_tag=PUBLIC_TAG).run()
+    assert "e a Modena?" in calls["clean"][0]["prompt"]
+
+
+def test_a_rewritten_call_resumed_after_an_approval_keeps_its_tag(manager):
+    saved = {}
+    manager.execute_tool.side_effect = [{"approval_required": True, "request_id": "req-clean", "message": "host"},
+                                        {"result": "ok"}]
+    select, _ = _structured([ToolSelection(tool_needed=True, tool_name="web_search", arguments={"query": "x 4458812"})],
+                            [_clean({"query": "meteo Bologna"})])
+    with patch("app.agent.agent_loop.turn_checkpoints.save", side_effect=lambda rid, kind, state: saved.update(state=state)):
+        res = _private_loop(select).run()
+    assert res["approval_required"] and saved["state"]["pending"]["call_tag"]["label"] == "public"
+
+    resume_select, _ = _structured([FINAL], [])
+    with patch("app.agent.agent_loop.approvals.approved_request_for", return_value=MagicMock()):
+        loop = AgentLoop.restore(saved["state"], _llm(), resume_select)
+        assert loop.request_tag.label == Label.PUBLIC
+        loop.resume("req-clean", True)
+    call = manager.execute_tool.call_args
+    assert call.args[1] == {"query": "meteo Bologna"}
+    assert call.kwargs["tag"].label == Label.PUBLIC and call.kwargs["clean"] is True
+    assert loop.execution_trace[-1]["clean_rewrite"]["original_args"] == {"query": "x 4458812"}
+
+
+def test_an_allowed_rewritten_exit_is_audited_as_clean():
+    _, fake = _search(PUBLIC_TAG, thread_id="t-clean-audit", clean=True)
+    assert fake.called
+    row = next(r for r in audit_log.get_recent(thread_id="t-clean-audit") if r["tool_name"] == "web_search")
+    assert row["flow"] == "clean" and row["label"] == "public"
+    # La marca non apre una destinazione: con dati privati si chiede conferma lo stesso
+    res, fake = _search(PRIVATE, thread_id="t-clean-audit-2", clean=True)
+    assert res.get("approval_required") and not fake.called
+    row = next(r for r in audit_log.get_recent(thread_id="t-clean-audit-2") if r["tool_name"] == "web_search")
+    assert row["flow"] == "ask"
 
 
 # --- Prefetch e memoria ---------------------------------------------------------------------------

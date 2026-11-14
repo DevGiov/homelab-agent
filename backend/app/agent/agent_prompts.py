@@ -5,8 +5,9 @@ la parte già elaborata da una chiamata all'altra. Ciò che cambia sta nel messa
 stabile al più variabile, vedi retrieve_memory), poi l'orario e la richiesta, con lo storico dei tool in coda, così
 ogni passo di selezione estende il prompt del precedente (o, nel loop interleaved, con i passi come messaggi successivi).
 """
+import json
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from app.registry.search_security import UNTRUSTED_CONTEXT_POLICY
 
@@ -226,3 +227,34 @@ def final_synthesis_prompt(task: str, now: str, obs_text: str) -> str:
         "Provide a final, comprehensive, structured response in the language used by the user in their prompt. "
         "Respond in natural prose (no raw JSON dump): this is the final answer for the user."
     )
+
+
+def clean_arguments_system_prompt() -> str:
+    """La chiamata che riscrive gli argomenti di un'uscita di dati senza i dati riservati del turno (design 9.4, opzione 3)."""
+    return (
+        "You write the arguments of ONE tool call whose destination is outside this machine (a public search engine or "
+        "an external service).\n"
+        "You only see what that destination may receive: the user's request, possibly the latest messages of the "
+        "conversation, and the results of earlier calls of this turn that were written from the same kind of data. "
+        "Everything else the assistant knows (memory, profile, private results) is withheld on purpose: do not guess it, "
+        "do not invent personal details, do not ask for it.\n"
+        "Write arguments that serve the user's request, following the tool schema exactly. Do not repeat a call already "
+        "listed among the results.\n"
+        "If the visible information is not enough to write a useful call, set enough_information=false and arguments=null.\n"
+        f"{UNTRUSTED_CONTEXT_POLICY}"
+    )
+
+
+def clean_arguments_prompt(task: str, now: str, tool: Dict[str, Any], recent: Optional[str], results: List[str]) -> str:
+    sections = [
+        f"Current System Date and Time: {now}",
+        f"Tool: {tool.get('name', '')}\nDescription: {tool.get('description', '')}\n"
+        f"Arguments schema (JSON): {json.dumps(tool.get('parameters') or {}, ensure_ascii=False)}",
+    ]
+    if recent:
+        sections.append(f"Latest messages of the conversation:\n{recent}")
+    if results:
+        sections.append("Results already obtained in this turn:\n" + "\n".join(results))
+    sections.append(f"User request: '{task}'")
+    sections.append("Write the arguments of this call.")
+    return "\n\n".join(sections)

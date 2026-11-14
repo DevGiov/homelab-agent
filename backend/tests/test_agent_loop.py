@@ -287,7 +287,7 @@ def test_pending_or_blocked_results_are_not_cached(manager, outcome):
     manager.execute_tool.return_value = outcome
     loop = AgentLoop("scarica", "act", None, _llm(), _selections(), None, None, None, "normal")
 
-    res, cached = loop._execute(1, "http_get", {"url": "https://a.example.org/"})
+    res, cached = loop._execute(1, "http_get", {"url": "https://a.example.org/"}, loop.tag)
 
     assert res == outcome and cached is False
     assert loop.call_cache == {}

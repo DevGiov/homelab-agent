@@ -73,6 +73,8 @@ export interface DataExitDestination {
   approved: number;
   deny: number;
   lowered: number;
+  /** Uscite consentite perché gli argomenti sono stati riscritti senza i dati riservati del turno. */
+  clean?: number;
   labels: Record<string, number>;
 }
 

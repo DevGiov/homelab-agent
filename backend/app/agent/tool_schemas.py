@@ -11,6 +11,16 @@ import logging
 
 logger = logging.getLogger("tool_schemas")
 
+class CleanArguments(BaseModel):
+    """Argomenti di una chiamata scritti vedendo solo ciò che la destinazione può ricevere (app.security.flows): la
+    richiesta, i messaggi recenti se possono, i risultati scritti da dati che possono."""
+    enough_information: bool = Field(description="True se con le informazioni visibili si scrive una chiamata utile, False altrimenti")
+    arguments: Annotated[Dict[str, Any], WithJsonSchema({
+        "anyOf": [{"type": "object"}, {"type": "null"}],
+        "description": "Argomenti per il tool, secondo il suo schema (null se enough_information=false)",
+    })] = Field(default_factory=dict)
+
+
 class ToolSelection(BaseModel):
     """Output strutturato che l'LLM deve produrre per selezionare un tool o rispondere."""
     tool_needed: bool = Field(description="True se serve chiamare un tool, False se si può rispondere direttamente o se l'azione è completata")

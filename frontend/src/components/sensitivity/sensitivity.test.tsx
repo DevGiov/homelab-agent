@@ -217,7 +217,7 @@ describe('uscite di dati', () => {
         jsonResponse({
           hours: 168,
           destinations: [
-            { destination: 'search:web', allow: 7, ask: 2, approved: 1, deny: 0, lowered: 0, labels: { public: 7, private: 2 } },
+            { destination: 'search:web', allow: 7, clean: 3, ask: 2, approved: 1, deny: 0, lowered: 0, labels: { public: 10, private: 2 } },
             { destination: 'thread', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
             { destination: 'fact', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
             { destination: 'kb', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { internal: 1 } },
@@ -232,6 +232,8 @@ describe('uscite di dati', () => {
     });
     render(<DataExitsSection />);
     await waitFor(() => expect(screen.getByText('7 consentite', { exact: false })).toBeTruthy());
+    expect(screen.getByText('3 riscritte senza dati riservati', { exact: false })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Riscritte' })).toBeTruthy();
     expect(screen.getAllByText('la ricerca web (motori pubblici)').length).toBeGreaterThan(0);
     expect(screen.getByText('regalo drone')).toBeTruthy();
     expect(screen.getByText('conferma chiesta')).toBeTruthy();
@@ -241,5 +243,31 @@ describe('uscite di dati', () => {
     expect(screen.getByText('livello abbassato')).toBeTruthy();
     expect(screen.getByText('fatto')).toBeTruthy();
     expect(screen.getByText('fatto #206: private → public')).toBeTruthy();
+  });
+});
+
+describe('traccia di un passo riscritto', () => {
+  it('lo segna e, aperto, mostra gli argomenti che il modello aveva scritto', async () => {
+    const { ExecutionTraceViewer } = await import('../ExecutionTraceViewer');
+    render(
+      <ExecutionTraceViewer
+        initialCollapsed={false}
+        trace={[
+          { step_id: 1, tool_name: 'web_search', args: { query: 'meteo Bologna' }, result: 'ok' },
+          {
+            step_id: 2,
+            tool_name: 'web_search',
+            args: { query: 'meteo Bologna domani' },
+            result: 'ok',
+            clean_rewrite: { original_args: { query: 'meteo cliente 4458812' }, label: 'public', turn_label: 'private' },
+          },
+        ]}
+      />
+    );
+    expect(screen.getAllByTestId('clean-rewrite')).toHaveLength(1);
+    expect(screen.queryByText(/4458812/)).toBeNull();
+    fireEvent.click(screen.getAllByTitle('Show step details')[1]);
+    expect(screen.getByText(/con i dati private del turno \(non inviati\)/)).toBeTruthy();
+    expect(screen.getByText(/4458812/)).toBeTruthy();
   });
 });
