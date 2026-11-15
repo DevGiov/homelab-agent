@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from app.agent import llm_calls
+from app.llm import roles
 from app.memory import episodes, procedures
 from app.security import flows
 
@@ -67,6 +68,7 @@ Write title and content in Italian."""
         model=model,
         reasoning_phase=None,
         tag=flows.join(tag) if tag else flows.tag_of(flows.Label.PRIVATE, "memoria:esecuzione"),
+        role=roles.CONSOLIDATE,
     )
     if proposal is None or proposal.kind == "none":
         return None

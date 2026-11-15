@@ -18,6 +18,7 @@ from app.agent.stream_session import current_session_var
 from app.core.config import settings
 from app.llm.model_availability import availability_fields, unavailable_reason
 from app.llm.reasoning import Reasoning, resolve
+from app.llm.roles import check_role
 from app.observability.turns import record_llm_call
 from app.security.flows import FlowDenied, Tag, can_flow, provider_destination
 
@@ -97,6 +98,7 @@ class LLMProvider(ABC):
         messages: List[Dict[str, str]],
         *,
         tag: Tag,
+        role: str,
         model: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: Optional[float] = None,
@@ -117,7 +119,11 @@ class LLMProvider(ABC):
         `tag` (obbligatorio): la sensibilità del prompt (app.security.flows). Ogni chiamata dichiara cosa sta inviando;
         se il provider non può riceverlo la richiesta non parte (FlowDenied). Con i provider locali capita solo con un
         segreto: le scelte vere si fanno prima, scegliendo il provider.
+
+        `role` (obbligatorio): a quale scopo serve la chiamata (app.llm.roles); un ruolo sconosciuto è un ValueError.
+        Finisce nelle metriche.
         """
+        check_role(role)
         destination = provider_destination(self.name)
         decision = can_flow(tag, destination)
         if not decision.allowed:
@@ -142,6 +148,7 @@ class LLMProvider(ABC):
             error=result.get("error"),
             label=tag.label.key,
             destination=destination.id,
+            role=role,
         )
         return result
 

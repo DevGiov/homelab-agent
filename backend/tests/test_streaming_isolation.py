@@ -33,7 +33,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        res = call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG)
+        res = call_llm("prompt", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG, role="answer")
         self.assertIn("content", res)
 
         events = []
@@ -64,7 +64,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        call_llm("prompt", stream_mode="none", tag=PUBLIC_TAG)
+        call_llm("prompt", stream_mode="none", tag=PUBLIC_TAG, role="answer")
         self.assertTrue(self.q.empty(), "La coda stream deve rimanere completamente vuota")
 
     @patch("app.agent.llm_calls.get_provider")
@@ -89,7 +89,7 @@ class TestStreamingIsolation(unittest.TestCase):
 
         mock_provider.chat.side_effect = fake_chat
 
-        selection = call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool", tag=PUBLIC_TAG)
+        selection = call_llm_structured("prompt", "sys", ToolSelection, reasoning_phase="Analisi e Selezione Tool", tag=PUBLIC_TAG, role="answer")
         self.assertIsNotNone(selection)
         self.assertFalse(selection.tool_needed)
         self.assertEqual(selection.raw_thinking, "pensiero nativo")
@@ -119,10 +119,10 @@ class TestStreamingIsolation(unittest.TestCase):
             return {"content": "step 2", "reasoning_content": "fase 2 thinking"}
 
         mock_provider.chat.side_effect = fake_chat_1
-        call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG)
+        call_llm("prompt 1", stream_mode="reasoning_only", reasoning_phase="Analisi Tool", tag=PUBLIC_TAG, role="answer")
 
         mock_provider.chat.side_effect = fake_chat_2
-        call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta", tag=PUBLIC_TAG)
+        call_llm("prompt 2", stream_mode="all", reasoning_phase="Elaborazione Risposta", tag=PUBLIC_TAG, role="answer")
 
         events = []
         while not self.q.empty():

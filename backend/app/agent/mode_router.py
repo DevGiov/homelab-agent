@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from app.llm import roles
 from app.llm.providers import get_provider
 from app.security.flows import Tag
 
@@ -306,6 +307,7 @@ def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]
     res = get_provider().chat(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         tag=tag,
+        role=roles.ROUTE,
         model=model,
         max_tokens=256,
         temperature=0.0,

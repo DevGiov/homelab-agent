@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core import image_utils
 from app.core.config import settings
-from app.llm import providers
+from app.llm import providers, roles
 from app.llm.reasoning import resolve
 from app.registry.base import BaseToolRegistry
 from app.security import flows, network
@@ -122,7 +122,7 @@ class VisionRegistry(BaseToolRegistry):
         # Come call_llm: il server conta nei max_tokens anche il ragionamento
         # Il prompt lo ha scritto chi ha chiamato il tool: la chiamata ne porta il tag, unito a quello dell'immagine
         tag = flows.join(flows.current_call_tag(), flows.result_tag("inspect_image", args))
-        result = provider.chat(messages, tag=tag, model=model, max_tokens=4096 + (reasoning.budget if reasoning.enabled else 0),
+        result = provider.chat(messages, tag=tag, role=roles.VISION, model=model, max_tokens=4096 + (reasoning.budget if reasoning.enabled else 0),
                                reasoning=reasoning)
         if result.get("error"):
             return {"error": f"Errore dal modello multimodale: {result['error']}"}

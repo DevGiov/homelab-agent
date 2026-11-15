@@ -45,8 +45,8 @@ def test_call_llm_adds_the_reasoning_budget_to_the_answer_length():
     provider.effective_model.return_value = "Qwen3.6-35B"
     provider.chat.return_value = {"content": "ok"}
     with patch.object(llm_calls, "get_provider", return_value=provider):
-        llm_calls.call_llm("ciao", max_tokens=1000, thinking="medium", stream_mode="none", tag=PUBLIC_TAG)
-        llm_calls.call_llm("ciao", max_tokens=1000, stream_mode="none", tag=PUBLIC_TAG)
+        llm_calls.call_llm("ciao", max_tokens=1000, thinking="medium", stream_mode="none", tag=PUBLIC_TAG, role="answer")
+        llm_calls.call_llm("ciao", max_tokens=1000, stream_mode="none", tag=PUBLIC_TAG, role="answer")
     with_thinking, without = (c.kwargs for c in provider.chat.call_args_list)
     assert with_thinking["max_tokens"] == 1000 + LEVEL_BUDGETS["medium"] and with_thinking["reasoning"].enabled
     assert without["max_tokens"] == 1000 and not without["reasoning"].enabled
@@ -62,7 +62,7 @@ def test_agent_loop_selects_with_the_select_level_and_answers_with_the_answer_le
         return ToolSelection(tool_needed=False, tool_name=None, arguments={}, parallel_calls=None, confidence=1.0,
                              reasoning="niente da fare", final_answer=None)
 
-    def text(prompt, system_prompt=None, thinking="off", reasoning_phase=None, tag=None):
+    def text(prompt, system_prompt=None, thinking="off", reasoning_phase=None, tag=None, role=None):
         seen["answer"] = thinking
         return {"content": "risposta"}
 
@@ -93,7 +93,7 @@ def test_call_llm_sends_the_previous_steps_after_the_user_message():
     provider.chat.return_value = {"content": "{}"}
     steps = [{"role": "assistant", "content": "{}", "reasoning_content": "prima"}, {"role": "tool", "content": "risultato"}]
     with patch.object(llm_calls, "get_provider", return_value=provider):
-        llm_calls.call_llm("richiesta", system_prompt="regole", history=steps, stream_mode="none", tag=PUBLIC_TAG)
+        llm_calls.call_llm("richiesta", system_prompt="regole", history=steps, stream_mode="none", tag=PUBLIC_TAG, role="answer")
     assert [m["role"] for m in provider.chat.call_args.args[0]] == ["system", "user", "assistant", "tool"]
 
 

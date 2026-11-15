@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from app.agent import llm_calls, turn_checkpoints
 from app.agent.mode_policy import get_mode_policy
 from app.agent.tool_catalog import get_rollback_info, get_tool_catalog
+from app.llm import roles
 from app.mcp.hub import get_mcp_hub
 from app.registry.manager import get_registry_manager
 from app.security import approvals, flows
@@ -220,7 +221,7 @@ the action, the tool (a known compensating tool when listed, otherwise "manual a
 Rollback plan:"""
 
     # Senza ragionamento: con il thinking attivo il modello esauriva i token prima di scrivere il piano
-    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, model=model, stream_mode="none", tag=tag)
+    plan_res = llm_calls.call_llm(prompt, system_prompt="You are an expert assistant for rollback operations on Proxmox infrastructure.", max_tokens=1024, temperature=0.3, model=model, stream_mode="none", tag=tag, role=roles.ROLLBACK)
     plan = plan_res.get("content", "") if isinstance(plan_res, dict) else ""
     return plan.strip() if plan else None
 

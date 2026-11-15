@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.agent import llm_calls
 from app.agent.fact_extraction import ENTITY_GUIDE, ExtractedEntity, entity_refs
+from app.llm import roles
 from app.llm.providers import LLMUnavailableError, get_provider, resolve_model
 from app.memory import facts, thread_store, vector_store
 from app.security import detectors, flows
@@ -207,6 +208,7 @@ not for suggestions. Return an empty list when nothing changes. At most {MAX_OPE
         model=model,
         reasoning_phase=None,
         tag=flows.MEMORY_MAINTENANCE_TAG,
+        role=roles.CONSOLIDATE,
     )
     return result.operations if result else None
 
@@ -423,6 +425,7 @@ with "by" = the fact that should stay (prefer the more recent and more complete)
             model=model,
             reasoning_phase=None,
             tag=flows.MEMORY_MAINTENANCE_TAG,
+            role=roles.CONSOLIDATE,
         )
         for item in result.superseded if result else []:
             if item.id in group and item.by in group and item.id != item.by:

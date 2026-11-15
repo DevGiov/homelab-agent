@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from app.agent import llm_calls
 from app.agent import mode_router as router
 from app.agent.state import AgentState
+from app.llm import roles
 from app.security import flows
 from app.security.flows import Tag
 
@@ -37,6 +38,7 @@ def formulate_visual_search_query(task: str, images: List[str], model: Optional[
             stream_mode="none",
             images=images,
             tag=tag,
+            role=roles.PREFETCH,
         )
         raw_content = res.get("content", "") if isinstance(res, dict) else (res or "")
         clean_q = re.sub(r'["\'`\n]', ' ', raw_content).strip()

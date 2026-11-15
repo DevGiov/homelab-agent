@@ -88,10 +88,10 @@ class _FakeProvider(LLMProvider):
 def test_provider_refuses_a_secret_and_records_label_and_destination():
     provider = _FakeProvider()
     with pytest.raises(FlowDenied):
-        provider.chat([{"role": "user", "content": "x"}], tag=tag_of("secret", "segreto"), model="m")
+        provider.chat([{"role": "user", "content": "x"}], tag=tag_of("secret", "segreto"), role="answer", model="m")
     assert provider.calls == []
 
-    provider.chat([{"role": "user", "content": "x"}], tag=PRIVATE, model="m-flows-test")
+    provider.chat([{"role": "user", "content": "x"}], tag=PRIVATE, role="answer", model="m-flows-test")
     with sqlite3.connect(settings.metrics_db_path) as conn:
         row = conn.execute("SELECT label, destination FROM llm_calls WHERE model = 'm-flows-test' ORDER BY id DESC").fetchone()
     assert row == ("private", "provider:llamacpp")
@@ -100,8 +100,8 @@ def test_provider_refuses_a_secret_and_records_label_and_destination():
 def test_provider_clearance_comes_from_settings(monkeypatch):
     monkeypatch.setattr(settings, "llama_cpp_clearance", "internal")
     with pytest.raises(FlowDenied):
-        _FakeProvider().chat([{"role": "user", "content": "x"}], tag=PRIVATE, model="m")
-    _FakeProvider().chat([{"role": "user", "content": "x"}], tag=INTERNAL, model="m")
+        _FakeProvider().chat([{"role": "user", "content": "x"}], tag=PRIVATE, role="answer", model="m")
+    _FakeProvider().chat([{"role": "user", "content": "x"}], tag=INTERNAL, role="answer", model="m")
 
 
 # --- Regole dei tool ------------------------------------------------------------------------------

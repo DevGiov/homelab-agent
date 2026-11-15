@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.core.sqlite_utils import ensure_columns
+from app.llm import roles
 
 logger = logging.getLogger("thread_store")
 
@@ -176,7 +177,7 @@ def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[st
         ]
         from app.security import flows
         title_tag = flows.join(tag) if tag else flows.tag_of(thread_label(thread_id) or "public", "titolo")
-        res = provider.chat(prompt_msgs, tag=title_tag, model=model, max_tokens=25, temperature=0.3)
+        res = provider.chat(prompt_msgs, tag=title_tag, role=roles.TITLE, model=model, max_tokens=25, temperature=0.3)
         raw_title = res.get("content", "").strip()
         clean = re.sub(r'["\'`\n#]', '', raw_title).strip()
         if clean.endswith('.'):

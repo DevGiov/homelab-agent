@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.agent import llm_calls
 from app.agent.mode_policy import MemoryPolicy, get_mode_policy
 from app.agent.state import AgentState
+from app.llm import roles
 from app.memory import episodes, facts, procedures, profile, thread_store
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters
 from app.security import detectors, flows
@@ -62,6 +63,7 @@ When a later message changes something, keep only the current value."""
         model=model,
         stream_mode="none",
         tag=tag,
+        role=roles.FILTER_MEMORY,
     )
     return (result.get("content") or "").strip() if isinstance(result, dict) else ""
 

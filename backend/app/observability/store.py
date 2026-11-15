@@ -82,6 +82,8 @@ def init_metrics_db() -> None:
         conn.executescript(SCHEMA)
         # Sensibilità del prompt e destinazione (app.security.flows), per controllare a posteriori dove è andato cosa
         ensure_columns(conn, "llm_calls", {"label": "TEXT", "destination": "TEXT"})
+        # Scopo della chiamata (app.llm.roles): le righe scritte prima non lo hanno
+        ensure_columns(conn, "llm_calls", {"role": "TEXT"})
 
 
 def _insert(table: str, row: Dict[str, Any]) -> None:

@@ -14,6 +14,7 @@ from app.api.schemas import (
     ResolveApprovalRequest,
 )
 from app.core.text_utils import clean_synthesis_content
+from app.llm import roles
 from app.memory import thread_store
 from app.security import flows
 
@@ -187,6 +188,7 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
             max_tokens=4096,
             stream_mode="none",
             tag=syn_tag,
+            role=roles.ANSWER,
         )
         raw_ans = syn_res.get("content", "") if syn_res else ""
         synthesized_text = clean_synthesis_content(raw_ans)

@@ -8,6 +8,7 @@ from app.agent.agent_prompts import current_time
 from app.agent.mode_policy import get_mode_policy
 from app.agent.nodes.act import execute_plan_node
 from app.agent.state import AgentState
+from app.llm import roles
 from app.security import flows
 from app.security.flows import Tag
 
@@ -42,7 +43,7 @@ def draft_plan(user_prompt: str, system_prompt: str, model: Optional[str] = None
     """Piano in testo, al livello di ragionamento `plan` della modalità: è la fase che ragiona di più."""
     return llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, temperature=0.2,
                               thinking=get_mode_policy("plan").thinking.plan, thinking_budget=thinking_budget, model=model,
-                              stream_mode=stream_mode, reasoning_phase="Pianificazione Strategica", images=images, tag=tag)
+                              stream_mode=stream_mode, reasoning_phase="Pianificazione Strategica", images=images, tag=tag, role=roles.PLAN)
 
 
 def generate_plan_structure(task: str, user_prompt: str, plan_text: Optional[str] = None,
@@ -108,7 +109,7 @@ def generate_plan_structure(task: str, user_prompt: str, plan_text: Optional[str
         "required": ["steps"],
     }
     res = llm_calls.call_llm(user_prompt, system_prompt=json_prompt, max_tokens=2048, temperature=0.1,
-                             model=model, stream_mode="none", json_schema=schema, tag=tag)
+                             model=model, stream_mode="none", json_schema=schema, tag=tag, role=roles.PLAN)
     content = res.get("content", "") if isinstance(res, dict) else ""
     clean = re.sub(r"```(?:json)?", "", content).strip()
     start = clean.find("{")

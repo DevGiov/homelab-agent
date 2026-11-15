@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 from pydantic import BaseModel
 
+from app.llm import roles
 from app.security.flows import Tag, tag_of
 
 CASES_DIR = Path(__file__).parent / "cases"
@@ -359,6 +360,7 @@ thing, use the most recent one. If the memory does not contain the answer, set f
             model=model,
             reasoning_phase=None,
             tag=EVAL_TAG,
+            role=roles.EVAL,
         )
     return grade_recall(case, answer.model_dump() if answer else None, context)
 

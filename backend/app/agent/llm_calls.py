@@ -33,11 +33,14 @@ def call_llm(
     history: Optional[List[dict]] = None,
     *,
     tag: Tag,
+    role: str,
 ) -> dict:
     """`history`: messaggi dei passi precedenti del turno (assistente con `reasoning_content`, risultati dei tool), dopo
     il messaggio utente: il template li rende nel formato del modello e ne conserva il pensiero.
 
-    `tag`: sensibilità di tutto ciò che va nel prompt (app.security.flows), obbligatoria come in LLMProvider.chat."""
+    `tag`: sensibilità di tutto ciò che va nel prompt (app.security.flows), obbligatoria come in LLMProvider.chat.
+
+    `role`: scopo della chiamata (app.llm.roles), obbligatorio e passato al provider."""
     messages = []
 
     # `thinking` è il livello della fase, tradotto dal profilo del modello (app.llm.reasoning); `thinking_budget` è il
@@ -125,6 +128,7 @@ def call_llm(
     return provider.chat(
         messages,
         tag=tag,
+        role=role,
         model=effective_model or None,
         max_tokens=max_tokens + (reasoning.budget if reasoning.enabled else 0),
         reasoning=reasoning,
@@ -153,6 +157,7 @@ def call_llm_structured(
     history: Optional[List[dict]] = None,
     *,
     tag: Tag,
+    role: str,
 ) -> Optional[Any]:
     """
     Chiama l'LLM richiedendo output conforme allo schema Pydantic.
@@ -160,6 +165,7 @@ def call_llm_structured(
     Isola lo stream del content JSON per non farlo comparire nella chat principale.
     Include il supporto a immagini multimodali (es. per selezione tool basata su immagini).
     Solleva LLMUnavailableError se il server non completa la richiesta: si ritenta solo un output non valido.
+    `role`: scopo della chiamata (app.llm.roles), passato a ogni tentativo.
     """
     json_schema = schema_cls.model_json_schema()
     schema_prompt = (
@@ -198,6 +204,7 @@ def call_llm_structured(
             json_schema=_grammar_schema(schema_cls),
             history=history,
             tag=tag,
+            role=role,
         )
         if not raw_res:
             last_error = "Nessuna risposta dal modello LLM"
@@ -241,16 +248,16 @@ def agent_loop_llm_fns(thinking_budget: Optional[int], model: Optional[str], sta
     """Argomenti LLM per run_agent_loop: risposta in streaming, selezione tool strutturata e se rimandare il pensiero dei
     passi precedenti (profilo del modello). Il livello di ragionamento lo sceglie il loop per fase; `thinking_budget` è
     l'eventuale budget dell'utente per il turno."""
-    # `tag`: il loop passa il proprio, che sale a ogni risultato letto
-    def call_llm_fn(p, system_prompt=None, thinking="off", reasoning_phase=None, *, tag: Tag):
+    # `tag`: il loop passa il proprio, che sale a ogni risultato letto; `role`: lo sceglie il loop a ogni chiamata
+    def call_llm_fn(p, system_prompt=None, thinking="off", reasoning_phase=None, *, tag: Tag, role: str):
         return call_llm(p, system_prompt=system_prompt, max_tokens=4096, thinking=thinking, thinking_budget=thinking_budget,
-                        model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images, tag=tag)
+                        model=model, stream_mode="all", reasoning_phase=reasoning_phase, images=state_images, tag=tag, role=role)
 
     def call_llm_structured_fn(prompt, system_prompt, schema_cls, max_tokens=4096, temperature=0.0, max_retries=2, thinking="off",
-                               reasoning_phase="Analisi e Selezione Tool", images=None, history=None, *, tag: Tag):
+                               reasoning_phase="Analisi e Selezione Tool", images=None, history=None, *, tag: Tag, role: str):
         return call_llm_structured(prompt, system_prompt, schema_cls, max_tokens, temperature, max_retries, thinking=thinking,
                                    thinking_budget=thinking_budget, model=model, reasoning_phase=reasoning_phase,
-                                   images=images if images is not None else state_images, history=history, tag=tag)
+                                   images=images if images is not None else state_images, history=history, tag=tag, role=role)
 
     effective_model = get_provider().effective_model(model)
     return {"call_llm_fn": call_llm_fn, "call_llm_structured_fn": call_llm_structured_fn,

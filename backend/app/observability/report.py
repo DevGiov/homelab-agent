@@ -94,6 +94,22 @@ def summary(hours: float) -> Dict[str, Any]:
         for model, rows in sorted(by_model.items(), key=lambda item: -len(item[1]))
     ]
 
+    by_role: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for c in calls:
+        by_role[c["role"] or "?"].append(c)
+    roles = [
+        {
+            "role": role,
+            "calls": len(rows),
+            "errors": sum(1 for r in rows if r["error"]),
+            "prompt_tokens": sum(r["prompt_tokens"] for r in rows),
+            "cached_tokens": sum(r["cached_tokens"] for r in rows),
+            "completion_tokens": sum(r["completion_tokens"] for r in rows),
+            "p50_ms": percentile([r["duration_ms"] for r in rows], 0.5),
+        }
+        for role, rows in sorted(by_role.items(), key=lambda item: -len(item[1]))
+    ]
+
     return {
         "window_hours": hours,
         "turns": _turns_block(turns),
@@ -106,6 +122,7 @@ def summary(hours: float) -> Dict[str, Any]:
             **_llm_speeds(calls),
         },
         "models": models,
+        "roles": roles,
         "tools": audit_log.tool_stats(since)[:15],
         "health": _health_block(samples),
     }

@@ -21,8 +21,8 @@ Una richiesta di approvazione sospende il loop: `checkpoint` ne salva lo stato c
 `AgentLoop.restore` + `resume` lo riprendono dal passo dopo, con il tool eseguito o con il rifiuto come risultato del passo.
 
 Funzioni LLM attese dal chiamante:
-- `call_llm_fn(prompt, system_prompt=..., thinking=..., reasoning_phase=...)` -> {"content", "reasoning_content"}
-- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=..., history=...)` -> ToolSelection
+- `call_llm_fn(prompt, system_prompt=..., thinking=..., reasoning_phase=..., tag=..., role=...)` -> {"content", "reasoning_content"}
+- `call_llm_structured_fn(prompt=..., system_prompt=..., schema_cls=..., ..., thinking=..., images=..., history=..., tag=..., role=...)` -> ToolSelection
 
 Il livello di ragionamento (`thinking`) è quello della fase nella `ThinkingPolicy` della modalità: `select` per la
 scelta dei tool, `answer` per risposte e sintesi.
@@ -41,6 +41,7 @@ from app.agent.tool_catalog import format_catalog_for_prompt, format_dynamic_cat
 from app.agent.tool_schemas import CleanArguments, ToolSelection, validate_tool_args
 from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
+from app.llm import roles
 from app.llm.providers import LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
@@ -429,7 +430,7 @@ class AgentLoop:
     def _ask_llm(self, prompt: str, system_prompt: str, phase: str) -> str:
         """Risposta testuale (fase `answer`); il ragionamento restituito entra nella traccia del turno con l'etichetta `phase`."""
         res = self.call_llm_fn(prompt, system_prompt=system_prompt, thinking=self.policy.thinking.answer, reasoning_phase=phase,
-                               tag=self.tag)
+                               tag=self.tag, role=roles.ANSWER)
         if isinstance(res, dict) and res.get("error"):
             raise LLMUnavailableError(res["error"])
         content, reasoning = _content(res)
@@ -523,6 +524,7 @@ class AgentLoop:
                 thinking=self.policy.thinking.answer,
                 reasoning_phase=None,
                 tag=self.tag,
+                role=roles.ANSWER,
             )
             if res:
                 raw, reasoning = _content(res)
@@ -541,6 +543,7 @@ class AgentLoop:
             thinking=self.policy.thinking.answer,
             reasoning_phase="Elaborazione Risposta Finale",
             tag=self.tag,
+            role=roles.ANSWER,
         )
         content, reasoning = _content(res)
         return {"final_response": content or "Richiesta completata.", "execution_trace": self.execution_trace,
@@ -575,6 +578,7 @@ class AgentLoop:
             thinking=self.policy.thinking.select,
             images=self.images,
             tag=self.tag,
+            role=roles.SELECT_TOOL,
             **extra,
         )
         thinking = getattr(selection, "raw_thinking", "") or ""
@@ -825,6 +829,7 @@ class AgentLoop:
                 reasoning_phase="Argomenti senza dati riservati",
                 images=[],
                 tag=clean_tag,
+                role=roles.REWRITE_EXIT,
             )
         except Exception as e:
             logger.warning(f"Riscrittura degli argomenti di '{tool_name}' non riuscita: {e}")
