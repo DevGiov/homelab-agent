@@ -1,7 +1,7 @@
 # Canali di interazione: design
 
 **Data:** 15 novembre 2026
-**Stato:** design scritto; decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). Nessuna fase costruita.
+**Stato:** decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). C0 (interfaccia) costruita il 15/11/2026 ([sezione 7](#7-c0-come-è-stata-costruita)).
 **Contesto:** oggi l'agente si raggiunge solo dalla Web UI e risponde solo quando gli si scrive. L'obiettivo è un'interfaccia unica per i canali (Telegram per primo, poi notifiche, voce, schermi, occhiali), con la regola di sensibilità applicata a tutto ciò che esce verso un canale ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)).
 
 ---
@@ -123,3 +123,16 @@ Il backend deve raggiungere `api.telegram.org` in uscita. Il client HTTP è codi
 - **Scadenza delle approvazioni da canale**: 30 minuti è una stima.
 - **Più utenti**: oggi il sistema ne ha uno solo; con più utenti servono un'identità vera nel backend (D5) e un legame utente-canale.
 - **Link alla Web UI da fuori casa**: funzionano su Tailscale; senza, il pulsante "Apri nell'app" non porta da nessuna parte.
+
+## 7. C0 come è stata costruita
+
+Il 15/11/2026, su `dev`.
+
+- **`start_turn`** ([agent_runner.py](../../backend/app/api/agent_runner.py)): l'avvio del turno senza la parte HTTP; la route di streaming lo usa e aggiunge solo l'SSE. Riceve `channel` (forza `security_mode="normal"`), `extra_tag` (contenuto scritto da altri) e `style_hint`. Anche `stop_turn` è separato dalla route.
+- **Pacchetto [`channels/`](../../backend/app/channels/)**: `base.py` (capacità, messaggi, canale), `threads.py` (tabella `channel_threads` nel database delle conversazioni), `render.py` (divisione alla lunghezza del canale senza rompere i blocchi di codice, versione in testo semplice; l'HTML arriva con C1), `hub.py` (comandi, rifiuto con turno in corso, attesa della risposta con scadenza, controllo di sensibilità, risposte trattenute).
+- **Controllo**: una risposta senza etichetta vale `private`. Le risposte trattenute per "Mostra qui" stanno in memoria per 10 minuti (al massimo 100): un riavvio le perde. "Mostra qui" vale una volta, solo per la chat a cui era destinata, e ricontrolla la regola.
+- **Registro delle uscite**: ogni consegna di una risposta del modello va nell'audit come `channel_delivery`, con destinazione `channel:<id>`, etichetta ed esito (`allow`, `ask` per l'avviso con "Mostra qui", `approved`, `deny`), quindi compare nella vista delle uscite di dati. Il testo della risposta non viene salvato, solo la sua lunghezza.
+- **Stile**: la riga di stile del canale arriva alle chiamate con ruolo `answer`. Limite noto: quando il modello scrive la risposta finale già nella chiamata di scelta del tool, quella riga non la vede.
+- **Avvio**: l'hub parte e si ferma con l'applicazione; senza canali registrati non fa nulla (così è oggi su CT 125).
+- **Verifica**: 55 test con un canale finto; 26 mutazioni colte su 26. Non provato con un turno vero (i test sul modello locale sono sospesi).
+

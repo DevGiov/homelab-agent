@@ -39,6 +39,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-33](#iss-33) | `normalize_proposal`: comportamenti dubbi fissati dai test | S3 | backend/automations | 🟡 Da decidere caso per caso |
 | [ISS-34](#iss-34) | Lo `sync` di un turno in corso manda sempre vuoti tool, traccia e piano | S3 | backend/streaming | 🟡 Aperto |
 | [ISS-35](#iss-35) | La Web UI ignora gli eventi `approval_required` e `status` | S4 | frontend | 🟡 Aperto |
+| [ISS-36](#iss-36) | Le sessioni di streaming finite restano in memoria | S3 | backend/streaming | 🟡 Aperto |
+| [ISS-37](#iss-37) | `POST /v1/chat/stop` su un turno già finito salva comunque "interrotta" | S4 | backend/api | 🟡 Aperto |
 
 ---
 
@@ -349,3 +351,15 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 
 - **Evidenza** (15/11/2026): il backend li emette durante il turno, ma `consumeStream` ([chat.ts](../../frontend/src/api/chat.ts)) non ha un caso per loro: la richiesta di approvazione si vede solo con `final`, e lo stato fermato/in pausa solo dalla risposta delle route di controllo.
 - **Effetto**: oggi nessuno visibile, perché `final` arriva subito dopo l'approvazione; conta per un client che resta agganciato a un turno ripreso o messo in pausa da un altro dispositivo.
+
+## ISS-36
+**Le sessioni di streaming finite restano in memoria** — S3
+
+- **Evidenza** (15/11/2026, durante C0): una `StreamSession` finita resta nel dizionario delle sessioni attive ([stream_session.py](../../backend/app/agent/stream_session.py)) finché lo stesso thread non avvia un turno nuovo: il dizionario cresce con il numero di conversazioni, con il testo accumulato di ognuna.
+- **Da fare**: togliere la sessione qualche minuto dopo la fine (serve ancora a chi si riaggancia subito).
+
+## ISS-37
+**`POST /v1/chat/stop` su un turno già finito salva comunque "interrotta"** — S4
+
+- **Evidenza** (15/11/2026): la route salva "[Esecuzione interrotta dall'utente]" anche se la sessione è già finita. Il comando `/stop` dei canali controlla prima che il turno sia attivo; la route no.
+
