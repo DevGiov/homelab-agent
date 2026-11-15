@@ -73,8 +73,10 @@
  * Colori del tema: leggono le variabili CSS che imposta theme/ThemeContext.tsx. `inline` scrive `var(--accent)` dove la
  * classe è usata, non sul :root: il tema imposta le variabili sul body e la lettura deve avvenire lì. I modificatori di
  * opacità (`bg-accent/15`) funzionano anche se le variabili sono esadecimali (Tailwind li compone con color-mix).
- * Container query (`@container/chat`, `@xl/chat:flex`): sono integrate in Tailwind 4 e le soglie (`--container-*`) sono
- * quelle del plugin di prima. La colonna della chat cambia larghezza con le barre laterali, la finestra no.
+ *
+ * Container query (`@container/chat`, `@xl/chat:flex`): sono integrate in Tailwind 4 e le soglie (`--container-*`, da 20rem
+ * a 80rem) sono quelle del plugin di prima, quindi qui non c'è nulla da definire. La colonna della chat cambia larghezza
+ * con le barre laterali, la finestra no.
  */
 @theme inline {
   --color-bg: var(--bg);
