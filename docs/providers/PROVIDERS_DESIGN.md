@@ -1,7 +1,7 @@
 # Provider di modelli e ruoli: design
 
 **Data:** 14 novembre 2026
-**Stato:** design scritto; decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). Nessuna fase costruita.
+**Stato:** decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend, manca l'interfaccia ([sezione 6.1](#61-p0-e-p1-come-sono-state-costruite)).
 **Contesto:** oggi ogni chiamata a un modello va a un server in casa. L'obiettivo è aggiungere provider cloud (prima AWS Bedrock, poi OpenRouter), sapere quanto costa ogni chiamata, fermarsi a un tetto di spesa e scegliere il provider chiamata per chiamata, senza far uscire dati che la destinazione non può ricevere ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), fase S4).
 
 ---
@@ -56,7 +56,7 @@ Dalla documentazione AWS, letta il 14/11/2026 ([Chat Completions API](https://do
 
 Una sottoclasse di `OpenAICompatProvider`, `CloudOpenAIProvider`, che cambia quattro cose:
 
-1. manda la chiave come `Authorization: Bearer`;
+1. si autentica con la chiave API come `Authorization: Bearer`, oppure firma la richiesta con le credenziali AWS (SigV4). Per la firma: `botocore` come dipendenza o la firma scritta nel backend, da decidere in P2 (la prima è una libreria in più, la seconda un centinaio di righe da provare contro gli esempi ufficiali);
 2. costruisce il payload senza i campi di llama.cpp, e traduce il ragionamento in ciò che l'endpoint accetta (da decidere modello per modello, sezione 4);
 3. non carica modelli e non consulta il watchdog;
 4. l'elenco dei modelli viene dalla configurazione.
@@ -67,8 +67,9 @@ Variabili di `backend/.env` (i nomi veri, anche in `.env.example`):
 
 | Variabile | Contenuto | Default |
 | :--- | :--- | :--- |
-| `BEDROCK_API_KEY` | Chiave API di Bedrock | vuoto: provider spento |
-| `BEDROCK_REGION` | Regione AWS | nessuno: obbligatoria con la chiave |
+| `BEDROCK_API_KEY` | Chiave API di Bedrock (autenticazione `Bearer`) | vuoto |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | In alternativa alla chiave API: credenziali AWS (firma SigV4). Stessi nomi di EXAMEN e degli SDK di AWS | vuoto. Senza chiave né credenziali il provider è spento |
+| `AWS_REGION` | Regione AWS (stesso nome di EXAMEN) | nessuno: obbligatoria con le credenziali |
 | `BEDROCK_MODELS` | Identificativi dei modelli offerti, separati da virgola | nessuno: obbligatoria con la chiave |
 | `BEDROCK_CLEARANCE` | Livello più alto che può ricevere: `public` o `internal` | `public` |
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODELS`, `OPENROUTER_CLEARANCE` | Lo stesso per OpenRouter | provider spento, `public` |
@@ -86,8 +87,8 @@ Variabili di `backend/.env` (i nomi veri, anche in `.env.example`):
 | `select_tool` | Scelta del tool a ogni passo | La richiesta, il catalogo, i risultati precedenti |
 | `rewrite_exit` | Riscrittura pulita di un'uscita | Solo ciò che la destinazione può ricevere |
 | `answer` | Risposta della chat, risposta diretta, sintesi finale, sintesi dopo un'approvazione | Tutto ciò che il turno ha raccolto |
-| `prefetch` | Riassunto della ricerca web iniziale | Pagine web |
-| `filter_memory` | Scelta dei ricordi pertinenti | La richiesta e i ricordi candidati |
+| `prefetch` | Ricerca web iniziale: la query, anche da un'immagine allegata | La richiesta, l'immagine |
+| `summarize` | Riassunto progressivo della conversazione | I messaggi della conversazione |
 | `consolidate` | Estrazione dei fatti, consolidamento, procedure | Conversazioni intere |
 | `title` | Titolo della conversazione | Il primo messaggio |
 | `vision` | Descrizione di un'immagine | Immagini |
@@ -145,10 +146,26 @@ Ogni fase lascia il sistema funzionante; le prime due non chiedono nessuna chiav
 | **P4. OpenRouter** | Le sue variabili; preferenze sulla conservazione dei dati impostate in modo esplicito | Sì: la chiave |
 | **P5. Preferenza per ruolo** | Solo se P3 lo giustifica | No |
 
+### 6.1 P0 e P1 come sono state costruite
+
+Il 15/11/2026, su `dev`.
+
+- **Ruoli** ([roles.py](../../backend/app/llm/roles.py)): `role` è obbligatorio, senza default, in `LLMProvider.chat`, `call_llm` e `call_llm_structured`; un ruolo sconosciuto è un `ValueError` prima che la richiesta parta. Un test con `ast` controlla che ogni chiamata del backend lo passi, e un altro fissa i ruoli di ogni file. Rispetto alla tabella 5.2 si è aggiunto `summarize` (il riassunto progressivo della conversazione, che non sceglie ricordi): `filter_memory` è stato tolto perché nessuna chiamata filtra la memoria.
+- **Metriche**: `llm_calls.role` e `llm_calls.cost_usd`; riepilogo per ruolo, costo totale, per modello, per ruolo e per intervallo nella serie temporale.
+- **Prezzi e tetti** ([costs.py](../../backend/app/llm/costs.py)): tabelle `model_prices` e `spend_ceilings` in `mcp.db`, accanto alle altre impostazioni modificabili dalla UI (non nel database delle metriche, che si sfoltisce). Mese di calendario in UTC.
+- **Convenzione dei token**: `prompt_tokens` comprende quelli in cache (llama.cpp: `prompt_n + cache_n`; OpenAI: per definizione). Costo = (prompt − cache) × prezzo d'ingresso + cache × prezzo della cache + risposta × prezzo d'uscita.
+- **API**: `GET /v1/providers/costs` (prezzi, tetti, spesa del mese per provider e totale, tetti raggiunti); `PUT`/`DELETE /v1/providers/{nome}/models/{modello}/price`; `PUT`/`DELETE /v1/providers/ceilings/{provider o total}`. Gli identificativi dei modelli con `/`, `:` e `.` sono provati.
+- **Conservazione delle metriche**: le chiamate del mese in corso non vengono più cancellate dalla pulizia a 30 giorni, altrimenti a fine mese la spesa del primo giorno spariva e i tetti contavano meno.
+- **Da fare in P2**: leggere `prompt_tokens_details.cached_tokens` dalla risposta dei provider cloud (oggi i token in cache si leggono solo da llama.cpp, quindi sul cloud sarebbero pagati a prezzo pieno); `ceiling_reached` esiste ma non è ancora nel percorso delle chiamate; nessun provider può chiamarsi `total`, il nome del tetto complessivo.
+- **Interfaccia**: da fare (scheda "Provider" e costo nelle Metriche).
+
 ## 7. Cosa deve fare il maintainer per P2
 
-1. Nella console AWS, nella regione scelta: abilitare l'accesso ai modelli da usare e creare una chiave API di Bedrock.
-2. Scrivere in `backend/.env` dell'istanza `BEDROCK_API_KEY`, `BEDROCK_REGION`, `BEDROCK_MODELS` (e `BEDROCK_CLEARANCE` se diverso da `public`).
+1. Nella console AWS, nella regione scelta: abilitare l'accesso ai modelli da usare.
+2. Credenziali, una delle due:
+   - una chiave API di Bedrock (`BEDROCK_API_KEY`), la più semplice;
+   - le credenziali AWS (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`), con gli stessi nomi del `.env` di EXAMEN, da cui si possono copiare. Meglio però credenziali dedicate con i soli permessi di Bedrock (`bedrock:InvokeModel` e `bedrock:InvokeModelWithResponseStream`): quelle di EXAMEN possono avere altri permessi (DynamoDB), e una chiave per servizio si revoca senza toccare l'altro. Gli agenti non leggono né copiano il `.env` di EXAMEN.
+3. Scrivere in `backend/.env` dell'istanza le credenziali, `AWS_REGION` e `BEDROCK_MODELS` (e `BEDROCK_CLEARANCE` se diverso da `public`). EXAMEN usa `us-east-1`: se conta dove finiscono i dati, una regione UE, controllando che i modelli scelti ci siano.
 3. Ricreare il backend (`up -d backend`: `restart` non rilegge `.env`).
 
 ## 8. Punti aperti

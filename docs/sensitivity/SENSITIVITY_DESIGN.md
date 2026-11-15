@@ -488,8 +488,8 @@ Anche senza un permesso già dato, la richiesta di conferma di un comando segnal
 - **Riconosce il testo copiato, non l'istruzione seguita.** Se la pagina dice "ferma il container dell'agente" e il modello ricava l'id da un tool, negli argomenti non c'è nessuna parola della pagina. È il limite del criterio scelto: quello largo (chiedere sempre) era stato scartato perché sommerge la conferma che conta.
 - **Può chiedere per una parola innocua.** Il modello cerca sul web l'errore di un servizio e poi lo riavvia: se l'utente non ha nominato il servizio, il nome viene anche dalla pagina e la conferma compare. La richiesta mostra la parola, quindi si giudica in un attimo. Da misurare nell'uso reale quante volte succede.
 - **Automazioni attivate da un webhook.** Il testo del webhook sta dentro la richiesta dello step, che qui conta come scritta dall'utente: quel caso non è coperto.
-- **Fatti con il segno "non attendibile".** Contano come contenuto esterno, anche se la decisione 10 lascia intatte le autorizzazioni per le uscite: qui il criterio è stretto e chiude il caso di una pagina che pianta un fatto per un turno successivo. Da confermare con il maintainer.
-- **Modalità autonoma.** Non coperta, per scelta.
+- **Fatti con il segno "non attendibile".** Contano come contenuto esterno, anche se la decisione 10 lascia intatte le autorizzazioni per le uscite: qui il criterio è stretto e chiude il caso di una pagina che pianta un fatto per un turno successivo. Confermato dal maintainer il 15/11/2026.
+- **Modalità autonoma.** Non coperta, per scelta: confermato dal maintainer il 15/11/2026.
 
 Verifica: 27 test in `tests/test_provenance.py` (parole, confronto, guardrail nelle tre modalità, raccolta nel loop, ripresa dopo un'approvazione); 28 mutazioni colte su 30, le due rimaste equivalenti. Nessuna prova sul modello reale: i test sul modello locale sono sospesi.
 

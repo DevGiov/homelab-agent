@@ -131,12 +131,26 @@ Provider cloud (prima AWS Bedrock, poi OpenRouter), costo di ogni chiamata, tett
 
 | # | Passo | Note |
 | :--- | :--- | :--- |
-| P0 | **Ruoli**: argomento `role` obbligatorio su ogni chiamata a un modello, colonna nelle metriche, riepilogo per ruolo | Non serve nessuna chiave |
-| P1 | **Costo e tetti**: prezzi per modello e tetti (per provider e totale) dalla Web UI, costo salvato a ogni chiamata, spesa del mese; scheda "Provider" nelle impostazioni, costo nelle Metriche | Si prova con un prezzo finto sul modello locale |
+| P0 | ~~**Ruoli**: argomento `role` obbligatorio su ogni chiamata a un modello, colonna nelle metriche, riepilogo per ruolo~~ ✅ 2026-11-15 (13 ruoli; un test controlla ogni chiamata) | Aggiunto `summarize`, tolto `filter_memory` ([6.1](../providers/PROVIDERS_DESIGN.md#61-p0-e-p1-come-sono-state-costruite)) |
+| P1 | **Costo e tetti**: ~~backend (prezzi e tetti in `mcp.db`, costo salvato a ogni chiamata, spesa del mese, API)~~ ✅ 2026-11-15; **resta l'interfaccia**: scheda "Provider" nelle impostazioni, costo e ruoli nelle Metriche | Dopo la migrazione a Tailwind 4 |
 | P2 | **Provider cloud**: `CloudOpenAIProvider`, variabili di Bedrock, `choose_provider` con ripiego sul modello locale per etichetta e per tetto | Test automatici con un server finto; quelli veri chiedono la chiave del maintainer |
 | P3 | **Misura**: suite di valutazione su uno o due modelli cloud, quante volte scatta il ripiego | Costa crediti |
 | P4 | **OpenRouter** | Chiede la chiave |
 | P5 | **Preferenza per ruolo** (il cloud pianifica, il locale legge) | Solo se P3 lo giustifica |
+
+
+## Fase C — Canali di interazione
+
+Raggiungere l'agente fuori dalla Web UI (Telegram per primo) e permettergli di scrivere per primo, con la regola di sensibilità su tutto ciò che esce verso un canale. Design e decisioni: [CHANNELS_DESIGN.md](../channels/CHANNELS_DESIGN.md).
+
+| # | Passo | Note |
+| :--- | :--- | :--- |
+| C0 | **Interfaccia**: `start_turn` estratto dalla route di streaming, pacchetto `channels`, tabella `channel_threads`, destinazione `channel:*`, un canale finto nei test | Non serve nessun token |
+| C1 | **Telegram, testo**: long polling, utenti ammessi, controllo della risposta con il pulsante per `private`, `/nuova`, `/stop`, `/link` | La prova vera chiede il token e l'id utente del maintainer |
+| C2 | **Approvazioni** con i pulsanti, scadenza del canale | |
+| C3 | **Notifiche**: `NotificationPolicy` letta dal runner delle automazioni | |
+| C4 | **Foto e note vocali** (Whisper) | |
+| C5 | **Altri canali** (push self-hosted, endpoint per Home Assistant, voce) | Dopo una misura dei tempi della voce |
 
 
 ## Storico

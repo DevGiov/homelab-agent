@@ -37,6 +37,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-31](#iss-31) | Nei piani un'approvazione è trattata come un errore e annulla i passi fatti | S1 | agente/piani | ✅ Risolto 2026-11-02 |
 | [ISS-32](#iss-32) | Nelle run l'approvazione non esegue il tool, o lascia la run ferma | S1 | automazioni | ✅ Risolto 2026-11-02 |
 | [ISS-33](#iss-33) | `normalize_proposal`: comportamenti dubbi fissati dai test | S3 | backend/automations | 🟡 Da decidere caso per caso |
+| [ISS-34](#iss-34) | Lo `sync` di un turno in corso manda sempre vuoti tool, traccia e piano | S3 | backend/streaming | 🟡 Aperto |
+| [ISS-35](#iss-35) | La Web UI ignora gli eventi `approval_required` e `status` | S4 | frontend | 🟡 Aperto |
 
 ---
 
@@ -335,3 +337,15 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 - **Un prompt decide il tipo di step**: batte gli alias `python`, `code`, `gate`, `approval` e rende lo step agentico.
 - **Espansione dei template per sottostringa**: uno step solo con azione `"repair"` diventa l'intero template `github_issue_repair`; `"email"` ne corrisponde a due e decide l'ordine dei file; la policy dell'utente viene sostituita; gli errori di lettura del template vengono ignorati.
 - **Codice mai eseguito**, lasciato com'è: i nomi di ripiego "Nuova Automazione" e "Step N".
+
+## ISS-34
+**Lo `sync` di un turno in corso manda sempre vuoti tool, traccia e piano** — S3
+
+- **Evidenza** (trovato il 15/11/2026 leggendo il flusso per il design dei canali): `StreamSession` dichiara `tool_used`, `execution_trace`, `plan_steps` e `plan_structure` e li mette nello snapshot `sync` ([stream_session.py](../../backend/app/agent/stream_session.py)), ma nessun codice li scrive. Chi si riaggancia a un turno in corso (un altro dispositivo, dopo una ricarica) vede il testo accumulato ma non i passi già fatti.
+- **Da decidere**: scriverli dal loop e dal piano man mano, oppure toglierli dallo snapshot.
+
+## ISS-35
+**La Web UI ignora gli eventi `approval_required` e `status`** — S4
+
+- **Evidenza** (15/11/2026): il backend li emette durante il turno, ma `consumeStream` ([chat.ts](../../frontend/src/api/chat.ts)) non ha un caso per loro: la richiesta di approvazione si vede solo con `final`, e lo stato fermato/in pausa solo dalla risposta delle route di controllo.
+- **Effetto**: oggi nessuno visibile, perché `final` arriva subito dopo l'approvazione; conta per un client che resta agganciato a un turno ripreso o messo in pausa da un altro dispositivo.
