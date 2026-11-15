@@ -32,7 +32,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
   };
 
   return (
-    <section className="rounded-xl border border-border bg-panel/60 p-3 space-y-2" aria-label="Profilo dell'utente">
+    <section className="rounded-xl border border-border bg-panel/60 p-3 stack-y-2" aria-label="Profilo dell'utente">
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-xs font-semibold text-fg">
           <UserRound size={13} className="text-accent-text" /> Profilo
@@ -50,7 +50,7 @@ export const ProfileCard: React.FC<{ notify: Notify }> = ({ notify }) => {
         )}
       </div>
       {isEditing ? (
-        <form onSubmit={save} className="space-y-2">
+        <form onSubmit={save} className="stack-y-2">
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

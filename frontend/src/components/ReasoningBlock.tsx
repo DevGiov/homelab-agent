@@ -109,7 +109,7 @@ const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, isStreaming })
       <div 
         ref={contentRef}
         onScroll={handleScroll}
-        className="px-4 py-3 text-fg border-t border-border/60 bg-panel/30 text-sm leading-relaxed max-h-[360px] overflow-y-auto custom-scrollbar space-y-3"
+        className="px-4 py-3 text-fg border-t border-border/60 bg-panel/30 text-sm leading-relaxed max-h-[360px] overflow-y-auto custom-scrollbar stack-y-3"
       >
         {phases.length > 1 ? (
           phases.map((phase, idx) => (

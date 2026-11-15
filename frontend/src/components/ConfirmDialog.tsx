@@ -40,7 +40,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onAnswer 
         role="alertdialog"
         aria-modal="true"
         aria-label="Conferma"
-        className="w-full max-w-sm rounded-xl border border-border bg-panel p-4 shadow-xl space-y-3"
+        className="w-full max-w-sm rounded-xl border border-border bg-panel p-4 shadow-xl stack-y-3"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-2.5">

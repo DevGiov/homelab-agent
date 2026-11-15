@@ -81,7 +81,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="stack-y-1.5">
         <label htmlFor={`${fieldId}-key`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
           <KeyRound size={12} className="text-amber-400" />
           Chiave API (header X-API-Key)
@@ -97,8 +97,8 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
         <p className="text-xs text-fg-muted leading-snug">Salvata in localStorage e inviata automaticamente alle chiamate API.</p>
       </div>
 
-      <div className="border-t border-border pt-3 space-y-3">
-        <div className="space-y-1.5">
+      <div className="border-t border-border pt-3 stack-y-3">
+        <div className="stack-y-1.5">
           <label htmlFor={`${fieldId}-provider`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
             <Cpu size={12} className="text-accent-text" />
             Provider LLM
@@ -122,7 +122,7 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
           </select>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="stack-y-1.5">
           <label htmlFor={`${fieldId}-model`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
             <Box size={12} className="text-emerald-400" />
             Modello predefinito

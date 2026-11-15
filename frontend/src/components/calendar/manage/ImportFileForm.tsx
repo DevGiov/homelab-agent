@@ -36,7 +36,7 @@ export const ImportFileForm: React.FC<ManageFormProps & { calendars: CalendarIte
   };
 
   return (
-    <form onSubmit={importFile} className="space-y-4">
+    <form onSubmit={importFile} className="stack-y-4">
       <div>
         <label className={labelClass}>Seleziona file .ICS esportato da Google Calendar, Outlook o Apple Calendar</label>
         <div className="border-2 border-dashed border-border/80 hover:border-accent/60 rounded-xl p-5 text-center bg-input-bg transition cursor-pointer flex flex-col items-center justify-center gap-2">
@@ -75,7 +75,7 @@ export const ImportFileForm: React.FC<ManageFormProps & { calendars: CalendarIte
         </div>
 
         {isNew && (
-          <div className="space-y-3 sm:col-span-2">
+          <div className="stack-y-3 sm:col-span-2">
             <div>
               <label className={labelClass}>Nome Nuovo Calendario</label>
               <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="es. Eventi Importati" className={inputClass} />

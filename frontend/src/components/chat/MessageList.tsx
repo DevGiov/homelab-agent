@@ -19,11 +19,11 @@ interface MessageListProps {
 }
 
 const EmptyState = () => (
-  <div className="h-full flex flex-col items-center justify-center text-center p-6 text-fg-muted space-y-4">
+  <div className="h-full flex flex-col items-center justify-center text-center p-6 text-fg-muted stack-y-4">
     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl glass-card border border-border flex items-center justify-center text-accent-text shadow-lg shadow-accent/10">
       <Sparkles size={24} />
     </div>
-    <div className="max-w-md space-y-1">
+    <div className="max-w-md stack-y-1">
       <h3 className="text-fg font-semibold text-sm">L'agente è pronto</h3>
       <p className="text-xs text-fg-muted leading-relaxed">
         Scrivi un prompt per parlare con l'agente. Le modalità sono <span className="text-accent-text font-mono">chat</span>,{' '}
@@ -55,7 +55,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     <section
       aria-label="Messaggi"
       tabIndex={0}
-      className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 focus-visible:outline-offset-[-2px]"
+      className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 stack-y-4 sm:stack-y-6 focus-visible:outline-offset-[-2px]"
     >
       {messages.length === 0 && !isLoading && <EmptyState />}
 

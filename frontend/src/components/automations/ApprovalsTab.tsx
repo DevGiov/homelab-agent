@@ -50,7 +50,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
     }, 'Errore pulizia scadute');
 
   return (
-    <div className="space-y-4">
+    <div className="stack-y-4">
       <ConfirmDialog {...dialog} />
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Richieste di Approvazione in Sospeso</h3>
@@ -73,11 +73,11 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="stack-y-3">
           {approvals.map((apr) => {
             const isWorkflow = Boolean(apr.step_run_id);
             return (
-              <div key={apr.request_id} className="p-4 rounded-xl bg-panel border border-amber-500/40 shadow-md space-y-3">
+              <div key={apr.request_id} className="p-4 rounded-xl bg-panel border border-amber-500/40 shadow-md stack-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300">
@@ -123,7 +123,7 @@ export const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ approvals, notify, r
                   </div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-bg/60 border border-border/60 text-xs space-y-1.5">
+                <div className="p-3 rounded-lg bg-bg/60 border border-border/60 text-xs stack-y-1.5">
                   <div className="text-fg-muted">
                     <span className="font-semibold text-fg">Motivo Guardrail:</span> {apr.risk_reason || 'Conferma richiesta da policy.'}
                   </div>

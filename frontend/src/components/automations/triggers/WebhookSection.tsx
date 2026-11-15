@@ -42,7 +42,7 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
   };
 
   return (
-    <div className="p-4 rounded-xl bg-panel-header/20 border border-border/70 space-y-4">
+    <div className="p-4 rounded-xl bg-panel-header/20 border border-border/70 stack-y-4">
       <ConfirmDialog {...dialog} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -58,7 +58,7 @@ export const WebhookSection: React.FC<WebhookSectionProps> = ({ automationId, en
       </p>
 
       {enabled && (
-        <div className="space-y-3 pt-2 border-t border-border/60">
+        <div className="stack-y-3 pt-2 border-t border-border/60">
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs text-fg-muted font-medium">URL Endpoint Webhook</label>

@@ -69,7 +69,7 @@ export const TriggerEditorModal: React.FC<TriggerEditorModalProps> = ({ automati
           </button>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar text-sm">
+        <div className="p-6 stack-y-6 overflow-y-auto flex-1 custom-scrollbar text-sm">
           {error && (
             <div role="alert" className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />

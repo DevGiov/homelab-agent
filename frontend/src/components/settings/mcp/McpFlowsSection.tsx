@@ -88,7 +88,7 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
   );
 
   return (
-    <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5" data-testid="mcp-flows">
+    <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-2.5" data-testid="mcp-flows">
       <div className="flex items-center gap-2">
         <Lock size={14} className="text-amber-400" />
         <h3 className="text-xs font-semibold text-fg">Sensibilità dei dati per server</h3>
@@ -100,7 +100,7 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
         pubblici. Un server non classificato vale come il più stretto.
       </p>
       {scopes.length === 0 && <p className="text-xs text-fg-muted italic">Nessun server MCP nel catalogo.</p>}
-      <div className="space-y-1.5">
+      <div className="stack-y-1.5">
         {scopes.map((scope) => (
           <div key={scope} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2 rounded-lg border border-border bg-bg/40">
             <span className="font-mono text-xs text-fg min-w-[8rem]">{scope}</span>

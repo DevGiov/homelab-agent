@@ -52,7 +52,7 @@ const Field: React.FC<{ field: FieldSpec; value: string | number | boolean; onCh
     );
   }
   return (
-    <div className={`${colSpan[field.cols ?? 3]} space-y-1`}>
+    <div className={`${colSpan[field.cols ?? 3]} stack-y-1`}>
       <label className="text-fg-muted text-xs font-medium flex items-center justify-between">
         <span>{field.label}</span>
         {field.source === 'secrets' && (
@@ -106,7 +106,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
   };
 
   return (
-    <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-xs">
+    <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between stack-y-4 shadow-xs">
       <div>
         <div className="flex items-center justify-between pb-3 border-b border-border/60">
           <div className="flex items-center gap-2.5">
@@ -130,7 +130,7 @@ export const IntegrationForm: React.FC<IntegrationFormProps> = ({ spec, integrat
           )}
         </div>
 
-        <form onSubmit={submit} className="mt-4 space-y-3 text-xs">
+        <form onSubmit={submit} className="mt-4 stack-y-3 text-xs">
           <div className="grid grid-cols-3 gap-2">
             {spec.fields.map((field) => (
               <Field

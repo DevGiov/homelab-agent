@@ -252,7 +252,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-5 text-xs">
+        <div className="p-5 overflow-y-auto stack-y-5 text-xs">
           <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-xs text-fg-muted">
             <Info size={14} className="text-accent-text shrink-0 mt-0.5" />
             <span>
@@ -264,7 +264,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
           {/* Section 1: Detected Parameters from Introspection */}
           {detectedParamsList.length > 0 && (
-            <div className="space-y-3">
+            <div className="stack-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-fg flex items-center gap-1.5">
                   <Code2 size={13} className="text-accent-text" />
@@ -273,7 +273,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 <span className="text-xs text-fg-muted">Rilevamento AST automatico</span>
               </div>
 
-              <div className="space-y-2">
+              <div className="stack-y-2">
                 {detectedParamsList.map((param) => {
                   const val = detectedValues[param.name] ?? '';
                   const isBool = param.type === 'boolean';
@@ -282,7 +282,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                   return (
                     <div
                       key={param.name}
-                      className="p-3 rounded-xl bg-bg border border-border/80 space-y-1.5 hover:border-accent/30 transition"
+                      className="p-3 rounded-xl bg-bg border border-border/80 stack-y-1.5 hover:border-accent/30 transition"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -347,7 +347,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
           {/* Section 2: Detected Secrets */}
           {introspection && introspection.secrets && introspection.secrets.length > 0 && (
-            <div className="p-3 rounded-xl bg-panel border border-purple-500/30 space-y-2">
+            <div className="p-3 rounded-xl bg-panel border border-purple-500/30 stack-y-2">
               <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-xs">
                 <Key size={13} className="text-purple-400" />
                 <span>Credenziali & Segreti Rilevati ({introspection.secrets.length})</span>
@@ -373,7 +373,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           )}
 
           {/* Section 3: Custom / Additional Parameters */}
-          <div className="space-y-2">
+          <div className="stack-y-2">
             <label className="text-xs font-semibold text-fg block">
               {detectedParamsList.length > 0 ? 'Parametri aggiuntivi (personalizzati)' : 'Parametri Workflow'} ({paramsList.length})
             </label>
@@ -383,7 +383,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 Nessun parametro configurato. Aggiungi variabili sotto (es. <code>email_recipient</code>, <code>max_items</code>).
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="stack-y-2">
                 {paramsList.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-bg border border-border/80">
                     <div className="w-1/3">

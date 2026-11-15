@@ -46,7 +46,7 @@ export const HealthPanel: React.FC<HealthPanelProps> = ({ services, history, poi
     {services.length === 0 ? (
       <p className="text-xs text-fg-muted py-3">Nessun campione nella finestra: il primo arriva entro un minuto dall'avvio del backend.</p>
     ) : (
-      <div className="space-y-2.5">
+      <div className="stack-y-2.5">
         {services.map((s) => (
           <div key={s.service} className="grid grid-cols-1 md:grid-cols-[12rem_1fr] gap-x-3 gap-y-1 items-center">
             <div className="min-w-0">

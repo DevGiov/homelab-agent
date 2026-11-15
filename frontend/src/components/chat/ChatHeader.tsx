@@ -41,7 +41,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* Logo: solo in una colonna abbastanza larga, e lascia il posto allo stato quando c'è */}
       {!status && (
-        <div className="hidden @md/chat:flex w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-accent-hover items-center justify-center text-accent-contrast shadow-md shadow-accent/20 shrink-0">
+        <div className="hidden @md/chat:flex w-8 h-8 rounded-full bg-linear-to-tr/srgb from-accent to-accent-hover items-center justify-center text-accent-contrast shadow-md shadow-accent/20 shrink-0">
           <Bot size={18} />
         </div>
       )}

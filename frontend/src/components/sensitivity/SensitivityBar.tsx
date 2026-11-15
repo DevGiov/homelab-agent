@@ -68,7 +68,7 @@ export const SensitivityBar: React.FC<SensitivityBarProps> = ({ tag, chosen, onH
         )}
       </div>
       {expanded && (
-        <div id={detailsId} className="pb-2 pl-5 space-y-1">
+        <div id={detailsId} className="pb-2 pl-5 stack-y-1">
           {reasons.length > 0 && <p>Perché: {reasons.join('; ')}.</p>}
           {raised && (
             <p>

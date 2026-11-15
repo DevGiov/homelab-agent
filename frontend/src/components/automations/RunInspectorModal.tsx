@@ -199,10 +199,10 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
         </div>
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 stack-y-4">
           {/* TAB 1: Step Timeline */}
           {activeTab === 'timeline' && (
-            <div className="space-y-3">
+            <div className="stack-y-3">
               {(!run.step_runs || run.step_runs.length === 0) ? (
                 <div className="text-center py-10 text-fg-muted text-xs">
                   Nessun record di step disponibile per questa esecuzione.
@@ -244,7 +244,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
 
                       {/* Expanded Step Details */}
                       {isExpanded && (
-                        <div className="p-4 border-t border-border bg-panel/30 space-y-3 text-xs">
+                        <div className="p-4 border-t border-border bg-panel/30 stack-y-3 text-xs">
                           {sr.error_message && (
                             <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300">
                               <span className="font-semibold block mb-1">Errore:</span>
@@ -257,7 +257,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                               <span className="text-fg-muted font-medium flex items-center gap-1 mb-1.5">
                                 <Terminal size={12} /> Chiamate Tool ({sr.tool_calls.length})
                               </span>
-                              <div className="space-y-1.5">
+                              <div className="stack-y-1.5">
                                 {sr.tool_calls.map((tc, tcIdx) => (
                                   <div
                                     key={tcIdx}
@@ -298,7 +298,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
 
           {/* TAB 2: Artefatti Generati */}
           {activeTab === 'artifacts' && (
-            <div className="space-y-4">
+            <div className="stack-y-4">
               {(!run.artifacts || run.artifacts.length === 0) ? (
                 <div className="text-center py-12 text-fg-muted text-xs">
                   Nessun artefatto generato durante questa run.
@@ -307,7 +307,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                 run.artifacts.map((art) => (
                   <div
                     key={art.artifact_id}
-                    className="border border-border rounded-xl bg-bg/40 p-4 space-y-3"
+                    className="border border-border rounded-xl bg-bg/40 p-4 stack-y-3"
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-border/60">
                       <div className="flex items-center gap-2">

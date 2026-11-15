@@ -230,7 +230,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             {searchTerm ? 'Nessuna conversazione trovata' : 'Ancora nessuna conversazione'}
           </p>
         ) : (
-          <ul aria-label="Conversazioni" className="space-y-1">
+          <ul aria-label="Conversazioni" className="stack-y-1">
             {filteredThreads.map((thread) => {
               const isSelected = thread.thread_id === currentThreadId;
               const label = thread.title || thread.thread_id;

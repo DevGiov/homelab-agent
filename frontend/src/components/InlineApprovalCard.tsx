@@ -108,7 +108,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
       </div>
 
       {/* Card Content */}
-      <div className="p-4 space-y-3">
+      <div className="p-4 stack-y-3">
         {/* Uscita di dati: dove andrebbero e con quale etichetta */}
         {flow && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-fg">
@@ -219,7 +219,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
           </div>
         ) : (
           /* The 4 Action Buttons */
-          <div className="space-y-2 pt-1">
+          <div className="stack-y-2 pt-1">
             <div className="text-xs font-medium text-fg-muted">
               Scegli come procedere per questo tool:
             </div>

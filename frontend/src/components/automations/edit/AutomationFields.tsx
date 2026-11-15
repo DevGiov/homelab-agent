@@ -23,7 +23,7 @@ const ModelField: React.FC<FieldsProps> = ({ form, onChange }) => (
 );
 
 export const GeneralFields: React.FC<FieldsProps> = ({ form, onChange }) => (
-  <div className="space-y-4">
+  <div className="stack-y-4">
     <div>
       <label className={labelClass}>Nome Automazione</label>
       <input
@@ -95,7 +95,7 @@ const BUDGET_FIELDS: Array<{ key: keyof Budget; label: string; min: number; max:
 ];
 
 export const BudgetFields: React.FC<FieldsProps> = ({ form, onChange }) => (
-  <div className="space-y-4">
+  <div className="stack-y-4">
     <p className="text-xs text-fg-muted">Configura i vincoli di sicurezza e il tetto massimo di risorse consumabili per singola esecuzione.</p>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {BUDGET_FIELDS.map(({ key, label, min, max }) => (

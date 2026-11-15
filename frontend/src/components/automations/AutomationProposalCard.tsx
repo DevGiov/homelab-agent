@@ -217,7 +217,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
   return (
     <div className="my-4 rounded-2xl border border-accent/40 bg-panel/90 backdrop-blur-md overflow-hidden shadow-2xl transition-all">
       {/* Intestazione */}
-      <div className="bg-gradient-to-r from-accent/20 via-panel/80 to-panel px-4 py-3 border-b border-border/80 flex items-center justify-between">
+      <div className="bg-linear-to-r/srgb from-accent/20 via-panel/80 to-panel px-4 py-3 border-b border-border/80 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-accent/20 text-accent-text border border-accent/40">
             <Sparkles size={18} className="animate-pulse" />
@@ -246,7 +246,7 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         </button>
       </div>
 
-      <div className="p-4 space-y-3.5 text-xs">
+      <div className="p-4 stack-y-3.5 text-xs">
         {/* Descrizione */}
         {proposal.description && (
           <p className="text-fg/80 leading-relaxed font-sans">{proposal.description}</p>
@@ -271,11 +271,11 @@ export const AutomationProposalCard: React.FC<AutomationProposalCardProps> = ({ 
         )}
 
         {/* Workflow Steps */}
-        <div className="space-y-1.5">
+        <div className="stack-y-1.5">
           <span className="text-fg-muted font-medium flex items-center gap-1">
             <Layers size={12} className="text-accent-text" /> Sequenza Step ({steps.length}):
           </span>
-          <div className="rounded-xl border border-border/80 bg-panel/60 p-2 space-y-2">
+          <div className="rounded-xl border border-border/80 bg-panel/60 p-2 stack-y-2">
             {steps.map((s: any, idx: number) => (
               <div
                 key={idx}

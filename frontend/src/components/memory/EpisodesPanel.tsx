@@ -12,7 +12,7 @@ interface EpisodesPanelProps {
 
 /** Esecuzioni passate dei turni act e plan: l'agente rilegge le più simili prima di agire. */
 export const EpisodesPanel: React.FC<EpisodesPanelProps> = ({ state, threadTitles, onOpenThread, onDelete }) => (
-  <div className="space-y-3">
+  <div className="stack-y-3">
     <div className="relative">
       <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />
       <input
@@ -35,7 +35,7 @@ export const EpisodesPanel: React.FC<EpisodesPanelProps> = ({ state, threadTitle
         {state.isSearching ? 'Nessun episodio pertinente.' : "Nessun episodio: l'agente ne salva uno dopo ogni turno act o plan che usa dei tool."}
       </p>
     ) : (
-      <div className="space-y-2">
+      <div className="stack-y-2">
         {state.episodes.map((episode) => (
           <EpisodeCard
             key={episode.id}

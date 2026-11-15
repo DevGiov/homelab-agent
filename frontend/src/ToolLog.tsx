@@ -143,7 +143,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
       </div>
 
       {isOpen ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 stack-y-4 custom-scrollbar">
           {/* Tab switcher: Diagnostics | Knowledge */}
           <div className="flex gap-1 bg-panel/80 rounded-xl p-1 border border-border">
             <button
@@ -240,7 +240,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
               {/* Active Mode Card */}
               {activeMode && (
-                <div className="glass-card border border-border rounded-xl p-3.5 space-y-1.5">
+                <div className="glass-card border border-border rounded-xl p-3.5 stack-y-1.5">
                   <div className="flex items-center gap-2 text-fg-muted text-xs">
                     <Zap size={14} className="text-amber-400" />
                     <span className="font-medium text-fg">Modalità dell'agente</span>
@@ -253,7 +253,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
               {/* LLM Model Card */}
               {activeModel && (
-                <div className="glass-card border border-border rounded-xl p-3.5 space-y-1.5">
+                <div className="glass-card border border-border rounded-xl p-3.5 stack-y-1.5">
                   <div className="flex items-center gap-2 text-fg-muted text-xs">
                     <Cpu size={14} className="text-accent-text" />
                     <span className="font-medium text-fg">Modello LLM</span>
@@ -266,7 +266,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
               {/* Performance & Token Metrics Card */}
               {activeMetrics && (
-                <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
+                <div className="glass-card border border-border rounded-xl p-3.5 stack-y-2">
                   <div className="flex items-center gap-2 text-fg-muted text-xs">
                     <Zap size={14} className="text-amber-400" />
                     <span className="font-medium text-fg">Metriche & Velocità</span>
@@ -301,7 +301,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
               )}
 
               {/* Tool Used Card */}
-              <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
+              <div className="glass-card border border-border rounded-xl p-3.5 stack-y-2">
                 <div className="flex items-center gap-2 text-fg-muted text-xs">
                   <Wrench size={14} className="text-emerald-400" />
                   <span className="font-medium text-fg">Tool eseguito</span>
@@ -323,7 +323,7 @@ export const ToolLog: React.FC<ToolLogProps> = ({
 
               {/* Web Retrieval Context Card */}
               {activeWebPrefetch && (
-                <div className="glass-card border border-border rounded-xl p-3.5 space-y-2.5">
+                <div className="glass-card border border-border rounded-xl p-3.5 stack-y-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 text-fg-muted">
                       <Globe size={14} className="text-cyan-400" />
@@ -337,19 +337,19 @@ export const ToolLog: React.FC<ToolLogProps> = ({
                     )}
                   </div>
 
-                  <div className="text-xs text-fg-muted bg-panel border border-border/70 rounded-lg p-2 space-y-1">
+                  <div className="text-xs text-fg-muted bg-panel border border-border/70 rounded-lg p-2 stack-y-1">
                     <div className="text-xs text-fg-muted truncate">
                       Ricerca: <span className="text-fg">"{activeWebPrefetch.query}"</span>
                     </div>
                     {activeWebPrefetch.sources && activeWebPrefetch.sources.length > 0 ? (
-                      <div className="space-y-1.5 pt-1">
+                      <div className="stack-y-1.5 pt-1">
                         <div className="text-xs text-accent-text font-semibold uppercase tracking-wider">
                           {activeWebPrefetch.sources.length}{' '}
                           {activeWebPrefetch.sources.length === 1
                             ? 'Fonte Recuperata'
                             : 'Fonti Recuperate'}
                         </div>
-                        <div className="space-y-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                        <div className="stack-y-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                           {activeWebPrefetch.sources.map((src, sIdx) => (
                             <a
                               key={sIdx}

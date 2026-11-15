@@ -40,7 +40,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto divide-y divide-border/40 p-2 space-y-4">
+      <div className="flex-1 overflow-y-auto stack-divide-y stack-divide-border/40 p-2 stack-y-4">
         {groups.length === 0 ? (
           <div className="text-center py-12 px-4">
             <FileText className="mx-auto text-fg-muted/40 mb-3" size={32} />
@@ -51,14 +51,14 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
           </div>
         ) : (
           groups.map((group) => (
-            <div key={group.key} className="space-y-1.5 pt-1">
+            <div key={group.key} className="stack-y-1.5 pt-1">
               <div className="flex items-center gap-1.5 px-2 text-xs font-bold text-fg-muted uppercase tracking-wider">
                 <Calendar size={12} className="text-accent-text/70" />
                 <span>{group.title}</span>
                 <span className="text-xs text-fg-muted font-normal">({group.items.length})</span>
               </div>
 
-              <div className="space-y-1">
+              <div className="stack-y-1">
                 {group.items.map((art) => (
                   <div
                     key={art.artifact_id}

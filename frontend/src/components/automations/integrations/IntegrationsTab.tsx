@@ -22,7 +22,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
   const actions = useIntegrations(onFeedback, confirm);
 
   return (
-    <div className="space-y-6">
+    <div className="stack-y-6">
       <ConfirmDialog {...dialog} />
       <div className="p-4 rounded-2xl bg-panel border border-border/80 flex items-start justify-between gap-3 shadow-xs">
         <div className="flex items-start gap-3">
@@ -54,8 +54,8 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
           return <IntegrationForm key={`${spec.id}:${integration?.updated_at ?? 'new'}`} spec={spec} integration={integration} actions={actions} />;
         })}
 
-        <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between space-y-4 shadow-xs">
-          <div className="space-y-3">
+        <div className="p-5 rounded-2xl bg-panel border border-border flex flex-col justify-between stack-y-4 shadow-xs">
+          <div className="stack-y-3">
             <div className="flex items-center gap-2.5 pb-3 border-b border-border/60">
               <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center">
                 <Shield size={16} />
@@ -65,7 +65,7 @@ export const IntegrationsTab: React.FC<{ onFeedback: Notify }> = ({ onFeedback }
                 <span className="text-xs text-fg-muted">Garanzie operative del runtime Homelab</span>
               </div>
             </div>
-            <ul className="space-y-2 text-xs text-fg-muted">
+            <ul className="stack-y-2 text-xs text-fg-muted">
               {GUARANTEES.map(([title, text]) => (
                 <li key={title} className="flex items-start gap-2">
                   <Check size={14} className="text-emerald-400 shrink-0 mt-0.5" />

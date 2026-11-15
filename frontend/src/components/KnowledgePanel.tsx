@@ -97,7 +97,7 @@ export const KnowledgePanel: React.FC = () => {
     }`;
 
   return (
-    <div className="glass-card border border-border rounded-xl p-3.5 space-y-3">
+    <div className="glass-card border border-border rounded-xl p-3.5 stack-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-fg-muted text-xs">
           <BookOpen size={14} className="text-accent-text" />
@@ -120,7 +120,7 @@ export const KnowledgePanel: React.FC = () => {
       </div>
 
       {tab === 'docs' && (
-        <div className="space-y-2">
+        <div className="stack-y-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -146,7 +146,7 @@ export const KnowledgePanel: React.FC = () => {
             </p>
           )}
 
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
+          <div className="max-h-60 overflow-y-auto stack-y-1.5 pr-0.5 custom-scrollbar">
             {docs.length === 0 && !isLoading && <p className="text-xs text-fg-muted italic py-2 text-center">Nessun documento indicizzato.</p>}
             {docs.map((doc) => (
               <div key={doc.filename} className="flex items-center justify-between gap-2 bg-panel-header/50 border border-border rounded-lg px-2.5 py-1.5 group">
@@ -175,7 +175,7 @@ export const KnowledgePanel: React.FC = () => {
       )}
 
       {tab === 'search' && (
-        <div className="space-y-2">
+        <div className="stack-y-2">
           <div className="flex gap-1 items-center">
             <input
               value={query}
@@ -194,9 +194,9 @@ export const KnowledgePanel: React.FC = () => {
             </button>
           </div>
 
-          <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
+          <div className="max-h-60 overflow-y-auto stack-y-1.5 pr-0.5 custom-scrollbar">
             {results.map((r) => (
-              <div key={r.filename} className="bg-panel-header/50 border border-border rounded-lg p-2 space-y-1">
+              <div key={r.filename} className="bg-panel-header/50 border border-border rounded-lg p-2 stack-y-1">
                 <div className="flex items-center justify-between gap-1 text-xs">
                   <span className="font-mono text-fg truncate">{r.filename}</span>
                   <span className="text-fg-muted tabular-nums shrink-0">{Math.round(r.chunks[0].score * 100)}%</span>

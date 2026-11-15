@@ -30,7 +30,7 @@ export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, threadTitle, 
     </div>
 
     {episode.steps.length > 0 && (
-      <ol className="mt-2 space-y-1">
+      <ol className="mt-2 stack-y-1">
         {episode.steps.map((step, i) => (
           <li key={i} className="flex items-start gap-1.5 text-xs">
             {step.error ? (

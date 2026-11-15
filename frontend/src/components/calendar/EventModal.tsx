@@ -238,7 +238,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         </div>
 
         {/* Modal Body / Form */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 flex-1">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto stack-y-4 flex-1">
           {error && (
             <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-xl flex items-start gap-2.5 text-xs text-rose-300">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
@@ -324,7 +324,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Date & Orari */}
-          <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl space-y-3">
+          <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl stack-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor={`${fieldId}-start`} className="block text-xs font-medium text-fg/90 mb-1 flex items-center gap-1">

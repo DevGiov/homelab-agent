@@ -35,7 +35,7 @@ export const ProcedureEditor: React.FC<ProcedureEditorProps> = ({ initial, kindL
   };
 
   return (
-    <form onSubmit={submit} className="space-y-2">
+    <form onSubmit={submit} className="stack-y-2">
       <div className="flex flex-wrap gap-1.5">
         <select value={kind} onChange={(e) => setKind(e.target.value as ProcedureKind)} disabled={kindLocked} className={inputClass} aria-label="Tipo di procedura">
           {Object.entries(KIND_LABELS).map(([value, label]) => (

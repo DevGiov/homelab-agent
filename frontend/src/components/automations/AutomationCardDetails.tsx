@@ -24,7 +24,7 @@ export const AutomationCardDetails: React.FC<AutomationCardDetailsProps> = ({ au
   }, [auto.id]);
 
   return (
-    <div className="p-3 rounded-xl bg-bg/80 border border-border/60 space-y-3 animate-in fade-in duration-150">
+    <div className="p-3 rounded-xl bg-bg/80 border border-border/60 stack-y-3 animate-in fade-in duration-150">
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="p-2 rounded-lg bg-panel border border-border/60">
           <span className="text-fg-muted text-xs block">Ultima Run</span>
@@ -44,12 +44,12 @@ export const AutomationCardDetails: React.FC<AutomationCardDetailsProps> = ({ au
         </div>
       </div>
 
-      <div className="space-y-1.5 pt-1">
+      <div className="stack-y-1.5 pt-1">
         <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted block">
           Pipeline Step ({steps?.length || auto.steps_count})
         </span>
         {steps ? (
-          <div className="space-y-1.5">
+          <div className="stack-y-1.5">
             {steps.map((st, idx) => (
               <div
                 key={st.step_id || idx}

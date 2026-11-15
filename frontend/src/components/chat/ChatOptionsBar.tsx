@@ -71,7 +71,7 @@ function Segmented<T extends string>({ label, choices, value, onChange }: {
 }) {
   const current = choices.find((c) => c.value === value);
   return (
-    <div className="space-y-1">
+    <div className="stack-y-1">
       <div className="text-xs font-semibold text-fg-muted">{label}</div>
       <div role="group" aria-label={label} className="flex gap-0.5 rounded-lg border border-border bg-bg/40 p-0.5">
         {choices.map(({ value: choice, label: text, icon: Icon, tone }) => {
@@ -194,7 +194,7 @@ export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models,
             id={panelId}
             role="dialog"
             aria-label="Opzioni dell'invio"
-            className="absolute bottom-full left-0 mb-2 z-50 w-[min(22rem,calc(100vw-2rem))] space-y-3 rounded-xl border border-border p-3 text-fg shadow-2xl"
+            className="absolute bottom-full left-0 mb-2 z-50 w-[min(22rem,calc(100vw-2rem))] stack-y-3 rounded-xl border border-border p-3 text-fg shadow-2xl"
             style={{ backgroundColor: 'var(--panel)' }}
           >
             <Segmented label="Sicurezza" choices={SECURITY_MODES} value={options.securityMode} onChange={options.setSecurityMode} />
@@ -216,7 +216,7 @@ export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models,
               </span>
             </label>
 
-            <div className="space-y-1">
+            <div className="stack-y-1">
               <label htmlFor={budgetId} className="block text-xs font-semibold text-fg-muted">
                 Ragionamento
               </label>

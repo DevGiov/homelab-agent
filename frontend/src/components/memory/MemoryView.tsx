@@ -66,7 +66,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
             <Brain size={18} />
           </div>
           <div className="min-w-0">
-            <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Memoria</h2>
+            <h2 className="font-semibold text-xs sm:text-sm sm:leading-5 text-fg leading-tight truncate">Memoria</h2>
             <p className="text-xs text-fg-muted mt-0.5 hidden md:block">Il tuo profilo, i fatti ricordati dall'agente, le sue esecuzioni passate e le procedure</p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           />
         </section>
 
-        <div className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 space-y-3">
+        <div className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 stack-y-3">
           <ProfileCard notify={notify} />
 
           <div className="flex gap-1 border-b border-border" role="tablist">
@@ -186,7 +186,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
           )}
 
           {tab === 'facts' && (
-            <div className="space-y-3">
+            <div className="stack-y-3">
               {consolidation.status && (
                 <ConsolidationBar status={consolidation.status} onStart={consolidation.start} onSaveSettings={consolidation.saveSettings} />
               )}
@@ -275,7 +275,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({ threads, onOpenThread, o
               {memory.isSearching ? 'Nessun fatto pertinente.' : 'Nessun fatto in memoria: nascono dal consolidamento delle conversazioni, o aggiungine uno.'}
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="stack-y-2">
               {memory.facts.map((fact) => (
                 <FactCard
                   key={fact.id}

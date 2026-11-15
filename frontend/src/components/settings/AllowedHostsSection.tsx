@@ -97,7 +97,7 @@ export const AllowedHostsSection: React.FC = () => {
   const hasMissingDefaults = defaults.some((d) => !hosts.some((h) => h.host === d));
 
   return (
-    <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-3">
+    <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-3">
       {message && (
         <div role="status" className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
           <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
@@ -145,7 +145,7 @@ export const AllowedHostsSection: React.FC = () => {
       </p>
 
       {/* Elenco host */}
-      <div className="space-y-2">
+      <div className="stack-y-2">
         {loading ? (
           <div className="flex items-center justify-center p-4 text-xs text-fg-muted">
             <Loader2 size={14} className="animate-spin mr-2 text-accent-text" />
@@ -156,7 +156,7 @@ export const AllowedHostsSection: React.FC = () => {
             Nessun host ammesso configurato. Le richieste web verso host pubblici richiederanno sempre approvazione.
           </div>
         ) : (
-          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+          <div className="stack-y-1.5 max-h-72 overflow-y-auto pr-0.5">
             {hosts.map((item) => (
               <div
                 key={item.host}
@@ -191,7 +191,7 @@ export const AllowedHostsSection: React.FC = () => {
       </div>
 
       {/* Modulo per aggiungere host e nota */}
-      <form onSubmit={handleAdd} className="space-y-2 pt-2 border-t border-border/60">
+      <form onSubmit={handleAdd} className="stack-y-2 pt-2 border-t border-border/60">
         <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Aggiungi host</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>

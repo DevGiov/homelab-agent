@@ -17,7 +17,7 @@ export const ProceduresPanel: React.FC<ProceduresPanelProps> = ({ state, threadT
   const proposed = state.procedures.filter((p) => p.status === 'proposed').length;
 
   return (
-    <div className="space-y-3">
+    <div className="stack-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-fg-muted">
           Le note sui tool compaiono nel catalogo di act e plan; i piani modello entrano nella memoria quando la richiesta è simile.
@@ -43,7 +43,7 @@ export const ProceduresPanel: React.FC<ProceduresPanelProps> = ({ state, threadT
           Nessuna procedura. L'agente ne propone quando un'esecuzione insegna qualcosa o quando gli chiedi di ricordare come si fa; puoi anche scriverle tu.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="stack-y-2">
           {state.procedures.map((procedure) => (
             <ProcedureCard
               key={procedure.id}

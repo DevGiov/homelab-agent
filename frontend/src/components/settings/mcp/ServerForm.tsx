@@ -57,7 +57,7 @@ export const ServerForm: React.FC<ServerFormProps> = ({ server, onSubmit, onCanc
   };
 
   return (
-    <form onSubmit={submit} className="p-3 rounded-xl border border-accent/40 bg-accent/5 space-y-2.5">
+    <form onSubmit={submit} className="p-3 rounded-xl border border-accent/40 bg-accent/5 stack-y-2.5">
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={labelClass}>Id (prefisso dei tool)</label>

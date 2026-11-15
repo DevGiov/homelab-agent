@@ -34,7 +34,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
   const stepsCount = trace?.length || 0;
 
   return (
-    <div className={`space-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
+    <div className={`stack-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
       {/* Auto-Collapsible Header Bar */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -71,10 +71,10 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
       {/* Expanded Content View */}
       {!isCollapsed && (
-        <div className="space-y-3 pt-1 animate-in fade-in duration-200">
+        <div className="stack-y-3 pt-1 animate-in fade-in duration-200">
           {/* Global or Step-level Reasoning Block */}
           {reasoning && (
-            <div className="glass-card border border-border/80 rounded-xl p-3 space-y-1.5">
+            <div className="glass-card border border-border/80 rounded-xl p-3 stack-y-1.5">
               <div className="flex items-center gap-1.5 text-xs text-accent-text font-semibold">
                 <Brain size={14} className="text-accent-text" />
                 <span>Ragionamento del modello</span>
@@ -87,7 +87,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
           {/* Trace steps */}
           {hasTrace && (
-            <div className="space-y-2">
+            <div className="stack-y-2">
               <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider px-1">
                 Traccia dei tool
               </div>
@@ -99,7 +99,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
                 return (
                   <div
                     key={itemId}
-                    className="glass-card border border-border rounded-xl p-3 space-y-2 transition"
+                    className="glass-card border border-border rounded-xl p-3 stack-y-2 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-xs text-fg truncate">
@@ -170,7 +170,7 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
                     {/* Step Details */}
                     {isStepExpanded && (
-                      <div className="pt-2 border-t border-border space-y-2 text-xs">
+                      <div className="pt-2 border-t border-border stack-y-2 text-xs">
                         {tr.args && (
                           <div>
                             <span className="text-fg-muted block mb-0.5">Parametri:</span>
@@ -220,12 +220,12 @@ export const ExecutionTraceViewer: React.FC<ExecutionTraceViewerProps> = ({
 
           {/* Rollback Actions */}
           {hasRollback && (
-            <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-3 space-y-2">
+            <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-3 stack-y-2">
               <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
                 <RotateCcw size={14} />
                 <span>Azioni di rollback eseguite ({rollbackTrace?.length})</span>
               </div>
-              <div className="space-y-1.5 text-xs">
+              <div className="stack-y-1.5 text-xs">
                 {rollbackTrace?.map((act, idx) => (
                   <div key={idx} className="bg-panel p-2 rounded-lg border border-amber-900/40 font-mono text-xs">
                     <div className="flex items-center justify-between text-amber-300">

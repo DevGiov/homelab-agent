@@ -48,7 +48,7 @@ export const FactEditor: React.FC<FactEditorProps> = ({ initial, known, submitLa
   };
 
   return (
-    <form onSubmit={submit} className="space-y-2">
+    <form onSubmit={submit} className="stack-y-2">
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}

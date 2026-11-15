@@ -56,13 +56,13 @@ export const CalendarListTab: React.FC<CalendarListTabProps> = ({ calendars, not
   };
 
   return (
-    <div className="space-y-3">
+    <div className="stack-y-3">
       <ConfirmDialog {...dialog} />
       <p className="text-xs text-fg-muted">
         Gestisci i calendari registrati. Puoi rinominarli, cambiare il colore di visualizzazione o eliminarli.
       </p>
 
-      <div className="divide-y divide-border/50 border border-border/70 rounded-xl overflow-hidden bg-panel-header/20">
+      <div className="stack-divide-y stack-divide-border/50 border border-border/70 rounded-xl overflow-hidden bg-panel-header/20">
         {calendars.map((cal) => {
           const isEditing = editing?.id === cal.id;
           return (

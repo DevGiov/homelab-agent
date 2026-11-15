@@ -389,7 +389,7 @@ describe('classi di colore del tema', () => {
   const names = new Set([...indexCss.matchAll(/--color-([\w-]+):/g)].map((m) => m[1]));
   const roots = [...new Set([...names].map((name) => name.split('-')[0]))].sort((a, b) => b.length - a.length);
   const UTILITY = new RegExp(
-    `^(?:text|bg|border(?:-[xytrbl])?|ring(?:-offset)?|outline|fill|stroke|divide|from|via|to|shadow|decoration|caret|accent)-(${roots.join('|')})(.*?)(?:\\/\\d+)?$`,
+    `^(?:text|bg|border(?:-[xytrbl])?|ring(?:-offset)?|outline|fill|stroke|stack-divide|from|via|to|shadow|decoration|caret|accent)-(${roots.join('|')})(.*?)(?:\\/\\d+)?$`,
   );
   // Una classe con un nome di colore inesistente (`text-userBubbleText`) non genera CSS: il testo eredita il colore del
   // contenitore senza errori, ed è così che il fumetto dell'utente ha usato `fg` invece del suo colore

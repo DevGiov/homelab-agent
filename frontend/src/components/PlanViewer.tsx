@@ -58,7 +58,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
+    <div className={`stack-y-3 ${compact ? '' : 'mt-3 pt-3 border-t border-border'}`}>
       {/* Header */}
       <div className="flex items-center justify-between text-xs text-accent-text font-semibold">
         <div className="flex items-center gap-1.5">
@@ -75,11 +75,11 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
 
       {/* Structured DAG Nodes View */}
       {hasNodes ? (
-        <div className="space-y-2">
+        <div className="stack-y-2">
           {planStructure?.nodes?.map((node, idx) => (
             <div
               key={node.id || idx}
-              className="glass-card p-2.5 rounded-xl border border-border space-y-1.5"
+              className="glass-card p-2.5 rounded-xl border border-border stack-y-1.5"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         </div>
       ) : (
         /* Sequential steps list fallback */
-        <ol className="space-y-1.5 text-xs">
+        <ol className="stack-y-1.5 text-xs">
           {planSteps?.map((step, idx) => (
             <li key={idx} className="flex items-start gap-2 glass-card p-2.5 rounded-xl border border-border">
               <span className="tabular-nums font-bold text-accent-text text-xs min-w-[20px] mt-0.5">

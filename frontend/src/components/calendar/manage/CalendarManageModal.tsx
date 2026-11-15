@@ -109,7 +109,7 @@ export const CalendarManageModal: React.FC<CalendarManageModalProps> = ({ calend
           </div>
         )}
 
-        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+        <div className="p-5 overflow-y-auto flex-1 stack-y-4">
           {activeTab === 'list' && <CalendarListTab calendars={calendars} notify={notify} onChanged={onCalendarsUpdated} />}
           {activeTab === 'new' && <NewCalendarForm {...formProps} />}
           {activeTab === 'url' && <ImportUrlForm {...formProps} />}

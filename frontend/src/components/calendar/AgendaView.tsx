@@ -56,7 +56,7 @@ const AgendaEvent: React.FC<{ event: CalendarEventItem; onOpen: () => void }> = 
           className="w-3.5 h-3.5 rounded-full shrink-0 mt-1 shadow-xs"
           style={{ backgroundColor: ev.calendar_color || DEFAULT_CALENDAR_COLOR }}
         />
-        <div className="space-y-1 min-w-0">
+        <div className="stack-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="font-semibold text-sm text-fg truncate group-hover:text-accent-text transition">{ev.summary}</h4>
             {ev.category && (
@@ -138,9 +138,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
         <span className="text-xs text-fg-muted">{events.length} eventi totali</span>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 stack-y-6 custom-scrollbar">
         {events.length === 0 ? (
-          <div className="py-12 text-center text-fg-muted text-sm space-y-2">
+          <div className="py-12 text-center text-fg-muted text-sm stack-y-2">
             <p>Nessun evento trovato nei calendari selezionati.</p>
             <button
               onClick={onNewEvent}
@@ -152,7 +152,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
         ) : (
           <>
             {groups.map((group) => (
-              <div key={group.monthKey} id={`agenda-month-${group.monthKey}`} className="space-y-3">
+              <div key={group.monthKey} id={`agenda-month-${group.monthKey}`} className="stack-y-3">
                 <div className="pt-3 pb-1.5 border-b border-border/80 flex items-center justify-between sticky top-0 bg-panel/95 backdrop-blur-md z-10">
                   <div className="flex items-center gap-2">
                     <CalendarDays size={15} className="text-accent-text" />
@@ -165,7 +165,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ events, containerRef, to
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="stack-y-3">
                   {group.events.map((ev) => {
                     const index = events.indexOf(ev);
                     return (

@@ -78,7 +78,7 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
   };
 
   return (
-    <div className="space-y-4">
+    <div className="stack-y-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-fg-muted">
           Riordina gli step con le frecce. Le variabili prodotte sono accessibili tramite <code>{'{{steps.<step_id>.output.text}}'}</code>.
@@ -97,9 +97,9 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="stack-y-3">
         {steps.map((step, idx) => (
-          <div key={step.step_id} className="p-4 bg-panel-header/20 border border-border/70 rounded-xl space-y-3">
+          <div key={step.step_id} className="p-4 bg-panel-header/20 border border-border/70 rounded-xl stack-y-3">
             <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-accent/15 text-accent-text text-xs font-bold flex items-center justify-center">{idx + 1}</span>

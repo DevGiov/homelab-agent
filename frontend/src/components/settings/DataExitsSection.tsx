@@ -61,7 +61,7 @@ export const DataExitsSection: React.FC = () => {
   );
 
   return (
-    <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5" data-testid="data-exits">
+    <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-2.5" data-testid="data-exits">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ArrowUpRight size={15} className="text-amber-400" />
@@ -142,7 +142,7 @@ export const DataExitsSection: React.FC = () => {
       )}
 
       {(data?.recent.length ?? 0) > 0 && (
-        <div className="space-y-1 pt-1 border-t border-border/60">
+        <div className="stack-y-1 pt-1 border-t border-border/60">
           <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Ultime richieste</div>
           {data!.recent.map((e, i) => (
             <div key={`${e.timestamp}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">

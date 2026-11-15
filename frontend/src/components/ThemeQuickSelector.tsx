@@ -118,7 +118,7 @@ export const ThemeQuickSelector: React.FC = () => {
           </div>
 
           {/* Effects Controls */}
-          <div className="space-y-2 pt-2 border-t border-border">
+          <div className="stack-y-2 pt-2 border-t border-border">
             {/* Frosted Glass Toggle */}
             <div className="flex items-center justify-between p-2 rounded-xl bg-panel-header/40 border border-border/50">
               <div className="flex items-center gap-2">

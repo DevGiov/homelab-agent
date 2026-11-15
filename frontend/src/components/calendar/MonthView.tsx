@@ -52,7 +52,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
         ))}
       </div>
 
-      <div ref={gridRef} className="grid grid-cols-7 flex-1 auto-rows-fr divide-x divide-y divide-border/40 bg-panel/10">
+      <div ref={gridRef} className="grid grid-cols-7 flex-1 auto-rows-fr stack-divide-x stack-divide-y stack-divide-border/40 bg-panel/10">
         {days.map((day) => {
           const dayEvents = eventsByDate.get(day.dateStr) ?? [];
           const isSelected = mobileSelectedDate === day.dateStr;
@@ -112,7 +112,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
 
               {/* Desktop: pillole complete */}
               {/* Container: nelle celle strette il titolo dell'evento ha la precedenza sull'ora */}
-              <div className="@container hidden sm:block space-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
+              <div className="@container hidden sm:block stack-y-1 flex-1 overflow-y-auto max-h-[110px] pr-0.5">
                 {dayEvents.map((ev) => {
                   const color = ev.calendar_color || DEFAULT_CALENDAR_COLOR;
                   const time = ev.all_day ? 'Tutto il giorno' : eventStartTime(ev);
@@ -139,7 +139,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
       </div>
 
       {mobileSelectedDate && (
-        <div id={detailId} className="sm:hidden border-t border-border/70 p-3 bg-panel/95 space-y-2">
+        <div id={detailId} className="sm:hidden border-t border-border/70 p-3 bg-panel/95 stack-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-fg">Eventi del {mobileSelectedDate}</span>
             <div className="flex items-center gap-2">
@@ -156,7 +156,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
             </div>
           </div>
 
-          <div className="space-y-1.5 max-h-36 overflow-y-auto">
+          <div className="stack-y-1.5 max-h-36 overflow-y-auto">
             {selectedEvents.length === 0 ? (
               <p className="text-xs text-fg-muted italic py-1">Nessun evento in questa data.</p>
             ) : (

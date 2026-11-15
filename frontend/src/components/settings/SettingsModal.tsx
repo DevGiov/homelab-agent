@@ -27,7 +27,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 space-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 stack-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
             <SettingsIcon size={16} className="text-accent-text" />
@@ -56,7 +56,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           })}
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto stack-y-4 pr-1 custom-scrollbar">
           {activeTab === 'general' && <GeneralTab onSaved={onClose} />}
           {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'security' && <SecurityTab />}

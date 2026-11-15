@@ -80,7 +80,7 @@ export const McpTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="stack-y-3">
       <ConfirmDialog {...dialog} />
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-fg-muted leading-relaxed">

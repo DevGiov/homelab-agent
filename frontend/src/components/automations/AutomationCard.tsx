@@ -78,7 +78,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
 
   return (
     <div
-      className={`p-5 rounded-2xl bg-panel border transition flex flex-col justify-between space-y-4 ${
+      className={`p-5 rounded-2xl bg-panel border transition flex flex-col justify-between stack-y-4 ${
         isRunning
           ? 'border-accent shadow-lg shadow-accent/20 ring-1 ring-accent animate-in fade-in'
           : isPaused
@@ -193,7 +193,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
         )}
       </div>
 
-      <div className="space-y-2 pt-1">
+      <div className="stack-y-2 pt-1">
         <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs text-fg-muted">
           <button
             onClick={() => setIsExpanded(!isExpanded)}

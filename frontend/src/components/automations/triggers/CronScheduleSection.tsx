@@ -41,7 +41,7 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
   );
 
   return (
-    <div className="p-4 rounded-xl bg-panel-header/20 border border-border/70 space-y-4">
+    <div className="p-4 rounded-xl bg-panel-header/20 border border-border/70 stack-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <Clock className="w-4 h-4 text-emerald-400" />
@@ -51,7 +51,7 @@ export const CronScheduleSection: React.FC<CronScheduleSectionProps> = ({ enable
       </div>
 
       {enabled && (
-        <div className="space-y-4 pt-2 border-t border-border/60">
+        <div className="stack-y-4 pt-2 border-t border-border/60">
           <div className="flex gap-2">
             {FREQUENCIES.map(([value, label]) => (
               <button

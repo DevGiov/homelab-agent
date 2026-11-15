@@ -69,8 +69,17 @@ Le correzioni automatiche sostituiscono la voce invece di aggiungerne una: un pe
 
 ### Colori e temi
 
-- I token (`bg`, `panel`, `border`, `fg`, `accent`, `input`, …) sono variabili CSS impostate dal tema e definite in [tailwind.config.js](tailwind.config.js) con `color-mix`, quindi i modificatori di opacità (`bg-accent/15`, `border-border/60`) funzionano. Per superfici e testi usare questi token, non colori fissi come `slate-*` o esadecimali.
-- I colori di stato (`emerald`, `rose`, `amber`, …) si scrivono per i temi scuri (testi 100-400, fondi 900/950, bordi 700-900): il plugin `lightThemeStatusColors` li rende leggibili sui temi chiari (`body` senza `.dark`).
+- Stile con **Tailwind CSS 4**, collegato a Vite dal plugin `@tailwindcss/vite` (nessun PostCSS, nessun `tailwind.config.js`): tutta la configurazione sta in [src/index.css](src/index.css) e [src/palette.css](src/palette.css). `@source` dice dove cercare le classi (`index.html` e i sorgenti JS/TS, test compresi).
+- I token (`bg`, `panel`, `border`, `fg`, `accent`, `input`, …) sono variabili CSS impostate dal tema (`theme/ThemeContext.tsx`) e definite nel blocco `@theme inline` di `index.css` come `--color-<nome>: var(--<variabile>)`, quindi i modificatori di opacità (`bg-accent/15`, `border-border/60`) funzionano. Per superfici e testi usare questi token, non colori fissi come `slate-*` o esadecimali.
+- Il testo d'accento è `text-accent-text` (legge `--accent-text`, che ogni tema tiene leggibile sulle tinte dell'accento); `text-accent` non va usato, e un test lo controlla. Fondi, bordi e anelli restano `bg-accent`, `border-accent`, `ring-accent`.
+- La palette dei colori fissi (`emerald`, `rose`, …) è quella di Tailwind 3 in esadecimale (`src/palette.css`): Tailwind 4 usa oklch con tinte un poco diverse, e così l'interfaccia non cambia. I test di contrasto leggono i valori da lì.
+- I colori di stato si scrivono per i temi scuri (testi 100-400, fondi 900/950, bordi 700-900): le regole `body:not(.dark) :is(…)` in `index.css` (livello `utilities`) li rendono leggibili sui temi chiari. Sono scritte a mano per le sole classi usate: aggiungendo una classe di stato nuova il test in `themes.test.ts` dice quale regola manca.
+- Varianti proprie (`@custom-variant` in `index.css`):
+  - `can-hover:` vale solo sui dispositivi col passaggio del mouse (`@media (hover: hover)`): un controllo che compare al passaggio del mouse si nasconde con `can-hover:opacity-0`, e su telefoni e tablet resta visibile.
+  - `hover:` ridefinita come `&:hover`, come in Tailwind 3: vale anche sui dispositivi touch (Tailwind 4 la limiterebbe a `@media (hover: hover)`).
+  - `dark:` segue la classe `.dark` del body, non la preferenza del sistema.
+- Container query (`@container/chat`, `@xl/chat:flex`) sono integrate in Tailwind 4; le soglie sono le `--container-*` predefinite, le stesse del plugin usato prima. I breakpoint (`sm`, `md`, …) sono i `--breakpoint-*` predefiniti.
+- Nomi cambiati rispetto a Tailwind 3, da usare così: `shadow-xs` (era `shadow-sm`), `shadow-sm` (era `shadow`), `rounded-xs`, `rounded-sm`, `backdrop-blur-xs`. Il bordo predefinito (`border` senza colore) usa `--border`, e i pulsanti hanno il cursore `pointer`: stanno nel livello `base` di `index.css`.
 
 ---
 

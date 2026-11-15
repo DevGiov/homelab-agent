@@ -60,7 +60,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   return (
     // overflow-wrap:anywhere: URL e parole senza spazi vanno a capo dentro il fumetto; i blocchi di codice no (white-space: pre),
     // scorrono nel loro riquadro
-    <div className={`markdown-body space-y-2 text-fg [overflow-wrap:anywhere] ${className}`}>
+    <div className={`markdown-body stack-y-2 text-fg [overflow-wrap:anywhere] ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypePlugins}
@@ -69,19 +69,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           
           // Styled Paragraphs
           p: ({ children }) => (
-            <p className="leading-relaxed text-xs sm:text-sm text-fg/90 mb-2 font-sans">
+            <p className="leading-relaxed text-xs sm:text-sm sm:leading-5 text-fg/90 mb-2 font-sans">
               {children}
             </p>
           ),
 
           // Styled Unordered & Ordered Lists
           ul: ({ children }) => (
-            <ul className="list-disc list-inside space-y-1 my-2 text-xs sm:text-sm text-fg/80 pl-1">
+            <ul className="list-disc list-inside stack-y-1 my-2 text-xs sm:text-sm text-fg/80 pl-1">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside space-y-1 my-2 text-xs sm:text-sm text-fg/80 pl-1">
+            <ol className="list-decimal list-inside stack-y-1 my-2 text-xs sm:text-sm text-fg/80 pl-1">
               {children}
             </ol>
           ),
@@ -150,7 +150,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             </thead>
           ),
           tbody: ({ children }) => (
-            <tbody className="divide-y divide-border/60 text-fg/90">
+            <tbody className="stack-divide-y stack-divide-border/60 text-fg/90">
               {children}
             </tbody>
           ),

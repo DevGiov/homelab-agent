@@ -8,7 +8,7 @@ import type { ManageFormProps } from './types';
 const GoogleHelp: React.FC = () => {
   const [open, setOpen] = useState(false);
   return (
-    <div className="p-3 bg-panel-header/40 border border-border/60 rounded-xl space-y-2 text-xs">
+    <div className="p-3 bg-panel-header/40 border border-border/60 rounded-xl stack-y-2 text-xs">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -21,7 +21,7 @@ const GoogleHelp: React.FC = () => {
       </button>
 
       {open && (
-        <ol className="list-decimal pl-5 space-y-1 text-fg-muted text-xs leading-relaxed pt-1">
+        <ol className="list-decimal pl-5 stack-y-1 text-fg-muted text-xs leading-relaxed pt-1">
           <li>
             Apri Google Calendar da browser (
             <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-accent-text underline inline-flex items-center gap-0.5">
@@ -70,7 +70,7 @@ export const ImportUrlForm: React.FC<ManageFormProps> = ({ submit, isBusy, inval
   };
 
   return (
-    <form onSubmit={subscribe} className="space-y-4">
+    <form onSubmit={subscribe} className="stack-y-4">
       <div>
         <label className={labelClass}>
           URL Feed iCalendar (Google Calendar o Webcal) <span className="text-rose-400">*</span>

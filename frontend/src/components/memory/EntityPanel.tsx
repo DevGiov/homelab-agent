@@ -19,7 +19,7 @@ const inputClass =
 /** Entità della memoria, le più citate per prime; la selezione filtra i fatti. */
 export const EntityPanel: React.FC<EntityPanelProps> = ({ entities, query, type, selectedId, onQueryChange, onTypeChange, onSelect }) => (
   <div className="flex flex-col min-h-0 h-full">
-    <div className="space-y-1.5 pb-2">
+    <div className="stack-y-1.5 pb-2">
       <div className="relative">
         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-muted" />
         <input value={query} onChange={(e) => onQueryChange(e.target.value)} placeholder="Filtra entità" className={`${inputClass} w-full pl-7`} aria-label="Filtra entità" />
@@ -34,7 +34,7 @@ export const EntityPanel: React.FC<EntityPanelProps> = ({ entities, query, type,
       </select>
     </div>
 
-    <ul className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar -mx-1 px-1" aria-label="Entità">
+    <ul className="flex-1 overflow-y-auto stack-y-0.5 custom-scrollbar -mx-1 px-1" aria-label="Entità">
       {entities.length === 0 && <li className="text-xs text-fg-muted py-3 text-center">Nessuna entità.</li>}
       {entities.map((e) => {
         const { icon: Icon, label } = ENTITY_TYPE_INFO[e.type] ?? ENTITY_TYPE_INFO.other;

@@ -127,7 +127,7 @@ export const SecurityTab: React.FC = () => {
   const sessions = Object.entries(permissions.session);
 
   return (
-    <div className="space-y-4">
+    <div className="stack-y-4">
       {message && (
         <div role="status" className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-2.5 text-xs text-emerald-200">
           <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
@@ -135,7 +135,7 @@ export const SecurityTab: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-3">
+      <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield size={15} className="text-accent-text" />
@@ -173,7 +173,7 @@ export const SecurityTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-panel/70 border border-border rounded-xl p-3.5 space-y-2.5">
+      <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert size={15} className="text-rose-400" />
@@ -201,7 +201,7 @@ export const SecurityTab: React.FC = () => {
 
       <DataExitsSection />
 
-      <div className="space-y-3">
+      <div className="stack-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-emerald-400" />
@@ -212,7 +212,7 @@ export const SecurityTab: React.FC = () => {
           </button>
         </div>
 
-        <div className="space-y-2">
+        <div className="stack-y-2">
           <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Permessi permanenti</div>
           {loading ? (
             <div className="flex items-center justify-center p-4 text-xs text-fg-muted">
@@ -255,7 +255,7 @@ export const SecurityTab: React.FC = () => {
         </div>
 
         {sessions.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-border">
+          <div className="stack-y-2 pt-2 border-t border-border">
             <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Permessi di Sessione (Questa Chat)</div>
             {sessions.map(([threadId, tools]) => (
               <div key={threadId} className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-sky-500/20 bg-sky-950/10">

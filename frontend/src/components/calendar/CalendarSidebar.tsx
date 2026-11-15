@@ -47,7 +47,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   useModalFocus(drawerRef, { active: isMobileOpen, onClose: onCloseMobile });
 
   const content = (
-    <div className="p-4 space-y-5 overflow-y-auto flex-1">
+    <div className="p-4 stack-y-5 overflow-y-auto flex-1">
       <div className="relative">
         <Search size={14} className="absolute left-3 top-2.5 text-fg-muted" />
         <input
@@ -76,7 +76,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="stack-y-1.5">
           {calendars.map((c) => {
             const isChecked = visibleCalendarIds.has(c.id);
             return (
@@ -136,7 +136,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         </div>
       </div>
 
-      <div className="p-3 bg-panel-header/40 border border-border/50 rounded-xl space-y-1.5 text-xs">
+      <div className="p-3 bg-panel-header/40 border border-border/50 rounded-xl stack-y-1.5 text-xs">
         <div className="flex items-center justify-between text-fg-muted">
           <span>Eventi totali</span>
           <span className="font-semibold text-fg">{totalEvents}</span>

@@ -50,9 +50,9 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
   };
 
   return (
-    <div className="rounded-xl border border-border bg-panel/60 px-3 py-2 space-y-2" aria-label="Consolidamento della memoria">
+    <div className="rounded-xl border border-border bg-panel/60 px-3 py-2 stack-y-2" aria-label="Consolidamento della memoria">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs text-fg-muted space-y-0.5 min-w-0">
+        <div className="text-xs text-fg-muted stack-y-0.5 min-w-0">
           <p>
             {status.pending.messages > 0 ? (
               <>

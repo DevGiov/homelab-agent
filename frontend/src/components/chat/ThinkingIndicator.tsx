@@ -2,7 +2,7 @@ import React from 'react';
 
 export const ThinkingIndicator: React.FC = () => (
   <div className="flex items-center gap-2 text-fg-muted py-0.5">
-    <div className="flex space-x-1">
+    <div className="flex stack-x-1">
       {[0, 150, 300].map((delay) => (
         <div
           key={delay}

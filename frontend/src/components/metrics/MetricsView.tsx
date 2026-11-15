@@ -45,7 +45,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
             <Activity size={18} />
           </div>
           <div className="min-w-0">
-            <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight truncate">Metriche</h2>
+            <h2 className="font-semibold text-xs sm:text-sm sm:leading-5 text-fg leading-tight truncate">Metriche</h2>
             <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
               Turni, velocità dei modelli, tool e salute dei servizi
             </p>
@@ -80,7 +80,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3" tabIndex={0} role="region" aria-label="Metriche">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 stack-y-3" tabIndex={0} role="region" aria-label="Metriche">
         {error && <div role="alert" className="p-2 rounded-lg text-xs border bg-rose-950/40 border-rose-800/60 text-rose-300">{error}</div>}
 
         {!summary || !series ? (

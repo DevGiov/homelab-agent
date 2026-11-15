@@ -88,7 +88,7 @@ export const ArtifactDetail: React.FC<ArtifactDetailProps> = ({ artifact, isLoad
                   </span>
                 )}
               </div>
-              <h3 className="text-sm sm:text-lg font-bold text-fg leading-tight truncate">{artifact.title || artifact.name}</h3>
+              <h3 className="text-sm sm:text-lg sm:leading-7 font-bold text-fg leading-tight truncate">{artifact.title || artifact.name}</h3>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">

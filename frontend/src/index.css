@@ -21,6 +21,55 @@
 @custom-variant can-hover (@media (hover: hover));
 
 /*
+ * Distanza tra i figli, con le regole di `space-x/y` di Tailwind 3: il margine sta sui figli dal secondo in poi, sovrascrive i
+ * margini propri del figlio (specificità più alta) e salta quelli con `hidden`. `space-y` di Tailwind 4 è un'altra cosa
+ * (margine in basso su tutti tranne l'ultimo, con specificità zero): dove un figlio ha un margine suo (`my-2`) o l'ultimo
+ * è nascosto il risultato cambia. Per questo qui hanno un nome diverso: `stack-y-4`, `stack-x-1`, `sm:stack-y-6`.
+ */
+@utility stack-y-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-top: calc(var(--spacing) * --value(number));
+    margin-bottom: 0;
+  }
+}
+
+@utility stack-x-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-left: calc(var(--spacing) * --value(number));
+    margin-right: 0;
+  }
+}
+
+/* Linee tra i figli (`divide-x/y`), con le regole di Tailwind 3: bordo sopra o a sinistra dei figli dal secondo in poi.
+   Quelle di Tailwind 4 mettono il bordo sotto o a destra di tutti tranne l'ultimo, e le linee si spostano di un figlio. */
+@utility stack-divide-y {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-top-width: 1px;
+    border-bottom-width: 0;
+  }
+}
+
+@utility stack-divide-x {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-left-width: 1px;
+    border-right-width: 0;
+  }
+}
+
+/* Colore delle linee: `stack-divide-border/40` */
+@utility stack-divide-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-color: --value(--color-*);
+    border-color: --alpha(--value(--color-*) / calc(--modifier(integer) * 1%));
+  }
+}
+
+/* Ombra dell'icona sopra le immagini: i due strati di `drop-shadow` di Tailwind 3 (in 4 `drop-shadow-sm` è un'altra) */
+@utility drop-shadow-soft {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.1)) drop-shadow(0 1px 1px rgb(0 0 0 / 0.06));
+}
+
+/*
  * Colori del tema: leggono le variabili CSS che imposta theme/ThemeContext.tsx. `inline` scrive `var(--accent)` dove la
  * classe è usata, non sul :root: il tema imposta le variabili sul body e la lettura deve avvenire lì. I modificatori di
  * opacità (`bg-accent/15`) funzionano anche se le variabili sono esadecimali (Tailwind li compone con color-mix).
@@ -196,6 +245,43 @@ body:not(.dark) {
 
   :disabled {
     cursor: default;
+  }
+
+  /* Campi data e ora: il preflight di Tailwind 4 ne cambia padding e altezza minima; `revert` rimette quelli del browser,
+     come in Tailwind 3 (senza, i campi data sono 2px più bassi) */
+  ::-webkit-date-and-time-value {
+    min-height: revert;
+    text-align: revert;
+  }
+
+  ::-webkit-datetime-edit {
+    display: revert;
+  }
+
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: revert;
+  }
+
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: revert;
+  }
+
+  ::-webkit-calendar-picker-indicator {
+    line-height: revert;
+  }
+
+  /* Il preflight di Tailwind 4 azzera il padding di ogni elemento, anche delle voci dei menu a tendina (`option`):
+     qui resta quello predefinito del browser, come in Tailwind 3 */
+  option {
+    padding: 0 2px 1px;
   }
 
   body {

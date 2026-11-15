@@ -82,7 +82,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
   };
 
   return (
-    <div className="space-y-4">
+    <div className="stack-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-fg-muted font-medium">Filtro stato:</span>
@@ -148,7 +148,7 @@ export const RunsTab: React.FC<RunsTabProps> = ({ runs, runActions, onInspect, o
                 <th className="p-3 text-right">Azioni</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/50">
+            <tbody className="stack-divide-y stack-divide-border/50">
               {visibleRuns.map((r) => (
                 <tr
                   key={r.run_id}

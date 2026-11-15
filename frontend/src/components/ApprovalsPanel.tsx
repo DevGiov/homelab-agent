@@ -52,7 +52,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
   };
 
   return (
-    <div className="glass-card border border-border rounded-xl p-3.5 space-y-2">
+    <div className="glass-card border border-border rounded-xl p-3.5 stack-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-fg-muted text-xs">
           <ShieldAlert size={14} className="text-amber-400" />
@@ -77,14 +77,14 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
       {pending.length === 0 ? (
         <p className="text-xs text-fg-muted italic">Nessuna approvazione in attesa.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="stack-y-2">
           {pending.map((item) => {
             const isNet = Boolean(item.command_prefix?.startsWith('net:'));
             const isFlow = Boolean(item.command_prefix?.startsWith('flow:'));
             return (
               <div
                 key={item.request_id}
-                className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-2.5 space-y-2"
+                className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-2.5 stack-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
                   <button
@@ -150,7 +150,7 @@ export const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ threadId, onReso
                 </div>
 
                 {expandedId === item.request_id && (
-                  <div className="space-y-2 pt-1 border-t border-amber-500/20">
+                  <div className="stack-y-2 pt-1 border-t border-amber-500/20">
                     {item.thread_id && (
                       <button
                         onClick={() => handleResolveAction(item.request_id, 'approve_thread')}

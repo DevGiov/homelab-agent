@@ -27,7 +27,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
         <span className="text-xs font-semibold text-fg-muted uppercase">Vista Settimanale</span>
         <span className="text-xs text-fg-muted">Dettaglio orario appuntamenti</span>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 stack-y-4">
         {weekDays(currentDate).map((day, idx) => {
           const dateStr = toDateKey(day);
           const dayEvents = eventsByDate.get(dateStr) ?? [];

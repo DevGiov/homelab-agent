@@ -20,7 +20,7 @@ export const NewCalendarForm: React.FC<ManageFormProps> = ({ submit, isBusy, inv
   };
 
   return (
-    <form onSubmit={create} className="space-y-4">
+    <form onSubmit={create} className="stack-y-4">
       <div>
         <label className={labelClass}>
           Nome Calendario <span className="text-rose-400">*</span>

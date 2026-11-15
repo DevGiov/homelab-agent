@@ -37,7 +37,7 @@ export const AutomationsHeader: React.FC<AutomationsHeaderProps> = ({ counts, is
           <Workflow size={18} />
         </div>
         <div>
-          <h2 className="font-semibold text-xs sm:text-sm text-fg leading-tight">Automazioni e loop</h2>
+          <h2 className="font-semibold text-xs sm:text-sm sm:leading-5 text-fg leading-tight">Automazioni e loop</h2>
           <p className="text-xs text-fg-muted mt-0.5 hidden @4xl:block">
             Workflow schedulati, task ricorrenti e loop agentici supervisionati
           </p>

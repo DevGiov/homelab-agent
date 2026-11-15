@@ -145,7 +145,7 @@ export const AutomationsView: React.FC<AutomationsViewProps> = ({ onOpenMobileSi
       ) : (
         <div className="flex-1 overflow-y-auto p-3 sm:p-5">
           {activeTab === 'automations' && (
-            <div className="space-y-4">
+            <div className="stack-y-4">
               <div className="flex items-center justify-between pb-2">
                 <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Definizioni di Workflow Attive</h3>
                 <button

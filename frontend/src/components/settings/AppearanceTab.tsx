@@ -34,8 +34,8 @@ export const AppearanceTab: React.FC = () => {
   const { theme, setTheme, isFrosted, setIsFrosted, hasGlow, setHasGlow, themes } = useTheme();
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <div className="stack-y-4">
+      <div className="stack-y-2">
         <label className="text-xs font-medium text-fg flex items-center gap-1.5">
           <Palette size={13} className="text-accent-text" />
           Tema Interfaccia
@@ -72,7 +72,7 @@ export const AppearanceTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-2.5 pt-2 border-t border-border">
+      <div className="stack-y-2.5 pt-2 border-t border-border">
         <label className="text-xs font-medium text-fg flex items-center gap-1.5">
           <Sparkles size={13} className="text-accent-text" />
           Effetti visivi

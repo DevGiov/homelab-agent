@@ -91,7 +91,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               <img src={img} alt="" className="max-h-48 max-w-[220px] sm:max-w-[280px] object-cover rounded-xl" />
               {/* Solo un suggerimento: il pulsante è l'immagine, che su un telefono si tocca senza */}
               <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 group-focus-visible/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
-                <Maximize2 size={16} className="drop-shadow-sm" />
+                <Maximize2 size={16} className="drop-shadow-soft" />
               </div>
             </button>
           ))}
@@ -141,8 +141,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       </div>
 
       {/* min-w-0: la colonna si stringe fino alla riga anche con un URL lungo, che va a capo (overflow-wrap:anywhere) */}
-      <div className="flex flex-col space-y-1.5 min-w-0 max-w-[85vw] sm:max-w-xl">
-        <div className={`px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed [overflow-wrap:anywhere] ${bubbleClass(msg)}`}>
+      <div className="flex flex-col stack-y-1.5 min-w-0 max-w-[85vw] sm:max-w-xl">
+        <div className={`px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed sm:leading-5 [overflow-wrap:anywhere] ${bubbleClass(msg)}`}>
           {isUser ? (
             userContent
           ) : (

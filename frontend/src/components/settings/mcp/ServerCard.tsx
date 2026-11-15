@@ -93,7 +93,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({ server, tools, onToggle,
             </span>
           </button>
           {isOpen && (
-            <div className="border-t border-border/60 divide-y divide-border/40 max-h-72 overflow-y-auto custom-scrollbar">
+            <div className="border-t border-border/60 stack-divide-y stack-divide-border/40 max-h-72 overflow-y-auto custom-scrollbar">
               {tools.map((tool) => (
                 <div key={tool.name} className="px-3 py-1.5 flex items-center gap-2">
                   <Toggle checked={tool.enabled} onChange={(enabled) => onToolChange(tool, { enabled, risk: tool.risk })} size="sm" title={tool.enabled ? 'Disattiva tool' : 'Attiva tool'} />
