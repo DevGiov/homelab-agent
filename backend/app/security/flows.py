@@ -152,6 +152,12 @@ def provider_destination(provider_name: str) -> Destination:
     return Destination(f"provider:{provider_name}", "model", Label.parse(raw, Label.INTERNAL))
 
 
+def channel_destination(channel_id: str, clearance: Label) -> Destination:
+    """Un canale di messaggistica è una destinazione: ogni messaggio che gli si manda è un'uscita di dati. Il livello
+    ammesso senza chiedere lo dichiara il canale nelle sue capacità (app.channels.base.Capabilities)."""
+    return Destination(f"channel:{channel_id}", "channel", Label.parse(clearance))
+
+
 SEARCH_DESTINATION = Destination("search:web", "search", Label.PUBLIC)
 SANDBOX_DESTINATION = Destination("sandbox:code", "sandbox", Label.PRIVATE)  # microVM Firecracker: rete da verificare
 

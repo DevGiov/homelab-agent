@@ -35,3 +35,9 @@ def test_optional_services_are_off_by_default():
 def test_no_model_name_is_built_in():
     # I modelli dipendono dal server di chi installa: senza DEFAULT_MODEL li sceglie LLMProvider.effective_model
     assert Settings.model_fields["default_model"].default == ""
+
+
+def test_channel_settings_are_neutral_by_default():
+    # L'indirizzo della Web UI è dell'installazione: vuoto nel codice (nessun link), il valore vero sta in .env
+    assert Settings.model_fields["web_ui_url"].default == ""
+    assert Settings.model_fields["channel_reply_timeout_seconds"].default == 300

@@ -12,6 +12,8 @@ from app.agent.graph import get_checkpointer
 from app.automations.db.schema import init_automations_db
 from app.automations.scheduler import get_scheduler
 from app.calendar.db import init_calendar_db
+from app.channels import hub as channel_hub
+from app.channels import threads as channel_threads
 from app.core.config import settings
 from app.llm import costs
 from app.memory import facts, hybrid_search, procedures, profile, thread_store, vector_store
@@ -35,6 +37,7 @@ def init_storage() -> None:
     # checkpoints.db: checkpoint LangGraph, thread, audit, permessi e memoria vettoriale
     get_checkpointer().setup()
     thread_store.init_db()
+    channel_threads.init_db()
     profile.init_profile_db()
     procedures.init_procedures_db()
     memory_consolidation.init_consolidation_db()
@@ -61,9 +64,11 @@ def start() -> None:
         get_scheduler().start()
     health.start_sampler()
     memory_consolidation.start_scheduler()
+    channel_hub.get_hub().start()
 
 
 def stop() -> None:
+    channel_hub.get_hub().stop()
     health.stop_sampler()
     memory_consolidation.stop_scheduler()
     if settings.enable_automation_scheduler:

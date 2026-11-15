@@ -227,6 +227,6 @@ def flow_summary(since: str, recent: int = 20) -> Dict[str, Any]:
         change = f"{args.get('from')} → {args.get('to')}" if "to" in args else ""
         if change and args.get("subject"):
             change = f"{args['subject']}: {change}"
-        item["summary"] = str(args.get("query") or args.get("url") or args.get("image_path_or_url") or change)[:160]
+        item["summary"] = str(args.get("summary") or args.get("query") or args.get("url") or args.get("image_path_or_url") or change)[:160]
         events.append(item)
     return {"destinations": sorted(by_destination.values(), key=lambda e: -(e["ask"] + e["deny"])), "recent": events}

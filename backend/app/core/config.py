@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato
     watchdog_url: str = Field(default="", alias="WATCHDOG_URL")
 
+    # --- Canali (app.channels) ---
+    # Indirizzo della Web UI per i link alle conversazioni nei canali (`<url>/c/<thread>`). È un indirizzo
+    # dell'installazione: vive solo in .env. Vuoto = nessun link, i canali dicono di aprire l'app
+    web_ui_url: str = Field(default="", alias="WEB_UI_URL")
+    # Quanto un canale aspetta la fine del turno prima di dire che la risposta sarà nell'app (il turno continua)
+    channel_reply_timeout_seconds: int = Field(default=300, alias="CHANNEL_REPLY_TIMEOUT_SECONDS")
+
     # --- Storage ---
     # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).
     # Default: <repo>/data, che dentro il container (backend in /app) coincide con il volume /data.
