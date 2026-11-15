@@ -215,5 +215,5 @@ def test_summary_groups_calls_by_role_sorted_by_calls_and_unlabelled_ones_under_
     got = {r["role"]: r for r in report.summary(24)["roles"]}
     assert list(got) == ["answer", "plan", "?"]
     assert got["answer"] == {"role": "answer", "calls": 3, "errors": 1, "prompt_tokens": 151, "cached_tokens": 40,
-                             "completion_tokens": 15, "p50_ms": 200}
+                             "completion_tokens": 15, "p50_ms": 200, "cost_usd": 0}
     assert (got["plan"]["calls"], got["?"]["calls"]) == (1, 1)

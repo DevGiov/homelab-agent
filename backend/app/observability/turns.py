@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, Iterator, Optional
 
+from app.llm import costs
 from app.observability import store
 from app.security import audit_log
 
@@ -118,6 +119,12 @@ def record_llm_call(
         if error and trace.error is None:
             trace.error = f"LLM: {error}"
     try:
+        # Col prezzo di adesso, salvato con la chiamata; senza prezzo (o se non si legge) costa zero
+        try:
+            cost = costs.call_cost(provider, model, prompt_tokens, cached_tokens, completion_tokens)
+        except Exception as e:
+            logger.warning(f"Costo della chiamata LLM non calcolato: {e}")
+            cost = 0.0
         store.insert_llm_call(
             {
                 "turn_key": trace.key if trace else None,
@@ -133,6 +140,7 @@ def record_llm_call(
                 "label": label,
                 "destination": destination,
                 "role": role,
+                "cost_usd": cost,
             }
         )
     except Exception as e:

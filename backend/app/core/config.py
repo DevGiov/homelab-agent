@@ -97,7 +97,7 @@ class Settings(BaseSettings):
 
     @property
     def mcp_db_path(self) -> str:
-        """Server MCP registrati dalla UI e impostazioni per tool."""
+        """Server MCP registrati dalla UI, impostazioni per tool, prezzi dei modelli e tetti di spesa."""
         return str(Path(self.data_dir) / "mcp.db")
 
     @property

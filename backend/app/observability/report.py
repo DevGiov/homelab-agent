@@ -32,6 +32,11 @@ def _llm_speeds(calls: Iterable[Dict[str, Any]]) -> Dict[str, Optional[float]]:
     }
 
 
+def _cost(calls: Iterable[Dict[str, Any]]) -> float:
+    """Dollari spesi dalle chiamate (costo salvato con ciascuna); le righe di prima del costo valgono zero."""
+    return round(sum(c["cost_usd"] or 0.0 for c in calls), 6)
+
+
 def _turns_block(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
     durations = [t["duration_ms"] for t in turns]
     by_status: Dict[str, int] = defaultdict(int)
@@ -89,6 +94,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "errors": sum(1 for r in rows if r["error"]),
             "p50_ms": percentile([r["duration_ms"] for r in rows], 0.5),
             "completion_tokens": sum(r["completion_tokens"] for r in rows),
+            "cost_usd": _cost(rows),
             **_llm_speeds(rows),
         }
         for model, rows in sorted(by_model.items(), key=lambda item: -len(item[1]))
@@ -106,6 +112,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "cached_tokens": sum(r["cached_tokens"] for r in rows),
             "completion_tokens": sum(r["completion_tokens"] for r in rows),
             "p50_ms": percentile([r["duration_ms"] for r in rows], 0.5),
+            "cost_usd": _cost(rows),
         }
         for role, rows in sorted(by_role.items(), key=lambda item: -len(item[1]))
     ]
@@ -119,6 +126,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "prompt_tokens": sum(c["prompt_tokens"] for c in calls),
             "cached_tokens": sum(c["cached_tokens"] for c in calls),
             "completion_tokens": sum(c["completion_tokens"] for c in calls),
+            "cost_usd": _cost(calls),
             **_llm_speeds(calls),
         },
         "models": models,
@@ -167,6 +175,7 @@ def timeseries(hours: float, buckets: int) -> Dict[str, Any]:
                 "p50_ms": percentile([t["duration_ms"] for t in turns], 0.5),
                 "tool_errors": sum(t["tool_errors"] for t in turns),
                 "llm_calls": len(calls),
+                "cost_usd": _cost(calls),
                 **_llm_speeds(calls),
             }
         )

@@ -677,6 +677,10 @@ def set_active_provider(provider_name: str, model_name: Optional[str] = None) ->
     }
 
 
+def registered_provider_names() -> List[str]:
+    return list(_PROVIDERS)
+
+
 def list_providers_info() -> List[Dict[str, Any]]:
     """Restituisce informazioni su tutti i provider registrati."""
     info = []

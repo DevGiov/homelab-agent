@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatRequest(BaseModel):
@@ -125,6 +125,18 @@ class ImageUploadResponse(BaseModel):
 class SetDefaultProviderRequest(BaseModel):
     provider: str
     model: Optional[str] = None
+
+
+class ModelPriceRequest(BaseModel):
+    """Prezzo di un modello, in dollari per milione di token."""
+    input_per_mtok: float = Field(ge=0, allow_inf_nan=False)
+    cached_per_mtok: float = Field(ge=0, allow_inf_nan=False)
+    output_per_mtok: float = Field(ge=0, allow_inf_nan=False)
+
+
+class SpendCeilingRequest(BaseModel):
+    """Tetto di spesa mensile in dollari."""
+    monthly_usd: float = Field(gt=0, allow_inf_nan=False)
 
 
 class ResolveApprovalRequest(BaseModel):

@@ -8,12 +8,15 @@ from app.api.deps import verify_api_key
 from app.api.schemas import (
     LoadModelRequest,
     ModelDetail,
+    ModelPriceRequest,
     ProviderInfo,
     ProviderModelsResponse,
     ProvidersResponse,
     SetDefaultProviderRequest,
+    SpendCeilingRequest,
 )
 from app.core.config import settings
+from app.llm import costs
 from app.llm.providers import (
     get_active_model_name,
     get_active_provider_name,
@@ -22,6 +25,7 @@ from app.llm.providers import (
     list_providers_info,
     load_provider_model,
     model_status_changes,
+    registered_provider_names,
     server_root,
     set_active_provider,
 )
@@ -72,6 +76,57 @@ async def load_provider_model_endpoint(name: str, req: LoadModelRequest):
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore durante il caricamento del modello '{req.model}': {e}") from e
+
+# --- Costi: prezzi dei modelli e tetti di spesa ---
+
+def _known_provider(name: str) -> None:
+    if name not in registered_provider_names():
+        raise HTTPException(status_code=404, detail=f"Provider '{name}' non registrato")
+
+
+@router.get("/v1/providers/costs", dependencies=[Depends(verify_api_key)])
+async def get_costs():
+    """Prezzi, tetti e spesa del mese corrente (UTC), con quali tetti sono stati raggiunti."""
+    ceilings = costs.list_ceilings()
+    spend = costs.month_spend()
+    total = spend.pop(costs.TOTAL_SCOPE)
+    return {
+        "prices": costs.list_prices(),
+        "ceilings": ceilings,
+        "spend": {"month": costs.month_bounds()[0].strftime("%Y-%m"), "by_provider": spend, "total": total},
+        "reached": costs.reached_scopes(ceilings, {**spend, costs.TOTAL_SCOPE: total}),
+    }
+
+
+@router.put("/v1/providers/ceilings/{scope}", dependencies=[Depends(verify_api_key)])
+async def set_spend_ceiling(scope: str, req: SpendCeilingRequest):
+    """Imposta il tetto mensile in dollari di un provider o del totale (`total`)."""
+    if scope != costs.TOTAL_SCOPE:
+        _known_provider(scope)
+    return {"scope": scope, "monthly_usd": costs.set_ceiling(scope, req.monthly_usd)}
+
+
+@router.delete("/v1/providers/ceilings/{scope}", dependencies=[Depends(verify_api_key)])
+async def delete_spend_ceiling(scope: str):
+    """Toglie il tetto: nessun tetto vuol dire nessun limite."""
+    if scope != costs.TOTAL_SCOPE:
+        _known_provider(scope)
+    return {"scope": scope, "deleted": costs.delete_ceiling(scope)}
+
+
+@router.put("/v1/providers/{name}/models/{model:path}/price", dependencies=[Depends(verify_api_key)])
+async def set_model_price(name: str, model: str, req: ModelPriceRequest):
+    """Imposta il prezzo di un modello (dollari per milione di token). L'id può contenere `/`, `:` e `.`."""
+    _known_provider(name)
+    return costs.set_price(name, model, req.input_per_mtok, req.cached_per_mtok, req.output_per_mtok)
+
+
+@router.delete("/v1/providers/{name}/models/{model:path}/price", dependencies=[Depends(verify_api_key)])
+async def delete_model_price(name: str, model: str):
+    """Toglie il prezzo: il modello torna a costare zero."""
+    _known_provider(name)
+    return {"provider": name, "model": model, "deleted": costs.delete_price(name, model)}
+
 
 @router.get("/v1/models/events")
 async def models_events_endpoint():

@@ -13,6 +13,7 @@ from app.automations.db.schema import init_automations_db
 from app.automations.scheduler import get_scheduler
 from app.calendar.db import init_calendar_db
 from app.core.config import settings
+from app.llm import costs
 from app.memory import facts, hybrid_search, procedures, profile, thread_store, vector_store
 from app.observability import health
 from app.observability.store import init_metrics_db
@@ -41,6 +42,7 @@ def init_storage() -> None:
     permissions.init_permissions_db()
     network.init_network_db()
     flows.init_flows_db()
+    costs.init_costs_db()
     vector_store.init_vector_db()
     facts.init_facts_db()
     hybrid_search.init_search_indexes()
