@@ -33,6 +33,8 @@ class AgentState(TypedDict, total=False):
     command_prefix: Optional[str]
     risk_reason: Optional[str]
     security_mode: Optional[str]
+    # Id del canale da cui arriva il turno (app.channels); assente per la Web UI
+    channel: Optional[str]
     # Sensibilità (app.security.flows, Tag.to_dict): di tutto ciò che il turno ha in contesto, e della parte che vede
     # il router (richiesta e ultimi messaggi, senza la memoria)
     tag: Optional[Dict[str, Any]]

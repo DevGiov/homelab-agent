@@ -14,9 +14,10 @@ from fastapi.responses import StreamingResponse
 
 from app.agent import turn_checkpoints
 from app.agent.graph import build_graph
-from app.agent.llm_calls import stream_queue, stream_reasoning_phase_count
+from app.agent.llm_calls import channel_style_var, stream_queue, stream_reasoning_phase_count
 from app.agent.nodes.respond import respond_node
 from app.agent.stream_session import (
+    StreamSession,
     create_session,
     current_session_var,
     get_session,
@@ -208,7 +209,19 @@ def run_agent_flow(task: str, thread_id: Optional[str], force_mode: Optional[str
 
 
 
-def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal", sensitivity: Optional[str] = None):
+def start_turn(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", images: Optional[List[str]] = None, security_mode: str = "normal", sensitivity: Optional[str] = None, *, channel: Optional[str] = None, extra_tag: Optional[Tag] = None, style_hint: Optional[str] = None) -> StreamSession:
+    """Avvia un turno senza il trasporto HTTP: salva il messaggio dell'utente, crea la `StreamSession` del thread e
+    fa partire il grafo in un thread di lavoro. Restituisce la sessione (il thread è `sess.thread_id`): la Web UI vi si
+    iscrive con SSE (`run_agent_flow_stream`), un canale con `sess.subscribe()`.
+
+    Se il thread ha già un turno attivo non ne parte un altro: il messaggio è salvato e si restituisce quello in corso.
+
+    `channel`: id del canale da cui arriva il messaggio (finisce nello stato del grafo). La modalità di sicurezza di un
+    turno da canale è sempre `normal`: un account di messaggistica compromesso non deve poter chiedere `dangerous`.
+    `extra_tag`: etichetta aggiunta a quella della richiesta, per contenuto scritto da altri (un messaggio inoltrato:
+    pubblico e non attendibile). `style_hint`: una riga di stile che le risposte del modello ricevono (capacità del canale)."""
+    if channel:
+        security_mode = "normal"
     effective_thread_id = thread_id or f"thread_{int(time.time() * 1000)}"
     graph_task = task.strip() if task else ""
     if not graph_task and images:
@@ -233,7 +246,9 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         "incognito": incognito,
         "security_mode": security_mode,
     }
-    input_tag = _input_tag(effective_thread_id, graph_task, images, sensitivity, incognito)
+    if channel:
+        initial_state["channel"] = channel
+    input_tag = flows.join(_input_tag(effective_thread_id, graph_task, images, sensitivity, incognito), extra_tag)
     initial_state["tag"] = input_tag.to_dict()
 
     # Salva immediatamente il messaggio dell'utente nello store SQLite
@@ -249,56 +264,75 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
     # Se c'è già una sessione attiva per questo thread, ci colleghiamo ad essa
     existing_sess = get_session(effective_thread_id)
     if existing_sess and existing_sess.is_active():
-        sess = existing_sess
-    else:
-        sess = create_session(effective_thread_id, task=graph_task, mode=force_mode)
-        cfg = {"configurable": {"thread_id": effective_thread_id}}
+        return existing_sess
 
-        def worker():
-            stream_queue.set(sess)
-            stream_reasoning_phase_count.set(0)
-            current_session_var.set(sess)
-            try:
-                with observe_turn(effective_thread_id, "chat", stopped=sess.is_stopped) as turn:
-                    final_state = get_app_graph().invoke(initial_state, config=cfg)
-                    turn.mode = final_state.get("mode")
-                resp = _chat_response(final_state, effective_thread_id, force_mode, model, security_mode, sess)
-                if not incognito and not sess.is_stopped():
-                    thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
+    sess = create_session(effective_thread_id, task=graph_task, mode=force_mode)
+    cfg = {"configurable": {"thread_id": effective_thread_id}}
+
+    def worker():
+        stream_queue.set(sess)
+        stream_reasoning_phase_count.set(0)
+        current_session_var.set(sess)
+        channel_style_var.set(style_hint or None)
+        try:
+            with observe_turn(effective_thread_id, "chat", stopped=sess.is_stopped) as turn:
+                final_state = get_app_graph().invoke(initial_state, config=cfg)
+                turn.mode = final_state.get("mode")
+            resp = _chat_response(final_state, effective_thread_id, force_mode, model, security_mode, sess)
+            if not incognito and not sess.is_stopped():
+                thread_store.save_assistant_message(effective_thread_id, resp.model_dump())
+                if needs_title_generation:
+                    threading.Thread(
+                        target=thread_store.generate_and_save_title,
+                        args=(effective_thread_id, title_prompt, model, input_tag),
+                        daemon=True
+                    ).start()
+            sess.put({"type": "final", "response": resp.model_dump()})
+        except Exception as e:
+            if not incognito and not sess.is_stopped():
+                thread_store.save_assistant_message(effective_thread_id, {
+                    "response": f"[Errore durante l'elaborazione: {str(e)}]",
+                    "error": True
+                })
+            sess.put({"type": "error", "error": str(e)})
+        finally:
+            if not incognito and not sess.is_stopped():
+                msgs = thread_store.get_thread_messages(effective_thread_id)
+                has_assistant = any(m.get("sender") == "assistant" for m in msgs)
+                if not has_assistant:
+                    thread_store.save_assistant_message(effective_thread_id, {
+                        "response": "[Esecuzione completata]",
+                        "error": False
+                    })
                     if needs_title_generation:
                         threading.Thread(
                             target=thread_store.generate_and_save_title,
                             args=(effective_thread_id, title_prompt, model, input_tag),
                             daemon=True
                         ).start()
-                sess.put({"type": "final", "response": resp.model_dump()})
-            except Exception as e:
-                if not incognito and not sess.is_stopped():
-                    thread_store.save_assistant_message(effective_thread_id, {
-                        "response": f"[Errore durante l'elaborazione: {str(e)}]",
-                        "error": True
-                    })
-                sess.put({"type": "error", "error": str(e)})
-            finally:
-                if not incognito and not sess.is_stopped():
-                    msgs = thread_store.get_thread_messages(effective_thread_id)
-                    has_assistant = any(m.get("sender") == "assistant" for m in msgs)
-                    if not has_assistant:
-                        thread_store.save_assistant_message(effective_thread_id, {
-                            "response": "[Esecuzione completata]",
-                            "error": False
-                        })
-                        if needs_title_generation:
-                            threading.Thread(
-                                target=thread_store.generate_and_save_title,
-                                args=(effective_thread_id, title_prompt, model, input_tag),
-                                daemon=True
-                            ).start()
-                sess.put(None)
+            sess.put(None)
 
-        ctx = contextvars.copy_context()
-        t = threading.Thread(target=ctx.run, args=(worker,))
-        t.start()
+    ctx = contextvars.copy_context()
+    t = threading.Thread(target=ctx.run, args=(worker,))
+    t.start()
+    return sess
+
+
+def stop_turn(thread_id: str) -> bool:
+    """Ferma il turno del thread e lascia nella conversazione la nota dell'interruzione. False se non c'è un turno."""
+    sess = get_session(thread_id)
+    if not sess:
+        return False
+    sess.stop()
+    thread_store.save_assistant_message(thread_id, {"response": "[Esecuzione interrotta dall'utente]", "error": False})
+    return True
+
+
+def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optional[str] = None, execute: bool = False, reasoning_budget: Optional[int] = None, model: Optional[str] = None, incognito: bool = False, web_search: Union[str, bool] = "auto", request: Optional[Request] = None, images: Optional[List[str]] = None, security_mode: str = "normal", sensitivity: Optional[str] = None):
+    """Turno web: `start_turn` più la parte SSE, che si iscrive alla sessione e inoltra gli eventi."""
+    sess = start_turn(task, thread_id, force_mode=force_mode, execute=execute, reasoning_budget=reasoning_budget, model=model,
+                      incognito=incognito, web_search=web_search, images=images, security_mode=security_mode, sensitivity=sensitivity)
+    effective_thread_id = sess.thread_id
 
     async def event_generator():
         sub_q = sess.subscribe()

@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 from app.agent.stream_session import current_session_var
 from app.core import image_utils
 from app.core.text_utils import strip_thinking
+from app.llm import roles
 from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
 from app.llm.reasoning import Level, interleaved_for, resolve
 from app.security.flows import Tag
@@ -16,6 +17,9 @@ logger = logging.getLogger("graph")
 
 stream_queue = contextvars.ContextVar("stream_queue", default=None)
 stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_count", default=0)
+# Riga di stile del canale da cui arriva il turno (Capabilities.style_hint): None per la Web UI. Impostata dal lavoratore
+# del turno (api.agent_runner.start_turn), la riceve ogni chiamata con ruolo `answer`
+channel_style_var = contextvars.ContextVar("channel_style_var", default=None)
 
 
 def call_llm(
@@ -58,6 +62,11 @@ def call_llm(
             system_prompt = f"{system_prompt}\n\n{thinking_instruction}"
         else:
             system_prompt = thinking_instruction
+
+    # Una sola riga, aggiunta alla fine del system prompt di ogni risposta all'utente (chat, sintesi, risposta diretta)
+    style = channel_style_var.get()
+    if style and role == roles.ANSWER:
+        system_prompt = f"{system_prompt}\n\n{style}" if system_prompt else style
 
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})

@@ -10,14 +10,13 @@ from fastapi.responses import StreamingResponse
 from app.agent.stream_session import (
     get_session,
 )
-from app.api.agent_runner import run_agent_flow, run_agent_flow_stream
+from app.api.agent_runner import run_agent_flow, run_agent_flow_stream, stop_turn
 from app.api.deps import rate_limited, verify_api_key
 from app.api.schemas import (
     ChatRequest,
     ChatResponse,
     ThreadControlRequest,
 )
-from app.memory import thread_store
 
 logger = logging.getLogger("api")
 
@@ -103,13 +102,7 @@ async def thread_stream_endpoint(thread_id: str, request: Request):
 
 @router.post("/v1/chat/stop", dependencies=[Depends(verify_api_key)])
 async def chat_stop_endpoint(req: ThreadControlRequest):
-    sess = get_session(req.thread_id)
-    if sess:
-        sess.stop()
-        thread_store.save_assistant_message(req.thread_id, {
-            "response": "[Esecuzione interrotta dall'utente]",
-            "error": False
-        })
+    if stop_turn(req.thread_id):
         return {"status": "ok", "message": "Stream stopped"}
     return {"status": "not_found", "message": "No active stream for thread"}
 
