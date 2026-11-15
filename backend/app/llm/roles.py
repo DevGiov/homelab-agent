@@ -11,7 +11,7 @@ SELECT_TOOL = "select_tool"
 REWRITE_EXIT = "rewrite_exit"
 ANSWER = "answer"
 PREFETCH = "prefetch"
-FILTER_MEMORY = "filter_memory"
+SUMMARIZE = "summarize"
 CONSOLIDATE = "consolidate"
 TITLE = "title"
 VISION = "vision"
@@ -25,8 +25,8 @@ ROLE_DESCRIPTIONS: Dict[str, str] = {
     SELECT_TOOL: "Scelta del tool a ogni passo del loop",
     REWRITE_EXIT: "Riscrittura pulita degli argomenti di un'uscita, senza dati che la destinazione non può ricevere",
     ANSWER: "Risposta della chat, risposta diretta, sintesi finale, sintesi dopo un'approvazione",
-    PREFETCH: "Riassunto della ricerca web iniziale",
-    FILTER_MEMORY: "Scelta dei ricordi pertinenti alla richiesta",
+    PREFETCH: "Ricerca web iniziale: la query, anche a partire da un'immagine allegata",
+    SUMMARIZE: "Riassunto progressivo della conversazione, letto dai turni successivi",
     CONSOLIDATE: "Estrazione dei fatti, consolidamento della memoria, distillazione delle procedure",
     TITLE: "Titolo della conversazione",
     VISION: "Descrizione di un'immagine",

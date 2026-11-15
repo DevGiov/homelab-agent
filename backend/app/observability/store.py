@@ -118,12 +118,16 @@ def select(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
 
 
 def purge_older_than(days: int) -> int:
-    """Elimina le metriche più vecchie di `days` giorni; restituisce le righe rimosse."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    """Elimina le metriche più vecchie di `days` giorni; restituisce le righe rimosse. Le chiamate LLM del mese in
+    corso (UTC) restano comunque: la spesa del mese, e quindi i tetti, si calcola da lì (app.llm.costs)."""
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=days)).isoformat()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     removed = 0
     with _connect() as conn:
         for table in ("llm_calls", "turns", "health_samples"):
-            removed += conn.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,)).rowcount
+            limit = min(cutoff, month_start) if table == "llm_calls" else cutoff
+            removed += conn.execute(f"DELETE FROM {table} WHERE ts < ?", (limit,)).rowcount
     return removed
 
 

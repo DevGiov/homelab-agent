@@ -63,7 +63,7 @@ When a later message changes something, keep only the current value."""
         model=model,
         stream_mode="none",
         tag=tag,
-        role=roles.FILTER_MEMORY,
+        role=roles.SUMMARIZE,
     )
     return (result.get("content") or "").strip() if isinstance(result, dict) else ""
 

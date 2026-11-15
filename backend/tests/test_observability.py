@@ -217,3 +217,26 @@ def test_metrics_api(api):
     assert len(series["points"]) == 8 and sum(p["turns"] for p in series["points"]) == 2
     assert [t["turn_key"] for t in api.get("/v1/metrics/turns", params={"source": "automation"}).json()] == ["run-1"]
     assert api.get("/v1/metrics/summary", params={"hours": 0}).status_code == 422
+
+
+def test_purge_keeps_the_llm_calls_of_the_current_month(monkeypatch):
+    """La spesa del mese si calcola da llm_calls: con 30 giorni di conservazione il 31 del mese perderebbe il primo
+    giorno, e i tetti di spesa conterebbero meno del vero."""
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 12, 31, 18, 0, tzinfo=timezone.utc)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(store, "datetime", Frozen)
+    first_day = datetime(2026, 12, 1, 9, 0, tzinfo=timezone.utc).isoformat()
+    last_month = datetime(2026, 11, 30, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+    llm_row(ts=first_day)
+    llm_row(ts=last_month)
+    turn_row(ts=first_day)
+    assert store.purge_older_than(30) == 2
+    assert [r["ts"] for r in llm_calls()] == [first_day]
+    assert turns() == []

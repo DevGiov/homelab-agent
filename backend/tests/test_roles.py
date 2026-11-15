@@ -38,7 +38,7 @@ def llm_rows():
 # --- Obbligatorio e validato ---------------------------------------------------------------------
 
 def test_role_names_cover_the_design_table():
-    assert roles.VALID_ROLES == {"route", "plan", "select_tool", "rewrite_exit", "answer", "prefetch", "filter_memory",
+    assert roles.VALID_ROLES == {"route", "plan", "select_tool", "rewrite_exit", "answer", "prefetch", "summarize",
                                  "consolidate", "title", "vision", "rollback", "eval"}
     assert all(roles.ROLE_DESCRIPTIONS[r].strip() for r in roles.VALID_ROLES)
 
@@ -148,7 +148,7 @@ EXPECTED_ROLES = {
     "agent/mode_router.py": {"roles.ROUTE"},
     "agent/nodes/chat.py": {"roles.ANSWER"},
     "agent/nodes/plan.py": {"roles.PLAN"},
-    "agent/nodes/retrieve_memory.py": {"roles.FILTER_MEMORY"},
+    "agent/nodes/retrieve_memory.py": {"roles.SUMMARIZE"},
     "agent/nodes/web_prefetch.py": {"roles.PREFETCH"},
     "agent/procedure_distillation.py": {"roles.CONSOLIDATE"},
     "api/routes/approvals.py": {"roles.ANSWER"},
