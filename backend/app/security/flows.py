@@ -148,6 +148,11 @@ def can_flow(tag: Tag, dest: Destination) -> Decision:
 def provider_destination(provider_name: str) -> Destination:
     """Il livello ammesso di un provider viene da un'impostazione esplicita, non dall'indirizzo: un indirizzo di rete
     locale può essere un proxy verso un servizio cloud."""
+    if provider_name == "bedrock":
+        # Un provider cloud non riceve mai `private` da .env: Settings lo rifiuta e tiene `public`, e qui vale lo stesso
+        # anche se il valore arrivasse da un'altra strada
+        label = Label.parse(settings.bedrock_clearance, Label.PUBLIC)
+        return Destination(f"provider:{provider_name}", "model", label if label <= Label.INTERNAL else Label.PUBLIC)
     raw = {"llamacpp": settings.llama_cpp_clearance, "ollama": settings.ollama_clearance}.get(provider_name, "internal")
     return Destination(f"provider:{provider_name}", "model", Label.parse(raw, Label.INTERNAL))
 

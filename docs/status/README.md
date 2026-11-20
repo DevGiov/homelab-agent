@@ -10,6 +10,7 @@ Assessment iniziale del 2026-10-26, stato aggiornato al 2026-11-11: rilascio `v0
 | [02-ISSUES.md](02-ISSUES.md) | Problemi rilevati, con evidenze e severità |
 | [03-FIX_PLAN.md](03-FIX_PLAN.md) | Piano di correzione passo-passo, con criteri di completamento |
 | [04-ROADMAP.md](04-ROADMAP.md) | Roadmap per fasi: consolidamento, refactor, nuove funzionalità |
+| [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md) | Uso reale del 20/11/2026: ricerca web, vision, approvazioni. Diagnosi e piani, non ancora applicati ([ISS-38](02-ISSUES.md#iss-38), [ISS-39](02-ISSUES.md#iss-39), [ISS-40](02-ISSUES.md#iss-40)) |
 
 ## Sintesi
 

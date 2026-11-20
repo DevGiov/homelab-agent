@@ -1,7 +1,15 @@
+import logging
 from pathlib import Path
+from typing import List
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("config")
+
+# Livelli che un provider cloud può ricevere da .env: `private` verso un servizio cloud si concede solo a mano
+# (docs/providers/PROVIDERS_DESIGN.md, decisione 5), mai da una variabile
+CLOUD_CLEARANCES = ("public", "internal")
 
 # Radice del backend (contiene app/, sdk/ e .env)
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -36,6 +44,18 @@ class Settings(BaseSettings):
     # indirizzo che porta a un servizio cloud (anche attraverso un proxy locale) va abbassato a `internal`
     llama_cpp_clearance: str = Field(default="private", alias="LLAMA_CPP_CLEARANCE")
     ollama_clearance: str = Field(default="private", alias="OLLAMA_CLEARANCE")
+    # --- AWS Bedrock (provider cloud, docs/providers/PROVIDERS_DESIGN.md) ---
+    # Il provider esiste solo con una chiave API oppure le credenziali AWS, la regione e almeno un modello: altrimenti
+    # non c'è e nulla cambia. La chiave API ha la precedenza sulla firma SigV4 delle credenziali AWS
+    bedrock_api_key: str = Field(default="", alias="BEDROCK_API_KEY", repr=False)
+    aws_access_key_id: str = Field(default="", alias="AWS_ACCESS_KEY_ID", repr=False)
+    aws_secret_access_key: str = Field(default="", alias="AWS_SECRET_ACCESS_KEY", repr=False)
+    aws_session_token: str = Field(default="", alias="AWS_SESSION_TOKEN", repr=False)
+    aws_region: str = Field(default="", alias="AWS_REGION")
+    # Identificativi dei modelli offerti, separati da virgola: l'endpoint non ha un elenco (`GET /models` dà 404)
+    bedrock_models: str = Field(default="", alias="BEDROCK_MODELS")
+    # Livello più alto che Bedrock può ricevere: public o internal. `private` e ogni altro valore sono rifiutati
+    bedrock_clearance: str = Field(default="public", alias="BEDROCK_CLEARANCE")
     # Watchdog delle risorse: dice quali modelli si possono usare. Vuoto = disattivato
     watchdog_url: str = Field(default="", alias="WATCHDOG_URL")
 
@@ -75,6 +95,20 @@ class Settings(BaseSettings):
     firecracker_log_url: str = Field(default="", alias="FIRECRACKER_LOG_URL")
     firecracker_kernel_path: str = Field(default="/opt/firecracker/vmlinux.bin", alias="FIRECRACKER_KERNEL_PATH")
     firecracker_rootfs_path: str = Field(default="/opt/firecracker/rootfs.ext4", alias="FIRECRACKER_ROOTFS_PATH")
+
+    @field_validator("bedrock_clearance", mode="after")
+    @classmethod
+    def _cloud_clearance(cls, v):
+        value = str(v).strip().lower()
+        if value in CLOUD_CLEARANCES:
+            return value
+        logger.error(f"BEDROCK_CLEARANCE={v!r} rifiutato: un provider cloud ammette solo {' o '.join(CLOUD_CLEARANCES)} "
+                     f"(`private` si concede a mano, non da .env). Resta `public`.")
+        return "public"
+
+    @property
+    def bedrock_model_list(self) -> List[str]:
+        return [m.strip() for m in self.bedrock_models.split(",") if m.strip()]
 
     @field_validator("cors_origins", mode="after")
     @classmethod

@@ -41,6 +41,9 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-35](#iss-35) | La Web UI ignora gli eventi `approval_required` e `status` | S4 | frontend | 🟡 Aperto |
 | [ISS-36](#iss-36) | Le sessioni di streaming finite restano in memoria | S3 | backend/streaming | 🟡 Aperto |
 | [ISS-37](#iss-37) | `POST /v1/chat/stop` su un turno già finito salva comunque "interrotta" | S4 | backend/api | 🟡 Aperto |
+| [ISS-38](#iss-38) | La ricerca web non porta nel contesto i prodotti che Bing non indicizza | S2 | ricerca web | 🟡 Aperto |
+| [ISS-39](#iss-39) | Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502 | S1 | vision / LLM | 🟡 Aperto |
+| [ISS-40](#iss-40) | Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti | S1 | approvazioni | 🟡 Aperto |
 
 ---
 
@@ -362,4 +365,19 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 **`POST /v1/chat/stop` su un turno già finito salva comunque "interrotta"** — S4
 
 - **Evidenza** (15/11/2026): la route salva "[Esecuzione interrotta dall'utente]" anche se la sessione è già finita. Il comando `/stop` dei canali controlla prima che il turno sia attivo; la route no.
+
+## ISS-38
+**La ricerca web non porta nel contesto i prodotti che Bing non indicizza** — S2
+
+- **Evidenza** (20/11/2026, uso reale con `PXQN-Qwen3.8-27B-OneCard-MTP`): nella chat `thread_1794673120151` il confronto dei display, tra gli altri di Brilliant Labs Halo, si chiude con «Non ho trovato informazioni specifiche sul display di questo modello nelle fonti recuperate». Il prefetch aveva una sola fonte, una pagina Amazon di un altro prodotto RayNeo. La scheda hardware di Halo è pubblica (`docs.brilliant.xyz`). Il 20/11 la stessa pipeline, rieseguita nel backend in esecuzione, non restituisce nulla sulle query puntate a Halo, mentre «RayNeo X2 specs» restituisce dieci pagine. Dettaglio, riproduzione e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md).
+
+## ISS-39
+**Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502** — S1
+
+- **Evidenza** (7, 14 e 15/11/2026, `PXQN-Qwen3.8-27B-Vision`): ogni turno con un'immagine allegata finisce con «Il modello non ha completato la richiesta (HTTP 502)» e il modello sparisce dalla GPU. Il journal di llama-swap di quelle richieste è un `cudaMalloc` fallito (594 MiB per il grafo dell'immagine, pochi MiB liberi sulla scheda da 16 GB) seguito da «upstream process exited unexpectedly». Le chiamate di solo testo allo stesso modello, anche da decine di migliaia di token, vanno a buon fine. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md).
+
+## ISS-40
+**Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti** — S1
+
+- **Evidenza** (18/11/2026): `apr_fdedb771433c` è `minecraft-rcon__mc_list_players`, una lettura. Creata alle 22:33:31Z con scadenza a 300 secondi, risulta `denied` alle 22:47:51Z, quattordici minuti dopo. In chat il messaggio è «Richiesta '…' non trovata o già risolta». La conferma non nasce dal guardrail di scrittura: `minecraft-rcon` e `minecraft-bot` non sono classificati, e il default li tratta come un'uscita pubblica, quindi ogni tool chiede conferma appena il turno ha richiamato memoria privata. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md). La scheda in sé arriva con l'evento `final`; [ISS-35](#iss-35) riguarda chi si riaggancia a un turno già in pausa.
 

@@ -86,6 +86,8 @@ def init_metrics_db() -> None:
         ensure_columns(conn, "llm_calls", {"role": "TEXT"})
         # Costo in dollari col prezzo del momento (app.llm.costs); le righe scritte prima non lo hanno
         ensure_columns(conn, "llm_calls", {"cost_usd": "REAL"})
+        # Perché la chiamata è andata al modello locale invece che al provider scelto: label o budget (app.agent.llm_calls)
+        ensure_columns(conn, "llm_calls", {"fallback": "TEXT"})
 
 
 def _insert(table: str, row: Dict[str, Any]) -> None:

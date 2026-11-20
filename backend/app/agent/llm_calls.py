@@ -3,15 +3,16 @@ import contextvars
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from app.agent.stream_session import current_session_var
 from app.core import image_utils
 from app.core.text_utils import strip_thinking
-from app.llm import roles
-from app.llm.providers import LLMUnavailableError, get_provider, is_vision_model
+from app.llm import costs, roles
+from app.llm.providers import LLMProvider, LLMUnavailableError, get_provider, is_vision_model
 from app.llm.reasoning import Level, interleaved_for, resolve
-from app.security.flows import Tag
+from app.security.flows import Tag, can_flow, provider_destination
 
 logger = logging.getLogger("graph")
 
@@ -20,6 +21,50 @@ stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_co
 # Riga di stile del canale da cui arriva il turno (Capabilities.style_hint): None per la Web UI. Impostata dal lavoratore
 # del turno (api.agent_runner.start_turn), la riceve ogni chiamata con ruolo `answer`
 channel_style_var = contextvars.ContextVar("channel_style_var", default=None)
+
+# Il provider locale: dove vanno le chiamate che il provider scelto non può o non deve ricevere
+LOCAL_PROVIDER = "llamacpp"
+FALLBACK_LABEL = "label"
+FALLBACK_BUDGET = "budget"
+
+
+@dataclass(frozen=True)
+class ProviderChoice:
+    provider: LLMProvider
+    model: Optional[str]  # None = il modello predefinito del provider
+    fallback: Optional[str] = None  # `label` o `budget` se la scelta è un ripiego sul provider locale, altrimenti None
+    origin: Optional[str] = None  # il nome del provider da cui si è ripiegato
+
+
+def choose_provider(model: Optional[str], tag: Tag) -> ProviderChoice:
+    """Il provider di una chiamata (docs/providers/PROVIDERS_DESIGN.md, 5.5). Si parte dal provider attivo e dal modello
+    scelti dall'utente; si passa al provider locale, col suo modello predefinito, se:
+
+    1. l'etichetta dei dati (`tag`) supera il livello che il provider attivo può ricevere: motivo `label`;
+    2. altrimenti, la spesa del mese ha raggiunto il tetto del provider o quello totale: motivo `budget`.
+
+    Se il provider attivo è già quello locale non cambia nulla: l'etichetta troppo alta per lui resta un `FlowDenied` di
+    `LLMProvider.chat`, l'ultima guardia."""
+    provider = get_provider()
+    # Solo i provider veri: un'altra cosa passata al posto di un provider (nei test) non ha nome né livello
+    if not isinstance(provider, LLMProvider) or provider.name == LOCAL_PROVIDER:
+        return ProviderChoice(provider, model)
+    reason = None
+    if not can_flow(tag, provider_destination(provider.name)).allowed:
+        reason = FALLBACK_LABEL
+    else:
+        try:
+            if costs.ceiling_reached(provider.name):
+                reason = FALLBACK_BUDGET
+        except Exception as e:
+            # Senza poter leggere la spesa non si può dire che il tetto regga: si resta sul modello locale
+            logger.warning(f"Tetto di spesa di '{provider.name}' non verificabile, uso il provider locale: {e}")
+            reason = FALLBACK_BUDGET
+    if reason is None:
+        return ProviderChoice(provider, model)
+    local = get_provider(LOCAL_PROVIDER)
+    logger.info(f"Chiamata a '{provider.name}' dirottata su '{local.name}': {reason}")
+    return ProviderChoice(local, None, reason, provider.name)
 
 
 def call_llm(
@@ -49,8 +94,12 @@ def call_llm(
 
     # `thinking` è il livello della fase, tradotto dal profilo del modello (app.llm.reasoning); `thinking_budget` è il
     # budget in token scelto dall'utente per il turno, se c'è
-    provider = get_provider()
-    effective_model = provider.effective_model(model)
+    choice = choose_provider(model, tag)
+    provider = choice.provider
+    effective_model = provider.effective_model(choice.model)
+    if not getattr(provider, "reasoning_controls", True):
+        # Un provider senza profili di ragionamento riceve richieste che non ragionano: niente istruzione né budget
+        thinking, thinking_budget = "off", None
     reasoning = resolve(effective_model, thinking, budget_override=thinking_budget, temperature=temperature)
     if reasoning.enabled:
         thinking_instruction = (
@@ -132,8 +181,14 @@ def call_llm(
     if sess and sess.is_stopped():
         return {"content": "", "reasoning_content": "", "metrics": {}}
 
+    if choice.fallback and sess:
+        # L'interfaccia può dire "risposta dal modello locale"
+        sess.put({"type": "provider_fallback", "from": choice.origin, "to": provider.name, "reason": choice.fallback})
+
     # Fase 1.1: delega al provider abstraction
     # `max_tokens` è la lunghezza della risposta: il server conta anche i token di ragionamento, che si aggiungono
+    # `fallback` solo quando c'è: chi chiama senza ripiego passa gli stessi argomenti di sempre
+    extra = {"fallback": choice.fallback} if choice.fallback else {}
     return provider.chat(
         messages,
         tag=tag,
@@ -143,6 +198,7 @@ def call_llm(
         reasoning=reasoning,
         stream_callback=stream_callback,
         json_schema=json_schema,
+        **extra,
     )
 
 

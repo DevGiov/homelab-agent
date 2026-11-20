@@ -106,6 +106,7 @@ def record_llm_call(
     label: Optional[str] = None,
     destination: Optional[str] = None,
     role: Optional[str] = None,
+    fallback: Optional[str] = None,
 ) -> None:
     """Registra una chiamata LLM e la somma al turno in corso, se c'è (le chiamate in background non ne hanno)."""
     trace = _current_turn.get()
@@ -141,6 +142,7 @@ def record_llm_call(
                 "destination": destination,
                 "role": role,
                 "cost_usd": cost,
+                "fallback": fallback,
             }
         )
     except Exception as e:

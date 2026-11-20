@@ -9,6 +9,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import quote
 
@@ -16,6 +17,8 @@ import httpx
 
 from app.agent.stream_session import current_session_var
 from app.core.config import settings
+from app.llm import sigv4
+from app.llm.costs import TOTAL_SCOPE
 from app.llm.model_availability import availability_fields, unavailable_reason
 from app.llm.reasoning import Reasoning, resolve
 from app.llm.roles import check_role
@@ -82,6 +85,8 @@ class LLMProvider(ABC):
     name: str = "base"
     # DEFAULT_MODEL: il modello delle richieste che non ne indicano uno. Vuoto = lo sceglie `effective_model`
     default_model: str = ""
+    # False per i provider che non traducono il ragionamento (nessun profilo nei loro modelli): le fasi lo chiedono spento
+    reasoning_controls: bool = True
 
     def effective_model(self, model: Optional[str] = None) -> str:
         """Il modello di una richiesta: quello chiesto, altrimenti DEFAULT_MODEL, altrimenti uno di quelli che il
@@ -106,6 +111,7 @@ class LLMProvider(ABC):
         stream_callback: Optional[StreamCallback] = None,
         json_mode: bool = False,
         json_schema: Optional[Dict[str, Any]] = None,
+        fallback: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Esegue una chat completion. Ritorna {'content', 'reasoning_content', 'metrics'}; se la richiesta fallisce
         il contenuto è vuoto e 'error' ne riporta il motivo. Ogni chiamata finisce nelle metriche di osservabilità.
@@ -122,6 +128,9 @@ class LLMProvider(ABC):
 
         `role` (obbligatorio): a quale scopo serve la chiamata (app.llm.roles); un ruolo sconosciuto è un ValueError.
         Finisce nelle metriche.
+
+        `fallback`: il motivo per cui questo provider non è quello che l'utente aveva scelto (`label`, `budget`),
+        se la chiamata è un ripiego (app.agent.llm_calls.choose_provider). Finisce nelle metriche.
         """
         check_role(role)
         destination = provider_destination(self.name)
@@ -149,6 +158,7 @@ class LLMProvider(ABC):
             label=tag.label.key,
             destination=destination.id,
             role=role,
+            fallback=fallback,
         )
         return result
 
@@ -225,13 +235,13 @@ class OpenAICompatProvider(LLMProvider):
         self.name = name
         self.timeout = timeout
 
-    def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
+    def _common_payload(self, messages, model, max_tokens, sampling: Dict[str, Any], json_mode=False, json_schema=None) -> dict:
+        """La parte della richiesta che ogni endpoint OpenAI-compatible capisce."""
         payload = {
             "model": model or self.default_model,
             "messages": messages,
             "max_tokens": max_tokens,
-            **reasoning.sampling.params(),
-            **reasoning.payload(),
+            **sampling,
         }
         if json_schema:
             payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "response", "schema": json_schema}}
@@ -239,8 +249,34 @@ class OpenAICompatProvider(LLMProvider):
             payload["response_format"] = {"type": "json_object"}
         payload["stream"] = True
         payload["stream_options"] = {"include_usage": True}
+        return payload
+
+    def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
+        # Ragionamento e avanzamento del prompt sono estensioni di llama.cpp
+        payload = self._common_payload(messages, model, max_tokens, reasoning.sampling.params(), json_mode, json_schema)
+        payload.update(reasoning.payload())
         payload["return_progress"] = True
         return payload
+
+    def _chat_url(self) -> str:
+        return f"{self.base_url}/chat/completions"
+
+    def _request_kwargs(self, payload: dict) -> Dict[str, Any]:
+        """Corpo e header della richiesta, ricalcolati a ogni tentativo (un'autenticazione firmata ha un'ora)."""
+        return {"json": payload}
+
+    def _http_error_reason(self, status: int, body: str) -> str:
+        return f"HTTP {status}"
+
+    def _prepare(self, model: str) -> Optional[str]:
+        """Prima della richiesta: il motivo per cui il modello non si può usare, altrimenti lo carica (None = si parte).
+
+        llama-swap risponderebbe con un 404 generico: qui il motivo arriva fino all'utente."""
+        reason = unavailable_reason(model)
+        if reason:
+            return reason
+        self.ensure_model_loaded(model)
+        return None
 
     def load_model(self, model: str) -> Dict[str, Any]:
         """Avvia il caricamento su llama-swap: una richiesta a /upstream carica il modello e resta aperta finché è pronto.
@@ -313,11 +349,9 @@ class OpenAICompatProvider(LLMProvider):
         e se il client si disconnette il server lo vede al batch successivo e libera lo slot.
         """
         effective_model = model or self.default_model
-        # llama-swap risponderebbe con un 404 generico: qui il motivo arriva fino all'utente
-        reason = unavailable_reason(effective_model)
+        reason = self._prepare(effective_model)
         if reason:
             return _failed(reason)
-        self.ensure_model_loaded(effective_model)
         payload = self._build_payload(messages, model, max_tokens, reasoning, json_mode=json_mode,
                                       json_schema=json_schema)
 
@@ -329,11 +363,11 @@ class OpenAICompatProvider(LLMProvider):
         for attempt in range(1, CONNECT_ATTEMPTS + 1):
             try:
                 with httpx.Client(timeout=self.timeout) as client:
-                    with client.stream("POST", f"{self.base_url}/chat/completions", json=payload) as res:
+                    with client.stream("POST", self._chat_url(), **self._request_kwargs(payload)) as res:
                         if res.status_code != 200:
                             res.read()
                             logger.warning(f"[{self.name}] LLM status {res.status_code}: {res.text[:300]}")
-                            return _failed(f"HTTP {res.status_code}")
+                            return _failed(self._http_error_reason(res.status_code, res.text))
                         return self._consume_stream(res, stream_callback, sess, start_t)
             except (httpx.ConnectError, httpx.ConnectTimeout) as e:
                 # La richiesta non è arrivata al server: ritentare non duplica lavoro
@@ -423,6 +457,11 @@ class OpenAICompatProvider(LLMProvider):
             metrics["cached_tokens"] = timings.get("cache_n", 0)
             metrics["prompt_ms"] = int(timings.get("prompt_ms", 0))
             metrics["completion_ms"] = int(timings.get("predicted_ms", 0))
+        elif raw_usage:
+            # Gli altri server (OpenAI, cloud) li riportano nel campo `usage`; `prompt_tokens` li comprende già
+            cached = ((raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"))
+            if isinstance(cached, int) and not isinstance(cached, bool) and cached > 0:
+                metrics["cached_tokens"] = cached
         # Con la callback le metriche passano dalla StreamSession, che le accumula e le inoltra ai subscriber
         if stream_callback:
             stream_callback({"type": "metrics", "metrics": metrics})
@@ -497,6 +536,103 @@ class OpenAICompatProvider(LLMProvider):
 
     def list_models(self) -> List[str]:
         return [m["id"] for m in self.list_models_with_details()]
+
+
+class CloudOpenAIProvider(OpenAICompatProvider):
+    """Endpoint OpenAI-compatible di un servizio cloud (primo: AWS Bedrock, `bedrock-runtime`).
+
+    Rispetto al server locale: si autentica con una chiave `Authorization: Bearer` oppure firma la richiesta con
+    SigV4 (la chiave, se c'è, ha la precedenza); non manda i campi di llama.cpp (`return_progress`,
+    `chat_template_kwargs`, `reasoning_budget_tokens`) né i parametri di campionamento fuori dallo standard OpenAI; non
+    carica modelli e non consulta il watchdog; i modelli vengono dalla configurazione, perché l'endpoint non ha
+    `GET /models`; il ragionamento resta spento (nessun modello cloud ha ancora un profilo in app.llm.reasoning).
+    Gli errori HTTP diventano un risultato fallito con il motivo, senza ritentare: un nuovo tentativo di una richiesta
+    arrivata al server potrebbe essere pagato due volte.
+    """
+
+    reasoning_controls = False
+    # Campionamento accettato da un endpoint OpenAI: top_k, min_p e repeat_penalty sono estensioni di llama.cpp
+    _SAMPLING_PARAMS = ("temperature", "top_p", "presence_penalty")
+    _HTTP_HINTS = {
+        401: "chiave o credenziali non valide",
+        403: "accesso negato (permessi o modello non abilitato)",
+        429: "limite di richieste o quota raggiunto",
+    }
+
+    def __init__(self, base_url: str, models: List[str], name: str, *, api_key: str = "", access_key: str = "",
+                 secret_key: str = "", session_token: str = "", region: str = "", service: str = "bedrock",
+                 timeout: float = 120.0, clock=None):
+        if not models:
+            raise ValueError(f"Provider '{name}': nessun modello configurato.")
+        super().__init__(base_url, models[0], name=name, timeout=timeout)
+        self.models = list(models)
+        self.api_key = api_key
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.session_token = session_token
+        self.region = region
+        self.service = service
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
+        sampling = {k: v for k, v in reasoning.sampling.params().items() if k in self._SAMPLING_PARAMS}
+        return self._common_payload(messages, model, max_tokens, sampling, json_mode, json_schema)
+
+    def _request_kwargs(self, payload: dict) -> Dict[str, Any]:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {"content-type": "application/json"}
+        if self.api_key:
+            headers["authorization"] = f"Bearer {self.api_key}"
+        else:
+            headers.update(sigv4.sign_request(
+                method="POST", url=self._chat_url(), headers=headers, body=body, access_key=self.access_key,
+                secret_key=self.secret_key, session_token=self.session_token or None, region=self.region,
+                service=self.service, timestamp=self._clock()))
+        return {"content": body, "headers": headers}
+
+    def _http_error_reason(self, status: int, body: str) -> str:
+        reason = f"HTTP {status}"
+        if status in self._HTTP_HINTS:
+            reason += f": {self._HTTP_HINTS[status]}"
+        elif status >= 500:
+            reason += ": errore del servizio"
+        try:
+            data = json.loads(body)
+        except ValueError:
+            data = None
+        # Bedrock: {"message": ...}; formato OpenAI: {"error": {"message": ...}}
+        error = data.get("error") if isinstance(data, dict) else None
+        message = error.get("message") if isinstance(error, dict) else (data.get("message") if isinstance(data, dict) else None)
+        return f"{reason} ({str(message)[:200]})" if message else reason
+
+    def _prepare(self, model: str) -> Optional[str]:
+        return None
+
+    def _server_model(self) -> str:
+        return self.models[0]
+
+    def health(self) -> bool:
+        # Nessun endpoint da interrogare gratis (`GET /models` risponde 404): configurato vale come raggiungibile
+        return True
+
+    def load_model(self, model: str) -> Dict[str, Any]:
+        return {"status": "ok", "detail": "already_loaded"}
+
+    def ensure_model_loaded(self, model: Optional[str] = None, timeout: float = 180.0) -> bool:
+        return True
+
+    def list_models_with_details(self) -> List[Dict[str, Any]]:
+        return [{
+            "id": m,
+            "is_vision": is_vision_model(m),
+            "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"],
+            "status": "loaded",
+            "is_loaded": True,
+            "is_loading": False,
+        } for m in self.models]
+
+    def list_models(self) -> List[str]:
+        return list(self.models)
 
 
 class OllamaProvider(LLMProvider):
@@ -614,12 +750,37 @@ _PROVIDERS: Dict[str, LLMProvider] = {}
 _ACTIVE_PROVIDER_NAME: str = "llamacpp"
 
 
+def register_provider(provider: LLMProvider) -> None:
+    """Aggiunge un provider. `total` è lo scope del tetto di spesa complessivo (app.llm.costs): nessun provider può
+    chiamarsi così, o il suo tetto e quello totale sarebbero la stessa riga."""
+    if provider.name == TOTAL_SCOPE:
+        raise ValueError(f"'{TOTAL_SCOPE}' è riservato al tetto di spesa complessivo: nome di provider non ammesso.")
+    _PROVIDERS[provider.name] = provider
+
+
+def bedrock_provider() -> Optional[CloudOpenAIProvider]:
+    """Il provider AWS Bedrock se la configurazione basta: una chiave API oppure le credenziali AWS (chiave di accesso
+    e segreto), e la regione, e almeno un modello. Altrimenti None e nulla cambia."""
+    has_credentials = bool(settings.bedrock_api_key.strip()
+                           or (settings.aws_access_key_id.strip() and settings.aws_secret_access_key.strip()))
+    region = settings.aws_region.strip()
+    models = settings.bedrock_model_list
+    if not (has_credentials and region and models):
+        return None
+    return CloudOpenAIProvider(
+        f"https://bedrock-runtime.{region}.amazonaws.com/openai/v1", models, "bedrock",
+        api_key=settings.bedrock_api_key.strip(), access_key=settings.aws_access_key_id.strip(),
+        secret_key=settings.aws_secret_access_key.strip(), session_token=settings.aws_session_token.strip(),
+        region=region, service="bedrock")
+
+
 def _register_default_providers():
-    _PROVIDERS["llamacpp"] = OpenAICompatProvider(
-        settings.llama_cpp_url, settings.default_model, name="llamacpp"
-    )
+    register_provider(OpenAICompatProvider(settings.llama_cpp_url, settings.default_model, name="llamacpp"))
     if settings.ollama_url:
-        _PROVIDERS["ollama"] = OllamaProvider(settings.ollama_url, settings.default_model)
+        register_provider(OllamaProvider(settings.ollama_url, settings.default_model))
+    bedrock = bedrock_provider()
+    if bedrock:
+        register_provider(bedrock)
 
 
 _register_default_providers()
