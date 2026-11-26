@@ -48,7 +48,7 @@ Database SQLite in `DATA_DIR`: `checkpoints.db` (LangGraph, thread, `audit_log`,
 
 ## 3. Frontend (`frontend/`)
 
-**Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 3 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
+**Stack**: React 19 · Vite 8 · TypeScript 6 · Tailwind 4 · react-markdown + highlight.js · oxlint. Client HTTP su `fetch` in `src/api/` (un modulo per gruppo di route del backend).
 
 - **Viste**: Chat (streaming, reasoning, approvazioni inline, diagnostica per messaggio), lista thread, Automations hub (run inspector, trigger, artefatti, integrazioni), Calendario, Memoria (profilo; fatti, entità e relazioni, con modifica e unione; episodi; procedure da approvare; conferme nell'app), Metriche (turni, velocità dei modelli, tool, salute dei servizi nel tempo), Knowledge, Impostazioni (sicurezza, modelli, temi, server MCP).
 - **Struttura (C3)**: chat in `components/chat/` (10 componenti, il più grande 193 righe), automazioni e calendario divisi per scheda e vista, stato negli hook (`useChat` 436 righe, `useChatOptions`, `useAutomationsData`, `useRunActions`, `useCalendarData`, `useCalendarNavigation`, …), calcoli puri in `utils/` (`chatMessages`, `calendarDates`).
