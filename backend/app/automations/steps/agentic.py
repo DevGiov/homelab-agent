@@ -12,7 +12,7 @@ from app.agent.agent_loop import AgentLoop, run_agent_loop
 from app.automations.steps.base import Outcome, StepContext, completed, failed, waiting_approval
 from app.automations.steps.tool_action import allowed_tools
 from app.automations.templating import extract_step_content, render_template
-from app.llm.providers import resolve_model
+from app.llm.providers import resolve_model, use_provider
 from app.security import approvals
 
 # Senza allowlist esplicita lo step non gestisce le automazioni stesse: potrebbe rilanciarsi o riscriversi
@@ -70,15 +70,24 @@ def _resume(ctx: StepContext) -> Outcome:
         return failed(f"Stato dello step sospeso sulla richiesta '{request_id}' non trovato: va rieseguita la run.")
     turn_checkpoints.delete(request_id)
     state = checkpoint["state"]
-    model = state["constructor"]["meta"].get("model")
-    fns = llm_calls.agent_loop_llm_fns(None, model, None)
-    loop = AgentLoop.restore(state, fns["call_llm_fn"], fns["call_llm_structured_fn"])
-    return _outcome(ctx, state["constructor"]["task"], model, loop.resume(request_id, ctx.resume["approved"]))
+    meta = state["constructor"]["meta"]
+    model = meta.get("model")
+    with use_provider(meta.get("provider")):
+        fns = llm_calls.agent_loop_llm_fns(None, model, None)
+        loop = AgentLoop.restore(state, fns["call_llm_fn"], fns["call_llm_structured_fn"])
+        result = loop.resume(request_id, ctx.resume["approved"])
+    return _outcome(ctx, state["constructor"]["task"], model, result)
 
 
 def run(ctx: StepContext) -> Outcome:
+    """Lo step usa il provider dell'automazione (None = il predefinito), per tutte le chiamate del suo loop."""
     if ctx.resume:
         return _resume(ctx)
+    with use_provider(ctx.automation.provider):
+        return _run(ctx)
+
+
+def _run(ctx: StepContext) -> Outcome:
 
     prompt = render_template(ctx.step.prompt_template or "", ctx.data)
     source, data = _input_data(ctx)
@@ -100,7 +109,7 @@ def run(ctx: StepContext) -> Outcome:
         allowed_registries=policy.allowed_registries,
         max_tool_calls=ctx.automation.budget.max_tool_calls,
         audit={"automation_id": ctx.automation.id, "run_id": ctx.run.run_id, "step_run_id": ctx.step_run_id},
-        meta={"model": model},
+        meta={"model": model, "provider": ctx.automation.provider},
         checkpoint_kind="automation_step",
         tag=ctx.data.get("tag"),
         **llm_calls.agent_loop_llm_fns(None, model, None),

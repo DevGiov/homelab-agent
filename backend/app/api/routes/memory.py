@@ -287,7 +287,9 @@ def get_consolidation() -> Dict[str, Any]:
 
 
 class StartConsolidation(BaseModel):
-    # Senza `model` vale quello delle impostazioni; null = default del server, `loaded` = il modello caricato
+    # Senza `model` vale quello delle impostazioni; null = default del server, `loaded` = il modello caricato.
+    # `provider` va con `model`: senza, quello delle impostazioni (null = il predefinito)
+    provider: Optional[str] = None
     model: Optional[str] = None
 
 
@@ -296,8 +298,10 @@ def start_consolidation(req: Optional[StartConsolidation] = None) -> Dict[str, A
     """Consolida subito i messaggi nuovi e deduplica i fatti, in background."""
     from app.agent import memory_consolidation
 
-    model = req.model if req and "model" in req.model_fields_set else memory_consolidation.get_settings().model
-    if not memory_consolidation.run_in_background(model):
+    config = memory_consolidation.get_settings()
+    model = req.model if req and "model" in req.model_fields_set else config.model
+    provider = req.provider if req and "provider" in req.model_fields_set else config.provider
+    if not memory_consolidation.run_in_background(model, provider):
         raise HTTPException(status_code=409, detail="Consolidamento già in corso.")
     return {"started": True}
 

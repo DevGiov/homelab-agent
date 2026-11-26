@@ -73,3 +73,17 @@ def _init_storage():
     """Schemi dei DB di test creati come all'avvio del servizio (i TestClient non eseguono il lifespan)."""
     from app import startup
     startup.init_storage()
+
+
+@pytest.fixture(autouse=True)
+def _restore_provider_registry():
+    """Il registro dei provider e le loro impostazioni tornano come prima di ogni test: un test che ricostruisce un
+    provider (configurazione della UI, `.env` cambiato) non lo lascia agli altri."""
+    from app.llm import providers
+    providers._ensure_loaded()
+    saved = [(d, dict(d)) for d in (providers._PROVIDERS, providers._CLEARANCES, providers._UNAVAILABLE,
+                                    providers._SETTINGS)]
+    yield
+    for target, copy in saved:
+        target.clear()
+        target.update(copy)

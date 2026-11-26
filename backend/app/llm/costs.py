@@ -190,3 +190,10 @@ def ceiling_reached(provider: str, now: Optional[datetime] = None) -> Optional[s
     if reached.get(TOTAL_SCOPE):
         return "total"
     return None
+
+
+def delete_provider(provider: str) -> None:
+    """Toglie prezzi e tetto di un provider eliminato. Le chiamate già registrate e il loro costo restano."""
+    with _connect() as conn:
+        conn.execute("DELETE FROM model_prices WHERE provider = ?", (provider,))
+        conn.execute("DELETE FROM spend_ceilings WHERE scope = ?", (provider,))

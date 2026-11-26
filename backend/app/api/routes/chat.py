@@ -3,67 +3,90 @@ import asyncio
 import json
 import logging
 import queue
+from typing import Optional, Tuple
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.agent.stream_session import (
     get_session,
 )
-from app.api.agent_runner import run_agent_flow, run_agent_flow_stream, stop_turn
+from app.api.agent_runner import run_agent_flow, run_agent_flow_stream, stop_turn, turn_selection
 from app.api.deps import rate_limited, verify_api_key
 from app.api.schemas import (
     ChatRequest,
     ChatResponse,
     ThreadControlRequest,
 )
+from app.llm.providers import ProviderUnavailableError, require_provider
 
 logger = logging.getLogger("api")
 
 router = APIRouter(tags=["chat"])
 
 
+def _selection(req: ChatRequest) -> Tuple[str, Optional[str]]:
+    """Provider e modello della richiesta (docs/providers/PROVIDERS_DESIGN.md, 5.8.1 e 5.8.6). Senza né provider né
+    modello, una conversazione esistente usa la coppia salvata con lei; altrimenti, o senza coppia salvata, vale il
+    provider predefinito. Un provider disattivato, incompleto o eliminato: 409, senza ripiegare da soli su un altro."""
+    provider, model = turn_selection(req.thread_id, req.provider, req.model)
+    try:
+        return require_provider(provider), model
+    except ProviderUnavailableError as e:
+        raise HTTPException(status_code=409, detail={"code": "provider_disabled", "message": str(e)}) from e
+
+
+def _run(req: ChatRequest, force_mode: Optional[str]) -> ChatResponse:
+    provider, model = _selection(req)
+    return run_agent_flow(req.input, req.thread_id, force_mode=force_mode, execute=req.execute,
+                          reasoning_budget=req.reasoning_budget, model=model, incognito=req.incognito,
+                          web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal",
+                          sensitivity=req.sensitivity, provider=provider)
+
+
 @router.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def chat_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
+    return _run(req, req.force_mode)
 
 @router.post("/v1/ask", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def ask_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="ask", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
+    return _run(req, "ask")
 
 @router.post("/v1/act", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def act_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="act", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
+    return _run(req, "act")
 
 @router.post("/v1/plan", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def plan_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode="plan", execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
+    return _run(req, "plan")
 
 @router.post("/v1/invoke", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
 @rate_limited
 def invoke_endpoint(req: ChatRequest, request: Request = None):
-    return run_agent_flow(req.input, req.thread_id, force_mode=req.force_mode, execute=req.execute, reasoning_budget=req.reasoning_budget, model=req.model, incognito=req.incognito, web_search=req.web_search, images=req.images, security_mode=req.security_mode or "normal", sensitivity=req.sensitivity)
+    return _run(req, req.force_mode)
 
 @router.post("/v1/invoke_stream", dependencies=[Depends(verify_api_key)])
 @rate_limited
 async def invoke_stream_endpoint(req: ChatRequest, request: Request = None):
+    provider, model = _selection(req)
     return run_agent_flow_stream(
         req.input,
         req.thread_id,
         force_mode=req.force_mode,
         execute=req.execute,
         reasoning_budget=req.reasoning_budget,
-        model=req.model,
+        model=model,
         incognito=req.incognito,
         web_search=req.web_search,
         request=request,
         images=req.images,
         security_mode=req.security_mode or "normal",
         sensitivity=req.sensitivity,
+        provider=provider,
     )
 
 @router.get("/v1/threads/{thread_id}/stream", dependencies=[Depends(verify_api_key)])

@@ -820,6 +820,7 @@ def test_modello_da_payload_minimo():
         "parameters": {},
         "settings": {},
         "retention_days": None,
+        "provider": None,
         "model": None,
         "input_schema": None,
         "permission_policy": {

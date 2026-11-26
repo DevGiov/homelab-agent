@@ -15,7 +15,7 @@ from app.calendar.db import init_calendar_db
 from app.channels import hub as channel_hub
 from app.channels import threads as channel_threads
 from app.core.config import settings
-from app.llm import costs
+from app.llm import costs, provider_config
 from app.memory import facts, hybrid_search, procedures, profile, thread_store, vector_store
 from app.observability import health
 from app.observability.store import init_metrics_db
@@ -46,12 +46,15 @@ def init_storage() -> None:
     network.init_network_db()
     flows.init_flows_db()
     costs.init_costs_db()
+    provider_config.init_provider_db()
     vector_store.init_vector_db()
     facts.init_facts_db()
     hybrid_search.init_search_indexes()
     init_automations_db()
     init_calendar_db()
     init_metrics_db()
+    # I provider dal .env e dalla configurazione della UI (provider_configs in mcp.db)
+    provider_config.load_all()
     logger.info(f"Dati in {settings.data_dir}: directory e schemi pronti")
 
 

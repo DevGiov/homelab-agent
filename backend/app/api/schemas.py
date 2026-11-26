@@ -10,6 +10,8 @@ class ChatRequest(BaseModel):
     force_mode: Optional[Literal["chat", "ask", "act", "plan"]] = None
     reasoning_budget: Optional[int] = None
     execute: bool = False
+    # Il modello si sceglie con il suo provider (docs/providers/PROVIDERS_DESIGN.md, 5.8.1). Vuoto = il predefinito
+    provider: Optional[str] = None
     model: Optional[str] = None
     incognito: bool = False
     web_search: Union[Literal["auto", "on", "off"], bool] = "auto"
@@ -30,6 +32,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     thread_id: Optional[str] = None
     mode: str
+    provider: Optional[str] = None
     model: Optional[str] = None
     response: str
     tool_used: Optional[str] = None
@@ -78,19 +81,6 @@ class SaveVersionsDataRequest(BaseModel):
     version_index: int
 
 
-class ProviderInfo(BaseModel):
-    name: str
-    is_default: bool
-    healthy: bool
-    default_model: str
-
-
-class ProvidersResponse(BaseModel):
-    active_provider: str
-    active_model: str
-    providers: List[ProviderInfo]
-
-
 class ModelDetail(BaseModel):
     id: str
     is_vision: bool = False
@@ -121,11 +111,6 @@ class ImageUploadResponse(BaseModel):
     filename: str
     width: Optional[int] = None
     height: Optional[int] = None
-
-
-class SetDefaultProviderRequest(BaseModel):
-    provider: str
-    model: Optional[str] = None
 
 
 class ModelPriceRequest(BaseModel):

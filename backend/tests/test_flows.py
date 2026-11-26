@@ -98,7 +98,9 @@ def test_provider_refuses_a_secret_and_records_label_and_destination():
 
 
 def test_provider_clearance_comes_from_settings(monkeypatch):
+    from app.llm import provider_config
     monkeypatch.setattr(settings, "llama_cpp_clearance", "internal")
+    provider_config.load_all()
     with pytest.raises(FlowDenied):
         _FakeProvider().chat([{"role": "user", "content": "x"}], tag=PRIVATE, role="answer", model="m")
     _FakeProvider().chat([{"role": "user", "content": "x"}], tag=INTERNAL, role="answer", model="m")

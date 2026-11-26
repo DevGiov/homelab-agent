@@ -126,9 +126,14 @@ async def get_thread(thread_id: str):
                     "timestamp": time.strftime("%H:%M")
                 })
 
+        provider, model = thread_store.get_thread_model(thread_id)
         return {
             "thread_id": thread_id,
             "title": thread_store.get_thread_title(thread_id),
+            # La scelta della conversazione (docs/providers/PROVIDERS_DESIGN.md, 5.8.1): il provider (predefinito per
+            # le conversazioni di prima) e il modello (None = il predefinito del provider)
+            "provider": provider,
+            "model": model,
             # Livello minimo della conversazione scelto dall'utente (app.security.flows); None = public
             "sensitivity_level": thread_store.get_thread_sensitivity(thread_id),
             "checkpoint_count": count,
@@ -149,11 +154,16 @@ async def update_thread_title(thread_id: str, req: SetThreadTitleRequest):
 
 
 @router.post("/v1/threads/{thread_id}/title/generate", dependencies=[Depends(verify_api_key)])
-async def force_generate_thread_title(thread_id: str, model: Optional[str] = None):
+def force_generate_thread_title(thread_id: str, model: Optional[str] = None, provider: Optional[str] = None):
+    """Rigenera il titolo con il provider e il modello indicati, altrimenti con quelli della conversazione."""
     last_msg = thread_store.get_last_message(thread_id) or "Nuova chat"
     from app.llm import providers
-    effective_model = model or providers.get_active_model_name()
-    title = thread_store.generate_and_save_title(thread_id, last_msg, model=effective_model)
+    saved_provider, saved_model = thread_store.get_thread_model(thread_id)
+    try:
+        chosen = providers.require_provider(provider or saved_provider)
+    except providers.ProviderUnavailableError as e:
+        raise HTTPException(status_code=409, detail={"code": "provider_disabled", "message": str(e)}) from e
+    title = thread_store.generate_and_save_title(thread_id, last_msg, model=model or saved_model, provider=chosen)
     return {"status": "ok", "thread_id": thread_id, "title": title}
 
 

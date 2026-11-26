@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.agent import llm_calls
 from app.agent.fact_extraction import ENTITY_GUIDE, ExtractedEntity, entity_refs
 from app.llm import roles
-from app.llm.providers import LLMUnavailableError, get_provider, resolve_model
+from app.llm.providers import LLMUnavailableError, get_provider, resolve_model, use_provider
 from app.memory import facts, thread_store, vector_store
 from app.security import detectors, flows
 
@@ -112,11 +112,13 @@ def _set_job(key: str, value: str) -> None:
 
 class ConsolidationSettings(BaseModel):
     """Consolidamento giornaliero e modello. `model`: None = default del server, `loaded` = il modello caricato
-    quando l'esecuzione parte (il default se nessuno è caricato), altrimenti il nome del modello."""
+    quando l'esecuzione parte (il default se nessuno è caricato), altrimenti il nome del modello. `provider`: il
+    provider di quel modello, None = il predefinito (lavoro in background, docs/providers/PROVIDERS_DESIGN.md, 5.8.1)."""
 
     enabled: bool = True
     time: str = Field(default="03:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     timezone: str = "Europe/Rome"
+    provider: Optional[str] = None
     model: Optional[str] = None
 
     @field_validator("timezone")
@@ -128,7 +130,7 @@ class ConsolidationSettings(BaseModel):
             raise ValueError(f"Fuso orario sconosciuto: {v}") from None
         return v
 
-    @field_validator("model")
+    @field_validator("model", "provider")
     @classmethod
     def _empty_is_default(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() or None if v else None
@@ -456,18 +458,24 @@ def status() -> Dict[str, Any]:
     }
 
 
-def run(model: Optional[str] = None, trigger: str = "manual") -> Optional[Dict[str, Any]]:
+def run(model: Optional[str] = None, trigger: str = "manual", provider: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Consolidamento e deduplicazione; None se un'esecuzione è già in corso. `model` è la scelta (anche `loaded`),
-    risolta qui, all'avvio dell'esecuzione."""
+    risolta qui, all'avvio dell'esecuzione, sul `provider` (None = il predefinito)."""
+    with use_provider(provider):
+        return _run(model, trigger)
+
+
+def _run(model: Optional[str], trigger: str) -> Optional[Dict[str, Any]]:
     global _running_since
     if not _lock.acquire(blocking=False):
         return None
     started = time.monotonic()
     _running_since = datetime.now().astimezone().isoformat(timespec="seconds")
     try:
-        model = resolve_model(model)
-        result: Dict[str, Any] = {"trigger": trigger, "model": get_provider().effective_model(model)}
+        result: Dict[str, Any] = {"trigger": trigger}
         try:
+            model = resolve_model(model)
+            result.update(provider=get_provider().name, model=get_provider().effective_model(model))
             result.update(consolidate_messages(model))
             result["deduplicated"] = deduplicate(model)
         except LLMUnavailableError as e:
@@ -482,10 +490,11 @@ def run(model: Optional[str] = None, trigger: str = "manual") -> Optional[Dict[s
         _lock.release()
 
 
-def run_in_background(model: Optional[str] = None) -> bool:
+def run_in_background(model: Optional[str] = None, provider: Optional[str] = None) -> bool:
     if _lock.locked():
         return False
-    threading.Thread(target=run, kwargs={"model": model}, name="memory-consolidation", daemon=True).start()
+    threading.Thread(target=run, kwargs={"model": model, "provider": provider}, name="memory-consolidation",
+                     daemon=True).start()
     return True
 
 
@@ -512,7 +521,7 @@ class ConsolidationScheduler:
                 if not is_due(now, config, _job("last_scheduled_day")):
                     continue
                 _set_job("last_scheduled_day", now.astimezone(ZoneInfo(config.timezone)).date().isoformat())
-                run(config.model, trigger="schedule")
+                run(config.model, trigger="schedule", provider=config.provider)
             except Exception as e:
                 logger.warning(f"Consolidamento programmato non riuscito: {e}")
 

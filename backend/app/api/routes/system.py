@@ -21,7 +21,13 @@ async def status():
     """Health check aggregato dei servizi esterni (Fase 1.4). Mai bloccante."""
     import httpx
 
-    from app.llm.providers import list_providers
+    from app.llm import providers
+
+    def _llamacpp_url() -> str:
+        try:
+            return providers.get_provider("llamacpp").base_url.rstrip("/")
+        except Exception:
+            return settings.llama_cpp_url.rstrip("/")
 
     def _origin(url: str) -> str:
         parts = urlsplit(url)
@@ -36,12 +42,16 @@ async def status():
             return {"name": name, "url": url, "ok": False, "error": str(e)[:120]}
 
     results = await asyncio.gather(
-        _ping("llamacpp", f"{settings.llama_cpp_url.rstrip('/')}/models"),
+        _ping("llamacpp", f"{_llamacpp_url()}/models"),
         _ping("metamcp", _origin(settings.metamcp_url)),
         return_exceptions=True,
     )
     services = [r for r in results if isinstance(r, dict)]
-    providers_status = list_providers()
+    def _providers_health() -> dict:
+        # I provider utilizzabili (dal .env e dalla UI), con l'indirizzo di adesso
+        return {name: providers.get_provider(name).health() for name in providers.registered_provider_names()}
+
+    providers_status = await asyncio.to_thread(_providers_health)
     return {
         "status": "ok" if all(s["ok"] for s in services) else "degraded",
         "services": services,

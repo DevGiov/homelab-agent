@@ -4,26 +4,28 @@ Interfaccia comune chat/stream per llama.cpp, OpenAI e Ollama.
 Tutti gli adapter restituiscono {"content": str, "reasoning_content": str}
 e supportano streaming verso una callback di eventi.
 """
+import contextvars
 import json
 import logging
 import re
+import threading
 import time
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 from urllib.parse import quote
 
 import httpx
 
 from app.agent.stream_session import current_session_var
-from app.core.config import settings
 from app.llm import sigv4
 from app.llm.costs import TOTAL_SCOPE
 from app.llm.model_availability import availability_fields, unavailable_reason
 from app.llm.reasoning import Reasoning, resolve
 from app.llm.roles import check_role
 from app.observability.turns import record_llm_call
-from app.security.flows import FlowDenied, Tag, can_flow, provider_destination
+from app.security.flows import Destination, FlowDenied, Label, Tag, can_flow, provider_destination
 
 logger = logging.getLogger("providers")
 
@@ -99,6 +101,15 @@ class LLMProvider(ABC):
     default_model: str = ""
     # False per i provider che non traducono il ragionamento (nessun profilo nei loro modelli): le fasi lo chiedono spento
     reasoning_controls: bool = True
+    # Il livello effettivo (docs/providers/PROVIDERS_DESIGN.md, 5.8.3), fissato quando il provider viene costruito dalla
+    # sua configurazione. None = quello che il registro conosce per il suo nome
+    clearance: Optional[Label] = None
+
+    def destination(self) -> Destination:
+        """La destinazione dei dati di questo provider: il suo livello, o quello del registro per il suo nome."""
+        if self.clearance is not None:
+            return Destination(f"provider:{self.name}", "model", self.clearance)
+        return provider_destination(self.name)
 
     def effective_model(self, model: Optional[str] = None) -> str:
         """Il modello di una richiesta: quello chiesto, altrimenti DEFAULT_MODEL, altrimenti uno di quelli che il
@@ -145,7 +156,7 @@ class LLMProvider(ABC):
         se la chiamata è un ripiego (app.agent.llm_calls.choose_provider). Finisce nelle metriche.
         """
         check_role(role)
-        destination = provider_destination(self.name)
+        destination = self.destination()
         decision = can_flow(tag, destination)
         if not decision.allowed:
             logger.warning(f"Chiamata a {destination.id} negata: {decision.reason}")
@@ -239,16 +250,36 @@ def _extract_think_blocks(content: str) -> tuple[str, str]:
 
 
 class OpenAICompatProvider(LLMProvider):
-    """Adapter generico per endpoint OpenAI-compatible (llama.cpp server, vLLM, LM Studio)."""
+    """Adapter generico per endpoint OpenAI-compatible (llama.cpp server, vLLM, LM Studio).
+
+    `llama_cpp` (vero per llama-swap e llama-server): avanzamento del prompt, caricamento dei modelli, watchdog delle
+    risorse e campi del ragionamento di llama.cpp. Falso per un altro motore (vLLM, LM Studio): solo i campi standard
+    delle Chat Completions, nessun caricamento, ragionamento spento. `api_key`: facoltativa, inviata come `Bearer`."""
 
     # Il server gira su una GPU che il processo condivide col modello: un 502 durante un'immagine è la VRAM esaurita
     local_gpu = True
+    # Campionamento accettato da un endpoint OpenAI: top_k, min_p e repeat_penalty sono estensioni di llama.cpp
+    _SAMPLING_PARAMS = ("temperature", "top_p", "presence_penalty")
 
-    def __init__(self, base_url: str, default_model: str, name: str = "openai-compat", timeout: float = 120.0):
+    def __init__(self, base_url: str, default_model: str, name: str = "openai-compat", timeout: float = 120.0, *,
+                 api_key: str = "", llama_cpp: bool = True):
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
         self.name = name
         self.timeout = timeout
+        self.api_key = api_key
+        self.llama_cpp = llama_cpp
+        if not llama_cpp:
+            self.reasoning_controls = False
+            self.local_gpu = False
+
+    def _auth_headers(self) -> Dict[str, str]:
+        return {"authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+
+    def _get_kwargs(self) -> Dict[str, Any]:
+        """Argomenti delle richieste GET al server: l'header di autenticazione, solo se c'è una chiave."""
+        headers = self._auth_headers()
+        return {"headers": headers} if headers else {}
 
     def _common_payload(self, messages, model, max_tokens, sampling: Dict[str, Any], json_mode=False, json_schema=None) -> dict:
         """La parte della richiesta che ogni endpoint OpenAI-compatible capisce."""
@@ -267,6 +298,9 @@ class OpenAICompatProvider(LLMProvider):
         return payload
 
     def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
+        if not self.llama_cpp:
+            sampling = {k: v for k, v in reasoning.sampling.params().items() if k in self._SAMPLING_PARAMS}
+            return self._common_payload(messages, model, max_tokens, sampling, json_mode, json_schema)
         # Ragionamento e avanzamento del prompt sono estensioni di llama.cpp
         payload = self._common_payload(messages, model, max_tokens, reasoning.sampling.params(), json_mode, json_schema)
         payload.update(reasoning.payload())
@@ -278,7 +312,8 @@ class OpenAICompatProvider(LLMProvider):
 
     def _request_kwargs(self, payload: dict) -> Dict[str, Any]:
         """Corpo e header della richiesta, ricalcolati a ogni tentativo (un'autenticazione firmata ha un'ora)."""
-        return {"json": payload}
+        headers = self._auth_headers()
+        return {"json": payload, "headers": headers} if headers else {"json": payload}
 
     def _http_error_reason(self, status: int, body: str) -> str:
         return f"HTTP {status}"
@@ -287,6 +322,8 @@ class OpenAICompatProvider(LLMProvider):
         """Prima della richiesta: il motivo per cui il modello non si può usare, altrimenti lo carica (None = si parte).
 
         llama-swap risponderebbe con un 404 generico: qui il motivo arriva fino all'utente."""
+        if not self.llama_cpp:
+            return None
         reason = unavailable_reason(model)
         if reason:
             return reason
@@ -299,6 +336,8 @@ class OpenAICompatProvider(LLMProvider):
         Non serve attenderla: chiusa la connessione il caricamento prosegue. Solo se la GPU sta servendo un altro
         modello la richiesta è ancora in coda e decade con la connessione; la chat successiva si accoda comunque.
         """
+        if not self.llama_cpp:
+            return {"status": "unsupported"}
         reason = unavailable_reason(model)
         if reason:
             return {"status": "error", "code": 409, "detail": reason}
@@ -318,7 +357,7 @@ class OpenAICompatProvider(LLMProvider):
     def ensure_model_loaded(self, model: Optional[str] = None, timeout: float = 180.0) -> bool:
         """Assicura che il modello sia caricato in VRAM prima di procedere con l'inferenza."""
         effective_model = model or self.default_model
-        if not effective_model:
+        if not effective_model or not self.llama_cpp:
             return True
 
         try:
@@ -492,7 +531,7 @@ class OpenAICompatProvider(LLMProvider):
     def health(self) -> bool:
         try:
             with httpx.Client(timeout=3.0) as client:
-                res = client.get(f"{self.base_url}/models")
+                res = client.get(f"{self.base_url}/models", **self._get_kwargs())
             return res.status_code == 200
         except Exception:
             return False
@@ -510,11 +549,12 @@ class OpenAICompatProvider(LLMProvider):
         `loaded` già durante il caricamento."""
         try:
             with httpx.Client(timeout=5.0) as client:
-                res = client.get(f"{self.base_url}/models")
-                running = client.get(f"{server_root(self.base_url)}/running")
+                res = client.get(f"{self.base_url}/models", **self._get_kwargs())
+                # Lo stato dei processi è di llama-swap: un altro motore serve già caricati i modelli che elenca
+                running = client.get(f"{server_root(self.base_url)}/running") if self.llama_cpp else None
             if res.status_code == 200:
                 states = {}
-                if running.status_code == 200:
+                if running is not None and running.status_code == 200:
                     states = {r["model"]: r.get("state") for r in running.json().get("running", [])}
 
                 details = []
@@ -524,7 +564,7 @@ class OpenAICompatProvider(LLMProvider):
                         continue
                     input_mods = (m.get("architecture") or {}).get("input_modalities") or []
                     is_vis = is_vision_model(m_id) or "image" in input_mods
-                    status_val = model_status(states.get(m_id))
+                    status_val = model_status(states.get(m_id)) if self.llama_cpp else "loaded"
                     details.append({
                         "id": m_id,
                         "is_vision": is_vis,
@@ -532,7 +572,7 @@ class OpenAICompatProvider(LLMProvider):
                         "status": status_val,
                         "is_loaded": (status_val == "loaded"),
                         "is_loading": (status_val == "loading"),
-                        **availability_fields(m_id),
+                        **(availability_fields(m_id) if self.llama_cpp else {}),
                     })
                 return details
         except Exception as e:
@@ -570,11 +610,6 @@ class CloudOpenAIProvider(OpenAICompatProvider):
     arrivata al server potrebbe essere pagato due volte.
     """
 
-    reasoning_controls = False
-    # Un 502 di un servizio cloud è un errore del servizio, non la memoria di una GPU nostra
-    local_gpu = False
-    # Campionamento accettato da un endpoint OpenAI: top_k, min_p e repeat_penalty sono estensioni di llama.cpp
-    _SAMPLING_PARAMS = ("temperature", "top_p", "presence_penalty")
     _HTTP_HINTS = {
         401: "chiave o credenziali non valide",
         403: "accesso negato (permessi o modello non abilitato)",
@@ -586,19 +621,14 @@ class CloudOpenAIProvider(OpenAICompatProvider):
                  timeout: float = 120.0, clock=None):
         if not models:
             raise ValueError(f"Provider '{name}': nessun modello configurato.")
-        super().__init__(base_url, models[0], name=name, timeout=timeout)
+        super().__init__(base_url, models[0], name=name, timeout=timeout, api_key=api_key, llama_cpp=False)
         self.models = list(models)
-        self.api_key = api_key
         self.access_key = access_key
         self.secret_key = secret_key
         self.session_token = session_token
         self.region = region
         self.service = service
         self._clock = clock or (lambda: datetime.now(timezone.utc))
-
-    def _build_payload(self, messages, model, max_tokens, reasoning: Reasoning, json_mode=False, json_schema=None) -> dict:
-        sampling = {k: v for k, v in reasoning.sampling.params().items() if k in self._SAMPLING_PARAMS}
-        return self._common_payload(messages, model, max_tokens, sampling, json_mode, json_schema)
 
     def _request_kwargs(self, payload: dict) -> Dict[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -626,9 +656,6 @@ class CloudOpenAIProvider(OpenAICompatProvider):
         error = data.get("error") if isinstance(data, dict) else None
         message = error.get("message") if isinstance(error, dict) else (data.get("message") if isinstance(data, dict) else None)
         return f"{reason} ({str(message)[:200]})" if message else reason
-
-    def _prepare(self, model: str) -> Optional[str]:
-        return None
 
     def _server_model(self) -> str:
         return self.models[0]
@@ -660,10 +687,10 @@ class CloudOpenAIProvider(OpenAICompatProvider):
 class OllamaProvider(LLMProvider):
     """Adapter per Ollama via API nativa (/api/chat)."""
 
-    def __init__(self, base_url: str, default_model: str, timeout: float = 120.0):
+    def __init__(self, base_url: str, default_model: str, name: str = "ollama", timeout: float = 120.0):
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
-        self.name = "ollama"
+        self.name = name
         self.timeout = timeout
 
     def _chat(self, messages, *, model=None, max_tokens=4096, reasoning: Reasoning,
@@ -766,63 +793,149 @@ class OllamaProvider(LLMProvider):
         return next(iter(self.list_models()), "")
 
 
-# --- Registry dei provider configurabili ---
+# --- Registro dei provider ---------------------------------------------------------------------------
+#
+# Nessun provider "attivo" globale (docs/providers/PROVIDERS_DESIGN.md, 5.8.1): ogni richiesta porta il suo provider.
+# Il provider del turno sta in `turn_provider_var`, impostato all'inizio del turno dal lavoratore che lo esegue e
+# copiato nei thread che il turno apre (`contextvars.copy_context`); senza, vale il provider predefinito.
+
+
+class ProviderUnavailableError(LLMUnavailableError):
+    """Il provider chiesto non esiste, è disattivato o non si può costruire. Non si ripiega da soli su un altro."""
+
+    def __init__(self, name: str, reason: str):
+        # Il messaggio arriva all'utente così com'è (l'avviso di errore della chat): in italiano e con cosa fare
+        super().__init__(f"Il provider '{name}' {reason}: scegli un altro modello")
+        self.provider_name = name
+        self.reason = reason
+
+
+# Perché un provider non si può usare: completano la frase "Il provider 'x' ..." (ProviderUnavailableError)
+MISSING = "non esiste"
+DISABLED = "è disattivato"
+INCOMPLETE = "non è configurato del tutto"
+UNREADABLE = "ha una credenziale illeggibile (inseriscila di nuovo)"
+UNAVAILABLE = "non è disponibile"
+
+# Il provider predefinito e quello di ripiego quando le impostazioni non dicono altro
+DEFAULT_PROVIDER = "llamacpp"
 
 _PROVIDERS: Dict[str, LLMProvider] = {}
-_ACTIVE_PROVIDER_NAME: str = "llamacpp"
+# Livello effettivo di ogni provider conosciuto, anche di quelli che non si possono costruire
+_CLEARANCES: Dict[str, Label] = {}
+# Perché un provider conosciuto non è nel registro (disattivato, configurazione incompleta, credenziale illeggibile)
+_UNAVAILABLE: Dict[str, str] = {}
+_SETTINGS: Dict[str, str] = {"default_provider": DEFAULT_PROVIDER, "fallback_provider": DEFAULT_PROVIDER}
+# Le sostituzioni del registro (ricostruzione a caldo) avvengono sotto questo lock; chi ha già in mano un provider
+# finisce la sua chiamata con l'oggetto vecchio
+_REGISTRY_LOCK = threading.RLock()
+
+turn_provider_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("turn_provider", default=None)
 
 
 def register_provider(provider: LLMProvider) -> None:
-    """Aggiunge un provider. `total` è lo scope del tetto di spesa complessivo (app.llm.costs): nessun provider può
-    chiamarsi così, o il suo tetto e quello totale sarebbero la stessa riga."""
+    """Aggiunge o sostituisce un provider. `total` è lo scope del tetto di spesa complessivo (app.llm.costs): nessun
+    provider può chiamarsi così, o il suo tetto e quello totale sarebbero la stessa riga."""
     if provider.name == TOTAL_SCOPE:
         raise ValueError(f"'{TOTAL_SCOPE}' è riservato al tetto di spesa complessivo: nome di provider non ammesso.")
-    _PROVIDERS[provider.name] = provider
+    with _REGISTRY_LOCK:
+        _PROVIDERS[provider.name] = provider
+        _UNAVAILABLE.pop(provider.name, None)
+        if provider.clearance is not None:
+            _CLEARANCES[provider.name] = provider.clearance
 
 
-def bedrock_provider() -> Optional[CloudOpenAIProvider]:
-    """Il provider AWS Bedrock se la configurazione basta: una chiave API oppure le credenziali AWS (chiave di accesso
-    e segreto), e la regione, e almeno un modello. Altrimenti None e nulla cambia."""
-    has_credentials = bool(settings.bedrock_api_key.strip()
-                           or (settings.aws_access_key_id.strip() and settings.aws_secret_access_key.strip()))
-    region = settings.aws_region.strip()
-    models = settings.bedrock_model_list
-    if not (has_credentials and region and models):
+def replace_provider(name: str, provider: Optional[LLMProvider], clearance: Label, unavailable: Optional[str]) -> None:
+    """Mette nel registro la nuova versione di un provider (None = non utilizzabile, con il motivo)."""
+    with _REGISTRY_LOCK:
+        _CLEARANCES[name] = clearance
+        if provider is None:
+            _PROVIDERS.pop(name, None)
+            _UNAVAILABLE[name] = unavailable or UNAVAILABLE
+        else:
+            provider.clearance = clearance
+            register_provider(provider)
+
+
+def forget_provider(name: str) -> None:
+    """Toglie un provider eliminato: le richieste che lo nominano rispondono che non esiste."""
+    with _REGISTRY_LOCK:
+        _PROVIDERS.pop(name, None)
+        _CLEARANCES.pop(name, None)
+        _UNAVAILABLE.pop(name, None)
+
+
+def set_provider_settings(default_provider: str, fallback_provider: str) -> None:
+    with _REGISTRY_LOCK:
+        _SETTINGS["default_provider"] = default_provider
+        _SETTINGS["fallback_provider"] = fallback_provider
+
+
+def default_provider_name() -> str:
+    """Il provider delle richieste che non ne indicano uno e del lavoro in background."""
+    return _SETTINGS["default_provider"]
+
+
+def fallback_provider_name() -> str:
+    """Dove vanno le chiamate che il provider scelto non può ricevere (etichetta) o non deve (tetto di spesa)."""
+    return _SETTINGS["fallback_provider"]
+
+
+def turn_provider_name() -> str:
+    """Il provider del turno in corso, altrimenti quello predefinito."""
+    return turn_provider_var.get() or default_provider_name()
+
+
+@contextmanager
+def use_provider(name: Optional[str]) -> Iterator[None]:
+    """Esegue il blocco con `name` come provider del turno (None = il predefinito)."""
+    token = turn_provider_var.set(name or None)
+    try:
+        yield
+    finally:
+        turn_provider_var.reset(token)
+
+
+def unavailable_reason_of(name: str) -> Optional[str]:
+    """None se il provider si può usare, altrimenti il motivo."""
+    _ensure_loaded()
+    if name in _PROVIDERS:
         return None
-    return CloudOpenAIProvider(
-        f"https://bedrock-runtime.{region}.amazonaws.com/openai/v1", models, "bedrock",
-        api_key=settings.bedrock_api_key.strip(), access_key=settings.aws_access_key_id.strip(),
-        secret_key=settings.aws_secret_access_key.strip(), session_token=settings.aws_session_token.strip(),
-        region=region, service="bedrock")
+    return _UNAVAILABLE.get(name, MISSING)
 
 
-def _register_default_providers():
-    register_provider(OpenAICompatProvider(settings.llama_cpp_url, settings.default_model, name="llamacpp"))
-    if settings.ollama_url:
-        register_provider(OllamaProvider(settings.ollama_url, settings.default_model))
-    bedrock = bedrock_provider()
-    if bedrock:
-        register_provider(bedrock)
-
-
-_register_default_providers()
+def require_provider(name: Optional[str]) -> str:
+    """Il provider di una richiesta (vuoto = il predefinito), se si può usare; altrimenti ProviderUnavailableError."""
+    name = name or default_provider_name()
+    reason = unavailable_reason_of(name)
+    if reason:
+        raise ProviderUnavailableError(name, reason)
+    return name
 
 
 def get_provider(name: Optional[str] = None) -> LLMProvider:
-    """Restituisce il provider richiesto o quello attivo/default."""
-    if name and name in _PROVIDERS:
-        return _PROVIDERS[name]
-    if _ACTIVE_PROVIDER_NAME in _PROVIDERS:
-        return _PROVIDERS[_ACTIVE_PROVIDER_NAME]
-    return _PROVIDERS.get("llamacpp") or next(iter(_PROVIDERS.values()))
+    """Il provider `name`, altrimenti quello del turno, altrimenti il predefinito. Se non si può usare,
+    ProviderUnavailableError: una chiamata non cambia provider da sola (i ripieghi li decide choose_provider)."""
+    _ensure_loaded()
+    name = name or turn_provider_name()
+    provider = _PROVIDERS.get(name)
+    if provider is None:
+        raise ProviderUnavailableError(name, _UNAVAILABLE.get(name, MISSING))
+    return provider
 
 
-def get_active_provider_name() -> str:
-    return _ACTIVE_PROVIDER_NAME
+def provider_clearance(name: str) -> Label:
+    """Il livello effettivo del provider `name`; un provider sconosciuto vale `public` (5.8.3)."""
+    _ensure_loaded()
+    provider = _PROVIDERS.get(name)
+    if provider is not None and provider.clearance is not None:
+        return provider.clearance
+    return _CLEARANCES.get(name, Label.PUBLIC)
 
 
-def get_active_model_name() -> str:
-    return get_provider().effective_model()
+def default_model_name(provider_name: Optional[str] = None) -> str:
+    """Il modello delle richieste che non ne indicano uno, sul provider dato (o su quello del turno)."""
+    return get_provider(provider_name).effective_model()
 
 
 # Scelta del modello che significa "quello caricato sul server quando la richiesta parte"
@@ -830,7 +943,7 @@ LOADED_MODEL = "loaded"
 
 
 def loaded_model() -> Optional[str]:
-    """Il modello caricato sul provider attivo, o None se nessuno lo è (o il provider non lo dice)."""
+    """Il modello caricato sul provider del turno, o None se nessuno lo è (o il provider non lo dice)."""
     try:
         details = get_provider().list_models_with_details()
     except Exception as e:
@@ -847,58 +960,47 @@ def resolve_model(model: Optional[str]) -> Optional[str]:
     return model
 
 
-def set_active_provider(provider_name: str, model_name: Optional[str] = None) -> Dict[str, Any]:
-    global _ACTIVE_PROVIDER_NAME
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' non registrato. Disponibili: {list(_PROVIDERS.keys())}")
-    _ACTIVE_PROVIDER_NAME = provider_name
-    if model_name:
-        _PROVIDERS[provider_name].default_model = model_name
-    return {
-        "active_provider": _ACTIVE_PROVIDER_NAME,
-        "active_model": _PROVIDERS[_ACTIVE_PROVIDER_NAME].default_model
-    }
-
-
 def registered_provider_names() -> List[str]:
+    _ensure_loaded()
     return list(_PROVIDERS)
 
 
-def list_providers_info() -> List[Dict[str, Any]]:
-    """Restituisce informazioni su tutti i provider registrati."""
-    info = []
-    for name, p in _PROVIDERS.items():
-        info.append({
-            "name": name,
-            "is_default": name == _ACTIVE_PROVIDER_NAME,
-            "healthy": p.health(),
-            "default_model": p.default_model
-        })
-    return info
+def _registered(provider_name: str) -> LLMProvider:
+    _ensure_loaded()
+    if provider_name not in _PROVIDERS:
+        raise ValueError(f"Provider '{provider_name}' non registrato")
+    return _PROVIDERS[provider_name]
 
 
 def list_provider_models(provider_name: str) -> List[str]:
     """Elenca i modelli disponibili per un dato provider."""
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' non registrato")
-    return _PROVIDERS[provider_name].list_models()
+    return _registered(provider_name).list_models()
 
 
 def list_provider_models_with_details(provider_name: str) -> List[Dict[str, Any]]:
     """Elenca i modelli con dettagli (is_vision, input_modalities) per un dato provider."""
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' non registrato")
-    return _PROVIDERS[provider_name].list_models_with_details()
-
-
-def list_providers() -> Dict[str, bool]:
-    """Stato health di tutti i provider registrati (retrocompatibilità)."""
-    return {name: p.health() for name, p in _PROVIDERS.items()}
+    return _registered(provider_name).list_models_with_details()
 
 
 def load_provider_model(provider_name: str, model_name: str) -> Dict[str, Any]:
     """Carica un modello specifico per il dato provider."""
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' non registrato")
-    return _PROVIDERS[provider_name].load_model(model_name)
+    return _registered(provider_name).load_model(model_name)
 
+
+_LOADED = False
+
+
+def mark_loaded() -> None:
+    global _LOADED
+    _LOADED = True
+
+
+def _ensure_loaded() -> None:
+    """Costruisce i provider alla prima richiesta: dal `.env`, unito alla configurazione della UI (app.llm.provider_config).
+    All'avvio lo fa app.startup.init_storage; qui per chi usa il registro senza passare dall'avvio (CLI, valutazioni)."""
+    if _LOADED:
+        return
+    with _REGISTRY_LOCK:
+        if not _LOADED:
+            from app.llm import provider_config
+            provider_config.load_all()

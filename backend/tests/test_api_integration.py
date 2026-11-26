@@ -147,8 +147,9 @@ class TestApiEndpoints(unittest.TestCase):
         r = self.client.get("/v1/providers")
         self.assertEqual(r.status_code, 200)
         data = r.json()
-        self.assertIn("active_provider", data)
-        self.assertIn("active_model", data)
+        # Nessun provider attivo globale (5.8.1): il predefinito e il ripiego
+        self.assertEqual(data["default_provider"], "llamacpp")
+        self.assertIn("fallback_provider", data)
         self.assertIn("providers", data)
         self.assertTrue(len(data["providers"]) > 0)
         prov_names = [p["name"] for p in data["providers"]]
@@ -161,14 +162,9 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(mdata["provider"], "llamacpp")
         self.assertIn("models", mdata)
 
-        # 3. Set default provider and model
-        r = self.client.put("/v1/providers/default", json={
-            "provider": "llamacpp",
-            "model": "test-model-custom"
-        })
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["active_provider"], "llamacpp")
-        self.assertEqual(r.json()["active_model"], "test-model-custom")
+        # 3. Il vecchio "provider attivo" non c'è più
+        r = self.client.put("/v1/providers/default", json={"provider": "llamacpp", "model": "test-model-custom"})
+        self.assertIn(r.status_code, (404, 405))
 
         # 4. Inexistent provider error
         r = self.client.get("/v1/providers/nonexistent_provider_xyz/models")

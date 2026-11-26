@@ -7,6 +7,8 @@ class AgentState(TypedDict, total=False):
     thread_id: Optional[str]
     force_mode: Optional[str]
     reasoning_budget: Optional[int]
+    # Il provider del turno (app.llm.providers.turn_provider_var) e il modello scelto (None = il predefinito)
+    provider: Optional[str]
     model: Optional[str]
     execute: Optional[bool]
     web_search: Optional[Any]

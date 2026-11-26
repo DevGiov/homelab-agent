@@ -263,7 +263,8 @@ def test_the_existing_model_routes_still_work_next_to_the_price_routes(client):
     assert client.get("/v1/providers/nonexistent_provider_xyz/models").status_code == 404
     assert client.get("/v1/providers/cloudx/models/x/price").status_code in (404, 405)
     assert client.get("/v1/providers/costs").status_code == 200
-    assert client.put("/v1/providers/default", json={"provider": "nope"}).status_code == 400
+    # Il provider attivo globale non c'è più: ogni richiesta porta il suo (5.8.1)
+    assert client.put("/v1/providers/default", json={"provider": "nope"}).status_code in (404, 405)
 
 
 def test_price_routes_refuse_unknown_providers_and_invalid_bodies(client):

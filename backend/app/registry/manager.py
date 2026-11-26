@@ -1,3 +1,4 @@
+import contextvars
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -255,10 +256,11 @@ class ToolRegistryManager:
                                tag: Optional[Any] = None, **audit: Optional[str]) -> List[Any]:
         """Esegue in parallelo più tool read-only (Fase 3.3). Ordine dei risultati = ordine delle chiamate.
 
-        `audit`: automation_id, run_id, step_run_id, come per execute_tool."""
+        `audit`: automation_id, run_id, step_run_id, come per execute_tool. Ogni tool gira in una copia del contesto
+        di chi chiama: un tool che chiama un modello (inspect_image) usa il provider del turno, la sessione e il tag."""
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [
-                pool.submit(self.execute_tool, c["tool_name"], c.get("arguments", {}),
+                pool.submit(contextvars.copy_context().run, self.execute_tool, c["tool_name"], c.get("arguments", {}),
                             allowed_registries, thread_id=thread_id, mode=mode, security_mode=security_mode,
                             task=task, tag=tag, **audit)
                 for c in calls

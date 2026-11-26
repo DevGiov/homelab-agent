@@ -73,6 +73,10 @@ def init_db():
         ensure_columns(conn, "thread_messages", {"sensitivity": "TEXT", "sensitivity_json": "TEXT"})
         ensure_columns(conn, "thread_summaries", {"sensitivity": "TEXT"})
         ensure_columns(conn, "thread_metadata", {"sensitivity": "TEXT"})
+        # Provider e modello: quelli scelti per la conversazione (l'ultima richiesta) e quelli di ogni risposta.
+        # NULL = una conversazione di prima dei provider per richiesta: vale il provider predefinito
+        ensure_columns(conn, "thread_metadata", {"provider": "TEXT", "model": "TEXT"})
+        ensure_columns(conn, "thread_messages", {"provider": "TEXT"})
         conn.commit()
     finally:
         conn.close()
@@ -136,6 +140,43 @@ def set_thread_sensitivity(thread_id: str, level: str) -> None:
         conn.close()
 
 
+def set_thread_model(thread_id: str, provider: Optional[str], model: Optional[str]) -> None:
+    """La scelta di provider e modello della conversazione, quella dell'ultima richiesta."""
+    if not thread_id:
+        return
+    conn = _get_conn()
+    try:
+        conn.execute("""
+            INSERT INTO thread_metadata (thread_id, provider, model, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(thread_id) DO UPDATE SET provider = excluded.provider, model = excluded.model,
+            updated_at = CURRENT_TIMESTAMP
+        """, (thread_id, provider, model))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def saved_thread_model(thread_id: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """(provider, modello) salvati con la conversazione, (None, None) se non ce ne sono."""
+    if not thread_id:
+        return None, None
+    conn = _get_conn()
+    try:
+        row = conn.execute("SELECT provider, model FROM thread_metadata WHERE thread_id = ?", (thread_id,)).fetchone()
+    finally:
+        conn.close()
+    provider, model = (row or (None, None))
+    return provider or None, model or None
+
+
+def get_thread_model(thread_id: str) -> Tuple[str, Optional[str]]:
+    """(provider, modello) della conversazione. Senza un provider salvato vale il predefinito; modello None = il
+    predefinito del provider."""
+    from app.llm.providers import default_provider_name
+    provider, model = saved_thread_model(thread_id)
+    return provider or default_provider_name(), model
+
+
 def thread_label(thread_id: str) -> Optional[str]:
     """L'etichetta più alta tra i messaggi del thread e il suo livello minimo (per le chiamate che li riassumono)."""
     conn = _get_conn()
@@ -152,15 +193,17 @@ def thread_label(thread_id: str) -> Optional[str]:
     return max(labels).key if labels else None
 
 
-def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[str] = None, tag: Any = None) -> str:
+def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[str] = None, tag: Any = None,
+                            provider: Optional[str] = None) -> str:
     """Genera via LLM un titolo conciso in italiano (3-5 parole) e lo salva in SQLite.
 
-    `tag`: sensibilità del testo da cui nasce il titolo; senza, quella del thread."""
+    `tag`: sensibilità del testo da cui nasce il titolo; senza, quella del thread. `provider`: quello del turno, passato
+    esplicito perché il titolo si genera in un thread a parte (senza, quello del turno corrente o il predefinito)."""
     if not thread_id or not user_prompt:
         return "Nuova Conversazione"
     try:
         from app.llm import providers
-        provider = providers.get_provider()
+        chosen = providers.get_provider(provider)
         prompt_msgs = [
             {
                 "role": "system",
@@ -178,7 +221,7 @@ def generate_and_save_title(thread_id: str, user_prompt: str, model: Optional[st
         from app.security import flows
         title_tag = flows.join(tag) if tag else flows.tag_of(thread_label(thread_id) or "public", "titolo")
         from app.agent.llm_calls import choose_provider
-        choice = choose_provider(model, title_tag, provider)
+        choice = choose_provider(model, title_tag, chosen)
         res = choice.provider.chat(prompt_msgs, tag=title_tag, role=roles.TITLE, model=choice.model, max_tokens=25,
                                    temperature=0.3, **({"fallback": choice.fallback} if choice.fallback else {}))
         raw_title = res.get("content", "").strip()
@@ -285,6 +328,7 @@ def save_assistant_message(
         web_prefetch = response_data.get("web_prefetch")
         web_prefetch_json = json.dumps(web_prefetch, ensure_ascii=False) if web_prefetch else None
         model = response_data.get("model")
+        provider = response_data.get("provider")
         # Etichetta del turno che ha scritto la risposta (ChatResponse.sensitivity)
         sens = response_data.get("sensitivity")
         sensitivity = sens.get("label") if isinstance(sens, dict) else sens
@@ -296,8 +340,8 @@ def save_assistant_message(
             (thread_id, message_id, sender, content, timestamp, mode, tool_used, reasoning,
              plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
              is_error, reasoning_content, versions_json, version_index, metrics_json, web_prefetch_json, model, sensitivity,
-             sensitivity_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             sensitivity_json, provider)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             thread_id,
             msg_id,
@@ -320,6 +364,7 @@ def save_assistant_message(
             model,
             sensitivity,
             sensitivity_json,
+            provider,
         ))
         conn.commit()
         return msg_id
@@ -394,7 +439,7 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
             SELECT message_id, sender, content, timestamp, mode, tool_used, reasoning,
                    plan_steps_json, plan_structure_json, execution_trace_json, rollback_trace_json,
                    is_error, reasoning_content, versions_json, version_index, images_json, metrics_json,
-                   web_prefetch_json, model, sensitivity, sensitivity_json
+                   web_prefetch_json, model, sensitivity, sensitivity_json, provider
             FROM thread_messages
             WHERE thread_id = ?
             ORDER BY rowid ASC
@@ -402,11 +447,13 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
         rows = cursor.fetchall()
         conn.close()
 
+        from app.llm.providers import default_provider_name
+        default_provider = default_provider_name()
         messages = []
         for row in rows:
             (m_id, sender, content, ts, mode, tool_used, reasoning,
              ps_json, pst_json, et_json, rt_json, is_err, reasoning_content,
-             vers_json, v_idx, img_json, met_json, wp_json, model_val, sens_label, sens_json) = row
+             vers_json, v_idx, img_json, met_json, wp_json, model_val, sens_label, sens_json, provider_val) = row
 
             versions_parsed = None
             if vers_json:
@@ -456,6 +503,8 @@ def get_thread_messages(thread_id: str) -> List[Dict[str, Any]]:
                 "metrics": metrics_parsed,
                 "web_prefetch": web_prefetch_parsed,
                 "model": model_val,
+                # Una risposta di prima dei provider per richiesta: il predefinito
+                "provider": (provider_val or default_provider) if sender == "assistant" else None,
                 "sensitivity": _sensitivity_of(sens_label, sens_json),
             }
             messages.append(msg_obj)

@@ -12,8 +12,8 @@ import pytest
 from app.agent import llm_calls
 from app.agent.stream_session import StreamSession, current_session_var
 from app.core.config import Settings, settings
-from app.llm import costs, providers, sigv4
-from app.llm.providers import CloudOpenAIProvider, OpenAICompatProvider, bedrock_provider, register_provider
+from app.llm import costs, provider_config, providers, sigv4
+from app.llm.providers import CloudOpenAIProvider, OpenAICompatProvider, register_provider
 from app.llm.reasoning import Reasoning, Sampling, resolve
 from app.observability import store
 from app.security.flows import PUBLIC_TAG, FlowDenied, Label, Tag, provider_destination
@@ -201,6 +201,12 @@ def test_a_cloud_provider_without_models_is_refused():
 
 # --- Registrazione -----------------------------------------------------------------------------------
 
+def bedrock_provider():
+    """Il provider `bedrock` costruito dalla configurazione, o None se non si può costruire."""
+    provider_config.load_all()
+    return providers._PROVIDERS.get("bedrock")
+
+
 def configure(monkeypatch, **values):
     base = {"bedrock_api_key": "", "aws_access_key_id": "", "aws_secret_access_key": "", "aws_session_token": "",
             "aws_region": "", "bedrock_models": ""}
@@ -237,16 +243,15 @@ def test_bedrock_with_aws_credentials_is_registered_and_signs(monkeypatch):
 def test_bedrock_is_absent_when_the_configuration_is_incomplete(monkeypatch, values):
     configure(monkeypatch, **values)
     assert bedrock_provider() is None
-    monkeypatch.setattr(providers, "_PROVIDERS", {})
-    providers._register_default_providers()
     assert "bedrock" not in providers.registered_provider_names()
     assert "llamacpp" in providers.registered_provider_names()
+    with pytest.raises(providers.ProviderUnavailableError):
+        providers.get_provider("bedrock")
 
 
 def test_default_registration_adds_bedrock_when_configured(monkeypatch):
-    configure(monkeypatch, bedrock_api_key="k", aws_region="r", bedrock_models="m")
-    monkeypatch.setattr(providers, "_PROVIDERS", {})
-    providers._register_default_providers()
+    configure(monkeypatch, bedrock_api_key="k", aws_region="eu-west-1", bedrock_models="m")
+    provider_config.load_all()
     assert providers.get_provider("bedrock").name == "bedrock"
 
 
@@ -282,9 +287,11 @@ def test_private_and_unknown_clearances_are_refused_with_a_logged_error(raw, cap
 
 
 def test_the_destination_of_bedrock_reads_its_clearance_and_never_exceeds_internal(monkeypatch):
+    configure(monkeypatch, bedrock_api_key="k", aws_region="eu-west-1", bedrock_models="m")
     for value, expected in [("public", Label.PUBLIC), ("internal", Label.INTERNAL), ("private", Label.PUBLIC),
                             ("secret", Label.PUBLIC), ("boh", Label.PUBLIC)]:
         monkeypatch.setattr(settings, "bedrock_clearance", value)
+        provider_config.load_all()
         dest = provider_destination("bedrock")
         assert (dest.id, dest.kind, dest.clearance) == ("provider:bedrock", "model", expected), value
     # I provider locali non cambiano
@@ -441,11 +448,13 @@ def two_providers(monkeypatch):
     """Provider attivo `bedrock` (finto) e `llamacpp` (finto) nel registro."""
     local = OpenAICompatProvider("http://localhost:8080/v1", "modello-locale", name="llamacpp")
     remote = cloud(api_key="k")
+    local.clearance, remote.clearance = Label.PRIVATE, Label.PUBLIC
     monkeypatch.setattr(providers, "_PROVIDERS", {"llamacpp": local, "bedrock": remote})
-    monkeypatch.setattr(providers, "_ACTIVE_PROVIDER_NAME", "bedrock")
-    monkeypatch.setattr(settings, "bedrock_clearance", "public")
-    return type("P", (), {"local": local, "remote": remote, "local_calls": Stub(local, "locale"),
+    # Il provider del turno: bedrock (il predefinito e il ripiego restano llamacpp)
+    token = providers.turn_provider_var.set("bedrock")
+    yield type("P", (), {"local": local, "remote": remote, "local_calls": Stub(local, "locale"),
                           "remote_calls": Stub(remote, "cloud")})
+    providers.turn_provider_var.reset(token)
 
 
 def with_session():
@@ -485,7 +494,7 @@ def test_data_the_cloud_cannot_receive_goes_to_the_local_model_with_reason_label
 
 def test_internal_data_flows_to_the_cloud_only_with_clearance_internal(two_providers, monkeypatch):
     assert llm_calls.call_llm("x", tag=INTERNAL_TAG, role="answer")["content"] == "locale"
-    monkeypatch.setattr(settings, "bedrock_clearance", "internal")
+    two_providers.remote.clearance = Label.INTERNAL
     assert llm_calls.call_llm("x", tag=INTERNAL_TAG, role="answer")["content"] == "cloud"
     assert [r["fallback"] for r in rows()] == ["label", None]
 
@@ -539,7 +548,7 @@ def test_a_ceiling_that_cannot_be_checked_keeps_the_call_local(two_providers, mo
 
 
 def test_with_the_local_provider_active_nothing_changes(two_providers, monkeypatch):
-    monkeypatch.setattr(providers, "_ACTIVE_PROVIDER_NAME", "llamacpp")
+    providers.turn_provider_var.set("llamacpp")
     costs.set_ceiling("llamacpp", 1)
     _spend("llamacpp", 9)
     sess, sub, token = with_session()
@@ -588,7 +597,7 @@ def test_a_cloud_call_asks_for_no_reasoning_even_when_the_phase_wants_it(two_pro
 
 
 def test_a_local_call_still_reasons_when_the_phase_wants_it(two_providers, monkeypatch):
-    monkeypatch.setattr(providers, "_ACTIVE_PROVIDER_NAME", "llamacpp")
+    providers.turn_provider_var.set("llamacpp")
     two_providers.local.default_model = "Qwen3.6-35B"
     llm_calls.call_llm("ciao", tag=PUBLIC_TAG, role="plan", thinking="high", max_tokens=500)
     [call] = two_providers.local_calls.calls

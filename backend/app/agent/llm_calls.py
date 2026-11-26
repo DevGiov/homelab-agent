@@ -10,9 +10,16 @@ from app.agent.stream_session import current_session_var
 from app.core import image_utils
 from app.core.text_utils import strip_thinking
 from app.llm import costs, roles
-from app.llm.providers import LLMProvider, LLMUnavailableError, get_provider, is_vision_model
+from app.llm.providers import (
+    LLMProvider,
+    LLMUnavailableError,
+    ProviderUnavailableError,
+    fallback_provider_name,
+    get_provider,
+    is_vision_model,
+)
 from app.llm.reasoning import Level, interleaved_for, resolve
-from app.security.flows import Tag, can_flow, provider_destination
+from app.security.flows import Tag, can_flow
 
 logger = logging.getLogger("graph")
 
@@ -22,8 +29,6 @@ stream_reasoning_phase_count = contextvars.ContextVar("stream_reasoning_phase_co
 # del turno (api.agent_runner.start_turn), la riceve ogni chiamata con ruolo `answer`
 channel_style_var = contextvars.ContextVar("channel_style_var", default=None)
 
-# Il provider locale: dove vanno le chiamate che il provider scelto non può o non deve ricevere
-LOCAL_PROVIDER = "llamacpp"
 FALLBACK_LABEL = "label"
 FALLBACK_BUDGET = "budget"
 
@@ -32,41 +37,50 @@ FALLBACK_BUDGET = "budget"
 class ProviderChoice:
     provider: LLMProvider
     model: Optional[str]  # None = il modello predefinito del provider
-    fallback: Optional[str] = None  # `label` o `budget` se la scelta è un ripiego sul provider locale, altrimenti None
+    fallback: Optional[str] = None  # `label` o `budget` se la scelta è un ripiego sul provider di ripiego, altrimenti None
     origin: Optional[str] = None  # il nome del provider da cui si è ripiegato
 
 
 def choose_provider(model: Optional[str], tag: Tag, provider: Optional[LLMProvider] = None) -> ProviderChoice:
-    """Il provider di una chiamata (docs/providers/PROVIDERS_DESIGN.md, 5.5). Si parte dal provider attivo e dal modello
-    scelti dall'utente; si passa al provider locale, col suo modello predefinito, se:
+    """Il provider di una chiamata (docs/providers/PROVIDERS_DESIGN.md, 5.5 e 5.8). Si parte dal provider del turno e
+    dal modello scelti dall'utente; si passa al provider di ripiego (impostazione, di base `llamacpp`), col suo modello
+    predefinito, se:
 
-    1. l'etichetta dei dati (`tag`) supera il livello che il provider attivo può ricevere: motivo `label`;
+    1. l'etichetta dei dati (`tag`) supera il livello effettivo del provider del turno: motivo `label`;
     2. altrimenti, la spesa del mese ha raggiunto il tetto del provider o quello totale: motivo `budget`.
 
-    Se il provider attivo è già quello locale non cambia nulla: l'etichetta troppo alta per lui resta un `FlowDenied` di
-    `LLMProvider.chat`, l'ultima guardia.
+    Se il provider del turno è già quello di ripiego non cambia nulla: l'etichetta troppo alta per lui resta un
+    `FlowDenied` di `LLMProvider.chat`, l'ultima guardia. Lo stesso se il ripiego non si può usare: per l'etichetta la
+    chiamata resta sul suo provider e `chat` la nega; per il tetto è un LLMUnavailableError.
 
     `provider`: il provider già scelto da chi chiama direttamente `LLMProvider.chat` (router, titolo, ispezione delle
-    immagini); senza, quello attivo. Anche quelle chiamate passano di qui: altrimenti con un provider cloud attivo non
+    immagini); senza, quello del turno. Anche quelle chiamate passano di qui: altrimenti con un provider cloud non
     avrebbero né il ripiego per l'etichetta né il tetto di spesa."""
     provider = provider if provider is not None else get_provider()
+    fallback_name = fallback_provider_name()
     # Solo i provider veri: un'altra cosa passata al posto di un provider (nei test) non ha nome né livello
-    if not isinstance(provider, LLMProvider) or provider.name == LOCAL_PROVIDER:
+    if not isinstance(provider, LLMProvider) or provider.name == fallback_name:
         return ProviderChoice(provider, model)
     reason = None
-    if not can_flow(tag, provider_destination(provider.name)).allowed:
+    if not can_flow(tag, provider.destination()).allowed:
         reason = FALLBACK_LABEL
     else:
         try:
             if costs.ceiling_reached(provider.name):
                 reason = FALLBACK_BUDGET
         except Exception as e:
-            # Senza poter leggere la spesa non si può dire che il tetto regga: si resta sul modello locale
-            logger.warning(f"Tetto di spesa di '{provider.name}' non verificabile, uso il provider locale: {e}")
+            # Senza poter leggere la spesa non si può dire che il tetto regga: si resta sul provider di ripiego
+            logger.warning(f"Tetto di spesa di '{provider.name}' non verificabile, uso il provider di ripiego: {e}")
             reason = FALLBACK_BUDGET
     if reason is None:
         return ProviderChoice(provider, model)
-    local = get_provider(LOCAL_PROVIDER)
+    try:
+        local = get_provider(fallback_name)
+    except ProviderUnavailableError as e:
+        if reason == FALLBACK_LABEL:
+            logger.warning(f"Ripiego per l'etichetta impossibile ({e}): la chiamata a '{provider.name}' sarà negata")
+            return ProviderChoice(provider, model)
+        raise LLMUnavailableError(f"Tetto di spesa di '{provider.name}' raggiunto e ripiego non disponibile: {e}") from e
     logger.info(f"Chiamata a '{provider.name}' dirottata su '{local.name}': {reason}")
     return ProviderChoice(local, None, reason, provider.name)
 

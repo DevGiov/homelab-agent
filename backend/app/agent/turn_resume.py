@@ -20,6 +20,7 @@ def turn_meta(state: AgentState) -> Dict[str, Any]:
         "thread_id": state.get("thread_id"),
         "task": state.get("task", ""),
         "mode": state.get("mode"),
+        "provider": state.get("provider"),
         "model": state.get("model"),
         "thinking_budget": state.get("reasoning_budget"),
         "incognito": bool(state.get("incognito")),

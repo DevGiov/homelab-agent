@@ -181,7 +181,7 @@ def test_settings_are_saved_and_validated(sandbox):
     from app.api.main import api
 
     client = TestClient(api)
-    assert client.get("/v1/memory/consolidation").json()["settings"] == {"enabled": True, "time": "03:00", "timezone": "Europe/Rome", "model": None}
+    assert client.get("/v1/memory/consolidation").json()["settings"] == {"enabled": True, "time": "03:00", "timezone": "Europe/Rome", "provider": None, "model": None}
     saved = client.put("/v1/memory/consolidation/settings", json={"enabled": True, "time": "22:30", "timezone": "Europe/Rome", "model": "loaded"})
     assert saved.status_code == 200 and mc.get_settings().time == "22:30" and mc.get_settings().model == "loaded"
     assert client.get("/v1/memory/consolidation").json()["next_run"].endswith("22:30+01:00")
@@ -479,3 +479,19 @@ def test_fact_label_never_goes_above_private():
 def test_add_fact_rejects_an_unknown_label(sandbox):
     with pytest.raises(ValueError):
         facts.add_fact("Fatto qualsiasi", sensitivity="secret")
+
+
+def test_a_run_uses_the_provider_of_its_model(sandbox):
+    from app.api.main import api
+    from app.llm import providers
+
+    mc.save_settings(mc.ConsolidationSettings(provider="altro", model="m"))
+    with patch.object(mc, "run_in_background", return_value=True) as start:
+        assert TestClient(api).post("/v1/memory/consolidation", json={}).status_code == 202
+    assert start.call_args.args == ("m", "altro")
+    seen = []
+    with patch.object(mc, "consolidate_messages", side_effect=lambda m: seen.append(providers.turn_provider_name()) or {}), \
+            patch.object(mc, "deduplicate", return_value=0), patch.object(mc, "resolve_model", side_effect=lambda m: m), \
+            patch.object(mc, "get_provider", return_value=type("P", (), {"name": "llamacpp", "effective_model": lambda self, m: m})()):
+        mc.run("m", provider="llamacpp")
+    assert seen == ["llamacpp"] and providers.turn_provider_var.get() is None
