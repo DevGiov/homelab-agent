@@ -378,7 +378,8 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 
 - **Evidenza** (7, 14 e 15/11/2026, `PXQN-Qwen3.8-27B-Vision`): ogni turno con un'immagine allegata finisce con «Il modello non ha completato la richiesta (HTTP 502)» e il modello sparisce dalla GPU. Il journal di llama-swap di quelle richieste è un `cudaMalloc` fallito (594 MiB per il grafo dell'immagine, pochi MiB liberi sulla scheda da 16 GB) seguito da «upstream process exited unexpectedly». Le chiamate di solo testo allo stesso modello, anche da decine di migliaia di token, vanno a buon fine. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md).
 - **Fatto il 26/11/2026** (`ccfce54`..`95cf311`, su CT 125): un 502 del server locale su una richiesta con un'immagine diventa «L'immagine non è entrata nella memoria della GPU e il modello è stato chiuso» (il provider cloud no); l'immagine va solo alle chiamate che la guardano (risposte, piano, query del prefetch visivo), non alla selezione dei tool né al titolo; ogni immagine viene ridimensionata (lato lungo al massimo 1920) prima dell'invio.
-- **Resta**: il preset del modello Vision sull'host della GPU (contesto più corto o `ubatch` più piccolo), che è ciò che libera i circa 594 MiB; il titolo che parte in parallelo alla risposta con immagine e produce un secondo 502 nel log quando il processo muore.
+- **Preset cambiato il 26/11/2026** su CT 100 (decisione del maintainer): contesto 128K e proiettore sulla CPU (`no-mmproj-offload`), circa 5 s per immagine; da provare con un'immagine vera.
+- **Resta**: il titolo che parte in parallelo alla risposta con immagine e produce un secondo 502 nel log quando il processo muore.
 
 ## ISS-40
 **Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti** — S1
