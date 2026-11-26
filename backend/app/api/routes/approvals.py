@@ -22,24 +22,12 @@ logger = logging.getLogger("api")
 
 router = APIRouter(tags=["approvals"])
 
-# Azione registrata (status o resolution_action) -> testo della scheda
-_RECORDED_ACTION = {
-    "approved": "approvata",
-    "approve": "approvata",
-    "denied": "rifiutata",
-    "deny": "rifiutata",
-    "approve_thread": "approvata per questa chat",
-    "approve_always": "approvata in modo permanente",
-}
 
-
-def _already_resolved(request_id: str, action: str) -> HTTPException:
-    label = _RECORDED_ACTION.get(action, action)
-    return HTTPException(status_code=409, detail={
-        "code": "already_resolved",
-        "action": action,
-        "message": f"Richiesta '{request_id}' già risolta ({label})",
-    })
+def closed_error(request_id: str) -> HTTPException:
+    """404 id sconosciuto, 409 già risolta (con l'azione registrata), 410 scaduta: la scheda lo dice e si chiude."""
+    from app.security import approvals
+    detail = approvals.closed_approval(request_id)
+    return HTTPException(status_code=approvals.CLOSED_HTTP_STATUS[detail["code"]], detail=detail)
 
 
 # --- Approval workflow (Fase 3.2) ---
@@ -49,10 +37,14 @@ def _resolve_for_run(request_id: str, action: str, resolved_by: str) -> Optional
     from app.automations.db import approvals as approvals_db
     from app.automations.db import runs as runs_db
     from app.automations.routes.common import get_runner
+    from app.security import approvals
 
     pending = approvals_db.get_automation_approval(request_id)
     if not pending or not runs_db.get_run(pending["run_id"]):
         return None
+    # Una richiesta già decisa o scaduta non riprende la run: la risposta dice quale dei due
+    if pending.get("status") != "pending" or approvals.expire_if_overdue(pending):
+        raise closed_error(request_id)
     threading.Thread(target=get_runner().resume_run, args=(pending["run_id"], request_id, action, resolved_by), daemon=True).start()
     return {"request_id": request_id, "status": "denied" if action in ("deny", "false", "refuse") else "approved", "action": action,
             "tool_name": pending["tool_name"], "arguments": pending["arguments"], "run_id": pending["run_id"]}
@@ -90,17 +82,12 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
         raise HTTPException(status_code=409, detail="La chat ha un altro turno in corso: fermalo o aspetta che finisca.")
 
     req = approvals.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
-    if req is not None and req.status == "expired":
-        turn_checkpoints.delete(request_id)
-        raise HTTPException(status_code=410, detail="Richiesta scaduta")
-    if req is None:
-        closed = approvals.closed_approval(request_id)
-        if closed is None or closed["status"] in ("", "pending"):
-            raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata")
-        if closed["status"] == "expired":
+    if req is None or req.status == "expired":
+        error = closed_error(request_id)
+        if error.status_code == 410:
+            # Il turno sospeso su una richiesta scaduta non riprenderà più
             turn_checkpoints.delete(request_id)
-            raise HTTPException(status_code=410, detail="Richiesta scaduta")
-        raise _already_resolved(request_id, closed["action"])
+        raise error
 
     # Il turno che ha chiesto l'approvazione riprende da dove si era fermato, in streaming
     if checkpoint:
@@ -147,6 +134,7 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
             "command_preview": result.get("command_preview"),
             "command_prefix": result.get("command_prefix"),
             "risk_reason": result.get("risk_reason"),
+            "expires_at": result.get("expires_at"),
         }]
         if req.thread_id:
             thread_store.save_assistant_message(req.thread_id, {

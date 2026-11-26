@@ -12,10 +12,17 @@ from app.automations.models import (
 )
 from app.automations.routes.common import get_runner
 from app.core.config import settings
+from app.security import approvals
 
 logger = logging.getLogger("automations.routes")
 
 router = APIRouter(prefix="/v1/automations")
+
+
+def _closed_error(approval_id: str) -> HTTPException:
+    """La stessa risposta della route di chat: 404 sconosciuta, 409 già risolta, 410 scaduta."""
+    detail = approvals.closed_approval(approval_id)
+    return HTTPException(status_code=approvals.CLOSED_HTTP_STATUS[detail["code"]], detail=detail)
 
 
 @router.get("/approvals")
@@ -40,19 +47,15 @@ async def resolve_approval(
         if not run_dict:
             # Risoluzione per approvazioni di sessione Chat (guardrails)
             from app.registry.manager import get_registry_manager
-            from app.security import approvals
 
-            # 1. Aggiorna DB automazioni
-            approvals_db.resolve_automation_approval(
-                approval_id, body.action, resolved_by=body.resolved_by, db_path=settings.automations_db_path
-            )
-
-            # 2. Risolvi in guardrails memory/permissions
-            approvals.resolve_approval(
+            # 1. Risolvi in memoria e sul database (con i permessi); scaduta o già decisa: 404/409/410 come in chat
+            req = approvals.resolve_approval(
                 request_id=approval_id, action=body.action, resolved_by=body.resolved_by
             )
+            if req is None or req.status == "expired":
+                raise _closed_error(approval_id)
 
-            # 3. Se approvata ed è presente nel tool manager per esecuzione immediata
+            # 2. Se approvata ed è presente nel tool manager per esecuzione immediata
             if body.action.lower() in ("approve", "approved", "true"):
                 try:
                     get_registry_manager().execute_approved_tool(approval_id)
@@ -73,8 +76,8 @@ async def resolve_approval(
             resumed_run = await asyncio.to_thread(runner.resume_run, run_id, approval_id, body.action, body.resolved_by)
             return {"status": resumed_run.status.value, "run": resumed_run}
         pending = approvals_db.get_automation_approval(approval_id, db_path=settings.automations_db_path)
-        if not pending or pending.get("status") != "pending":
-            raise HTTPException(status_code=404, detail="Approvazione non trovata o già risolta.")
+        if not pending or pending.get("status") != "pending" or approvals.expire_if_overdue(pending):
+            raise _closed_error(approval_id)
         background_tasks.add_task(runner.resume_run, run_id, approval_id, body.action, body.resolved_by)
         return {"status": "resuming", "run_id": run_id}
     except ValueError as e:

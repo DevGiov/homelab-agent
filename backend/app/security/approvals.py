@@ -230,7 +230,7 @@ def _is_past_deadline(req: ApprovalRequest, now: float) -> bool:
 
 
 def _expires_at_iso(req: ApprovalRequest) -> str:
-    return datetime.fromtimestamp(_deadline(req), tz=timezone.utc).isoformat()
+    return _iso_or_none(_deadline(req))
 
 
 def _mark_expired(request_ids: List[str]) -> None:
@@ -277,22 +277,59 @@ def _restore_approval(request_id: str) -> Optional[ApprovalRequest]:
     return req
 
 
-def closed_approval(request_id: str) -> Optional[Dict[str, str]]:
-    """Stato di una richiesta già chiusa, per distinguere id assente, già risolta e scaduta."""
+# Una richiesta che non si può più decidere: codice del dettaglio -> stato HTTP della risposta
+CLOSED_HTTP_STATUS = {"not_found": 404, "already_resolved": 409, "expired": 410}
+
+_ACTION_LABELS = {"approved": "approvata", "denied": "rifiutata"}
+
+
+def _iso_or_none(epoch: Optional[float]) -> Optional[str]:
+    # Al secondo: la UI la mostra in ore e minuti
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat(timespec="seconds") if epoch is not None else None
+
+
+def closed_approval(request_id: str) -> Dict[str, Any]:
+    """Perché una richiesta non si può più decidere, come `detail` della risposta HTTP.
+
+    `code` è `not_found` (id sconosciuto), `already_resolved` (con l'azione registrata e chi l'ha presa)
+    oppure `expired` (con la scadenza). Legge la memoria e poi il database: dopo un riavvio vale la riga.
+    """
     with _approval_lock:
         req = _APPROVALS.get(request_id)
-    if req is not None:
-        return {"status": req.status, "action": req.status}
-    try:
-        row = approvals_db.get_automation_approval(request_id)
-    except Exception as e:
-        logger.debug(f"Lettura approval '{request_id}' non riuscita: {e}")
-        return None
-    if not row:
-        return None
-    status = str(row.get("status") or "")
-    action = str(row.get("resolution_action") or status)
-    return {"status": status, "action": action}
+    status, resolved_by, expires_at = None, None, None
+    if req is not None and req.status != "pending":
+        status, resolved_by, expires_at = req.status, req.resolved_by, _expires_at_iso(req)
+    else:
+        try:
+            row = approvals_db.get_automation_approval(request_id)
+        except Exception as e:
+            logger.debug(f"Lettura approval '{request_id}' non riuscita: {e}")
+            row = None
+        if row:
+            status = str(row.get("resolution_action") or row.get("status") or "")
+            resolved_by = row.get("resolved_by")
+            expires_at = _iso_or_none(_parse_utc(row.get("expires_at")))
+    if status == "expired":
+        return {"code": "expired", "expires_at": expires_at,
+                "message": f"Richiesta '{request_id}' scaduta: il tool non è stato eseguito"}
+    if status in _ACTION_LABELS:
+        return {"code": "already_resolved", "action": status, "resolved_by": resolved_by,
+                "message": f"Richiesta '{request_id}' già risolta: {_ACTION_LABELS[status]}"}
+    return {"code": "not_found", "message": f"Richiesta '{request_id}' non trovata"}
+
+
+def expire_if_overdue(row: Dict[str, Any]) -> bool:
+    """True se la riga pending ha superato la sua expires_at: la segna expired (database e memoria)."""
+    deadline = _parse_utc(row.get("expires_at"))
+    if row.get("status") != "pending" or deadline is None or time.time() <= deadline:
+        return False
+    request_id = row["request_id"]
+    with _approval_lock:
+        req = _APPROVALS.get(request_id)
+        if req is not None and req.status == "pending":
+            req.status = "expired"
+    _mark_expired([request_id])
+    return True
 
 
 def resolve_approval(

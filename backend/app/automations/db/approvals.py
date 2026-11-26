@@ -141,6 +141,11 @@ def resolve_automation_approval(request_id: str, action: str, resolved_by: str =
     norm_action = "approved" if action.lower() in ("approve", "approved", "true") else "denied"
     try:
         cursor = conn.cursor()
+        # Oltre la scadenza la richiesta è scaduta, qualunque sia il click: nessuna decisione registrata
+        cursor.execute("""
+            UPDATE automation_approvals SET status = 'expired'
+            WHERE request_id = ? AND status = 'pending' AND expires_at IS NOT NULL AND expires_at < ?
+        """, (request_id, now))
         cursor.execute("""
             UPDATE automation_approvals
             SET status = ?, resolution_action = ?, resolved_by = ?, resolved_at = ?

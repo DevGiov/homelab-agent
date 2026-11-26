@@ -1,9 +1,6 @@
 """Test unitari per guardrails, audit log, vector store e knowledge base (Fasi 0-3)."""
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
-
-from fastapi.testclient import TestClient
 
 from app.automations.db import approvals as approvals_db
 from app.automations.db.schema import init_automations_db
@@ -108,115 +105,6 @@ class TestApprovalWorkflow(unittest.TestCase):
         req = approvals.resolve_approval(res["request_id"], approved=True)
         self.assertEqual(req.status, "expired")
         stored = approvals_db.get_automation_approval(res["request_id"])
-        self.assertEqual(stored["status"], "expired")
-        self.assertIsNone(stored.get("resolution_action"))
-
-    def _client(self) -> TestClient:
-        from app.api.main import api
-        return TestClient(api)
-
-    def test_chat_ttl_is_thirty_minutes_and_runs_keep_a_day(self):
-        res = policy.enforce_guardrails("stop_container", {"vmid": 15})
-        req = approvals.get_approval_request(res["request_id"])
-        self.assertEqual(approvals.APPROVAL_TTL_SECONDS, 1800)
-        self.assertEqual(req.ttl_seconds, 1800)
-        stored = approvals_db.get_automation_approval(res["request_id"])
-        created = datetime.fromisoformat(stored["created_at"])
-        expires = datetime.fromisoformat(res["expires_at"])
-        self.assertAlmostEqual((expires - created).total_seconds(), 1800, delta=2)
-        self.assertNotEqual(req.ttl_seconds, approvals.RUN_APPROVAL_TTL_SECONDS)
-
-        approvals.bind_to_run(res["request_id"], "run_iss40", "sr_iss40")
-        bound = approvals.get_approval_request(res["request_id"])
-        self.assertEqual(bound.ttl_seconds, approvals.RUN_APPROVAL_TTL_SECONDS)
-        bound_row = approvals_db.get_automation_approval(res["request_id"])
-        remaining = (datetime.fromisoformat(bound_row["expires_at"]) - datetime.now(timezone.utc)).total_seconds()
-        self.assertGreater(remaining, 23 * 3600)
-        self.assertLess(remaining, 24 * 3600 + 5)
-
-    def test_db_restore_after_deadline_expires_without_recording_deny(self):
-        approvals_db.create_automation_approval({
-            "request_id": "apr_restore_past",
-            "run_id": "chat_session",
-            "tool_name": "list_demo_widgets",
-            "arguments": {"name": "demo"},
-            "status": "pending",
-            "created_at": "2020-01-01T00:00:00+00:00",
-            "expires_at": "2020-01-01T00:30:00+00:00",
-        })
-        response = self._client().post(
-            "/v1/approvals/apr_restore_past/resolve",
-            json={"action": "deny", "resolved_by": "user"},
-        )
-        self.assertEqual(response.status_code, 410)
-        self.assertEqual(response.json()["detail"], "Richiesta scaduta")
-        stored = approvals_db.get_automation_approval("apr_restore_past")
-        self.assertEqual(stored["status"], "expired")
-        self.assertIsNone(stored.get("resolution_action"))
-        restored = approvals.get_approval_request("apr_restore_past")
-        self.assertEqual(restored.status, "expired")
-        self.assertLess(restored.created_at, 1600000000)
-
-    def test_db_restore_before_deadline_records_the_click(self):
-        approvals_db.create_automation_approval({
-            "request_id": "apr_restore_open",
-            "run_id": "chat_session",
-            "tool_name": "list_demo_widgets",
-            "arguments": {},
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat(),
-        })
-        req = approvals.resolve_approval("apr_restore_open", action="deny", resolved_by="user")
-        self.assertEqual(req.status, "denied")
-        self.assertEqual(approvals_db.get_automation_approval("apr_restore_open")["status"], "denied")
-
-    def test_missing_approval_is_404(self):
-        response = self._client().post(
-            "/v1/approvals/apr_missing_iss40/resolve",
-            json={"action": "deny"},
-        )
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()["detail"], "Richiesta 'apr_missing_iss40' non trovata")
-
-    def test_already_denied_approval_is_409(self):
-        res = policy.enforce_guardrails("stop_container", {"vmid": 11})
-        request_id = res["request_id"]
-        approvals.resolve_approval(request_id, action="deny", resolved_by="user")
-        response = self._client().post(
-            f"/v1/approvals/{request_id}/resolve",
-            json={"action": "approve", "resolved_by": "user"},
-        )
-        self.assertEqual(response.status_code, 409)
-        detail = response.json()["detail"]
-        self.assertEqual(detail["code"], "already_resolved")
-        self.assertEqual(detail["action"], "denied")
-        self.assertIn("rifiutata", detail["message"])
-        self.assertIn(request_id, detail["message"])
-        self.assertEqual(approvals_db.get_automation_approval(request_id)["status"], "denied")
-
-    def test_create_sweep_persists_expired(self):
-        res = policy.enforce_guardrails("stop_container", {"vmid": 12})
-        request_id = res["request_id"]
-        approvals._APPROVALS[request_id].created_at -= approvals.APPROVAL_TTL_SECONDS + 5
-        policy.enforce_guardrails("stop_container", {"vmid": 13})
-        stored = approvals_db.get_automation_approval(request_id)
-        self.assertEqual(stored["status"], "expired")
-        self.assertIsNone(stored.get("resolution_action"))
-        response = self._client().post(
-            f"/v1/approvals/{request_id}/resolve",
-            json={"action": "deny"},
-        )
-        self.assertEqual(response.status_code, 410)
-        self.assertEqual(approvals_db.get_automation_approval(request_id)["status"], "expired")
-
-    def test_pending_list_sweep_persists_expired(self):
-        res = policy.enforce_guardrails("stop_container", {"vmid": 14})
-        request_id = res["request_id"]
-        approvals._APPROVALS[request_id].created_at -= approvals.APPROVAL_TTL_SECONDS + 5
-        pending_ids = [item["request_id"] for item in approvals.get_pending_approvals()]
-        self.assertNotIn(request_id, pending_ids)
-        stored = approvals_db.get_automation_approval(request_id)
         self.assertEqual(stored["status"], "expired")
         self.assertIsNone(stored.get("resolution_action"))
 

@@ -122,9 +122,8 @@ class TestAutomationsAPI(unittest.TestCase):
             "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
         }, db_path=self.db_path)
 
-        # Risolvi tramite endpoint delle automazioni
-        with patch("app.security.approvals.resolve_approval") as mock_resolve:
-            mock_resolve.return_value = MagicMock(status="approved")
+        # Risolvi tramite endpoint delle automazioni: la richiesta torna dal database, il tool non parte davvero
+        with patch("app.registry.manager.get_registry_manager") as mock_manager:
             res_resolve = self.client.post(
                 "/v1/automations/runs/t_safest/approvals/apr_test_chat_1/resolve",
                 json={"action": "approve", "resolved_by": "user"},
@@ -133,6 +132,7 @@ class TestAutomationsAPI(unittest.TestCase):
             self.assertEqual(res_resolve.status_code, 200)
             data = res_resolve.json()
             self.assertIn(data["status"], ["resolved", "approved"])
+            mock_manager.return_value.execute_approved_tool.assert_called_once_with("apr_test_chat_1")
 
         # Verifica stato aggiornato su DB
         appr = approvals_db.get_automation_approval("apr_test_chat_1", db_path=self.db_path)
