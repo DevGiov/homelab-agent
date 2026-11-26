@@ -20,10 +20,13 @@ import { fieldLabel, fromFormValue, PROVIDER_KINDS, toFormValue, without } from 
 import { providerErrorMessage } from '../../../utils/providerErrors';
 import { Toggle } from '../../Toggle';
 import { ModelPrices, SpendCeiling } from './CostsSection';
+import { ModelDiscovery } from './ModelDiscovery';
 import { ProviderFields, ProviderSecrets } from './ProviderFields';
 import { inputClass, labelClass } from './providerStyles';
 
 const CLEARANCE_TEXT: Record<SensitivityLevel, string> = { public: 'pubblici', internal: 'interni', private: 'privati' };
+
+const MODELS_FIELD = { key: 'models', label: 'Modelli', type: 'list' } as const;
 
 const badge = 'px-1.5 py-0.5 rounded-sm text-xs font-medium border flex items-center gap-1';
 
@@ -280,6 +283,22 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
             edits={edits}
             onEdit={(key, value) => setEdits((e) => ({ ...e, [key]: value }))}
             onResetField={resetField}
+            extras={
+              kind.discoverable
+                ? {
+                    models: (
+                      <ModelDiscovery
+                        provider={provider.name}
+                        kind={provider.kind}
+                        getDraft={() => (dirty ? draftPatch() : undefined)}
+                        currentModels={fromFormValue(MODELS_FIELD, edits.models ?? toFormValue(MODELS_FIELD, provider.fields.models?.value)) as string[]}
+                        onUse={(ids) => setEdits((e) => ({ ...e, models: ids.join('\n') }))}
+                        disabled={busy}
+                      />
+                    ),
+                  }
+                : undefined
+            }
             disabled={busy}
           />
 

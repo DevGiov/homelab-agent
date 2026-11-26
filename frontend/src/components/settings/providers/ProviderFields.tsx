@@ -14,26 +14,30 @@ interface FieldsProps {
   onEdit: (key: string, value: string | boolean) => void;
   /** Riporta un campo al `.env`: manda `null`. */
   onResetField: (key: string) => void;
+  /** Contenuto da mettere sotto un campo, per chiave (la ricerca dei modelli sotto `models`). */
+  extras?: Record<string, React.ReactNode>;
   disabled?: boolean;
 }
 
 /** I campi del tipo di provider, ognuno con l'origine del suo valore e il pulsante per tornare al `.env`. */
-export const ProviderFields: React.FC<FieldsProps> = ({ kind, origin, fields, edits, onEdit, onResetField, disabled }) => {
+export const ProviderFields: React.FC<FieldsProps> = ({ kind, origin, fields, edits, onEdit, onResetField, extras, disabled }) => {
   const baseId = useId();
   return (
     <div className="stack-y-2.5">
       {PROVIDER_KINDS[kind].fields.map((def) => (
-        <Field
-          key={def.key}
-          id={`${baseId}-${def.key}`}
-          def={def}
-          origin={origin}
-          field={fields[def.key]}
-          value={edits[def.key] ?? toFormValue(def, fields[def.key]?.value)}
-          onEdit={(v) => onEdit(def.key, v)}
-          onReset={() => onResetField(def.key)}
-          disabled={disabled}
-        />
+        <React.Fragment key={def.key}>
+          <Field
+            id={`${baseId}-${def.key}`}
+            def={def}
+            origin={origin}
+            field={fields[def.key]}
+            value={edits[def.key] ?? toFormValue(def, fields[def.key]?.value)}
+            onEdit={(v) => onEdit(def.key, v)}
+            onReset={() => onResetField(def.key)}
+            disabled={disabled}
+          />
+          {extras?.[def.key]}
+        </React.Fragment>
       ))}
     </div>
   );

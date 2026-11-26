@@ -24,6 +24,8 @@ export interface KindDef {
   secrets: SecretDef[];
   /** Il campo che dice dove va il provider: l'indirizzo, o la regione per Bedrock. */
   addressField: string;
+  /** Il provider sa elencare i modelli che offre (il pulsante «Cerca modelli»). */
+  discoverable?: boolean;
 }
 
 const BASE_URL: FieldDef = { key: 'base_url', label: 'Indirizzo (base URL)', type: 'text', required: true, placeholder: 'http://host:porta/v1' };
@@ -52,12 +54,14 @@ export const PROVIDER_KINDS: Record<ProviderKind, KindDef> = {
       { key: 'session_token', label: 'Token di sessione AWS' },
     ],
     addressField: 'region',
+    discoverable: true,
   },
   openai_cloud: {
     label: 'Servizio cloud compatibile OpenAI',
     fields: [BASE_URL, MODELS],
     secrets: [{ key: 'api_key', label: 'Chiave API', required: true }],
     addressField: 'base_url',
+    discoverable: true,
   },
 };
 

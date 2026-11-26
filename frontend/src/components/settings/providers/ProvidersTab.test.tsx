@@ -84,9 +84,11 @@ interface Options {
   canStoreSecrets?: boolean;
   /** Risposta alle richieste di modifica: di base un provider. */
   patch?: (req: RecordedRequest) => Response;
+  /** Risposta alla ricerca dei modelli. */
+  discover?: (req: RecordedRequest) => Response;
 }
 
-function setup({ providers = [llama, bedrock, custom], canStoreSecrets = true, patch }: Options = {}) {
+function setup({ providers = [llama, bedrock, custom], canStoreSecrets = true, patch, discover }: Options = {}) {
   const body = (): ProvidersResponse => ({ providers, default_provider: 'llamacpp', fallback_provider: 'llamacpp', can_store_secrets: canStoreSecrets });
   const ok = (req: RecordedRequest) => jsonResponse(providers.find((p) => req.path.includes(`/${p.name}`)) ?? llama);
   const handler = patch ?? ok;
@@ -99,7 +101,10 @@ function setup({ providers = [llama, bedrock, custom], canStoreSecrets = true, p
       'PUT /v1/providers/settings': (req) => jsonResponse({ default_provider: 'llamacpp', fallback_provider: 'llamacpp', ...req.body }),
       'PUT /v1/providers/ceilings/total': () => jsonResponse({ scope: 'total', monthly_usd: 50 }),
     },
-    [[/^\/v1\/providers\/[^/]+(\/(clearance|reset|test))?$/, handler]]
+    [
+      ...(discover ? ([[/^\/v1\/providers\/[^/]+\/models\/discover$/, discover]] as Array<[RegExp, (req: RecordedRequest) => Response]>) : []),
+      [/^\/v1\/providers\/[^/]+(\/(clearance|reset|test))?$/, handler],
+    ]
   );
   render(<ProvidersTab />);
   return backend;
@@ -412,6 +417,122 @@ describe('scheda Provider: prova della connessione', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prova connessione' }));
     expect(await screen.findByText('Connessione non riuscita: timeout')).toBeTruthy();
     expect(sent(requests, 'POST', '/v1/providers/llamacpp/test')[0].body).toEqual({ fields: { base_url: 'http://other.example/v1' } });
+  });
+});
+
+const cloud: ProviderConfig = {
+  ...bedrock,
+  enabled: true,
+  configured: true,
+  missing: [],
+  fields: { region: { value: 'eu-west-1', source: 'ui' }, models: { value: ['amazon.nova-lite-v1:0'], source: 'ui' } },
+  secrets: { ...bedrock.secrets, access_key_id: { set: true, source: 'ui' }, secret_access_key: { set: true, source: 'ui' } },
+};
+
+const candidates = [
+  { id: 'amazon.nova-lite-v1:0', name: 'Nova Lite', vendor: 'Amazon', kind: 'model', scope: 'region', vision: true, configured: true },
+  { id: 'meta.llama3-70b-instruct-v1:0', name: 'Llama 3 70B', vendor: 'Meta', kind: 'model', scope: 'region', vision: false, configured: false },
+  { id: 'eu.anthropic.claude-sonnet-4-v1:0', name: 'EU Claude Sonnet 4', vendor: 'Anthropic', kind: 'profile', scope: 'geo', vision: true, configured: false },
+  { id: 'global.anthropic.claude-sonnet-4-v1:0', name: 'Global Claude Sonnet 4', vendor: 'Anthropic', kind: 'profile', scope: 'global', vision: true, configured: false },
+];
+
+describe('scheda Provider: ricerca dei modelli', () => {
+  const found = () => jsonResponse({ models: candidates, error: null });
+
+  it('il pulsante c\'è solo nei provider cloud', async () => {
+    const openaiCloud: ProviderConfig = { ...cloud, name: 'nuvola', display_name: 'Nuvola', kind: 'openai_cloud' };
+    setup({ providers: [llama, cloud, openaiCloud] });
+    await openCard('llamacpp', 'llama-swap');
+    expect(card('llamacpp').queryByRole('button', { name: 'Cerca modelli' })).toBeNull();
+    await openCard('bedrock', 'AWS Bedrock');
+    await openCard('nuvola', 'Nuvola');
+    expect(card('bedrock').getByRole('button', { name: 'Cerca modelli' })).toBeTruthy();
+    expect(card('nuvola').getByRole('button', { name: 'Cerca modelli' })).toBeTruthy();
+  });
+
+  it('i candidati stanno in gruppi per ambito, con fornitore, badge «visione» e gli id configurati spuntati', async () => {
+    const { requests } = setup({ providers: [cloud], discover: found });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    const list = await screen.findByRole('group', { name: 'Modelli trovati' });
+    // Nessuna modifica: la ricerca usa la configurazione salvata, senza corpo
+    expect(sent(requests, 'POST', '/v1/providers/bedrock/models/discover')[0].body).toBeUndefined();
+    for (const heading of ['Solo questa regione', 'Area geografica (profilo tra regioni)', 'Globale']) {
+      expect(within(list).getByRole('heading', { name: heading })).toBeTruthy();
+    }
+    expect(within(list).getByText('Questi profili possono instradare la richiesta in qualunque regione AWS.')).toBeTruthy();
+    const region = within(list).getByRole('group', { name: 'Solo questa regione' });
+    expect(within(region).getAllByRole('checkbox')).toHaveLength(2);
+    expect(within(region).getByText(/Amazon/)).toBeTruthy();
+    expect(within(region).getAllByText('visione')).toHaveLength(1);
+    expect(within(list).getByRole('group', { name: 'Globale' }).textContent).toContain('global.anthropic.claude-sonnet-4-v1:0');
+    expect((within(list).getByRole('checkbox', { name: 'amazon.nova-lite-v1:0' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(list).getByRole('checkbox', { name: 'meta.llama3-70b-instruct-v1:0' }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText(/Non tutti i modelli rispondono all'API compatibile OpenAI di Bedrock/)).toBeTruthy();
+  });
+
+  it('il filtro restringe l\'elenco per id, nome o fornitore', async () => {
+    setup({ providers: [cloud], discover: found });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    await screen.findByRole('group', { name: 'Modelli trovati' });
+    fireEvent.change(screen.getByLabelText('Filtra i modelli'), { target: { value: 'meta' } });
+    const list = screen.getByRole('group', { name: 'Modelli trovati' });
+    expect(within(list).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['meta.llama3-70b-instruct-v1:0']);
+    expect(screen.queryByRole('heading', { name: 'Globale' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Filtra i modelli'), { target: { value: 'zzz' } });
+    expect(screen.getByText('Nessun modello corrisponde al filtro.')).toBeTruthy();
+  });
+
+  it('«Usa i selezionati» cambia la bozza dei modelli e il salvataggio manda i nuovi', async () => {
+    const { requests } = setup({ providers: [cloud], discover: found });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    await screen.findByRole('group', { name: 'Modelli trovati' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'amazon.nova-lite-v1:0' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'eu.anthropic.claude-sonnet-4-v1:0' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'meta.llama3-70b-instruct-v1:0' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usa i selezionati' }));
+    // Solo la bozza: nessun PATCH finché non si preme Salva
+    expect((screen.getByLabelText(/^Modelli/, { selector: 'textarea' }) as HTMLTextAreaElement).value).toBe('meta.llama3-70b-instruct-v1:0\neu.anthropic.claude-sonnet-4-v1:0');
+    expect(sent(requests, 'PATCH', '/v1/providers/bedrock')).toHaveLength(0);
+    expect(screen.queryByRole('group', { name: 'Modelli trovati' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+    await waitFor(() => expect(sent(requests, 'PATCH', '/v1/providers/bedrock')).toHaveLength(1));
+    expect(sent(requests, 'PATCH', '/v1/providers/bedrock')[0].body).toEqual({
+      fields: { models: ['meta.llama3-70b-instruct-v1:0', 'eu.anthropic.claude-sonnet-4-v1:0'] },
+    });
+  });
+
+  it('con modifiche non salvate le manda come bozza, e un id fuori dai risultati resta scelto', async () => {
+    const { requests } = setup({ providers: [cloud], discover: found });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.change(card('bedrock').getByRole('textbox', { name: /^Regione AWS/ }), { target: { value: 'us-east-1' } });
+    fireEvent.change(screen.getByLabelText(/^Modelli/, { selector: 'textarea' }), { target: { value: 'amazon.nova-lite-v1:0\nmio.modello-a-mano' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    await screen.findByRole('group', { name: 'Modelli trovati' });
+    expect(sent(requests, 'POST', '/v1/providers/bedrock/models/discover')[0].body).toEqual({
+      fields: { region: 'us-east-1', models: ['amazon.nova-lite-v1:0', 'mio.modello-a-mano'] },
+    });
+    expect((screen.getByRole('checkbox', { name: 'mio.modello-a-mano' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Usa i selezionati' }));
+    expect((screen.getByLabelText(/^Modelli/, { selector: 'textarea' }) as HTMLTextAreaElement).value).toBe('mio.modello-a-mano\namazon.nova-lite-v1:0');
+  });
+
+  it('un errore della ricerca si vede come avviso, senza elenco', async () => {
+    setup({ providers: [cloud], discover: () => jsonResponse({ models: [], error: 'HTTP 403: accesso negato: servono bedrock:ListFoundationModels' }) });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Ricerca non riuscita: HTTP 403');
+    expect(screen.queryByRole('group', { name: 'Modelli trovati' })).toBeNull();
+  });
+
+  it('un errore HTTP si vede come avviso', async () => {
+    setup({ providers: [cloud], discover: () => jsonResponse({ detail: { code: 'invalid', message: 'La ricerca non vale per questo tipo.' } }, 422) });
+    await openCard('bedrock', 'AWS Bedrock');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerca modelli' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Ricerca non riuscita');
   });
 });
 

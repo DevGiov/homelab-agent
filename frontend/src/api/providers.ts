@@ -89,6 +89,26 @@ export interface ProviderTestResult {
   error: string | null;
 }
 
+/** Un candidato della ricerca dei modelli (`POST /providers/{name}/models/discover`). */
+export interface DiscoveredModel {
+  id: string;
+  name: string;
+  vendor: string | null;
+  /** `profile`: profilo di inferenza di Bedrock, che può instradare tra regioni. */
+  kind: 'model' | 'profile';
+  /** Dove può girare la richiesta; `null` per i servizi che non lo dicono. */
+  scope: 'region' | 'geo' | 'global' | null;
+  vision: boolean;
+  /** Già nell'elenco dei modelli del provider (quello salvato, o la bozza inviata). */
+  configured: boolean;
+}
+
+/** Un fallimento della ricerca è `models: []` con un motivo breve in `error`, non un errore HTTP. */
+export interface DiscoverModelsResult {
+  models: DiscoveredModel[];
+  error: string | null;
+}
+
 export interface ProviderSettings {
   default_provider: string;
   fallback_provider: string;
@@ -163,6 +183,11 @@ export function setProviderClearance(name: string, level: SensitivityLevel, conf
 /** Prova la connessione con la configurazione salvata o, con `draft`, con quella inviata senza salvarla. */
 export function testProvider(name: string, draft?: ProviderPatch): Promise<ProviderTestResult> {
   return http.post(`${providerPath(name)}/test`, draft);
+}
+
+/** Cerca i modelli di un provider cloud con la configurazione salvata o, con `draft`, con quella inviata senza salvarla. */
+export function discoverModels(name: string, draft?: ProviderPatch): Promise<DiscoverModelsResult> {
+  return http.post(`${providerPath(name)}/models/discover`, draft);
 }
 
 export function setProviderSettings(settings: Partial<ProviderSettings>): Promise<ProviderSettings> {
