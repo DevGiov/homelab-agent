@@ -304,6 +304,13 @@ Decisione del maintainer del 26/11/2026, come il livello (decisione 8): una cred
 - "Prova connessione" e "Cerca modelli" con un indirizzo nuovo nella bozza non usano la credenziale salvata: senza quella nuova rispondono con il motivo e non fanno nessuna richiesta.
 - La scheda lo dice appena l'indirizzo cambia, finché la chiave non è stata riscritta.
 
+#### 5.8.10 Lavori in background e valutazioni
+
+- **Automazioni e consolidamento** salvano la coppia `{provider, model}` (nel JSON della definizione e nelle impostazioni del consolidamento, quindi senza migrazioni: le righe di prima hanno `provider` null). `provider` null è il predefinito al momento dell'esecuzione; `model` null è il predefinito di quel provider; `"loaded"` è il modello caricato su quel provider, e su un provider cloud vale il suo predefinito.
+- **Salvare** un provider che non esiste: 422 `unknown_provider`. Uno disattivato o incompleto si salva; **l'esecuzione** con un provider che non esiste più o è disattivato fallisce dicendo quale, senza ripiegare su un altro (il livello dei dati cambierebbe). Lo strumento dell'agente che crea automazioni non sceglie il provider: usa il predefinito.
+- **Selettore** (`ModelChoiceSelect`): "Default del server" e "Modello caricato al momento" (sul predefinito, nascosto se il predefinito è cloud), poi i modelli raggruppati per provider. Una scelta salvata che il catalogo non elenca più resta selezionata e segnata.
+- **Valutazioni:** `--provider NAME` sulla riga di comando; il rapporto registra il provider, e il confronto distingue lo stesso modello su provider diversi.
+
 #### 5.8.8 Ricerca dei modelli dei provider cloud
 
 `bedrock-runtime` non ha `GET /models`: AWS indica le API di controllo ListFoundationModels e ListInferenceProfiles su `bedrock.{regione}.amazonaws.com` (servizio SigV4 `bedrock`), che non costano nulla.
