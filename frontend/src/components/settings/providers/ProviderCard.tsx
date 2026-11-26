@@ -68,6 +68,9 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
   const typedSecrets = Object.entries(typed).filter(([, value]) => value !== '');
   const nameChanged = displayName !== null && displayName.trim() !== provider.display_name;
   const dirty = dirtyFields.length > 0 || typedSecrets.length > 0 || nameChanged;
+  // Una chiave salvata è legata all'indirizzo (come il livello): con un indirizzo libero nuovo va scritta di nuovo
+  const addressEdited = kind.addressField === 'base_url' && dirtyFields.some((def) => def.key === 'base_url');
+  const keysToRetype = addressEdited ? Object.entries(provider.secrets).filter(([key, s]) => s.set && !typed[key]).map(([key]) => key) : [];
 
   /** Esegue una chiamata: in caso di errore lo dice nella scheda, altrimenti ricarica l'elenco. */
   // `action` che restituisce `false`: annullata dall'utente, nessun messaggio
@@ -312,6 +315,12 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
             onRemove={removeSecret}
             disabled={busy}
           />
+          {keysToRetype.length > 0 && (
+            <p className="text-xs text-amber-300">
+              Hai cambiato l'indirizzo: la chiave salvata è legata a quello vecchio e non viene mandata al nuovo. Scrivila di
+              nuovo per salvare o provare, oppure toglila.
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button

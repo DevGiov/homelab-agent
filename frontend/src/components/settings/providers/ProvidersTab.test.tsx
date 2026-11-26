@@ -287,6 +287,25 @@ describe('scheda Provider: credenziali in sola scrittura', () => {
     expect((screen.getByLabelText('Chiave API di Bedrock') as HTMLInputElement).disabled).toBe(false);
   });
 
+  it('con un indirizzo nuovo dice di riscrivere la chiave salvata, finché non la si scrive', async () => {
+    setup();
+    await openCard('vllm-studio', 'vLLM studio');
+    const hint = /la chiave salvata è legata a quello vecchio/;
+    expect(screen.queryByText(hint)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/^Indirizzo/), { target: { value: 'http://altro.example:9000/v1' } });
+    expect(screen.getByText(hint)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/^Chiave API/), { target: { value: 'nuova' } });
+    expect(screen.queryByText(hint)).toBeNull();
+  });
+
+  it('un 409 secret_required si vede come messaggio chiaro', async () => {
+    setup({ patch: () => jsonResponse({ detail: { code: 'secret_required', message: 'x' } }, 409) });
+    await openCard('vllm-studio', 'vLLM studio');
+    fireEvent.change(screen.getByLabelText(/^Indirizzo/), { target: { value: 'http://altro.example:9000/v1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(PROVIDER_ERROR_MESSAGES.secret_required);
+  });
+
   it('«togli» una credenziale della UI manda null', async () => {
     const { requests } = setup();
     await openCard('vllm-studio', 'vLLM studio');
@@ -633,7 +652,7 @@ describe('errori dell\'API dei provider', () => {
   const conflict = (code: string) => new ApiError(409, { code, message: 'testo del backend' }, 'testo del backend');
 
   it('ogni codice 409 ha un messaggio italiano chiaro, non il testo del backend', () => {
-    for (const code of ['reserved_name', 'name_taken', 'env_provider', 'fallback_provider', 'confirm_required', 'no_secret_key', 'provider_disabled', 'kind_change', 'default_provider', 'not_env_provider']) {
+    for (const code of ['reserved_name', 'name_taken', 'env_provider', 'fallback_provider', 'confirm_required', 'no_secret_key', 'provider_disabled', 'kind_change', 'default_provider', 'not_env_provider', 'secret_required']) {
       const message = providerErrorMessage(conflict(code));
       expect(message).toBe(PROVIDER_ERROR_MESSAGES[code]);
       expect(message).not.toBe('testo del backend');

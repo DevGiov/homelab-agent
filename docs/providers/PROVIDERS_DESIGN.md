@@ -259,7 +259,7 @@ Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../pric
 
 - **Campi per tipo:** `openai_compat` → `base_url`, `default_model`, `llama_cpp`; credenziale `api_key`. `ollama` → `base_url`, `default_model`. `bedrock` → `region`, `models` (lista); credenziali `api_key`, `access_key_id`, `secret_access_key`, `session_token`. `openai_cloud` → `base_url`, `models`; credenziale `api_key` (obbligatoria).
 - **Provider del `.env` sempre nell'elenco:** `llamacpp`, `ollama` e `bedrock` compaiono anche se il `.env` non li configura (`configured: false`, con `missing`): è da lì che si inseriscono, per esempio, le credenziali di Bedrock.
-- **Errori:** 409 con `{"detail": {"code", "message"}}`. Codici: `reserved_name`, `name_taken`, `env_provider` (eliminare un provider del `.env`), `fallback_provider`, `confirm_required`, `no_secret_key`, `provider_disabled`, `kind_change`. 422 per un campo non valido. 404 per un provider che non esiste.
+- **Errori:** 409 con `{"detail": {"code", "message"}}`. Codici: `reserved_name`, `name_taken`, `env_provider` (eliminare un provider del `.env`), `fallback_provider`, `confirm_required`, `no_secret_key`, `provider_disabled`, `kind_change`, `secret_required` (5.8.9). 422 per un campo non valido. 404 per un provider che non esiste.
 - **Chat e conversazioni:** le richieste che oggi hanno `model` hanno anche `provider` (facoltativo: vuoto = provider predefinito). Una conversazione restituisce `provider` e `model`.
   - Una richiesta con un `thread_id` esistente e senza `provider` né `model` usa la coppia salvata con la conversazione; solo una richiesta senza conversazione, o con una conversazione senza coppia salvata, usa il provider predefinito. "Rigenera" manda la coppia del messaggio dell'utente, che può essere vuota; un canale che prosegue un thread non ne manda nessuna.
   - Una richiesta con un solo dei due (`model` senza `provider`) non usa la coppia salvata: il provider è il predefinito.
@@ -294,6 +294,15 @@ Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../pric
   Sotto: "Aggiungi provider", il tetto totale, il provider predefinito e quello di ripiego.
 - **Selettore dei modelli:** i modelli di tutti i provider attivi, raggruppati sotto il nome del provider, con un'indicazione locale o cloud e il livello. Un provider non raggiungibile resta nell'elenco, segnato. La scelta è per conversazione.
 - **Turno:** l'avviso di ripiego (5.7) dice anche verso quale provider.
+
+#### 5.8.9 Credenziali legate all'indirizzo
+
+Decisione del maintainer del 26/11/2026, come il livello (decisione 8): una credenziale salvata vale per l'indirizzo per cui è stata inserita. Altrimenti chi può modificare un provider, ma non leggerne le credenziali, potrebbe mandare la chiave salvata a un server suo cambiando l'indirizzo.
+
+- Vale per i tipi con un indirizzo libero (`base_url`: `openai_compat`, `openai_cloud`). Bedrock no: la regione cambia solo l'endpoint AWS.
+- `PATCH` che cambia l'indirizzo, con una credenziale impostata e non reinserita nella stessa richiesta: 409 `secret_required`, nulla cambia. Con la credenziale nuova, oppure togliendola (`null`), si salva. Un indirizzo e una credenziale entrambi dal `.env` restano validi insieme.
+- "Prova connessione" e "Cerca modelli" con un indirizzo nuovo nella bozza non usano la credenziale salvata: senza quella nuova rispondono con il motivo e non fanno nessuna richiesta.
+- La scheda lo dice appena l'indirizzo cambia, finché la chiave non è stata riscritta.
 
 #### 5.8.8 Ricerca dei modelli dei provider cloud
 

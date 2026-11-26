@@ -603,6 +603,26 @@ def _check_roles(name: str, r: Resolved, current: Dict[str, str]) -> None:
                                             "incompleto o eliminare. Scegli prima un altro predefinito.")
 
 
+def _stale_secrets(before: Resolved, after: Resolved, secrets: Optional[Mapping[str, Any]]) -> List[str]:
+    """Le credenziali che andrebbero a un indirizzo diverso da quello per cui sono state inserite, senza essere state
+    reinserite in questa richiesta. Una credenziale è legata all'indirizzo come il livello (decisione 8): altrimenti
+    chi può modificare un provider manderebbe la chiave salvata, che non può leggere, a un server suo.
+
+    Vale per i tipi con un indirizzo libero (`base_url`); Bedrock no: la regione cambia solo l'endpoint AWS. Una coppia
+    indirizzo e credenziale entrambi dal `.env` è coerente per costruzione."""
+    if before.spec.address_field != "base_url" or after.address == before.address:
+        return []
+    given = {k for k, v in (secrets or {}).items() if v is not None}
+    address_from_env = after.fields[after.spec.address_field][1] == "env"
+    return [s for s in after.spec.secrets
+            if after.secret(s) and s not in given and not (address_from_env and after.secrets[s][1] == "env")]
+
+
+def _stale_message(name: str, stale: List[str]) -> str:
+    return (f"Con un indirizzo nuovo vanno reinserite le credenziali di '{name}' ({', '.join(stale)}): sono legate "
+            "all'indirizzo per cui sono state inserite. Scrivile di nuovo o toglile.")
+
+
 def _old_sealed(conn: sqlite3.Connection, name: str) -> Optional[str]:
     r = conn.execute("SELECT encrypted_secrets FROM provider_configs WHERE name = ?", (name,)).fetchone()
     return r["encrypted_secrets"] if r else None
@@ -643,6 +663,9 @@ def patch(name: str, *, kind: Any = None, display_name: Any = ..., enabled: Any 
             raise _conflict("kind_change", f"Il tipo di '{name}' non si cambia: crea un altro provider.")
         new, changed = _apply(row or Row(kind=before.kind), before.spec, fields, secrets, display_name, enabled)
         after = resolve(name, new)
+        stale = _stale_secrets(before, after, secrets)
+        if stale:
+            raise _conflict("secret_required", _stale_message(name, stale))
         current = _read_settings(conn)
         if name == current["fallback_provider"] and after.address != before.address and before.effective == Label.PRIVATE:
             if not confirm:
@@ -756,6 +779,9 @@ def test_connection(name: str, overrides: Optional[Mapping[str, Any]] = None) ->
         base = resolve(name, row)
     new, _ = _apply(row or Row(kind=base.kind), base.spec, overrides.get("fields"), overrides.get("secrets"))
     r = resolve(name, replace(new, enabled=True))
+    stale = _stale_secrets(base, r, overrides.get("secrets"))
+    if stale:
+        return {"ok": False, "latency_ms": None, "models_count": None, "error": _stale_message(name, stale)}
     if r.unavailable:
         return {"ok": False, "latency_ms": None, "models_count": None, "error": f"Il provider '{name}' {r.unavailable}"}
     provider = build(r)
@@ -926,6 +952,9 @@ def discover_models(name: str, overrides: Optional[Mapping[str, Any]] = None) ->
                        "elencano già i loro modelli.")
     new, _ = _apply(row or Row(kind=base.kind), base.spec, overrides.get("fields"), overrides.get("secrets"))
     r = resolve(name, replace(new, enabled=True))
+    stale = _stale_secrets(base, r, overrides.get("secrets"))
+    if stale:
+        return _discovery_result([], _stale_message(name, stale))
     if r.secrets_unreadable:
         return _discovery_result([], f"Il provider '{name}' {providers.UNREADABLE}")
     has_credentials = bool(r.secret("api_key")) if r.kind == "openai_cloud" else bool(

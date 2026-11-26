@@ -380,6 +380,99 @@ def test_a_secret_value_never_leaves_the_provider(keyed, caplog):
     assert SECRET not in raw  # cifrata a riposo
 
 
+def _recording_transport(mp):
+    """Ogni richiesta uscente con il suo header di autorizzazione: (host, authorization)."""
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.headers.get("authorization")))
+        return httpx.Response(200, json={"data": [{"id": "m"}]})
+
+    real_client = httpx.Client
+    mp.setattr(provider_config.httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
+    return seen
+
+
+def _cloud(keyed, name="nuvola"):
+    res = keyed.post("/v1/providers", json={"name": name, "kind": "openai_cloud", "secrets": {"api_key": SECRET},
+                                            "fields": {"base_url": "https://api.example.com/v1", "models": ["m"]}})
+    assert res.status_code == 201, res.text
+
+
+def test_a_saved_key_does_not_follow_a_new_address(keyed):
+    _cloud(keyed)
+    res = keyed.patch("/v1/providers/nuvola", json={"fields": {"base_url": "https://evil.example.net/v1"}})
+    assert res.status_code == 409 and _detail(res)["code"] == "secret_required"
+    assert "api_key" in _detail(res)["message"] and SECRET not in res.text
+    # Nulla è cambiato: indirizzo e chiave restano quelli di prima
+    assert providers.get_provider("nuvola").base_url == "https://api.example.com/v1"
+    assert providers.get_provider("nuvola").api_key == SECRET
+
+
+def test_a_new_address_is_saved_with_a_new_key_or_without_one(keyed):
+    _cloud(keyed)
+    view = keyed.patch("/v1/providers/nuvola", json={"fields": {"base_url": "https://altro.example.org/v1"},
+                                                     "secrets": {"api_key": SECRET + "-nuova"}}).json()
+    assert view["fields"]["base_url"]["value"] == "https://altro.example.org/v1"
+    assert providers.get_provider("nuvola").api_key == SECRET + "-nuova"
+    # Togliere la chiave insieme all'indirizzo è ammesso: non va da nessuna parte
+    _create(keyed, "casa", fields={"base_url": HOME, "default_model": "uno"}, secrets={"api_key": SECRET})
+    res = keyed.patch("/v1/providers/casa", json={"fields": {"base_url": OTHER}, "secrets": {"api_key": None}})
+    assert res.status_code == 200, res.text
+    assert res.json()["secrets"]["api_key"] == {"set": False, "source": None}
+
+
+def test_other_fields_change_without_entering_the_key_again(keyed):
+    _cloud(keyed)
+    res = keyed.patch("/v1/providers/nuvola", json={"fields": {"models": ["m", "n"]}, "display_name": "Nuvola"})
+    assert res.status_code == 200, res.text
+    # Lo stesso indirizzo scritto in un'altra forma (barra finale) non è un indirizzo nuovo
+    res = keyed.patch("/v1/providers/nuvola", json={"fields": {"base_url": "https://api.example.com/v1/"}})
+    assert res.status_code == 200, res.text
+
+
+def test_the_test_and_the_search_do_not_send_the_saved_key_to_a_draft_address(keyed):
+    _cloud(keyed)
+    with pytest.MonkeyPatch.context() as mp:
+        seen = _recording_transport(mp)
+        draft = {"fields": {"base_url": "https://evil.example.net/v1"}}
+        test = keyed.post("/v1/providers/nuvola/test", json=draft).json()
+        found = keyed.post("/v1/providers/nuvola/models/discover", json=draft).json()
+        assert seen == []  # nessuna richiesta è partita
+        assert test["ok"] is False and "reinserite" in test["error"]
+        assert found == {"models": [], "error": found["error"]} and "reinserite" in found["error"]
+        # Con la chiave nella bozza si prova, e verso il nuovo indirizzo va solo quella
+        draft["secrets"] = {"api_key": "bozza"}
+        assert keyed.post("/v1/providers/nuvola/test", json=draft).json()["ok"] is True
+        assert keyed.post("/v1/providers/nuvola/models/discover", json=draft).json()["error"] is None
+        assert seen == [("evil.example.net", "Bearer bozza")] * 2
+        assert SECRET not in json.dumps(seen)
+
+
+def test_an_env_key_follows_only_the_env_address(monkeypatch):
+    """Oggi nessun provider del `.env` ha un indirizzo libero e una chiave: la regola si prova sulla funzione."""
+    from dataclasses import replace
+    monkeypatch.setattr(settings, "llama_cpp_url", HOME)
+    base = provider_config.resolve("llamacpp", None)
+    with_env_key = replace(base, secrets={"api_key": ("k", "env")})
+    moved_by_ui = replace(with_env_key, fields={**base.fields, "base_url": (OTHER, "ui")})
+    moved_in_env = replace(with_env_key, fields={**base.fields, "base_url": (OTHER, "env")})
+    assert provider_config._stale_secrets(with_env_key, moved_by_ui, None) == ["api_key"]
+    assert provider_config._stale_secrets(with_env_key, moved_by_ui, {"api_key": "nuova"}) == []
+    # Togliere la chiave della UI lascia vedere quella del `.env`: non è una chiave reinserita
+    assert provider_config._stale_secrets(with_env_key, moved_by_ui, {"api_key": None}) == ["api_key"]
+    assert provider_config._stale_secrets(with_env_key, moved_in_env, None) == []
+
+
+def test_bedrock_region_change_keeps_the_credentials(keyed, monkeypatch):
+    monkeypatch.setattr(settings, "bedrock_api_key", "dal-env")
+    monkeypatch.setattr(settings, "aws_region", "eu-west-1")
+    monkeypatch.setattr(settings, "bedrock_models", "m")
+    provider_config.load_all()
+    res = keyed.patch("/v1/providers/bedrock", json={"fields": {"region": "eu-central-1"}})
+    assert res.status_code == 200, res.text
+
+
 def test_null_clears_a_ui_secret_and_the_env_one_shows_through(keyed, monkeypatch):
     monkeypatch.setattr(settings, "bedrock_api_key", "dal-env")
     monkeypatch.setattr(settings, "aws_region", "eu-west-1")
