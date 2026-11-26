@@ -1,7 +1,7 @@
 # Provider di modelli e ruoli: design
 
 **Data:** 14 novembre 2026
-**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend; P2 (Bedrock e ripieghi) costruita, rivista e installata il 26/11/2026. L'interfaccia di P1 è assorbita da PU, i provider gestiti dalla Web UI ([sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)), in costruzione.
+**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend; P2 (Bedrock e ripieghi) costruita, rivista e installata il 26/11/2026. L'interfaccia di P1 è assorbita da PU, i provider gestiti dalla Web UI ([sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)): backend di PU1 e PU2 costruito il 26/11/2026 (5.8.6.1).
 **Contesto:** oggi ogni chiamata a un modello va a un server in casa. L'obiettivo è aggiungere provider cloud (prima AWS Bedrock, poi OpenRouter), sapere quanto costa ogni chiamata, fermarsi a un tetto di spesa e scegliere il provider chiamata per chiamata, senza far uscire dati che la destinazione non può ricevere ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), fase S4).
 
 ---
@@ -260,6 +260,24 @@ Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../pric
 - **Provider del `.env` sempre nell'elenco:** `llamacpp`, `ollama` e `bedrock` compaiono anche se il `.env` non li configura (`configured: false`, con `missing`): è da lì che si inseriscono, per esempio, le credenziali di Bedrock.
 - **Errori:** 409 con `{"detail": {"code", "message"}}`. Codici: `reserved_name`, `name_taken`, `env_provider` (eliminare un provider del `.env`), `fallback_provider`, `confirm_required`, `no_secret_key`, `provider_disabled`, `kind_change`. 422 per un campo non valido. 404 per un provider che non esiste.
 - **Chat e conversazioni:** le richieste che oggi hanno `model` hanno anche `provider` (facoltativo: vuoto = provider predefinito). Una conversazione restituisce `provider` e `model`.
+  - Una richiesta con un `thread_id` esistente e senza `provider` né `model` usa la coppia salvata con la conversazione; solo una richiesta senza conversazione, o con una conversazione senza coppia salvata, usa il provider predefinito. "Rigenera" manda la coppia del messaggio dell'utente, che può essere vuota; un canale che prosegue un thread non ne manda nessuna.
+  - Una richiesta con un solo dei due (`model` senza `provider`) non usa la coppia salvata: il provider è il predefinito.
+  - `provider` e `model` ci sono anche nelle automazioni (`provider` accanto a `model`), nelle impostazioni e nell'avvio del consolidamento della memoria, e in `POST /v1/threads/{id}/title/generate` (parametri `provider` e `model`; senza, quelli della conversazione). Ogni risposta salvata ha il suo `provider`; quelle di prima valgono il predefinito.
+- **Messaggi degli errori 409:** `message` è in italiano e la chat lo mostra così com'è. Per `provider_disabled`: "Il provider 'x' è disattivato: scegli un altro modello" (oppure "non esiste", "non è configurato del tutto", "ha una credenziale illeggibile (inseriscila di nuovo)").
+
+#### 5.8.6.1 Come è stato costruito il backend (26/11/2026), e cosa cambia rispetto a sopra
+
+- **`PATCH` accetta anche `confirm`** (di base `false`). Serve solo al provider di ripiego che cambia indirizzo: senza `confirm` risponde 409 `confirm_required`; con `confirm: true` il livello `private` passa al nuovo indirizzo (è la conferma di 5.8.3). Per gli altri provider un cambio di indirizzo riporta il livello effettivo a `public`, senza chiedere nulla.
+- **Codici in più:** `default_provider` (409: disattivare, lasciare incompleto o eliminare il provider predefinito; prima se ne sceglie un altro) e `not_env_provider` (409: `POST .../reset` su un provider aggiunto dalla UI). Il ripiego che resterebbe sotto `private` o non utilizzabile (disattivato, incompleto, abbassato, ripristinato a un `.env` che non basta) è 409 `fallback_provider`.
+- **Forma degli altri errori:** 422 e 404 hanno lo stesso `{"detail": {"code", "message"}}`, con `code` `invalid` e `not_found`. I messaggi non ripetono mai il valore inviato (potrebbe essere una credenziale).
+- **`GET /v1/providers/{name}`** restituisce un provider nella forma dell'elenco. **`DELETE`** risponde `{"name", "deleted": true}`.
+- **`PUT /v1/providers/settings`**: un provider che non esiste è 404; uno non utilizzabile è 409 `provider_disabled`.
+- **"Prova connessione" su Bedrock** prova solo che l'endpoint risponde (non ha un elenco gratuito): non verifica le credenziali. `models_count` è il numero dei modelli configurati.
+- **`GET /v1/models/events`** accetta `?provider=` (di base `llamacpp`) e segue l'indirizzo attuale di quel provider, se è un `openai_compat` con `llama_cpp`. Resta senza `X-API-Key`, come prima, perché la apre un `EventSource`.
+- **Tabelle:** `provider_configs` ha anche `secret_names` (i nomi delle credenziali salvate, in chiaro: servono a dire `{set: true}` quando la credenziale è illeggibile). Predefinito e ripiego stanno in `provider_settings` (`mcp.db`). Le colonne nuove dei thread (`thread_metadata.provider`, `thread_metadata.model`, `thread_messages.provider`) si aggiungono con `ALTER TABLE`: nessun dato esistente cambia.
+- **Credenziale illeggibile:** una `PATCH` con credenziali nuove sostituisce tutte quelle illeggibili.
+- **Un provider senza indirizzo** (non configurato) ha livello effettivo `public`.
+- **Nomi riservati:** `total`, `costs`, `settings`, `ceilings`, `default`, `active`, `openrouter` (409 `reserved_name`); i nomi dei provider del `.env` sono `name_taken`.
 
 #### 5.8.7 Interfaccia
 
