@@ -211,6 +211,56 @@ Decisioni 6–10. Oggi i provider nascono all'avvio dal `.env`, uno solo è "att
 
 Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../price`, `.../ceilings`).
 
+**Forma delle risposte** (il contratto tra backend e frontend; un cambiamento va fatto qui per primo):
+
+```jsonc
+// GET /v1/providers
+{
+  "providers": [{
+    "name": "llamacpp", "display_name": "llama-swap", "kind": "openai_compat",
+    "origin": "env",                 // "env": definito dal .env (non si elimina); "ui": aggiunto dalla UI
+    "enabled": true,
+    "configured": true,              // false se manca un campo obbligatorio: allora non è nel catalogo
+    "missing": [],                   // i campi obbligatori mancanti, es. ["region", "models"]
+    "cloud": false,                  // true per bedrock e openai_cloud
+    "is_default": true, "is_fallback": true,
+    "fields": {                      // i campi del tipo (5.8.2), ognuno con l'origine
+      "base_url": {"value": "http://...", "source": "env"},     // "env" | "ui" | "default"
+      "default_model": {"value": "", "source": "default"},
+      "llama_cpp": {"value": true, "source": "default"}
+    },
+    "secrets": {"api_key": {"set": false, "source": null}},     // source "env" | "ui" | null; mai il valore
+    "secrets_unreadable": false,
+    "clearance": {"saved": "private", "effective": "private", "granted_for": "http://...", "reset_by_address_change": false},
+    "healthy": true, "error": null   // healthy null = non provato
+  }],
+  "default_provider": "llamacpp", "fallback_provider": "llamacpp",
+  "can_store_secrets": true          // false senza API_SECRET_KEY (decisione 9)
+}
+
+// POST /v1/providers            {"name", "kind", "display_name"?, "fields"?: {...}, "secrets"?: {...}}  -> 201, un provider
+// PATCH /v1/providers/{name}    {"display_name"?, "enabled"?, "fields"?: {"k": valore | null}, "secrets"?: {"k": "valore" | null}}  -> un provider
+//                               null = togli il valore della UI (il campo torna al .env)
+// PUT /v1/providers/{name}/clearance  {"level": "public"|"internal"|"private", "confirm": bool}  -> un provider
+// POST /v1/providers/{name}/test      corpo facoltativo come PATCH (prova senza salvare)  -> {"ok", "latency_ms", "models_count", "error"}
+// PUT /v1/providers/settings          {"default_provider"?, "fallback_provider"?}  -> {"default_provider", "fallback_provider"}
+
+// GET /v1/models
+{
+  "providers": [{
+    "name": "llamacpp", "display_name": "llama-swap", "kind": "openai_compat", "cloud": false,
+    "clearance": "private", "healthy": true,
+    "models": [{ /* ModelDetail di oggi: id, is_vision, is_loaded, ... */ }]
+  }],
+  "default": {"provider": "llamacpp", "model": "..."}
+}
+```
+
+- **Campi per tipo:** `openai_compat` → `base_url`, `default_model`, `llama_cpp`; credenziale `api_key`. `ollama` → `base_url`, `default_model`. `bedrock` → `region`, `models` (lista); credenziali `api_key`, `access_key_id`, `secret_access_key`, `session_token`. `openai_cloud` → `base_url`, `models`; credenziale `api_key` (obbligatoria).
+- **Provider del `.env` sempre nell'elenco:** `llamacpp`, `ollama` e `bedrock` compaiono anche se il `.env` non li configura (`configured: false`, con `missing`): è da lì che si inseriscono, per esempio, le credenziali di Bedrock.
+- **Errori:** 409 con `{"detail": {"code", "message"}}`. Codici: `reserved_name`, `name_taken`, `env_provider` (eliminare un provider del `.env`), `fallback_provider`, `confirm_required`, `no_secret_key`, `provider_disabled`, `kind_change`. 422 per un campo non valido. 404 per un provider che non esiste.
+- **Chat e conversazioni:** le richieste che oggi hanno `model` hanno anche `provider` (facoltativo: vuoto = provider predefinito). Una conversazione restituisce `provider` e `model`.
+
 #### 5.8.7 Interfaccia
 
 - **Impostazioni, scheda "Provider":** un elenco di provider con stato (attivo, raggiungibile), tipo e livello effettivo. Per ciascuno:
