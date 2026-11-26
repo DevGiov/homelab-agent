@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getProviderModelsWithDetails, getProviders, type ModelDetail } from '../api/providers';
+import { getModelCatalog, type CatalogProvider, type ModelCatalogResponse, type ModelDetail, type ModelRef } from '../api/providers';
 
 const VISION_NAME = /qwen3\.6|vl|vision|llava|pixtral|gemma-4/i;
 
-/** Modelli del provider attivo, per i selettori della chat; `loadedModel` è quello caricato sul server, se c'è. */
+const NO_DETAILS: ModelDetail[] = [];
+
+/**
+ * Catalogo dei modelli per i selettori: i provider attivi, ognuno con i suoi modelli, e la scelta di partenza (`defaultModel`,
+ * la coppia provider e modello di una conversazione nuova). `modelDetails` e `loadedModel` sono quelli del provider
+ * predefinito, per i lavori in background che non scelgono un provider.
+ */
 export function useModelCatalog() {
-  const [activeProvider, setActiveProvider] = useState('llamacpp');
-  const [modelDetails, setModelDetails] = useState<ModelDetail[]>([]);
+  const [catalog, setCatalog] = useState<ModelCatalogResponse | null>(null);
 
   const refreshModels = useCallback(async () => {
     try {
-      const { active_provider } = await getProviders();
-      if (!active_provider) return;
-      setActiveProvider(active_provider);
-      setModelDetails(await getProviderModelsWithDetails(active_provider));
+      setCatalog(await getModelCatalog());
     } catch (err) {
       console.warn('Modelli della chat non caricati:', err);
     }
@@ -23,12 +25,16 @@ export function useModelCatalog() {
     refreshModels();
   }, [refreshModels]);
 
-  const isVisionModel = (modelId: string) =>
-    modelDetails.find((d) => d.id === modelId)?.is_vision ?? VISION_NAME.test(modelId);
+  const providers: CatalogProvider[] = catalog?.providers ?? [];
+  const defaultModel: ModelRef | null = catalog?.default ?? null;
+  const modelDetails = providers.find((p) => p.name === defaultModel?.provider)?.models ?? NO_DETAILS;
+
+  const isVisionModel = (ref: ModelRef) =>
+    providers.find((p) => p.name === ref.provider)?.models.find((m) => m.id === ref.model)?.is_vision ?? VISION_NAME.test(ref.model);
 
   const loadedModel = modelDetails.find((d) => d.is_loaded)?.id ?? null;
 
-  return { activeProvider, modelDetails, loadedModel, refreshModels, isVisionModel };
+  return { providers, defaultModel, modelDetails, loadedModel, refreshModels, isVisionModel };
 }
 
 export type ModelCatalog = ReturnType<typeof useModelCatalog>;

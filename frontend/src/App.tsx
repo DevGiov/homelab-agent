@@ -71,6 +71,7 @@ function MainLayout() {
     currentMessages,
     currentThreadTitle,
     threadLevel,
+    threadModel,
     setThreadLevel,
     isLoadingChat,
     isPaused,
@@ -203,6 +204,7 @@ function MainLayout() {
             currentThreadId={currentThreadId}
             currentThreadTitle={currentThreadTitle}
             threadLevel={threadLevel}
+            threadModel={threadModel}
             onThreadLevelSaved={setThreadLevel}
             messages={currentMessages}
             onSendMessage={handleSendMessage}

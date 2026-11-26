@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentMode, WebSearchMode } from '../api/chat';
+import type { ModelRef } from '../api/providers';
 import { useSecurityMode } from './useSecurityMode';
 import type { SendOptions } from './useChat';
 
@@ -17,33 +18,28 @@ function storedWebSearch(): WebSearchMode {
 /**
  * Opzioni del prossimo invio scelte nella UI; web search e modalità di sicurezza persistono in localStorage.
  *
- * Il modello segue quello caricato sul server (`loadedModel`, o 'default' se nessuno lo è) finché l'utente non ne
- * sceglie uno nel thread: aprire un altro thread, o una chat nuova, torna a seguire il modello caricato. Il thread creato
- * dal primo messaggio di una chat nuova (da null a un id) è la stessa chat e tiene la scelta.
+ * Il modello è la coppia (provider, modello) ed è per conversazione: vale la scelta fatta dall'utente nel thread, altrimenti
+ * quella salvata nella conversazione aperta (`threadModel`), altrimenti la partenza del catalogo (`defaultModel`). Aprire un
+ * altro thread, o una chat nuova, scarta la scelta. Il thread creato dal primo messaggio di una chat nuova (da null a un id)
+ * è la stessa chat e tiene la scelta.
  */
-export function useChatOptions(threadId: string | null = null, loadedModel: string | null = null) {
+export function useChatOptions(threadId: string | null = null, defaultModel: ModelRef | null = null, threadModel: ModelRef | null = null) {
   const [mode, setMode] = useState<AgentMode | 'auto'>('auto');
   const [execute, setExecute] = useState(true);
   const [reasoningBudget, setReasoningBudget] = useState<number | undefined>(undefined);
-  const [model, setModelState] = useState(loadedModel ?? 'default');
-  const [modelChosen, setModelChosen] = useState(false);
+  const [chosen, setChosen] = useState<ModelRef | null>(null);
   const [incognito, setIncognito] = useState(false);
   const [webSearch, setWebSearchState] = useState<WebSearchMode>(storedWebSearch);
   const [securityMode, setSecurityMode] = useSecurityMode();
 
   const previousThread = useRef(threadId);
   useEffect(() => {
-    if (previousThread.current !== null || threadId === null) setModelChosen(false);
+    if (previousThread.current !== null || threadId === null) setChosen(null);
     previousThread.current = threadId;
   }, [threadId]);
-  useEffect(() => {
-    if (!modelChosen) setModelState(loadedModel ?? 'default');
-  }, [modelChosen, loadedModel]);
 
-  const setModel = (next: string) => {
-    setModelChosen(true);
-    setModelState(next);
-  };
+  const selection = chosen ?? (threadId ? threadModel : null) ?? defaultModel;
+  const setSelection = (next: ModelRef) => setChosen(next);
 
   const setWebSearch = (next: WebSearchMode) => {
     try {
@@ -54,12 +50,13 @@ export function useChatOptions(threadId: string | null = null, loadedModel: stri
     setWebSearchState(next);
   };
 
-  /** 'auto' e 'default' lasciano la scelta al backend. */
+  /** 'auto' lascia la scelta al backend; senza un modello scelto il backend usa il provider predefinito. */
   const toSendOptions = (images?: string[]): SendOptions => ({
     mode: mode === 'auto' ? undefined : mode,
     execute,
     reasoningBudget,
-    model: model === 'default' ? undefined : model,
+    provider: selection?.provider,
+    model: selection?.model,
     incognito,
     webSearch,
     images,
@@ -73,8 +70,8 @@ export function useChatOptions(threadId: string | null = null, loadedModel: stri
     setExecute,
     reasoningBudget,
     setReasoningBudget,
-    model,
-    setModel,
+    selection,
+    setSelection,
     incognito,
     setIncognito,
     webSearch,

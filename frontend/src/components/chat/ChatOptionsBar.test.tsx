@@ -18,13 +18,13 @@ function fakeOptions(overrides: Partial<ChatOptions> = {}): ChatOptions {
     setIncognito: vi.fn(),
     reasoningBudget: undefined,
     setReasoningBudget: vi.fn(),
-    model: 'default',
-    setModel: vi.fn(),
+    selection: null,
+    setSelection: vi.fn(),
     ...overrides,
   } as unknown as ChatOptions;
 }
 
-const models = { modelDetails: [], activeProvider: 'llamacpp', refreshModels: vi.fn() } as unknown as ModelCatalog;
+const models = { providers: [], refreshModels: vi.fn() } as unknown as ModelCatalog;
 
 describe('opzioni dell\'invio', () => {
   it('con i default fuori restano solo il pulsante e il modello', () => {

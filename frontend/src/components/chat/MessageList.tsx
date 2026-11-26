@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Bot, Sparkles } from 'lucide-react';
 import type { AgentMode, FormattedMessage } from '../../api/chat';
+import type { ModelRef } from '../../api/providers';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { ChatMessage, type MessageActions } from './ChatMessage';
 import { ThinkingIndicator } from './ThinkingIndicator';
@@ -13,7 +14,7 @@ interface MessageListProps {
   isPaused: boolean;
   actions: MessageActions;
   models: ModelCatalog;
-  editDefaults: { mode: AgentMode | 'auto'; model: string };
+  editDefaults: { mode: AgentMode | 'auto'; model: ModelRef | null };
   /** Cambia quando la vista va riportata in fondo oltre ai nuovi messaggi (es. immagini allegate). */
   scrollKey?: unknown;
 }

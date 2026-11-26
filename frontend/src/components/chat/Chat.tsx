@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EyeOff, Image as ImageIcon } from 'lucide-react';
 import type { FormattedMessage } from '../../api/chat';
+import type { ModelRef } from '../../api/providers';
 import type { PromptEdit, SendOptions } from '../../hooks/useChat';
 import { useChatOptions } from '../../hooks/useChatOptions';
 import { useImageAttachments } from '../../hooks/useImageAttachments';
@@ -25,6 +26,8 @@ interface ChatProps {
   /** Livello minimo della conversazione salvato dal backend (null = pubblico) e chi lo aggiorna. */
   threadLevel?: SensitivityLevel | null;
   onThreadLevelSaved?: (level: SensitivityLevel) => void;
+  /** Il modello (con il suo provider) salvato nella conversazione; null se non ne ha uno. */
+  threadModel?: ModelRef | null;
   messages: FormattedMessage[];
   onSendMessage: (input: string, options: SendOptions) => Promise<void>;
   onRegenerate?: (assistantMsgId: string) => Promise<void> | void;
@@ -48,6 +51,7 @@ export const Chat: React.FC<ChatProps> = ({
   currentThreadTitle,
   threadLevel = null,
   onThreadLevelSaved,
+  threadModel = null,
   messages,
   onSendMessage,
   onRegenerate,
@@ -66,7 +70,7 @@ export const Chat: React.FC<ChatProps> = ({
   onInspectMessage,
 }) => {
   const models = useModelCatalog();
-  const options = useChatOptions(currentThreadId, models.loadedModel);
+  const options = useChatOptions(currentThreadId, models.defaultModel, threadModel);
   const attachments = useImageAttachments();
   const conversation = useConversationLevel(currentThreadId, threadLevel, onThreadLevelSaved);
   // Etichetta mostrata: il livello scelto, unito a quella dell'ultima risposta (motivi compresi)
@@ -79,7 +83,7 @@ export const Chat: React.FC<ChatProps> = ({
   const bannerError = error || conversation.error;
 
   const title = currentThreadTitle || (currentThreadId ? `Conversazione ${currentThreadId}` : 'Nuova conversazione');
-  const textOnlyModel = options.model !== 'default' && !models.isVisionModel(options.model) ? options.model : null;
+  const textOnlyModel = options.selection && !models.isVisionModel(options.selection) ? options.selection.model : null;
 
   const send = (text: string) => {
     const images = attachments.images.map((img) => img.dataUrl);
@@ -158,7 +162,7 @@ export const Chat: React.FC<ChatProps> = ({
         isPaused={isPaused}
         actions={actions}
         models={models}
-        editDefaults={{ mode: options.mode, model: options.model }}
+        editDefaults={{ mode: options.mode, model: options.selection }}
         scrollKey={attachments.images}
       />
 

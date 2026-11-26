@@ -20,6 +20,9 @@ export interface ThreadDetails {
   active_snapshot?: any;
   /** Livello minimo scelto per la conversazione; null = pubblico. */
   sensitivity_level?: SensitivityLevel | null;
+  /** Il modello scelto per la conversazione, con il suo provider. */
+  provider?: string | null;
+  model?: string | null;
 }
 
 const threadPath = (threadId: string) => `/threads/${encodeURIComponent(threadId)}`;

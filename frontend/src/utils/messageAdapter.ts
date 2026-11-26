@@ -36,6 +36,7 @@ export function adaptChatResponseToMessage(
     reasoning_content: response.reasoning_content,
     web_prefetch: response.web_prefetch,
     metrics: response.metrics,
+    provider: response.provider,
     model: response.model,
     isError: Boolean(response.error),
     approval_required: response.approval_required,

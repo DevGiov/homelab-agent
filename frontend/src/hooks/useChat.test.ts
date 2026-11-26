@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FormattedMessage } from '../api/chat';
 import { jsonResponse, mockBackend, sseResponse, type RecordedRequest } from '../test/backend';
 import { useChat } from './useChat';
+import { useChatOptions } from './useChatOptions';
 
 const THREAD = 't1';
 
@@ -284,5 +285,54 @@ describe('useChat — ripresa dopo un\'approvazione', () => {
     });
     const { result } = renderHook(() => useChat(THREAD));
     await waitFor(() => expect(contents(result.current.currentMessages)).toEqual(['assistant: Confermi?', 'assistant: Fatto.']));
+  });
+});
+
+describe('useChat — modello come coppia (provider, modello)', () => {
+  const DEFAULT = { provider: 'llamacpp', model: 'Qwen3.6-35B' };
+
+  /** Chat e opzioni come le collega il componente: il modello salvato nel thread arriva alle opzioni. */
+  async function renderChatWithOptions() {
+    const hook = renderHook(() => {
+      const chat = useChat(THREAD);
+      const options = useChatOptions(THREAD, DEFAULT, chat.threadModel);
+      return { chat, options };
+    });
+    await waitFor(() => expect(hook.result.current.chat.isLoadingChat).toBe(false));
+    return hook;
+  }
+
+  it('la richiesta porta il provider accanto al modello', async () => {
+    const { requests } = setupBackend();
+    const { result } = await renderChat();
+    await act(() => result.current.handleSendMessage('ciao', { execute: true, provider: 'bedrock', model: 'claude' }));
+    expect(streamRequests(requests)[0].body).toMatchObject({ provider: 'bedrock', model: 'claude' });
+  });
+
+  it('aprendo una conversazione ne ripristina provider e modello, e l\'invio li usa', async () => {
+    const { requests } = setupBackend({ thread_id: THREAD, messages: [], provider: 'bedrock', model: 'claude' });
+    const { result } = await renderChatWithOptions();
+    await waitFor(() => expect(result.current.options.selection).toEqual({ provider: 'bedrock', model: 'claude' }));
+
+    await act(() => result.current.chat.handleSendMessage('ciao', result.current.options.toSendOptions()));
+    expect(streamRequests(requests)[0].body).toMatchObject({ provider: 'bedrock', model: 'claude' });
+  });
+
+  it('una conversazione senza modello salvato parte dal predefinito del catalogo', async () => {
+    const { requests } = setupBackend({ thread_id: THREAD, messages: [] });
+    const { result } = await renderChatWithOptions();
+    expect(result.current.options.selection).toEqual(DEFAULT);
+
+    await act(() => result.current.chat.handleSendMessage('ciao', result.current.options.toSendOptions()));
+    expect(streamRequests(requests)[0].body).toMatchObject({ provider: 'llamacpp', model: 'Qwen3.6-35B' });
+  });
+
+  it('la modifica del prompt con un altro provider lo manda nella richiesta', async () => {
+    const { requests } = setupBackend();
+    const { result } = await renderChat();
+    await act(() => result.current.handleSendMessage('prompt', { execute: true }));
+    const userId = result.current.currentMessages[0].id;
+    await act(() => result.current.handleEditPrompt(userId, { content: 'nuovo', provider: 'ollama', model: 'llama3' }));
+    expect(streamRequests(requests)[1].body).toMatchObject({ input: 'nuovo', provider: 'ollama', model: 'llama3' });
   });
 });

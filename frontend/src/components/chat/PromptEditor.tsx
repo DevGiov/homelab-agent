@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 import type { AgentMode, FormattedMessage } from '../../api/chat';
+import type { ModelRef } from '../../api/providers';
 import type { PromptEdit } from '../../hooks/useChat';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { USER_BUBBLE_BUTTON } from '../../theme/userBubble';
@@ -9,7 +10,7 @@ import { ModelSelector } from '../ModelSelector';
 interface PromptEditorProps {
   message: FormattedMessage;
   /** Modalità e modello correnti della chat, usati se il messaggio non li ha registrati. */
-  defaults: { mode: AgentMode | 'auto'; model: string };
+  defaults: { mode: AgentMode | 'auto'; model: ModelRef | null };
   models: ModelCatalog;
   onSubmit: (edit: PromptEdit) => void;
   onCancel: () => void;
@@ -18,14 +19,17 @@ interface PromptEditorProps {
 export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, models, onSubmit, onCancel }) => {
   const [text, setText] = useState(message.content);
   const [mode, setMode] = useState<AgentMode | 'auto'>((message.mode as AgentMode) || defaults.mode);
-  const [model, setModel] = useState(message.model || defaults.model);
+  const [selection, setSelection] = useState<ModelRef | null>(
+    message.provider && message.model ? { provider: message.provider, model: message.model } : defaults.model
+  );
 
   const submit = () => {
     if (!text.trim()) return;
     onSubmit({
       content: text.trim(),
       mode: mode === 'auto' ? undefined : mode,
-      model: model === 'default' ? undefined : model,
+      provider: selection?.provider,
+      model: selection?.model,
       reasoningBudget: message.reasoningBudget,
     });
   };
@@ -54,12 +58,11 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
             <option value="act">Modalità: act</option>
             <option value="plan">Modalità: plan</option>
           </select>
-          {models.modelDetails.length > 0 && (
+          {models.providers.length > 0 && (
             <ModelSelector
-              selectedModel={model}
-              onSelectModel={setModel}
-              modelDetails={models.modelDetails}
-              activeProvider={models.activeProvider}
+              selected={selection}
+              onSelect={setSelection}
+              providers={models.providers}
               onRefreshModels={models.refreshModels}
             />
           )}

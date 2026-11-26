@@ -118,7 +118,7 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({
         </span>
       )}
       {msg.model && (
-        <span className={`${badge} bg-panel border border-border text-fg-muted`} title={`Modello LLM: ${msg.model}`}>
+        <span className={`${badge} bg-panel border border-border text-fg-muted`} title={msg.provider ? `Modello LLM: ${msg.model} (provider ${msg.provider})` : `Modello LLM: ${msg.model}`}>
           <Cpu size={10} className="text-accent-text shrink-0" />
           <span className="font-mono">{msg.model}</span>
         </span>

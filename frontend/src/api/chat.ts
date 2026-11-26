@@ -36,6 +36,8 @@ export interface ChatRequest {
   reasoning_budget?: number;
   reasoning_budget_tokens?: number;
   execute?: boolean;
+  /** Il provider del modello scelto; vuoto = il provider predefinito. */
+  provider?: string;
   model?: string;
   incognito?: boolean;
   web_search?: WebSearchMode;
@@ -104,6 +106,7 @@ export interface StreamMetrics {
 export interface ChatResponse {
   thread_id: string | null;
   mode: AgentMode | string;
+  provider?: string;
   model?: string;
   response: string;
   tool_used?: string;
@@ -144,6 +147,7 @@ export interface MessageVersion {
   web_prefetch?: WebPrefetchData;
   metrics?: StreamMetrics;
   isError?: boolean;
+  provider?: string;
   model?: string;
   reasoningBudget?: number;
   images?: string[];

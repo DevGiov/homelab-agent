@@ -253,10 +253,9 @@ export const ChatOptionsBar: React.FC<ChatOptionsBarProps> = ({ options, models,
 
       <div className="ml-auto min-w-0">
         <ModelSelector
-          selectedModel={options.model}
-          onSelectModel={options.setModel}
-          modelDetails={models.modelDetails}
-          activeProvider={models.activeProvider}
+          selected={options.selection}
+          onSelect={options.setSelection}
+          providers={models.providers}
           onRefreshModels={models.refreshModels}
         />
       </div>

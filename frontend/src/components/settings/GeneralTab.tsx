@@ -1,68 +1,24 @@
-import React, { useEffect, useId, useState } from 'react';
-import { AlertCircle, Box, CheckCircle2, Cpu, KeyRound, Loader2, Save } from 'lucide-react';
+import React, { useId, useState } from 'react';
+import { AlertCircle, CheckCircle2, KeyRound, Loader2, Save } from 'lucide-react';
 import { getApiKey, setApiKey } from '../../api/http';
-import { getProviderModels, getProviders, setDefaultProvider, type ProviderInfo } from '../../api/providers';
 import { formatApiError } from '../../utils/error';
 
 const fieldClass =
   'w-full bg-input-bg border border-input-border rounded-xl px-3 py-2 text-xs text-fg focus:border-accent disabled:opacity-50';
 
-/** API key, provider e modello di default; il salvataggio chiude il modale. */
+/** API key del backend; il salvataggio chiude il modale. */
 export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
   const fieldId = useId();
   const [apiKey, setLocalApiKey] = useState(getApiKey());
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [provider, setProvider] = useState('');
-  const [models, setModels] = useState<string[]>([]);
-  const [model, setModel] = useState('');
-  const [loadingProviders, setLoadingProviders] = useState(true);
-  const [loadingModels, setLoadingModels] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  /** Modelli del provider; `preferred` resta selezionato se il provider lo offre, altrimenti il primo. */
-  const loadModels = async (providerName: string, preferred?: string) => {
-    setLoadingModels(true);
-    try {
-      const list = await getProviderModels(providerName);
-      setModels(list);
-      setModel(preferred || list[0] || '');
-    } catch (err) {
-      console.warn('Errore recupero modelli:', err);
-      setModels([]);
-    } finally {
-      setLoadingModels(false);
-    }
-  };
-
-  useEffect(() => {
-    getProviders()
-      .then((data) => {
-        setProviders(data.providers);
-        const active = data.active_provider || data.providers[0]?.name || '';
-        setProvider(active);
-        setModel(data.active_model || '');
-        if (active) loadModels(active, data.active_model);
-      })
-      .catch((err) => {
-        console.warn('Errore recupero providers:', err);
-        setError('Impossibile caricare la lista dei provider LLM dal backend.');
-      })
-      .finally(() => setLoadingProviders(false));
-  }, []);
-
-  const changeProvider = (name: string) => {
-    setProvider(name);
-    loadModels(name);
-  };
 
   const save = async () => {
     setError(null);
     setSaving(true);
     try {
       setApiKey(apiKey);
-      if (provider) await setDefaultProvider(provider, model || undefined);
       setSaved(true);
       setTimeout(onSaved, 800);
     } catch (err) {
@@ -97,54 +53,9 @@ export const GeneralTab: React.FC<{ onSaved: () => void }> = ({ onSaved }) => {
         <p className="text-xs text-fg-muted leading-snug">Salvata in localStorage e inviata automaticamente alle chiamate API.</p>
       </div>
 
-      <div className="border-t border-border pt-3 stack-y-3">
-        <div className="stack-y-1.5">
-          <label htmlFor={`${fieldId}-provider`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
-            <Cpu size={12} className="text-accent-text" />
-            Provider LLM
-            {loadingProviders && <Loader2 size={12} className="animate-spin text-accent-text ml-1" />}
-          </label>
-          <select
-            id={`${fieldId}-provider`}
-            value={provider}
-            onChange={(e) => changeProvider(e.target.value)}
-            disabled={loadingProviders || providers.length === 0}
-            className={`${fieldClass} capitalize`}
-          >
-            {providers.map((p) => (
-              <option key={p.name} value={p.name} className="bg-panel text-fg">
-                {p.name} {p.healthy ? '● (online)' : '○ (offline)'}
-              </option>
-            ))}
-            {providers.length === 0 && !loadingProviders && (
-              <option value="" className="bg-panel text-fg">Nessun provider disponibile</option>
-            )}
-          </select>
-        </div>
-
-        <div className="stack-y-1.5">
-          <label htmlFor={`${fieldId}-model`} className="flex items-center gap-1.5 text-xs font-medium text-fg-muted">
-            <Box size={12} className="text-emerald-400" />
-            Modello predefinito
-            {loadingModels && <Loader2 size={12} className="animate-spin text-emerald-400 ml-1" />}
-          </label>
-          <select
-            id={`${fieldId}-model`}
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            disabled={loadingModels || models.length === 0}
-            className={`${fieldClass} font-mono`}
-          >
-            {models.map((m) => (
-              <option key={m} value={m} className="bg-panel text-fg">
-                {m}
-              </option>
-            ))}
-            {models.length === 0 && !loadingModels && <option value="" className="bg-panel text-fg">Nessun modello trovato</option>}
-          </select>
-          <p className="text-xs text-fg-muted leading-snug">Imposta il modello predefinito usato dall'agente se non sovrascritto in chat.</p>
-        </div>
-      </div>
+      <p className="text-xs text-fg-muted leading-snug">
+        Provider e modelli si gestiscono nella scheda <strong>Provider</strong>; il modello si sceglie per ogni conversazione dal selettore della chat.
+      </p>
 
       <button
         onClick={save}

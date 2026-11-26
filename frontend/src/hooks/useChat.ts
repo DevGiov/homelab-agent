@@ -27,12 +27,14 @@ import {
   webPrefetchFromEvent,
   type ChatDiagnostics,
 } from '../utils/chatMessages';
+import type { ModelRef } from '../api/providers';
 import { isLevel, type SensitivityLevel } from '../utils/sensitivity';
 
 export interface SendOptions {
   mode?: AgentMode;
   execute: boolean;
   reasoningBudget?: number;
+  provider?: string;
   model?: string;
   incognito?: boolean;
   webSearch?: WebSearchMode;
@@ -45,6 +47,7 @@ export interface SendOptions {
 export interface PromptEdit {
   content: string;
   mode?: AgentMode;
+  provider?: string;
   model?: string;
   reasoningBudget?: number;
 }
@@ -60,10 +63,13 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
   const [diagnostics, setDiagnostics] = useState<ChatDiagnostics>({});
   // Livello minimo della conversazione aperta, come salvato dal backend
   const [threadLevel, setThreadLevel] = useState<SensitivityLevel | null>(null);
-  // Cambiando conversazione titolo e livello sono quelli del thread nuovo, che arrivano con il suo storico
+  // Modello (con il suo provider) salvato nella conversazione aperta; null se non ne ha uno
+  const [threadModel, setThreadModel] = useState<ModelRef | null>(null);
+  // Cambiando conversazione titolo, livello e modello sono quelli del thread nuovo, che arrivano con il suo storico
   useEffect(() => {
     setCurrentThreadTitle(null);
     setThreadLevel(null);
+    setThreadModel(null);
   }, [currentThreadId]);
 
   const isSendingRef = useRef<boolean>(false);
@@ -127,6 +133,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       const messages = markResolvedApprovals(details.messages ?? []);
       setCurrentThreadTitle(details.title || null);
       setThreadLevel(isLevel(details.sensitivity_level) ? details.sensitivity_level : null);
+      setThreadModel(details.provider && details.model ? { provider: details.provider, model: details.model } : null);
       updateThread(threadId, () => messages);
       setDiagnostics(diagnosticsOf(lastAssistant(messages)));
 
@@ -196,6 +203,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         force_mode: options.mode,
         execute: options.execute,
         reasoning_budget: options.reasoningBudget,
+        provider: options.provider,
         model: options.model,
         incognito: options.incognito,
         web_search: options.webSearch,
@@ -321,6 +329,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
             force_mode: (userMsg.mode as AgentMode) || undefined,
             execute: true,
             reasoning_budget: userMsg.reasoningBudget,
+            provider: userMsg.provider,
             model: userMsg.model,
             images: userMsg.images,
             security_mode: userMsg.security_mode,
@@ -364,13 +373,13 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
 
       // Il prompt modificato diventa una nuova versione del messaggio utente
       const timestamp = nowTime();
-      const { content, mode, model, reasoningBudget } = edit;
+      const { content, mode, provider, model, reasoningBudget } = edit;
       const versions: MessageVersion[] = [
         ...(userMsg.versions?.length ? userMsg.versions : [extractMessageVersion(userMsg)]),
-        { id: `user_edit_${Date.now()}`, content, timestamp, mode, model, reasoningBudget, images: userMsg.images },
+        { id: `user_edit_${Date.now()}`, content, timestamp, mode, provider, model, reasoningBudget, images: userMsg.images },
       ];
       const versionIndex = versions.length - 1;
-      const editedMsg: FormattedMessage = { ...userMsg, content, mode, model, reasoningBudget, timestamp, versions, versionIndex };
+      const editedMsg: FormattedMessage = { ...userMsg, content, mode, provider, model, reasoningBudget, timestamp, versions, versionIndex };
       messageUpdater(currentThreadId, userMsgId)(() => editedMsg);
       saveMessageVersions(currentThreadId, userMsgId, versions, versionIndex);
 
@@ -382,6 +391,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
           mode,
           execute: true,
           reasoningBudget,
+          provider,
           model,
           images: userMsg.images,
           securityMode: userMsg.security_mode,
@@ -473,6 +483,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
     currentThreadTitle,
     threadLevel,
     setThreadLevel,
+    threadModel,
     isLoadingChat,
     isPaused,
     chatError,

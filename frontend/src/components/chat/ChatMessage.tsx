@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Check, Copy, Maximize2, Pencil, User } from 'lucide-react';
 import type { AgentMode, FormattedMessage } from '../../api/chat';
+import type { ModelRef } from '../../api/providers';
 import type { PromptEdit } from '../../hooks/useChat';
 import { useCopyFeedback } from '../../hooks/useCopyFeedback';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
@@ -31,7 +32,7 @@ interface ChatMessageProps {
   isPaused: boolean;
   actions: MessageActions;
   models: ModelCatalog;
-  editDefaults: { mode: AgentMode | 'auto'; model: string };
+  editDefaults: { mode: AgentMode | 'auto'; model: ModelRef | null };
 }
 
 const bubbleClass = (msg: FormattedMessage) =>
