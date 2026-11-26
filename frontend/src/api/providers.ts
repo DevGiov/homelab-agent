@@ -78,6 +78,8 @@ export interface ProviderPatch {
   enabled?: boolean;
   fields?: Record<string, FieldValue>;
   secrets?: Record<string, string | null>;
+  /** Solo quando cambia l'indirizzo del provider di ripiego: il backend risponde 409 `confirm_required` senza. */
+  confirm?: boolean;
 }
 
 export interface ProviderTestResult {

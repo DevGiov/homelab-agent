@@ -12,6 +12,7 @@ import {
   type ProviderPatch,
   type ProviderTestResult,
 } from '../../../api/providers';
+import { ApiError } from '../../../api/http';
 import type { Confirm } from '../../../hooks/useConfirm';
 import { useFeedback } from '../../../hooks/useFeedback';
 import { compareLabels, LABEL_HINTS, LABEL_NAMES, LEVELS, type SensitivityLevel } from '../../../utils/sensitivity';
@@ -66,10 +67,11 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
   const dirty = dirtyFields.length > 0 || typedSecrets.length > 0 || nameChanged;
 
   /** Esegue una chiamata: in caso di errore lo dice nella scheda, altrimenti ricarica l'elenco. */
+  // `action` che restituisce `false`: annullata dall'utente, nessun messaggio
   const run = async (action: () => Promise<unknown>, success?: string): Promise<boolean> => {
     setBusy(true);
     try {
-      await action();
+      if ((await action()) === false) return false;
       if (success) notify('success', success);
       await onChanged();
       return true;
@@ -92,8 +94,24 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
     return patch;
   };
 
+  /** PATCH che, se cambia l'indirizzo del provider di ripiego (409 `confirm_required`), chiede la conferma e lo
+   * ripete con `confirm: true`. `false` se l'utente annulla. */
+  const patchConfirmed = async (patch: ProviderPatch): Promise<boolean> => {
+    try {
+      await updateProvider(provider.name, patch);
+      return true;
+    } catch (err) {
+      const code = err instanceof ApiError && err.status === 409 ? (err.detail as { code?: unknown } | null)?.code : null;
+      if (code !== 'confirm_required') throw err;
+      const confirmed = await confirm({ message: `${err instanceof Error ? err.message : ''} Confermi?`, confirmLabel: 'Conferma' });
+      if (!confirmed) return false;
+      await updateProvider(provider.name, { ...patch, confirm: true });
+      return true;
+    }
+  };
+
   const save = async () => {
-    const ok = await run(() => updateProvider(provider.name, draftPatch()), 'Provider salvato.');
+    const ok = await run(() => patchConfirmed(draftPatch()), 'Provider salvato.');
     if (ok) {
       setEdits({});
       setTyped({});
@@ -103,7 +121,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
 
   const resetField = (key: string) =>
     run(async () => {
-      await updateProvider(provider.name, { fields: { [key]: null } });
+      if (!(await patchConfirmed({ fields: { [key]: null } }))) return false;
       setEdits((e) => without(e, key));
     }, 'Il campo è tornato al valore del .env.');
 

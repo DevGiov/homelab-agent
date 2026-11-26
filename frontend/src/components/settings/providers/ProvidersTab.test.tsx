@@ -195,6 +195,41 @@ describe('scheda Provider: campi e origine', () => {
   });
 });
 
+describe('scheda Provider: indirizzo del provider di ripiego', () => {
+  const askFirst = () => {
+    // Il backend vuole la conferma quando il salvataggio cambia l'indirizzo del ripiego
+    return (req: RecordedRequest) =>
+      req.body?.confirm ? jsonResponse(llama) : jsonResponse({ detail: { code: 'confirm_required', message: "Cambiare l'indirizzo del ripiego abbassa il suo livello." } }, 409);
+  };
+
+  it('un 409 confirm_required al salvataggio chiede conferma e ripete il PATCH con confirm true', async () => {
+    const { requests } = setup({ patch: askFirst() });
+    await openCard('llamacpp', 'llama-swap');
+    fireEvent.change(card("llamacpp").getByLabelText(/^Indirizzo/), { target: { value: "http://altro.example:8080/v1" } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain("abbassa il suo livello");
+    expect(sent(requests, 'PATCH', '/v1/providers/llamacpp')).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Conferma' }));
+    await waitFor(() => expect(sent(requests, 'PATCH', '/v1/providers/llamacpp')).toHaveLength(2));
+    const [first, second] = sent(requests, 'PATCH', '/v1/providers/llamacpp');
+    expect(first.body.confirm).toBeUndefined();
+    expect(second.body).toEqual({ ...first.body, confirm: true });
+  });
+
+  it('annullare la conferma non ripete il PATCH e non dice «salvato»', async () => {
+    const { requests } = setup({ patch: askFirst() });
+    await openCard('llamacpp', 'llama-swap');
+    fireEvent.change(card("llamacpp").getByLabelText(/^Indirizzo/), { target: { value: "http://altro.example:8080/v1" } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Annulla' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(sent(requests, 'PATCH', '/v1/providers/llamacpp')).toHaveLength(1);
+    expect(screen.queryByText('Provider salvato.')).toBeNull();
+  });
+});
+
 describe('scheda Provider: credenziali in sola scrittura', () => {
   it('mostrano lo stato a parole e nessun valore', async () => {
     setup();
@@ -477,7 +512,7 @@ describe('errori dell\'API dei provider', () => {
   const conflict = (code: string) => new ApiError(409, { code, message: 'testo del backend' }, 'testo del backend');
 
   it('ogni codice 409 ha un messaggio italiano chiaro, non il testo del backend', () => {
-    for (const code of ['reserved_name', 'name_taken', 'env_provider', 'fallback_provider', 'confirm_required', 'no_secret_key', 'provider_disabled', 'kind_change']) {
+    for (const code of ['reserved_name', 'name_taken', 'env_provider', 'fallback_provider', 'confirm_required', 'no_secret_key', 'provider_disabled', 'kind_change', 'default_provider', 'not_env_provider']) {
       const message = providerErrorMessage(conflict(code));
       expect(message).toBe(PROVIDER_ERROR_MESSAGES[code]);
       expect(message).not.toBe('testo del backend');

@@ -11,6 +11,8 @@ export const PROVIDER_ERROR_MESSAGES: Record<string, string> = {
   no_secret_key: 'Senza API_SECRET_KEY le credenziali non si possono salvare: imposta API_SECRET_KEY nel .env e ricrea il backend.',
   provider_disabled: 'Il provider è disattivato: attivalo per usarlo.',
   kind_change: 'Il tipo di un provider non si cambia: crea un altro provider.',
+  default_provider: 'È il provider predefinito: scegline un altro tra le impostazioni in fondo alla scheda prima di disattivarlo, eliminarlo o lasciarlo incompleto.',
+  not_env_provider: 'Questo provider è stato aggiunto dalla UI: non ha un .env a cui tornare.',
 };
 
 /** Messaggio per un errore dell'API dei provider: i codici noti hanno un testo chiaro, il resto passa com'è. */
