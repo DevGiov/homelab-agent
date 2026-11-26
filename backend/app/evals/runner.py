@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from app.core.config import settings
 from app.evals.suites import SUITES, Outcome, load_cases
+from app.llm import providers
 from app.observability.report import percentile
 from app.observability.turns import capture_llm_calls
 
@@ -80,22 +81,26 @@ def evaluate_model(
     case_ids: Optional[List[str]] = None,
     progress: Callable[[str], None] = lambda _: None,
     variant: Optional[str] = None,
+    provider: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """`variant` distingue nei report una configurazione dello stesso modello (per esempio `interleaved off`)."""
+    """`variant` distingue nei report una configurazione dello stesso modello (per esempio `interleaved off`).
+    `provider` (None = il predefinito) è il provider di tutte le chiamate della valutazione e finisce nel report."""
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%S")
     name = f"{model} [{variant}]" if variant else model
-    report: Dict[str, Any] = {"model": name, "started_at": started.isoformat(), "repeat": repeat, "suites": {}}
-    for suite in suites:
-        cases = []
-        for case in load_cases(suite):
-            if case_ids and case["id"] not in case_ids:
-                continue
-            runs = [run_case(SUITES[suite], case, model, f"eval:{run_id}:{suite}:{case['id']}") for _ in range(repeat)]
-            cases.append({"id": case["id"], "runs": runs})
-            mark = "–" if runs[0]["skipped"] else f"{sum(r['passed'] for r in runs)}/{repeat}"
-            progress(f"[{name}] {suite}/{case['id']}: {mark} {runs[-1]['detail']}")
-        report["suites"][suite] = {**summarize(cases), "results": cases}
+    with providers.use_provider(provider):
+        report: Dict[str, Any] = {"model": name, "provider": providers.turn_provider_name(),
+                                  "started_at": started.isoformat(), "repeat": repeat, "suites": {}}
+        for suite in suites:
+            cases = []
+            for case in load_cases(suite):
+                if case_ids and case["id"] not in case_ids:
+                    continue
+                runs = [run_case(SUITES[suite], case, model, f"eval:{run_id}:{suite}:{case['id']}") for _ in range(repeat)]
+                cases.append({"id": case["id"], "runs": runs})
+                mark = "–" if runs[0]["skipped"] else f"{sum(r['passed'] for r in runs)}/{repeat}"
+                progress(f"[{name}] {suite}/{case['id']}: {mark} {runs[-1]['detail']}")
+            report["suites"][suite] = {**summarize(cases), "results": cases}
     report["duration_s"] = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
     return report
 
@@ -113,10 +118,11 @@ def latest_reports(paths: Optional[List[Path]] = None) -> List[Dict[str, Any]]:
     parziale aggiorna solo le sue suite); `started_at` è quello dell'esecuzione più recente."""
     if paths:
         return [json.loads(p.read_text(encoding="utf-8")) for p in paths]
-    latest: Dict[str, Dict[str, Any]] = {}
+    latest: Dict[Any, Dict[str, Any]] = {}
     for path in sorted(reports_dir().glob("*.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
-        merged = latest.setdefault(report["model"], {"model": report["model"], "suites": {}})
+        provider = report.get("provider")
+        merged = latest.setdefault((provider, report["model"]), {"model": report["model"], "provider": provider, "suites": {}})
         merged["started_at"] = report["started_at"]
         merged["suites"].update(report["suites"])
     return list(latest.values())
@@ -129,20 +135,27 @@ def _cell(summary: Optional[Dict[str, Any]]) -> str:
     return f"{summary['accuracy']:.0f}% ({summary['passed']}/{summary['runs']}) · {seconds:.1f} s"
 
 
+def _labels(reports: List[Dict[str, Any]]) -> List[str]:
+    """Il nome di ogni report nella tabella: il modello, con `@ provider` quando i report vengono da più provider."""
+    mixed = len({r.get("provider") for r in reports}) > 1
+    return [f"{r['model']} @ {r['provider']}" if mixed and r.get("provider") else r["model"] for r in reports]
+
+
 def compare_markdown(reports: List[Dict[str, Any]]) -> str:
     """Tabella suite × modello (accuratezza, esecuzioni superate, durata mediana) e casi falliti per modello."""
     if not reports:
         return "Nessun report di valutazione."
+    labels = _labels(reports)
     suites = sorted({s for r in reports for s in r["suites"]}, key=lambda s: list(SUITES).index(s) if s in SUITES else 99)
     lines = [
-        "| Suite | " + " | ".join(r["model"] for r in reports) + " |",
+        "| Suite | " + " | ".join(labels) + " |",
         "| :--- | " + " | ".join(":---" for _ in reports) + " |",
     ]
     for suite in suites:
         lines.append(f"| {suite} | " + " | ".join(_cell(r["suites"].get(suite)) for r in reports) + " |")
     lines.append("| **data** | " + " | ".join(r["started_at"][:16].replace("T", " ") for r in reports) + " |")
     for suite in suites:
-        measured = [(r["model"], r["suites"][suite]) for r in reports if r["suites"].get(suite, {}).get("metrics")]
+        measured = [(label, r["suites"][suite]) for label, r in zip(labels, reports, strict=True) if r["suites"].get(suite, {}).get("metrics")]
         if measured:
             lines.append("")
             lines.append(f"Misure medie di `{suite}`, per esecuzione:")
@@ -150,12 +163,12 @@ def compare_markdown(reports: List[Dict[str, Any]]) -> str:
                 tokens = round(summary["completion_tokens"] / max(1, summary["runs"]))
                 values = ", ".join(f"{k} {v:g}" for k, v in summary["metrics"].items())
                 lines.append(f"- {model}: {values}, token generati {tokens}")
-    for r in reports:
+    for label, r in zip(labels, reports, strict=True):
         failures = [
             f"- `{suite}/{c['id']}`: {next(run['detail'] for run in c['runs'] if not run['passed'] and not run['skipped'])}"
             for suite, s in r["suites"].items()
             for c in s["results"]
             if any(not run["passed"] and not run["skipped"] for run in c["runs"])
         ]
-        lines += ["", f"**{r['model']}**: " + ("nessun caso fallito" if not failures else f"{len(failures)} casi falliti"), *failures]
+        lines += ["", f"**{label}**: " + ("nessun caso fallito" if not failures else f"{len(failures)} casi falliti"), *failures]
     return "\n".join(lines)

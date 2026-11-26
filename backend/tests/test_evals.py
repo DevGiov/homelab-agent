@@ -200,6 +200,58 @@ def test_evaluate_model_report_and_compare(monkeypatch, tmp_path):
     assert "**rotto**: 2 casi falliti" in table
 
 
+def test_evaluation_runs_every_call_on_the_chosen_provider_and_records_it(monkeypatch):
+    from app.llm import providers
+
+    seen = []
+    monkeypatch.setattr(runner, "load_cases", lambda suite: [{"id": "a"}])
+    monkeypatch.setitem(runner.SUITES, "routing", lambda case, model: seen.append((providers.turn_provider_name(), model)) or Outcome(True, "ok"))
+    report = runner.evaluate_model("m-1", ["routing"], provider="nuvola")
+    assert seen == [("nuvola", "m-1")] and report["provider"] == "nuvola"
+    # Senza provider vale il predefinito, e anche quello finisce nel report; fuori dalla valutazione nulla resta impostato
+    seen.clear()
+    assert runner.evaluate_model("m-1", ["routing"])["provider"] == providers.default_provider_name()
+    assert seen == [(providers.default_provider_name(), "m-1")] and providers.turn_provider_var.get() is None
+
+
+def test_compare_names_the_provider_only_when_reports_come_from_several():
+    def report(provider):
+        return {"model": "m-1", "provider": provider, "started_at": "2026-11-26T10:00:00", "suites": {}}
+
+    assert "| m-1 |" in runner.compare_markdown([report("a")]) and "@" not in runner.compare_markdown([report("a")])
+    table = runner.compare_markdown([report("locale"), report("nuvola")])
+    assert "m-1 @ locale" in table and "m-1 @ nuvola" in table
+
+
+def test_latest_reports_keep_the_same_model_on_two_providers_apart(monkeypatch, tmp_path):
+    monkeypatch.setattr(runner, "reports_dir", lambda: tmp_path)
+    base = {"model": "m-1", "started_at": "2026-11-26T10:00:00+00:00", "repeat": 1, "duration_s": 1, "suites": {}}
+    runner.save_report({**base, "provider": "locale"})
+    runner.save_report({**base, "provider": "nuvola", "started_at": "2026-11-26T10:00:05+00:00"})
+    assert sorted(r["provider"] for r in runner.latest_reports()) == ["locale", "nuvola"]
+
+
+def test_cli_provider_flag_sets_the_provider_of_the_run_and_must_exist(monkeypatch, capsys):
+    from app.evals import __main__ as cli
+    from app.llm import providers
+    from app.llm.providers import CloudOpenAIProvider
+
+    providers.register_provider(CloudOpenAIProvider("https://nuvola.example/v1", ["m-1", "m-2"], "nuvola"))
+    calls = []
+    monkeypatch.setattr(cli, "evaluate_model", lambda model, suites, **kw: calls.append((model, kw["provider"])) or
+                        {"model": model, "provider": kw["provider"], "started_at": "2026-11-26T10:00:00", "duration_s": 0, "suites": {}})
+    monkeypatch.setattr(cli, "save_report", lambda report: "report.json")
+    assert cli.main(["run", "--models", "m-1,m-2", "--provider", "nuvola", "--suites", "routing"]) == 0
+    assert calls == [("m-1", "nuvola"), ("m-2", "nuvola")]
+    # Senza --provider vale il predefinito; i modelli si controllano sul provider scelto
+    with pytest.raises(SystemExit):
+        cli.main(["run", "--models", "solo-sul-predefinito", "--provider", "nuvola", "--suites", "routing"])
+    assert "modelli non disponibili" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        cli.main(["run", "--models", "m-1", "--provider", "fantasma", "--suites", "routing"])
+    assert "Il provider 'fantasma' non esiste" in capsys.readouterr().err
+
+
 def test_rollback_plan_is_requested_without_reasoning():
     from app.agent.execution_log import ExecutionLog, generate_rollback_plan_with_llm
 

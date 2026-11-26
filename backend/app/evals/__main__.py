@@ -1,10 +1,12 @@
 """Valutazione dei modelli su routing, scelta dei tool, piani, rollback ed estrazione dei fatti.
 
-    python -m app.evals run --models A,B [--suites routing,tools] [--repeat 3] [--cases id1,id2] [--interleaved on|off]
+    python -m app.evals run --models A,B [--provider NAME] [--suites routing,tools] [--repeat 3] [--cases id1,id2]
+                            [--interleaved on|off]
     python -m app.evals compare [report.json ...]
 
 I modelli vanno sempre indicati: un processo separato non conosce il modello attivo nel backend. Ogni modello
-viene caricato dal server LLM: indicare solo modelli che stanno nella VRAM disponibile.
+viene caricato dal server LLM: indicare solo modelli che stanno nella VRAM disponibile. `--provider` sceglie il provider
+di tutte le chiamate della valutazione (senza: quello predefinito) e finisce nel report.
 """
 import argparse
 import logging
@@ -24,6 +26,7 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="esegue le suite e salva un report per modello in data/evals/")
     run.add_argument("--models", required=True, help="modelli separati da virgola")
+    run.add_argument("--provider", default=None, help="provider delle chiamate (default: quello predefinito del server)")
     run.add_argument("--suites", default=",".join(SUITES), help=f"suite separate da virgola (default: {','.join(SUITES)})")
     run.add_argument("--repeat", type=int, default=1, help="esecuzioni per caso, per misurare la stabilità")
     run.add_argument("--cases", default="", help="solo questi id di caso")
@@ -44,9 +47,13 @@ def main(argv=None) -> int:
     if unknown:
         parser.error(f"suite sconosciute: {', '.join(unknown)}")
 
-    from app.llm.providers import get_provider
+    from app.llm.providers import ProviderUnavailableError, get_provider, require_provider
 
-    provider = get_provider()
+    try:
+        provider_name = require_provider(args.provider)
+        provider = get_provider(provider_name)
+    except ProviderUnavailableError as e:
+        parser.error(str(e))
     models = _split(args.models)
     available = provider.list_models()
     missing = [m for m in models if available and m not in available]
@@ -60,7 +67,7 @@ def main(argv=None) -> int:
     reports = []
     for model in models:
         report = evaluate_model(model, suites, repeat=max(1, args.repeat), case_ids=_split(args.cases),
-                                progress=lambda line: print(line, flush=True), variant=variant)
+                                progress=lambda line: print(line, flush=True), variant=variant, provider=provider_name)
         path = save_report(report)
         print(f"Report salvato: {path} ({report['duration_s']} s)")
         reports.append(report)
