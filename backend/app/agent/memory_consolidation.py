@@ -474,8 +474,11 @@ def _run(model: Optional[str], trigger: str) -> Optional[Dict[str, Any]]:
     try:
         result: Dict[str, Any] = {"trigger": trigger}
         try:
+            # Prima il provider (se manca, l'errore dice quale), poi `loaded` su quel provider
+            provider = get_provider()
+            result["provider"] = provider.name
             model = resolve_model(model)
-            result.update(provider=get_provider().name, model=get_provider().effective_model(model))
+            result["model"] = provider.effective_model(model)
             result.update(consolidate_messages(model))
             result["deduplicated"] = deduplicate(model)
         except LLMUnavailableError as e:

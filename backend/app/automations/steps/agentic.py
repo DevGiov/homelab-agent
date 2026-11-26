@@ -12,7 +12,7 @@ from app.agent.agent_loop import AgentLoop, run_agent_loop
 from app.automations.steps.base import Outcome, StepContext, completed, failed, waiting_approval
 from app.automations.steps.tool_action import allowed_tools
 from app.automations.templating import extract_step_content, render_template
-from app.llm.providers import resolve_model, use_provider
+from app.llm.providers import require_provider, resolve_model, use_provider
 from app.security import approvals
 
 # Senza allowlist esplicita lo step non gestisce le automazioni stesse: potrebbe rilanciarsi o riscriversi
@@ -80,9 +80,12 @@ def _resume(ctx: StepContext) -> Outcome:
 
 
 def run(ctx: StepContext) -> Outcome:
-    """Lo step usa il provider dell'automazione (None = il predefinito), per tutte le chiamate del suo loop."""
+    """Lo step usa il provider dell'automazione (None = il predefinito), per tutte le chiamate del suo loop. Se quel
+    provider non esiste più o è disattivato lo step fallisce dicendo quale: non ripiega su un altro provider (il livello
+    dei dati ammessi cambierebbe)."""
     if ctx.resume:
         return _resume(ctx)
+    require_provider(ctx.automation.provider)
     with use_provider(ctx.automation.provider):
         return _run(ctx)
 

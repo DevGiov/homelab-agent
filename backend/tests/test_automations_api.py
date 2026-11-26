@@ -29,6 +29,32 @@ class TestAutomationsAPI(unittest.TestCase):
         settings.data_dir = cls.orig_data_dir
         shutil.rmtree(cls.test_dir, ignore_errors=True)
 
+    def _payload(self, auto_id, **extra):
+        return {"id": auto_id, "name": "Con provider", "model": "m-1", **extra,
+                "workflow": {"initial_step_id": "s", "steps": [{"step_id": "s", "name": "S", "type": "agentic_task",
+                                                                 "prompt_template": "Riassumi"}]}}
+
+    def test_the_provider_of_the_model_is_stored_with_it_and_must_exist(self):
+        from app.llm import providers
+        from app.llm.providers import CloudOpenAIProvider
+
+        providers.register_provider(CloudOpenAIProvider("https://nuvola.example/v1", ["cloud-a"], "nuvola"))
+        bad = self.client.post("/v1/automations", json=self._payload("auto_prov_bad", provider="fantasma"), headers=self.headers)
+        self.assertEqual(bad.status_code, 422)
+        self.assertEqual(bad.json()["detail"]["code"], "unknown_provider")
+        self.assertIn("'fantasma'", bad.json()["detail"]["message"])
+        self.assertEqual(self.client.get("/v1/automations/auto_prov_bad", headers=self.headers).status_code, 404)
+
+        ok = self.client.post("/v1/automations", json=self._payload("auto_prov", provider="nuvola"), headers=self.headers)
+        self.assertEqual(ok.status_code, 201)
+        got = self.client.get("/v1/automations/auto_prov", headers=self.headers).json()
+        self.assertEqual((got["provider"], got["model"]), ("nuvola", "m-1"))
+        # L'aggiornamento valida allo stesso modo; senza provider vale il predefinito
+        put = self.client.put("/v1/automations/auto_prov", json=self._payload("auto_prov", provider="fantasma"), headers=self.headers)
+        self.assertEqual(put.status_code, 422)
+        put = self.client.put("/v1/automations/auto_prov", json=self._payload("auto_prov"), headers=self.headers)
+        self.assertEqual((put.status_code, put.json()["provider"]), (200, None))
+
     def test_crud_and_run_endpoints(self):
         """Test completo: Creazione automazione -> Trigger run -> Query run details."""
         auto_payload = {

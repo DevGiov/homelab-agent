@@ -495,3 +495,64 @@ def test_a_run_uses_the_provider_of_its_model(sandbox):
             patch.object(mc, "get_provider", return_value=type("P", (), {"name": "llamacpp", "effective_model": lambda self, m: m})()):
         mc.run("m", provider="llamacpp")
     assert seen == ["llamacpp"] and providers.turn_provider_var.get() is None
+
+
+def _fake_provider(name):
+    from app.llm.providers import LLMProvider
+    from app.security.flows import Label
+
+    class Fake(LLMProvider):
+        default_model = "modello-" + name
+
+        def __init__(self):
+            self.name, self.clearance = name, Label.PUBLIC
+
+        def _chat(self, messages, **kwargs):
+            return {"content": "ok", "reasoning_content": "", "metrics": {}}
+
+        def health(self):
+            return True
+
+        def list_models(self):
+            return [self.default_model]
+
+    return Fake()
+
+
+def test_a_run_on_a_missing_provider_reports_which_one_without_falling_back(sandbox):
+    from app.llm import providers
+
+    with patch.object(mc, "consolidate_messages") as consolidate, patch.object(mc, "deduplicate") as dedup:
+        result = mc.run("m", trigger="manual", provider="fantasma")
+        providers._UNAVAILABLE["spento"] = providers.DISABLED
+        disabled = mc.run("m", trigger="manual", provider="spento")
+    assert "Il provider 'fantasma' non esiste" in result["error"]
+    assert "Il provider 'spento' è disattivato" in disabled["error"]
+    assert not consolidate.called and not dedup.called
+
+
+def test_a_run_resolves_loaded_and_the_default_model_on_its_own_provider(sandbox):
+    from app.llm import providers
+
+    providers.register_provider(_fake_provider("altro"))
+    with patch.object(mc, "consolidate_messages", return_value={}), patch.object(mc, "deduplicate", return_value=0):
+        result = mc.run("loaded", provider="altro")
+    # Nessun modello caricato su "altro": vale il suo predefinito, non quello del provider predefinito del server
+    assert (result["provider"], result["model"]) == ("altro", "modello-altro")
+
+
+def test_consolidation_api_rejects_an_unknown_provider(sandbox):
+    from app.api.main import api
+    from app.llm import providers
+
+    providers.register_provider(_fake_provider("altro"))
+    client = TestClient(api)
+    bad = client.put("/v1/memory/consolidation/settings", json={"provider": "fantasma", "model": "m"})
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "unknown_provider"
+    assert "'fantasma'" in bad.json()["detail"]["message"]
+    assert client.post("/v1/memory/consolidation", json={"provider": "fantasma"}).status_code == 422
+    ok = client.put("/v1/memory/consolidation/settings", json={"provider": "altro", "model": "m"})
+    assert ok.status_code == 200 and ok.json()["provider"] == "altro" and mc.get_settings().provider == "altro"
+    # Un provider disattivato esiste ancora: si salva, e l'esecuzione dirà perché non parte
+    providers._UNAVAILABLE["spento"] = providers.DISABLED
+    assert client.put("/v1/memory/consolidation/settings", json={"provider": "spento"}).status_code == 200

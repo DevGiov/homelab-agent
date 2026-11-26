@@ -14,7 +14,7 @@ from app.automations.models import (
     TriggerRunRequest,
     TriggerType,
 )
-from app.automations.routes.common import get_runner, sync_scheduler
+from app.automations.routes.common import check_provider, get_runner, sync_scheduler
 from app.core.config import settings
 
 logger = logging.getLogger("automations.routes")
@@ -61,6 +61,7 @@ async def list_automations(enabled_only: bool = Query(default=False)):
 @router.post("", response_model=AutomationDefinition, status_code=201)
 async def create_or_update_automation(automation: AutomationDefinition):
     """Crea o aggiorna una definizione di automazione."""
+    check_provider(automation.provider)
     saved = definitions_db.save_definition(automation.model_dump(), db_path=settings.automations_db_path)
     logger.info(f"Automazione '{automation.id}' registrata.")
     sync_scheduler()
@@ -81,6 +82,7 @@ async def update_automation(auto_id: str, automation: AutomationDefinition):
     """Aggiorna la definizione di un'automazione."""
     if auto_id != automation.id:
         raise HTTPException(status_code=400, detail="ID del path non coincide con ID del corpo.")
+    check_provider(automation.provider)
     saved = definitions_db.save_definition(automation.model_dump(), db_path=settings.automations_db_path)
     sync_scheduler()
     return AutomationDefinition(**saved)

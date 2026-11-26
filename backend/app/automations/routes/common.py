@@ -1,8 +1,12 @@
 """Dipendenze condivise dai router delle automazioni."""
 import logging
+from typing import Optional
+
+from fastapi import HTTPException
 
 from app.automations.runner import AutomationRunner
 from app.core.config import settings
+from app.llm import providers
 
 logger = logging.getLogger("automations.routes")
 
@@ -20,3 +24,11 @@ def sync_scheduler():
             sched.sync_triggers()
     except Exception as e:
         logger.debug(f"Scheduler trigger sync skipped: {e}")
+
+
+def check_provider(provider: Optional[str]) -> None:
+    """Il provider di un salvataggio deve esistere: 422 altrimenti (nessun ripiego silenzioso su un altro)."""
+    try:
+        providers.require_known_provider(provider)
+    except providers.ProviderUnavailableError as e:
+        raise HTTPException(status_code=422, detail={"code": "unknown_provider", "message": str(e)}) from e

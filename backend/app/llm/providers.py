@@ -920,6 +920,16 @@ def require_provider(name: Optional[str]) -> str:
     return name
 
 
+def require_known_provider(name: Optional[str]) -> Optional[str]:
+    """Il provider scelto per un salvataggio (vuoto = il predefinito, resta None), se esiste. Uno disattivato o con la
+    configurazione incompleta esiste ancora: lo si può salvare, e il lavoro che lo usa fallisce con il suo motivo."""
+    if not name:
+        return None
+    if unavailable_reason_of(name) == MISSING:
+        raise ProviderUnavailableError(name, MISSING)
+    return name
+
+
 def get_provider(name: Optional[str] = None) -> LLMProvider:
     """Il provider `name`, altrimenti quello del turno, altrimenti il predefinito. Se non si può usare,
     ProviderUnavailableError: una chiamata non cambia provider da sola (i ripieghi li decide choose_provider)."""

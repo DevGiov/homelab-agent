@@ -117,3 +117,108 @@ def test_agentic_step_uses_the_model_chosen_for_the_automation(choice, loaded, e
         outcome = agentic.run(ctx)
     assert fns.call_args.args[1] == expected
     assert {k: outcome["output"][k] for k in ("text", "model")} == {"text": "Fatto.", "model": expected}
+
+
+# --- Provider del lavoro in background (docs/providers/PROVIDERS_DESIGN.md, 5.8) ---------------------------
+
+
+def _fake_provider(name, loaded=()):
+    from app.llm.providers import LLMProvider
+    from app.security.flows import Label
+
+    class Fake(LLMProvider):
+        default_model = "modello-" + name
+
+        def __init__(self):
+            self.name, self.clearance = name, Label.PUBLIC
+
+        def _chat(self, messages, **kwargs):
+            return {"content": "ok", "reasoning_content": "", "metrics": {}}
+
+        def health(self):
+            return True
+
+        def list_models(self):
+            return [self.default_model, *loaded]
+
+        def list_models_with_details(self):
+            return [{"id": m, "is_loaded": m in loaded} for m in self.list_models()]
+
+    return Fake()
+
+
+def _agentic_ctx(provider, model=None):
+    from app.automations.steps.base import StepContext
+
+    step = WorkflowStepDefinition(step_id="sintesi", name="Sintesi", type=StepType.AGENTIC_TASK, prompt_template="Riassumi")
+    automation = AutomationDefinition(id="auto_prov", name="Provider", provider=provider, model=model,
+                                      workflow=WorkflowSpec(initial_step_id="sintesi", steps=[step]))
+    return StepContext(step=step, automation=automation, run=unittest.mock.MagicMock(is_dry_run=False), data={},
+                      registry_manager=unittest.mock.MagicMock())
+
+
+def test_an_old_definition_without_provider_keeps_working():
+    tmp = tempfile.mkdtemp()
+    try:
+        db = os.path.join(tmp, "automations.db")
+        init_automations_db(db)
+        old = AutomationDefinition(id="auto_old", name="Vecchia", model="loaded",
+                                   workflow=WorkflowSpec(initial_step_id="s", steps=[_step(StepType.AGENTIC_TASK)])).model_dump()
+        del old["provider"]  # salvata prima che il provider esistesse
+        definitions_db.save_definition(old, db_path=db)
+        loaded = AutomationDefinition(**definitions_db.get_definition("auto_old", db_path=db))
+        assert loaded.provider is None and loaded.model == "loaded"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_agentic_step_runs_every_call_on_the_automation_provider():
+    from app.llm import providers
+
+    providers.register_provider(_fake_provider("altro", loaded=("m-caricato",)))
+    seen = {}
+
+    def fns(*args):
+        seen["provider"] = providers.turn_provider_name()
+        seen["model"] = args[1]
+        return {"call_llm_fn": unittest.mock.MagicMock(return_value={"content": "Fatto."}), "call_llm_structured_fn": None}
+
+    with unittest.mock.patch.object(agentic.llm_calls, "agent_loop_llm_fns", side_effect=fns), \
+            unittest.mock.patch("app.agent.agent_loop.get_registry_manager") as manager:
+        manager.return_value.get_tools_for_mode.return_value = []
+        outcome = agentic.run(_agentic_ctx("altro", "loaded"))
+    # "loaded" vale sul provider scelto, non sul predefinito; dopo lo step il provider del turno è tornato com'era
+    assert seen == {"provider": "altro", "model": "m-caricato"}
+    assert outcome["output"]["model"] == "m-caricato"
+    assert providers.turn_provider_var.get() is None
+
+
+@pytest.mark.parametrize("unavailable, reason", [(None, "non esiste"), ("spento", "è disattivato")])
+def test_agentic_step_fails_clearly_when_its_provider_is_gone(unavailable, reason):
+    from app.llm import providers
+    from app.llm.providers import ProviderUnavailableError
+
+    if unavailable:
+        providers._UNAVAILABLE[unavailable] = providers.DISABLED
+    name = unavailable or "fantasma"
+    with unittest.mock.patch.object(agentic.llm_calls, "agent_loop_llm_fns") as fns, \
+            unittest.mock.patch("app.agent.agent_loop.run_agent_loop") as loop:
+        with pytest.raises(ProviderUnavailableError) as err:
+            agentic.run(_agentic_ctx(name))
+    assert f"Il provider '{name}' {reason}" in str(err.value)
+    # Nessun ripiego su un altro provider: nemmeno una chiamata
+    assert not fns.called and not loop.called
+
+
+def test_loaded_on_a_cloud_provider_resolves_to_the_default_model():
+    from app.llm import providers
+    from app.llm.providers import CloudOpenAIProvider
+
+    providers.register_provider(CloudOpenAIProvider("https://nuvola.example/v1", ["cloud-a", "cloud-b"], "nuvola"))
+    providers.register_provider(_fake_provider("locale", loaded=("m-caricato",)))
+    with providers.use_provider("nuvola"):
+        assert providers.loaded_model() is None
+        assert providers.resolve_model(providers.LOADED_MODEL) is None  # = il modello predefinito di quel provider
+        assert providers.resolve_model("cloud-b") == "cloud-b"
+    with providers.use_provider("locale"):
+        assert providers.resolve_model(providers.LOADED_MODEL) == "m-caricato"

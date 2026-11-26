@@ -8,7 +8,17 @@ from pydantic import BaseModel, Field
 from app.agent.fact_extraction import tag_untagged_facts
 from app.agent.memory_consolidation import ConsolidationSettings
 from app.api.deps import verify_api_key
+from app.llm import providers
 from app.memory import episodes, facts, procedures, profile
+
+
+def _check_provider(provider: Optional[str]) -> None:
+    """Il provider scelto deve esistere: 422 altrimenti (nessun ripiego silenzioso su un altro)."""
+    try:
+        providers.require_known_provider(provider)
+    except providers.ProviderUnavailableError as e:
+        raise HTTPException(status_code=422, detail={"code": "unknown_provider", "message": str(e)}) from e
+
 
 router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(verify_api_key)])
 
@@ -298,6 +308,8 @@ def start_consolidation(req: Optional[StartConsolidation] = None) -> Dict[str, A
     """Consolida subito i messaggi nuovi e deduplica i fatti, in background."""
     from app.agent import memory_consolidation
 
+    if req:
+        _check_provider(req.provider)
     config = memory_consolidation.get_settings()
     model = req.model if req and "model" in req.model_fields_set else config.model
     provider = req.provider if req and "provider" in req.model_fields_set else config.provider
@@ -311,4 +323,5 @@ def update_consolidation_settings(req: ConsolidationSettings) -> Dict[str, Any]:
     """Orario, fuso, attivazione e modello del consolidamento giornaliero: valgono dal prossimo controllo."""
     from app.agent import memory_consolidation
 
+    _check_provider(req.provider)
     return memory_consolidation.save_settings(req).model_dump()
