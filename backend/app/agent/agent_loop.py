@@ -576,7 +576,8 @@ class AgentLoop:
             temperature=0.10,
             max_retries=2,
             thinking=self.policy.thinking.select,
-            images=self.images,
+            # I pixel restano sulla risposta che guarda l'immagine. Qui basta sapere che c'è un allegato
+            images=[],
             tag=self.tag,
             role=roles.SELECT_TOOL,
             **extra,

@@ -174,6 +174,28 @@ def test_unavailable_model_ends_the_turn_without_more_requests(manager):
     llm.assert_not_called()
 
 
+def test_tool_selection_omits_the_image_and_the_answer_keeps_it(manager, monkeypatch):
+    image = "data:image/png;base64,iVBORw0KGgo="
+    seen = []
+
+    def fake_call_llm(prompt, system_prompt=None, **kwargs):
+        seen.append((kwargs.get("role"), kwargs.get("images")))
+        if kwargs.get("role") == "select_tool":
+            return {"content": '{"tool_needed": false, "final_answer": "ok"}', "reasoning_content": ""}
+        return {"content": "un quadrato rosso", "reasoning_content": ""}
+
+    provider = MagicMock()
+    provider.effective_model.return_value = "Vision-Test"
+    monkeypatch.setattr("app.agent.llm_calls.call_llm", fake_call_llm)
+    monkeypatch.setattr("app.agent.llm_calls.get_provider", lambda: provider)
+    from app.agent.llm_calls import agent_loop_llm_fns
+
+    res = run_agent_loop("descrivi", "act", images=[image], **agent_loop_llm_fns(None, "Vision-Test", [image]))
+
+    assert seen == [("select_tool", []), ("answer", [image])]
+    assert res["final_response"] == "un quadrato rosso"
+
+
 def test_structured_call_does_not_retry_a_failed_request():
     provider = MagicMock()
     provider.chat.return_value = {"content": "", "reasoning_content": "", "metrics": {}, "error": "timeout"}
