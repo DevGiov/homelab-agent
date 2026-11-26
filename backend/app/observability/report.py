@@ -1,7 +1,7 @@
 """Aggregazioni delle metriche per la dashboard: riepilogo di una finestra temporale e serie a intervalli."""
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from app.observability import store
 from app.security import audit_log
@@ -35,6 +35,15 @@ def _llm_speeds(calls: Iterable[Dict[str, Any]]) -> Dict[str, Optional[float]]:
 def _cost(calls: Iterable[Dict[str, Any]]) -> float:
     """Dollari spesi dalle chiamate (costo salvato con ciascuna); le righe di prima del costo valgono zero."""
     return round(sum(c["cost_usd"] or 0.0 for c in calls), 6)
+
+
+def _fallbacks(calls: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+    """Chiamate andate al modello locale invece che al provider scelto, per motivo (`label`, `budget`)."""
+    counts: Dict[str, int] = defaultdict(int)
+    for c in calls:
+        if c["fallback"]:
+            counts[c["fallback"]] += 1
+    return dict(counts)
 
 
 def _turns_block(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -84,11 +93,12 @@ def summary(hours: float) -> Dict[str, Any]:
     calls = store.select("SELECT * FROM llm_calls WHERE ts >= ? ORDER BY ts", (since,))
     samples = store.select("SELECT * FROM health_samples WHERE ts >= ? ORDER BY ts", (since,))
 
-    by_model: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    by_model: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
     for c in calls:
-        by_model[c["model"] or "?"].append(c)
+        by_model[(c["provider"] or "?", c["model"] or "?")].append(c)
     models = [
         {
+            "provider": provider,
             "model": model,
             "calls": len(rows),
             "errors": sum(1 for r in rows if r["error"]),
@@ -97,7 +107,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "cost_usd": _cost(rows),
             **_llm_speeds(rows),
         }
-        for model, rows in sorted(by_model.items(), key=lambda item: -len(item[1]))
+        for (provider, model), rows in sorted(by_model.items(), key=lambda item: (-len(item[1]), item[0]))
     ]
 
     by_role: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -113,6 +123,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "completion_tokens": sum(r["completion_tokens"] for r in rows),
             "p50_ms": percentile([r["duration_ms"] for r in rows], 0.5),
             "cost_usd": _cost(rows),
+            "fallbacks": _fallbacks(rows),
         }
         for role, rows in sorted(by_role.items(), key=lambda item: -len(item[1]))
     ]
@@ -127,6 +138,7 @@ def summary(hours: float) -> Dict[str, Any]:
             "cached_tokens": sum(c["cached_tokens"] for c in calls),
             "completion_tokens": sum(c["completion_tokens"] for c in calls),
             "cost_usd": _cost(calls),
+            "fallbacks": _fallbacks(calls),
             **_llm_speeds(calls),
         },
         "models": models,

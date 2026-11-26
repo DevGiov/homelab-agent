@@ -151,6 +151,27 @@ def test_summary_aggregates_turns_llm_speed_and_health():
     assert by_service["searxng"]["last_error"] == "giù"
 
 
+def test_summary_groups_models_by_provider_and_counts_fallbacks_and_cost():
+    llm_row(provider="cloud", model="m", role="answer", cost_usd=0.5)
+    llm_row(provider="cloud", model="m", role="answer", cost_usd=0.25)
+    llm_row(provider="llamacpp", model="m", role="answer", fallback="budget")  # stesso modello, altro provider
+    llm_row(provider="llamacpp", model="m", role="select_tool", fallback="label")
+    llm_row(provider="llamacpp", model="m", role="select_tool", fallback="label")
+    llm_row(provider=None, model="old", role=None)  # riga di prima dei provider
+
+    data = report.summary(24)
+    by_pair = {(m["provider"], m["model"]): m for m in data["models"]}
+    assert set(by_pair) == {("cloud", "m"), ("llamacpp", "m"), ("?", "old")}
+    assert (by_pair[("cloud", "m")]["calls"], by_pair[("cloud", "m")]["cost_usd"]) == (2, 0.75)
+    assert by_pair[("llamacpp", "m")]["calls"] == 3
+    assert data["llm"]["fallbacks"] == {"budget": 1, "label": 2}
+    assert data["llm"]["cost_usd"] == 0.75
+    by_role = {r["role"]: r for r in data["roles"]}
+    assert by_role["answer"]["fallbacks"] == {"budget": 1}
+    assert by_role["select_tool"]["fallbacks"] == {"label": 2}
+    assert by_role["?"]["fallbacks"] == {} and by_role["?"]["cost_usd"] == 0
+
+
 def test_timeseries_places_rows_in_buckets():
     turn_row(ts=ago(minutes=50), status="error")
     turn_row(ts=ago(minutes=10))
