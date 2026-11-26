@@ -36,10 +36,9 @@ class ApprovalRequest:
     command_prefix: Optional[str] = None
     task: Optional[str] = None
     created_at: float = field(default_factory=time.time)
-    # Scadenza assoluta (epoch). None: vale created_at + ttl_seconds. Il ripristino dal database la copia da expires_at.
-    expires_at: Optional[float] = None
     status: str = "pending"  # pending | approved | denied | expired
     resolved_by: Optional[str] = None
+    # La scadenza è created_at + ttl_seconds, la stessa di expires_at sul database (il ripristino la ricava da lì)
     ttl_seconds: int = APPROVAL_TTL_SECONDS
 
 
@@ -75,7 +74,6 @@ def create_approval_request(
     with _approval_lock:
         now = time.time()
         req.created_at = now
-        req.ttl_seconds = APPROVAL_TTL_SECONDS
         expired = [k for k, v in _APPROVALS.items() if v.status == "pending" and _is_past_deadline(v, now)]
         for k in expired:
             _APPROVALS[k].status = "expired"
@@ -94,7 +92,7 @@ def create_approval_request(
             "risk_reason": risk_reason,
             "status": "pending",
             "created_at": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(),
-            "expires_at": datetime.fromtimestamp(now + APPROVAL_TTL_SECONDS, tz=timezone.utc).isoformat()
+            "expires_at": datetime.fromtimestamp(_deadline(req), tz=timezone.utc).isoformat()
         })
     except Exception as e:
         logger.debug(f"Salvataggio approval su DB automazioni non eseguito: {e}")
@@ -114,8 +112,8 @@ def bind_to_run(request_id: str, run_id: str, step_run_id: str, db_path: Optiona
     with _approval_lock:
         req = _APPROVALS.get(request_id)
         if req:
-            req.ttl_seconds = RUN_APPROVAL_TTL_SECONDS
-            req.expires_at = deadline
+            # In memoria la stessa scadenza della riga: 24 ore da adesso, non dalla creazione
+            req.ttl_seconds = int(deadline - req.created_at)
     expires_at = datetime.fromtimestamp(deadline, tz=timezone.utc).isoformat()
     if not approvals_db.bind_approval_to_run(request_id, run_id, step_run_id, expires_at, db_path=db_path):
         logger.warning(f"Richiesta '{request_id}' non trovata: non legata alla run '{run_id}'")
@@ -219,9 +217,6 @@ def _parse_utc(value: Any) -> Optional[float]:
 
 
 def _deadline(req: ApprovalRequest) -> float:
-    """Scadenza assoluta. Senza expires_at vale created_at + ttl (le richieste nate in questo processo)."""
-    if req.expires_at is not None:
-        return req.expires_at
     return req.created_at + req.ttl_seconds
 
 
@@ -268,7 +263,6 @@ def _restore_approval(request_id: str) -> Optional[ApprovalRequest]:
         risk_reason=row.get("risk_reason"),
         command_prefix=row.get("command_prefix"),
         created_at=created,
-        expires_at=expires,
         ttl_seconds=max(0, int(round(expires - created))),
         status=row.get("status") or "pending",
         resolved_by=row.get("resolved_by"),
@@ -359,7 +353,7 @@ def resolve_approval(
         if not req:
             return None
         # Scaduta (già segnata, o oltre la scadenza vera): il click non è un approve né un deny
-        if req.status == "expired" or (req.status == "pending" and _is_past_deadline(req, time.time())):
+        if req.status == "pending" and _is_past_deadline(req, time.time()):
             req.status = "expired"
             try:
                 approvals_db.expire_automation_approval(request_id)

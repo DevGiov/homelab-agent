@@ -80,6 +80,11 @@ class TestChatTtl(_Base):
         remaining = (datetime.fromisoformat(approvals_db.get_automation_approval(res["request_id"])["expires_at"])
                      - datetime.now(timezone.utc)).total_seconds()
         self.assertGreater(remaining, 23.9 * 3600)
+        # La memoria e la riga hanno la stessa scadenza: 24 ore dal legame, non dalla creazione
+        bound.created_at -= 600
+        approvals.bind_to_run(res["request_id"], "run_iss40", "sr_iss40")
+        row_deadline = datetime.fromisoformat(approvals_db.get_automation_approval(res["request_id"])["expires_at"]).timestamp()
+        self.assertAlmostEqual(bound.created_at + bound.ttl_seconds, row_deadline, delta=1)
         # Anche in memoria: un click alla 25a ora della run sarebbe scaduto, alla 2a no
         bound.created_at -= 3600
         self.assertEqual(approvals.resolve_approval(res["request_id"], action="approve").status, "approved")
@@ -99,13 +104,19 @@ class TestRestoreUsesTheRealDeadline(_Base):
         self.assertIsNone(stored["resolved_by"])
         self.assertEqual(detail["expires_at"], datetime.fromisoformat(stored["expires_at"]).isoformat(timespec="seconds"))
 
+    def test_restore_uses_the_row_ttl_not_the_current_one(self):
+        # Il caso di apr_fdedb771433c: creata con i vecchi 300 s, cliccata 14 minuti dopo un riavvio
+        _row("apr_old_ttl", created=timedelta(minutes=-14), expires=timedelta(minutes=-9))
+        self.assertEqual(self.resolve("apr_old_ttl", "deny").status_code, 410)
+        self.assertEqual(approvals_db.get_automation_approval("apr_old_ttl")["status"], "expired")
+
     def test_restore_copies_created_at_and_expires_at(self):
         _row("apr_restore_copy", created=timedelta(minutes=-5), expires=timedelta(minutes=25))
         stored = approvals_db.get_automation_approval("apr_restore_copy")
         req = approvals.resolve_approval("apr_restore_copy", action="approve")
         self.assertEqual(req.status, "approved")
         self.assertAlmostEqual(req.created_at, datetime.fromisoformat(stored["created_at"]).timestamp(), delta=0.01)
-        self.assertAlmostEqual(req.expires_at, datetime.fromisoformat(stored["expires_at"]).timestamp(), delta=0.01)
+        self.assertAlmostEqual(req.created_at + req.ttl_seconds, datetime.fromisoformat(stored["expires_at"]).timestamp(), delta=1)
 
     def test_restore_before_deadline_records_the_click(self):
         _row("apr_restore_open", expires=timedelta(minutes=20))
