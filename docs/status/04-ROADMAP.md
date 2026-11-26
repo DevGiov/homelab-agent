@@ -134,8 +134,9 @@ Provider cloud (prima AWS Bedrock, poi OpenRouter), costo di ogni chiamata, tett
 | # | Passo | Note |
 | :--- | :--- | :--- |
 | P0 | ~~**Ruoli**: argomento `role` obbligatorio su ogni chiamata a un modello, colonna nelle metriche, riepilogo per ruolo~~ ✅ 2026-11-15 (13 ruoli; un test controlla ogni chiamata) | Aggiunto `summarize`, tolto `filter_memory` ([6.1](../providers/PROVIDERS_DESIGN.md#61-p0-e-p1-come-sono-state-costruite)) |
-| P1 | **Costo e tetti**: ~~backend (prezzi e tetti in `mcp.db`, costo salvato a ogni chiamata, spesa del mese, API)~~ ✅ 2026-11-15; **resta l'interfaccia**: scheda "Provider" nelle impostazioni, costo e ruoli nelle Metriche | Dopo la migrazione a Tailwind 4 |
-| P2 | **Provider cloud**: `CloudOpenAIProvider`, variabili di Bedrock, `choose_provider` con ripiego sul modello locale per etichetta e per tetto | Test automatici con un server finto; quelli veri chiedono la chiave del maintainer |
+| P1 | **Costo e tetti**: ~~backend (prezzi e tetti in `mcp.db`, costo salvato a ogni chiamata, spesa del mese, API)~~ ✅ 2026-11-15; la scheda "Provider" è passata a PU; **resta**: costo e ruoli nelle Metriche | |
+| P2 | ~~**Provider cloud**: `CloudOpenAIProvider`, variabili di Bedrock, `choose_provider` con ripiego sul modello locale per etichetta e per tetto~~ ✅ 2026-11-26 (rivisto e installato; spento finché mancano le credenziali) | Le prove vere chiedono le credenziali del maintainer |
+| PU | **Provider dalla Web UI** (decisioni 6–10, [5.8](../providers/PROVIDERS_DESIGN.md#58-provider-gestiti-dalla-web-ui-pu)): PU1 provider per richiesta, senza provider attivo globale; PU2 configurazione in `mcp.db` unita campo per campo al `.env`, livello legato all'indirizzo, credenziali cifrate, API; PU3 scheda "Provider" e selettore dei modelli raggruppato per provider | In costruzione dal 2026-11-26 |
 | P3 | **Misura**: suite di valutazione su uno o due modelli cloud, quante volte scatta il ripiego | Costa crediti |
 | P4 | **OpenRouter** | Chiede la chiave |
 | P5 | **Preferenza per ruolo** (il cloud pianifica, il locale legge) | Solo se P3 lo giustifica |

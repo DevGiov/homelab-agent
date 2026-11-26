@@ -1,7 +1,7 @@
 # Provider di modelli e ruoli: design
 
 **Data:** 14 novembre 2026
-**Stato:** decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend, manca l'interfaccia ([sezione 6.1](#61-p0-e-p1-come-sono-state-costruite)).
+**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend; P2 (Bedrock e ripieghi) costruita, rivista e installata il 26/11/2026. L'interfaccia di P1 è assorbita da PU, i provider gestiti dalla Web UI ([sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)), in costruzione.
 **Contesto:** oggi ogni chiamata a un modello va a un server in casa. L'obiettivo è aggiungere provider cloud (prima AWS Bedrock, poi OpenRouter), sapere quanto costa ogni chiamata, fermarsi a un tetto di spesa e scegliere il provider chiamata per chiamata, senza far uscire dati che la destinazione non può ricevere ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), fase S4).
 
 ---
@@ -37,8 +37,18 @@ Prese dal maintainer il 14/11/2026.
 | 1 | Primo provider | AWS Bedrock (ci sono crediti), poi OpenRouter |
 | 2 | Tetto di spesa | Impostabile dalla Web UI, per provider e in totale: i saldi sono molto diversi |
 | 3 | Embedding | Restano locali. Offrirli anche tramite provider è da valutare con i numeri ([sezione 8](#8-punti-aperti)) |
-| 4 | Credenziali | Le crea il maintainer e le scrive nel `.env` dell'istanza; gli agenti non leggono quel file |
+| 4 | Credenziali | Le crea il maintainer e le scrive nel `.env` dell'istanza oppure, dal 26/11, nella Web UI (decisione 6); gli agenti non leggono quel file |
 | 5 | Dati `private` verso il cloud | Mai in automatico: si concede a mano, provider per provider (decisione 3 del design della sensibilità) |
+
+Prese dal maintainer il 26/11/2026 ([sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)):
+
+| # | Domanda | Decisione |
+| :--- | :--- | :--- |
+| 6 | Dove si configurano i provider | Nella Web UI: modificare, attivare e disattivare, eliminare, aggiungerne di nuovi (anche motori compatibili OpenAI come un altro llama-server o vLLM). Il `.env` resta il valore di base |
+| 7 | Come si unisce al `.env` | Campo per campo: un campo non impostato dalla UI prende il valore del `.env` |
+| 8 | Cambio di indirizzo | Riporta il livello ammesso a `public` finché il maintainer non lo conferma per il nuovo indirizzo |
+| 9 | Credenziali senza `API_SECRET_KEY` | Il salvataggio è rifiutato: la chiave di cifratura ricadrebbe su una stringa nota |
+| 10 | Provider attivo | Nessuno "switch" globale. Il selettore dei modelli mostra tutti i provider attivi raggruppati per provider, e ogni richiesta porta il suo provider: due conversazioni possono usare in contemporanea un provider locale e uno cloud |
 
 ## 4. Bedrock: cosa è stato verificato
 
@@ -128,10 +138,93 @@ Dopo il turno intero su un provider (5.5) e solo se i numeri lo giustificano: un
 
 ### 5.7 Interfaccia
 
-- **Impostazioni, scheda "Provider":** per ogni provider lo stato (configurato o no, raggiungibile), il livello ammesso, i modelli con i prezzi, il tetto e la spesa del mese; in fondo il tetto totale.
-- **Selettore dei modelli:** i modelli cloud compaiono con il nome del provider.
+Sostituita dalla [sezione 5.8.7](#587-interfaccia). Restano da qui:
+
 - **Metriche:** costo nel riepilogo e per modello, e una tabella per ruolo.
 - **Turno:** un avviso quando una chiamata è andata al modello locale per l'etichetta o per il tetto.
+
+### 5.8 Provider gestiti dalla Web UI (PU)
+
+Decisioni 6–10. Oggi i provider nascono all'avvio dal `.env`, uno solo è "attivo" per tutte le chiamate (`_ACTIVE_PROVIDER_NAME`, `set_active_provider`, `POST /v1/providers/active`) e una richiesta di chat porta solo il nome del modello.
+
+#### 5.8.1 Un modello si sceglie con il suo provider
+
+- **Riferimento:** una scelta di modello è la coppia `(provider, model)`. `ChatRequest` (e le altre richieste che oggi hanno `model`) riceve `provider`; la conversazione salva entrambi.
+- **Niente provider attivo globale:** `_ACTIVE_PROVIDER_NAME`, `set_active_provider` e `POST /v1/providers/active` spariscono (cambiamento non retrocompatibile, ammesso in dev). Una richiesta senza `provider` usa il **provider predefinito** (impostazione della UI, di base `llamacpp`).
+- **Le chiamate interne del turno** (router, piano, tool, risposta, titolo, ispezione delle immagini) usano il provider del turno, sempre attraverso `choose_provider`. Il provider del turno arriva esplicito o in un `contextvars` impostato all'inizio del turno; se si usa un contextvar, va copiato nei thread che il turno apre (`contextvars.copy_context`), altrimenti un thread vedrebbe il provider predefinito.
+- **Lavoro in background** non legato a un turno (consolidamento della memoria, procedure, automazioni senza un modello scelto): il provider predefinito.
+- **Concorrenza:** due turni simultanei con provider diversi non si scambiano mai provider, modello o modello caricato. È un requisito con un test: due turni in parallelo, uno su un provider finto locale e uno su un provider finto cloud, e ogni chiamata registrata con il provider del suo turno.
+- **Provider disattivato o eliminato:** una richiesta che lo nomina risponde 409 con il motivo, senza ripiegare da sola su un altro provider. Il selettore lo mostra non disponibile sulla conversazione che lo usava.
+
+#### 5.8.2 Configurazione: dove sta e come si unisce al `.env`
+
+- **Tabella `provider_configs` in `mcp.db`**, accanto a prezzi e tetti: `name` (chiave, identificativo stabile: minuscole, cifre, `-`; mai `total`), `kind`, `display_name`, `enabled`, i campi del tipo (JSON), `clearance`, `clearance_url`, `encrypted_secrets` (cifrati con `secret_box`), `updated_at`.
+- **Provider del `.env`**: `llamacpp`, `ollama`, `bedrock`, e `openrouter` quando arriva (P4). Ogni campo non impostato dalla UI prende il valore del `.env`. Ogni campo restituito dalle API dice da dove viene (`env`, `ui`, `default`); `null` in una modifica riporta quel campo al `.env`.
+- **Provider aggiunti dalla UI** non hanno un `.env` dietro: tutti i loro campi vengono dalla tabella.
+- **Eliminare:** un provider aggiunto dalla UI si elimina, con i suoi prezzi e il suo tetto (le metriche passate restano). Un provider del `.env` non si elimina, perché al riavvio tornerebbe: si disattiva, e "Ripristina il .env" toglie tutte le modifiche della UI.
+- **Tipi:**
+
+| `kind` | Per | Campi | Credenziali |
+| :--- | :--- | :--- | :--- |
+| `openai_compat` | Un motore in casa compatibile OpenAI: llama-swap, llama-server, vLLM, LM Studio | `base_url`, `default_model`, `llama_cpp` (sì/no: progresso, caricamento dei modelli, watchdog, campi del ragionamento di llama.cpp) | Chiave API facoltativa (`Bearer`) |
+| `ollama` | Ollama | `base_url`, `default_model` | Nessuna |
+| `bedrock` | AWS Bedrock | `region`, `models` | Chiave API di Bedrock, oppure chiave di accesso, segreto e token di sessione AWS |
+| `openai_cloud` | Un servizio cloud compatibile OpenAI (OpenRouter in P4 è questo tipo con `base_url` fisso) | `base_url`, `models` | Chiave API (`Bearer`), obbligatoria |
+
+- **Cambiare tipo** non è ammesso: si crea un altro provider.
+- **A caldo:** salvare ricostruisce il provider e lo sostituisce nell'elenco sotto un lock. Le chiamate già partite finiscono con l'oggetto vecchio. Nessun riavvio.
+
+#### 5.8.3 Il livello ammesso segue l'indirizzo
+
+- Il livello concesso si salva con l'indirizzo per cui è stato concesso (`clearance_url`; per Bedrock la regione). **Livello effettivo** = quello salvato se l'indirizzo attuale è lo stesso, altrimenti `public` (decisione 8). Per un provider del `.env` lo stesso: `LLAMA_CPP_CLEARANCE` vale per `LLAMA_CPP_URL`, non per un indirizzo cambiato dalla UI.
+- **Alzare** il livello chiede una conferma esplicita nella richiesta (`confirm: true`); la UI la chiede con un dialogo che dice l'indirizzo e cosa potrà ricevere. **Abbassarlo** non chiede nulla.
+- **Provider cloud** (`bedrock`, `openai_cloud`): dal `.env` al massimo `internal`, come oggi; `private` solo dalla UI, con la conferma.
+- **Un provider nuovo** nasce `public`. Un provider sconosciuto a `provider_destination` vale `public` (oggi vale `internal`: con provider creati dalla UI non basta più).
+- **Provider di ripiego:** il ripiego per etichetta e per tetto (5.5) va a un provider indicato nelle impostazioni, di base `llamacpp`, al posto della costante `LOCAL_PROVIDER`. Deve avere livello effettivo `private` ed essere attivo: finché è il ripiego non si disattiva né si elimina, e un cambio di indirizzo che gli abbassa il livello va confermato.
+
+#### 5.8.4 Credenziali
+
+- **Sola scrittura:** le API non le restituiscono mai. Per ogni credenziale dicono `{set, source}` (`env`, `ui`, oppure non impostata).
+- **Senza `API_SECRET_KEY`** il salvataggio di una credenziale risponde 409 e non salva nulla (decisione 9).
+- **Credenziale illeggibile** (`API_SECRET_KEY` cambiata): il provider non si costruisce, la UI dice "credenziale illeggibile, inseriscila di nuovo".
+- **Cosa protegge la cifratura:** le copie e i backup del database, non chi entra nel container (la chiave sta nel `.env` sullo stesso disco). Per Bedrock: credenziali dedicate con i soli permessi di invocazione, o una chiave API di Bedrock; i tetti di spesa restano il paracadute.
+
+#### 5.8.5 Audit e confini
+
+- Ogni creazione, modifica, attivazione, eliminazione e cambio di livello va nel log di audit: chi, quando, quali campi. Mai il valore di una credenziale.
+- Queste API sono solo dell'utente, dietro `verify_api_key`. Nessun tool dell'agente le raggiunge: un test lo fissa.
+- "Prova connessione" chiama l'indirizzo configurato e restituisce solo stato, tempo ed eventuale numero di modelli, non il corpo della risposta.
+
+#### 5.8.6 API
+
+| Metodo e percorso | Cosa fa |
+| :--- | :--- |
+| `GET /v1/providers` | Tutti i provider: tipo, nome visibile, attivo, campi con la loro origine, credenziali `{set, source}`, livello salvato ed effettivo, raggiungibile, predefinito, ripiego |
+| `POST /v1/providers` | Crea un provider (nasce `public`) |
+| `PATCH /v1/providers/{name}` | Modifica campi e credenziali; `null` riporta un campo al `.env` |
+| `DELETE /v1/providers/{name}` | Elimina un provider della UI; 409 per uno del `.env` o per il ripiego |
+| `POST /v1/providers/{name}/reset` | Provider del `.env`: toglie tutte le modifiche della UI |
+| `PUT /v1/providers/{name}/clearance` | `{level, confirm}`: alzare senza `confirm` risponde 409 |
+| `POST /v1/providers/{name}/test` | Prova la connessione, con la configurazione salvata o con quella inviata |
+| `PUT /v1/providers/settings` | Provider predefinito e provider di ripiego |
+| `GET /v1/models` | Il catalogo per il selettore: i provider attivi, ciascuno con nome, tipo, locale o cloud, livello effettivo, raggiungibile, e i suoi modelli con i dettagli di oggi (visione, caricato) |
+
+Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../price`, `.../ceilings`).
+
+#### 5.8.7 Interfaccia
+
+- **Impostazioni, scheda "Provider":** un elenco di provider con stato (attivo, raggiungibile), tipo e livello effettivo. Per ciascuno:
+  - il modulo del suo tipo, con accanto a ogni campo l'origine ("da .env", "dalla UI") e il pulsante per tornare al `.env`;
+  - le credenziali in sola scrittura;
+  - interruttore attivo e disattivo;
+  - "Prova connessione";
+  - il livello, con il dialogo di conferma per alzarlo e l'avviso quando un cambio di indirizzo l'ha riportato a `public`;
+  - prezzi dei modelli, tetto e spesa del mese (P1);
+  - "Elimina" per i provider della UI, "Ripristina il .env" per quelli del `.env`.
+
+  Sotto: "Aggiungi provider", il tetto totale, il provider predefinito e quello di ripiego.
+- **Selettore dei modelli:** i modelli di tutti i provider attivi, raggruppati sotto il nome del provider, con un'indicazione locale o cloud e il livello. Un provider non raggiungibile resta nell'elenco, segnato. La scelta è per conversazione.
+- **Turno:** l'avviso di ripiego (5.7) dice anche verso quale provider.
 
 ## 6. Ordine di costruzione
 
@@ -142,6 +235,7 @@ Ogni fase lascia il sistema funzionante; le prime due non chiedono nessuna chiav
 | **P0. Ruoli** | Argomento `role` obbligatorio, colonna nelle metriche, riepilogo per ruolo | No |
 | **P1. Costo e tetti** | Prezzi e tetti nel database e nelle API, costo salvato a ogni chiamata, spesa del mese; scheda "Provider" e costo nelle Metriche | No (si prova con un prezzo finto sul modello locale) |
 | **P2. Provider cloud** | `CloudOpenAIProvider`, variabili di Bedrock, `choose_provider` con i ripieghi per etichetta e tetto | Per i test veri sì: la chiave, la regione, i modelli. I test automatici usano un server finto |
+| **PU. Provider dalla Web UI** (5.8) | PU1: provider per richiesta, via il provider attivo globale. PU2: `provider_configs`, unione con il `.env`, ricostruzione a caldo, livello legato all'indirizzo, credenziali, audit, API. PU3: scheda "Provider" e selettore raggruppato (assorbe l'interfaccia di P1) | No: si prova con provider finti e con un secondo motore locale. Bedrock dal vivo quando ci sono le credenziali |
 | **P3. Misura** | Le suite di valutazione su uno o due modelli cloud, confronto con la tabella locale; quante volte scatta il ripiego | Sì (costa crediti) |
 | **P4. OpenRouter** | Le sue variabili; preferenze sulla conservazione dei dati impostate in modo esplicito | Sì: la chiave |
 | **P5. Preferenza per ruolo** | Solo se P3 lo giustifica | No |
@@ -165,7 +259,7 @@ Il 15/11/2026, su `dev`.
 2. Credenziali, una delle due:
    - una chiave API di Bedrock (`BEDROCK_API_KEY`), la più semplice;
    - le credenziali AWS (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`), con gli stessi nomi del `.env` di EXAMEN, da cui si possono copiare. Meglio però credenziali dedicate con i soli permessi di Bedrock (`bedrock:InvokeModel` e `bedrock:InvokeModelWithResponseStream`): quelle di EXAMEN possono avere altri permessi (DynamoDB), e una chiave per servizio si revoca senza toccare l'altro. Gli agenti non leggono né copiano il `.env` di EXAMEN.
-3. Scrivere in `backend/.env` dell'istanza le credenziali, `AWS_REGION` e `BEDROCK_MODELS` (e `BEDROCK_CLEARANCE` se diverso da `public`). EXAMEN usa `us-east-1`: se conta dove finiscono i dati, una regione UE, controllando che i modelli scelti ci siano.
+3. Scrivere in `backend/.env` dell'istanza le credenziali, `AWS_REGION` e `BEDROCK_MODELS` (e `BEDROCK_CLEARANCE` se diverso da `public`). Dopo PU si possono inserire invece nella scheda "Provider" della Web UI, senza riavviare. EXAMEN usa `us-east-1`: se conta dove finiscono i dati, una regione UE, controllando che i modelli scelti ci siano.
 3. Ricreare il backend (`up -d backend`: `restart` non rilegge `.env`).
 
 ## 8. Punti aperti
