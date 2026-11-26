@@ -124,7 +124,11 @@ def call_llm(
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
 
-    # Multimodal image handling
+    # Multimodal image handling. Il messaggio con l'immagine è l'ultimo: una chiamata con `history` (i passi del turno
+    # dopo il messaggio utente) non porta i pixel, vedono l'immagine solo le chiamate che la guardano
+    if images and history and is_vision_model(effective_model):
+        logger.warning(f"Chiamata '{role}' con immagini e cronologia: le immagini non vengono inviate")
+        images = None
     if images and len(images) > 0:
         if is_vision_model(effective_model):
             user_content_parts = [{"type": "text", "text": prompt}]
