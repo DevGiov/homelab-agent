@@ -74,14 +74,20 @@ def _audit_text() -> str:
 
 # --- Elenco e forma --------------------------------------------------------------------------------
 
-def test_the_env_providers_are_always_listed_with_their_sources(client):
+def test_the_env_providers_are_always_listed_with_their_sources(client, monkeypatch):
+    # Le impostazioni che il test controlla sono fissate qui: non dipende dal .env del checkout in cui gira
+    for attr, value in {"llama_cpp_url": HOME, "llama_cpp_clearance": "private", "ollama_url": "", "api_secret_key": "",
+                        "bedrock_api_key": "", "aws_access_key_id": "", "aws_secret_access_key": "",
+                        "aws_session_token": "", "aws_region": "", "bedrock_models": ""}.items():
+        monkeypatch.setattr(settings, attr, value)
+    provider_config.load_all()
     data = client.get("/v1/providers").json()
     assert [p["name"] for p in data["providers"]] == ["llamacpp", "ollama", "bedrock"]
     assert (data["default_provider"], data["fallback_provider"], data["can_store_secrets"]) == ("llamacpp", "llamacpp", False)
     llamacpp, ollama, bedrock = data["providers"]
-    assert llamacpp["fields"]["base_url"] == {"value": settings.llama_cpp_url, "source": "default"}
+    assert llamacpp["fields"]["base_url"] == {"value": HOME, "source": "env"}
     assert llamacpp["fields"]["llama_cpp"] == {"value": True, "source": "default"}
-    assert llamacpp["clearance"] == {"saved": "private", "effective": "private", "granted_for": settings.llama_cpp_url,
+    assert llamacpp["clearance"] == {"saved": "private", "effective": "private", "granted_for": HOME,
                                      "reset_by_address_change": False}
     assert (llamacpp["is_default"], llamacpp["is_fallback"], llamacpp["origin"]) == (True, True, "env")
     assert (ollama["configured"], ollama["missing"], ollama["clearance"]["effective"]) == (False, ["base_url"], "public")
