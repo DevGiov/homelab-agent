@@ -26,6 +26,7 @@ function pendingApproval(msg: FormattedMessage) {
     commandPreview: msg.command_preview || step?.command_preview,
     commandPrefix: msg.command_prefix || step?.command_prefix,
     riskReason: msg.risk_reason || step?.risk_reason || msg.approval_prompt,
+    expiresAt: msg.expires_at || step?.expires_at,
   };
 }
 

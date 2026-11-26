@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.automations.db import approvals as approvals_db
@@ -20,7 +20,7 @@ from app.security import permissions
 
 logger = logging.getLogger("approvals")
 
-APPROVAL_TTL_SECONDS = 300  # 5 minuti di validità
+APPROVAL_TTL_SECONDS = 1800  # 30 minuti: una scheda di chat resta decidibile oltre i pochi secondi del turno
 RUN_APPROVAL_TTL_SECONDS = 24 * 3600  # una run può partire di notte: la decisione arriva quando l'utente c'è
 
 
@@ -36,6 +36,8 @@ class ApprovalRequest:
     command_prefix: Optional[str] = None
     task: Optional[str] = None
     created_at: float = field(default_factory=time.time)
+    # Scadenza assoluta (epoch). None: vale created_at + ttl_seconds. Il ripristino dal database la copia da expires_at.
+    expires_at: Optional[float] = None
     status: str = "pending"  # pending | approved | denied | expired
     resolved_by: Optional[str] = None
     ttl_seconds: int = APPROVAL_TTL_SECONDS
@@ -72,11 +74,13 @@ def create_approval_request(
 
     with _approval_lock:
         now = time.time()
-        expired = [k for k, v in _APPROVALS.items()
-                   if v.status == "pending" and now - v.created_at > v.ttl_seconds]
+        req.created_at = now
+        req.ttl_seconds = APPROVAL_TTL_SECONDS
+        expired = [k for k, v in _APPROVALS.items() if v.status == "pending" and _is_past_deadline(v, now)]
         for k in expired:
             _APPROVALS[k].status = "expired"
         _APPROVALS[req.request_id] = req
+    _mark_expired(expired)
 
     # Sincronizzazione persistente su automations.db
     try:
@@ -89,7 +93,7 @@ def create_approval_request(
             "command_prefix": req.command_prefix,
             "risk_reason": risk_reason,
             "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(),
             "expires_at": datetime.fromtimestamp(now + APPROVAL_TTL_SECONDS, tz=timezone.utc).isoformat()
         })
     except Exception as e:
@@ -106,11 +110,13 @@ def get_approval_request(request_id: str) -> Optional[ApprovalRequest]:
 
 def bind_to_run(request_id: str, run_id: str, step_run_id: str, db_path: Optional[str] = None) -> None:
     """Lega al passo di una run una richiesta nata dal guardrail, con la scadenza delle run."""
+    deadline = time.time() + RUN_APPROVAL_TTL_SECONDS
     with _approval_lock:
         req = _APPROVALS.get(request_id)
         if req:
             req.ttl_seconds = RUN_APPROVAL_TTL_SECONDS
-    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=RUN_APPROVAL_TTL_SECONDS)).isoformat()
+            req.expires_at = deadline
+    expires_at = datetime.fromtimestamp(deadline, tz=timezone.utc).isoformat()
     if not approvals_db.bind_approval_to_run(request_id, run_id, step_run_id, expires_at, db_path=db_path):
         logger.warning(f"Richiesta '{request_id}' non trovata: non legata alla run '{run_id}'")
 
@@ -133,6 +139,7 @@ def approval_response(req: ApprovalRequest, message: str, *, security_mode: Opti
         "command_preview": req.command_preview,
         "command_prefix": command_prefix or req.command_prefix,
         "risk_reason": req.risk_reason,
+        "expires_at": _expires_at_iso(req),
         "message": f"{message} ID richiesta: '{req.request_id}'.",
     }
     if security_mode:
@@ -193,6 +200,101 @@ def request_runtime_approval(
 
 # --- Risoluzione ed elenco ---
 
+def _parse_utc(value: Any) -> Optional[float]:
+    """Epoch UTC da un timestamp salvato (ISO, oppure la forma senza fuso di SQLite)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _deadline(req: ApprovalRequest) -> float:
+    """Scadenza assoluta. Senza expires_at vale created_at + ttl (le richieste nate in questo processo)."""
+    if req.expires_at is not None:
+        return req.expires_at
+    return req.created_at + req.ttl_seconds
+
+
+def _is_past_deadline(req: ApprovalRequest, now: float) -> bool:
+    return now > _deadline(req)
+
+
+def _expires_at_iso(req: ApprovalRequest) -> str:
+    return datetime.fromtimestamp(_deadline(req), tz=timezone.utc).isoformat()
+
+
+def _mark_expired(request_ids: List[str]) -> None:
+    """Allinea il database alle richieste che la pulizia in memoria ha segnato expired."""
+    for request_id in request_ids:
+        try:
+            approvals_db.expire_automation_approval(request_id)
+        except Exception as e:
+            logger.debug(f"Scadenza approval '{request_id}' non scritta sul database: {e}")
+
+
+def _restore_approval(request_id: str) -> Optional[ApprovalRequest]:
+    """Ricarica pending o expired dal database, copiando created_at e expires_at. Non tocca approve/deny."""
+    try:
+        row = approvals_db.get_automation_approval(request_id)
+    except Exception as e:
+        logger.debug(f"Recupero fallback approval da DB non riuscito: {e}")
+        return None
+    if not row or row.get("status") not in ("pending", "expired"):
+        return None
+    created = _parse_utc(row.get("created_at"))
+    expires = _parse_utc(row.get("expires_at"))
+    if created is None:
+        created = expires if expires is not None else time.time()
+    if expires is None:
+        expires = created + APPROVAL_TTL_SECONDS
+    run_id = row.get("run_id")
+    req = ApprovalRequest(
+        request_id=row["request_id"],
+        tool_name=row.get("tool_name") or "",
+        arguments=row.get("arguments") or {},
+        thread_id=run_id if run_id not in (None, "chat_session") else None,
+        mode=None,
+        command_preview=row.get("command_preview"),
+        risk_reason=row.get("risk_reason"),
+        command_prefix=row.get("command_prefix"),
+        created_at=created,
+        expires_at=expires,
+        ttl_seconds=max(0, int(round(expires - created))),
+        status=row.get("status") or "pending",
+        resolved_by=row.get("resolved_by"),
+    )
+    _APPROVALS[request_id] = req
+    return req
+
+
+def closed_approval(request_id: str) -> Optional[Dict[str, str]]:
+    """Stato di una richiesta già chiusa, per distinguere id assente, già risolta e scaduta."""
+    with _approval_lock:
+        req = _APPROVALS.get(request_id)
+    if req is not None:
+        return {"status": req.status, "action": req.status}
+    try:
+        row = approvals_db.get_automation_approval(request_id)
+    except Exception as e:
+        logger.debug(f"Lettura approval '{request_id}' non riuscita: {e}")
+        return None
+    if not row:
+        return None
+    status = str(row.get("status") or "")
+    action = str(row.get("resolution_action") or status)
+    return {"status": status, "action": action}
+
+
 def resolve_approval(
     request_id: str,
     action: Optional[str] = None,
@@ -215,33 +317,20 @@ def resolve_approval(
     with _approval_lock:
         req = _APPROVALS.get(request_id)
         if not req:
-            # Fallback a recupero da DB se riavviato
-            try:
-                db_appr = approvals_db.get_automation_approval(request_id)
-                if db_appr and db_appr.get("status") == "pending":
-                    req = ApprovalRequest(
-                        request_id=db_appr["request_id"],
-                        tool_name=db_appr["tool_name"],
-                        arguments=db_appr["arguments"],
-                        thread_id=db_appr["run_id"] if db_appr["run_id"] != "chat_session" else None,
-                        mode=None,
-                        command_preview=db_appr.get("command_preview"),
-                        risk_reason=db_appr.get("risk_reason"),
-                        command_prefix=db_appr.get("command_prefix")
-                    )
-                    _APPROVALS[request_id] = req
-            except Exception as e:
-                logger.debug(f"Recupero fallback approval da DB non riuscito: {e}")
+            req = _restore_approval(request_id)
 
-        if not req or req.status != "pending":
+        if not req:
             return None
-        if time.time() - req.created_at > req.ttl_seconds:
+        # Scaduta (già segnata, o oltre la scadenza vera): il click non è un approve né un deny
+        if req.status == "expired" or (req.status == "pending" and _is_past_deadline(req, time.time())):
             req.status = "expired"
             try:
-                approvals_db.resolve_automation_approval(request_id, "expired", resolved_by=resolved_by)
+                approvals_db.expire_automation_approval(request_id)
             except Exception:
                 pass
             return req
+        if req.status != "pending":
+            return None
 
         normalized_action = str(action).lower().strip()
         if normalized_action in ("deny", "false", "refuse"):
@@ -294,11 +383,13 @@ def get_pending_approvals(thread_id: Optional[str] = None) -> List[Dict[str, Any
         now = time.time()
         result = []
         seen_ids = set()
+        expired_ids: List[str] = []
         for req in _APPROVALS.values():
             if req.status != "pending":
                 continue
-            if now - req.created_at > req.ttl_seconds:
+            if _is_past_deadline(req, now):
                 req.status = "expired"
+                expired_ids.append(req.request_id)
                 continue
             if thread_id and req.thread_id != thread_id:
                 continue
@@ -314,6 +405,7 @@ def get_pending_approvals(thread_id: Optional[str] = None) -> List[Dict[str, Any
                 "command_prefix": req.command_prefix,
                 "age_seconds": int(now - req.created_at),
             })
+        _mark_expired(expired_ids)
 
         # Integrazione record persistenti da DB per richieste sopravvissute al restart
         try:

@@ -774,6 +774,7 @@ class AgentLoop:
             "command_preview": res.get("command_preview"),
             "command_prefix": res.get("command_prefix"),
             "risk_reason": res.get("risk_reason"),
+            "expires_at": res.get("expires_at"),
         }
         if approval["request_id"]:
             turn_checkpoints.save(approval["request_id"], self.checkpoint_kind, self.checkpoint(

@@ -32,6 +32,8 @@ class AgentState(TypedDict, total=False):
     command_preview: Optional[str]
     command_prefix: Optional[str]
     risk_reason: Optional[str]
+    # Scadenza ISO della richiesta di approvazione (chat: 30 minuti; una run la allunga con bind_to_run)
+    expires_at: Optional[str]
     security_mode: Optional[str]
     # Id del canale da cui arriva il turno (app.channels); assente per la Web UI
     channel: Optional[str]

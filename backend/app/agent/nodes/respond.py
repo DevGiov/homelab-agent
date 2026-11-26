@@ -122,6 +122,7 @@ def respond_node(state: AgentState) -> AgentState:
         "command_preview": state.get("command_preview"),
         "command_prefix": state.get("command_prefix"),
         "risk_reason": state.get("risk_reason"),
+        "expires_at": state.get("expires_at"),
         "security_mode": state.get("security_mode") or "normal",
         "tag": flows.join(state.get("tag")).to_dict(),
     }

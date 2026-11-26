@@ -135,6 +135,64 @@ describe('scheda di uscita dei dati', () => {
     expect(screen.getByText('Autorizzazione Tool Richiesta (Guardrail)')).toBeTruthy();
     expect(screen.getByText(/Sì, sempre/)).toBeTruthy();
   });
+
+  it('mostra la scadenza e chiude la scheda su 404, 409 e 410', async () => {
+    const iso = '2026-11-20T21:38:00.000Z';
+    const formatted = new Intl.DateTimeFormat('it-IT', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso));
+    const { unmount } = render(
+      <InlineApprovalCard requestId="apr_deadline" toolName="list_demo_widgets" expiresAt={iso} />
+    );
+    expect(screen.getByText(`Scade il ${formatted}`)).toBeTruthy();
+    unmount();
+
+    mockBackend({
+      'POST /v1/approvals/apr_missing_iss40/resolve': () => jsonResponse(
+        { detail: "Richiesta 'apr_missing_iss40' non trovata" }, 404,
+      ),
+    });
+    const missing = render(<InlineApprovalCard requestId="apr_missing_iss40" toolName="list_demo_widgets" />);
+    fireEvent.click(screen.getByText('No (Rifiuta)'));
+    await waitFor(() => expect(screen.getByText("Richiesta 'apr_missing_iss40' non trovata")).toBeTruthy());
+    expect(screen.queryByText('No (Rifiuta)')).toBeNull();
+    expect(screen.queryByText('Sì (Una volta)')).toBeNull();
+    missing.unmount();
+
+    mockBackend({
+      'POST /v1/approvals/apr_denied_iss40/resolve': () => jsonResponse({
+        detail: {
+          code: 'already_resolved',
+          action: 'denied',
+          message: "Richiesta 'apr_denied_iss40' già risolta (rifiutata)",
+        },
+      }, 409),
+    });
+    const denied = render(<InlineApprovalCard requestId="apr_denied_iss40" toolName="list_demo_widgets" />);
+    fireEvent.click(screen.getByText('No (Rifiuta)'));
+    await waitFor(() => expect(screen.getByText(/già risolta \(rifiutata\)/)).toBeTruthy());
+    expect(screen.queryByText('Sì (Una volta)')).toBeNull();
+    denied.unmount();
+
+    mockBackend({
+      'POST /v1/approvals/apr_expired_iss40/resolve': () => jsonResponse({ detail: 'Richiesta scaduta' }, 410),
+    });
+    const expired = render(<InlineApprovalCard requestId="apr_expired_iss40" toolName="list_demo_widgets" />);
+    fireEvent.click(screen.getByText('Sì (Una volta)'));
+    await waitFor(() => expect(screen.getByText('Richiesta scaduta')).toBeTruthy());
+    expect(screen.queryByText('No (Rifiuta)')).toBeNull();
+    expired.unmount();
+
+    mockBackend({
+      'POST /v1/approvals/apr_busy_iss40/resolve': () => jsonResponse({
+        detail: 'La chat ha un altro turno in corso: fermalo o aspetta che finisca.',
+      }, 409),
+    });
+    render(<InlineApprovalCard requestId="apr_busy_iss40" toolName="list_demo_widgets" />);
+    fireEvent.click(screen.getByText('No (Rifiuta)'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('altro turno'));
+    expect(screen.getByText('Sì (Una volta)')).toBeTruthy();
+  });
 });
 
 describe('livello della conversazione', () => {

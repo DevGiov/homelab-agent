@@ -49,6 +49,7 @@ class ChatResponse(BaseModel):
     command_preview: Optional[str] = None
     command_prefix: Optional[str] = None
     risk_reason: Optional[str] = None
+    expires_at: Optional[str] = None
     security_mode: Optional[str] = None
 
 

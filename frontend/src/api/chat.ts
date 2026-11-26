@@ -62,6 +62,8 @@ export interface ExecutionTraceItem {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  /** Scadenza ISO della richiesta di approvazione. */
+  expires_at?: string;
   /** Argomenti riscritti senza i dati riservati del turno (backend: AgentLoop._clean_call). */
   clean_rewrite?: { original_args: Record<string, any>; label: string; turn_label: string };
 }
@@ -120,6 +122,8 @@ export interface ChatResponse {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  /** Scadenza ISO della richiesta di approvazione, mostrata sulla scheda. */
+  expires_at?: string;
   security_mode?: SecurityMode;
   /** Sensibilità del turno: etichetta, non attendibilità e motivi. */
   sensitivity?: SensitivityTag;
@@ -149,6 +153,7 @@ export interface MessageVersion {
   command_preview?: string;
   command_prefix?: string;
   risk_reason?: string;
+  expires_at?: string;
   approval_resolved?: boolean;
   approval_action?: string;
   security_mode?: SecurityMode;

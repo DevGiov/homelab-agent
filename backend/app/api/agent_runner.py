@@ -67,6 +67,7 @@ def _chat_response(final_state: dict, thread_id: str, force_mode: Optional[str],
         command_preview=final_state.get("command_preview"),
         command_prefix=final_state.get("command_prefix"),
         risk_reason=final_state.get("risk_reason"),
+        expires_at=final_state.get("expires_at"),
         security_mode=final_state.get("security_mode", security_mode),
         sensitivity=flows.join(final_state.get("tag")).to_dict(),
     )

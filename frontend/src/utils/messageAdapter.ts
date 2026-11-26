@@ -44,6 +44,7 @@ export function adaptChatResponseToMessage(
     command_preview: response.command_preview,
     command_prefix: response.command_prefix,
     risk_reason: response.risk_reason,
+    expires_at: response.expires_at,
     security_mode: response.security_mode,
     sensitivity: response.sensitivity,
   };

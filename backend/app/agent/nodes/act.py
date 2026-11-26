@@ -68,6 +68,7 @@ def act_graph_node(state: AgentState) -> AgentState:
         "command_preview": loop_res.get("command_preview"),
         "command_prefix": loop_res.get("command_prefix"),
         "risk_reason": loop_res.get("risk_reason"),
+        "expires_at": loop_res.get("expires_at"),
         "security_mode": state.get("security_mode") or "normal",
         "tag": loop_res.get("tag") or state.get("tag"),
     }

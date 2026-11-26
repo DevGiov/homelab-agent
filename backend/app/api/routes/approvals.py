@@ -22,6 +22,25 @@ logger = logging.getLogger("api")
 
 router = APIRouter(tags=["approvals"])
 
+# Azione registrata (status o resolution_action) -> testo della scheda
+_RECORDED_ACTION = {
+    "approved": "approvata",
+    "approve": "approvata",
+    "denied": "rifiutata",
+    "deny": "rifiutata",
+    "approve_thread": "approvata per questa chat",
+    "approve_always": "approvata in modo permanente",
+}
+
+
+def _already_resolved(request_id: str, action: str) -> HTTPException:
+    label = _RECORDED_ACTION.get(action, action)
+    return HTTPException(status_code=409, detail={
+        "code": "already_resolved",
+        "action": action,
+        "message": f"Richiesta '{request_id}' già risolta ({label})",
+    })
+
 
 # --- Approval workflow (Fase 3.2) ---
 
@@ -71,11 +90,17 @@ async def resolve_approval_endpoint(request_id: str, req_body: ResolveApprovalRe
         raise HTTPException(status_code=409, detail="La chat ha un altro turno in corso: fermalo o aspetta che finisca.")
 
     req = approvals.resolve_approval(request_id, action=action, resolved_by=req_body.resolved_by)
-    if req is None:
-        raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata o già risolta")
-    if req.status == "expired":
+    if req is not None and req.status == "expired":
         turn_checkpoints.delete(request_id)
         raise HTTPException(status_code=410, detail="Richiesta scaduta")
+    if req is None:
+        closed = approvals.closed_approval(request_id)
+        if closed is None or closed["status"] in ("", "pending"):
+            raise HTTPException(status_code=404, detail=f"Richiesta '{request_id}' non trovata")
+        if closed["status"] == "expired":
+            turn_checkpoints.delete(request_id)
+            raise HTTPException(status_code=410, detail="Richiesta scaduta")
+        raise _already_resolved(request_id, closed["action"])
 
     # Il turno che ha chiesto l'approvazione riprende da dove si era fermato, in streaming
     if checkpoint:

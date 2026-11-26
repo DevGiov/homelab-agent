@@ -320,6 +320,7 @@ class _PlanRun:
             "command_preview": guard.get("command_preview"),
             "command_prefix": guard.get("command_prefix"),
             "risk_reason": guard.get("risk_reason"),
+            "expires_at": guard.get("expires_at"),
         }
         log_dicts = [log.to_dict() for log in self.execution_log]
         log_dicts[-1].update(approval)

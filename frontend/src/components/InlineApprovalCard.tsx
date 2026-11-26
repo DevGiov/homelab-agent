@@ -12,9 +12,39 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { resolveApproval, type ApprovalAction, type ResolveApprovalResponse } from '../api/approvals';
+import { ApiError } from '../api/http';
 import { formatApiError } from '../utils/error';
 import { describeDestination, parseFlowCapability } from '../utils/sensitivity';
 import { SensitivityChip } from './sensitivity/SensitivityChip';
+
+function detailCode(detail: unknown): string | null {
+  if (!detail || typeof detail !== 'object' || !('code' in detail)) return null;
+  const code = (detail as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
+
+/** 404 se l'id non esiste, 409 se è già risolta, 410 se è scaduta. Un altro 409 (turno occupato) resta un errore. */
+function terminalApprovalMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  if (err.status === 404) return err.message || 'Richiesta non trovata';
+  if (err.status === 410) return err.message || 'Richiesta scaduta';
+  if (err.status === 409 && detailCode(err.detail) === 'already_resolved') {
+    return err.message || 'Richiesta già risolta';
+  }
+  return null;
+}
+
+function formatApprovalDeadline(iso: string): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const formatted = new Intl.DateTimeFormat('it-IT', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+  return `Scade il ${formatted}`;
+}
 
 export interface InlineApprovalCardProps {
   requestId: string;
@@ -23,6 +53,8 @@ export interface InlineApprovalCardProps {
   commandPreview?: string;
   commandPrefix?: string;
   riskReason?: string;
+  /** Scadenza ISO. La scheda la mostra così com'è stata registrata. */
+  expiresAt?: string | null;
   threadId?: string | null;
   isResolvedInitially?: boolean;
   resolvedActionInitially?: string;
@@ -36,6 +68,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   commandPreview,
   commandPrefix,
   riskReason,
+  expiresAt,
   threadId: _threadId,
   isResolvedInitially = false,
   resolvedActionInitially,
@@ -47,6 +80,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   const [resolvedAction, setResolvedAction] = useState<string | null>(resolvedActionInitially || null);
   const [resolvedResult, setResolvedResult] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [terminalMsg, setTerminalMsg] = useState<string | null>(null);
   const [isArgsExpanded, setIsArgsExpanded] = useState<boolean>(false);
 
   const handleResolve = async (action: ApprovalAction) => {
@@ -62,6 +96,12 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
       }
       onResolved?.(action, res);
     } catch (err: any) {
+      const closed = terminalApprovalMessage(err);
+      if (closed) {
+        setTerminalMsg(closed);
+        setErrorMsg(null);
+        return;
+      }
       const msg = formatApiError(err, 'Errore durante la risoluzione');
       setErrorMsg(msg);
     } finally {
@@ -84,6 +124,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   const netHost = isNetRequest ? commandPrefix!.slice(4).trim() : null;
   // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
   const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
+  const deadlineLabel = expiresAt ? formatApprovalDeadline(expiresAt) : null;
 
   return (
     <div className="my-3 overflow-hidden rounded-xl border border-amber-500/40 bg-amber-950/20 backdrop-blur-md shadow-lg transition-all duration-200">
@@ -100,6 +141,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <div className="text-xs text-amber-300 font-mono">
               ID: {requestId}
             </div>
+            {deadlineLabel && (
+              <div className="text-xs text-amber-200">{deadlineLabel}</div>
+            )}
           </div>
         </div>
         <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/20 px-2.5 py-0.5 font-mono text-xs font-bold text-amber-300">
@@ -174,7 +218,12 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
         )}
 
         {/* Resolved Status Banner */}
-        {resolved ? (
+        {terminalMsg ? (
+          <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-medium text-amber-100">
+            <AlertTriangle size={16} className="shrink-0 text-amber-300" />
+            <span>{terminalMsg}</span>
+          </div>
+        ) : resolved ? (
           <div role="status" className="pt-1">
             {resolvedAction === 'deny' && (
               <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-medium text-rose-300">

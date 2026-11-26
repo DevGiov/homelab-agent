@@ -68,6 +68,22 @@ def bind_approval_to_run(request_id: str, run_id: str, step_run_id: str, expires
         conn.close()
 
 
+def expire_automation_approval(request_id: str, db_path: Optional[str] = None) -> bool:
+    """Segna una richiesta ancora pending come expired. Non registra approve né deny."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE automation_approvals
+            SET status = 'expired'
+            WHERE request_id = ? AND status = 'pending'
+        """, (request_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
 def clear_expired_automation_approvals(db_path: Optional[str] = None) -> int:
     """Aggiorna lo stato delle approvazioni scadute a 'expired'."""
     conn = get_db_connection(db_path)
