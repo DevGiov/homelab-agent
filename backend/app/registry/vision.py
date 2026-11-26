@@ -111,8 +111,13 @@ class VisionRegistry(BaseToolRegistry):
             return {"error": f"Il file non è un'immagine leggibile: {e}"}
         data_url = f"data:image/jpeg;base64,{base64.b64encode(opt_bytes).decode('utf-8')}"
 
-        provider = providers.get_provider()
-        model = provider.effective_model(args.get("model"))
+        # Il prompt lo ha scritto chi ha chiamato il tool: la chiamata ne porta il tag, unito a quello dell'immagine.
+        # Il provider passa dalla scelta comune: con un provider cloud attivo valgono il ripiego e il tetto di spesa
+        from app.agent.llm_calls import choose_provider
+        tag = flows.join(flows.current_call_tag(), flows.result_tag("inspect_image", args))
+        choice = choose_provider(args.get("model"), tag, providers.get_provider())
+        provider = choice.provider
+        model = provider.effective_model(choice.model)
         messages = [{"role": "user", "content": [
             {"type": "text", "text": prompt},
             {"type": "image_url", "image_url": {"url": data_url}},
@@ -120,10 +125,8 @@ class VisionRegistry(BaseToolRegistry):
         logger.info(f"Ispezione visiva di {source_desc} ({w}x{h}, {len(opt_bytes)} byte) con '{model}'")
         reasoning = resolve(model, "medium", temperature=0.2)
         # Come call_llm: il server conta nei max_tokens anche il ragionamento
-        # Il prompt lo ha scritto chi ha chiamato il tool: la chiamata ne porta il tag, unito a quello dell'immagine
-        tag = flows.join(flows.current_call_tag(), flows.result_tag("inspect_image", args))
         result = provider.chat(messages, tag=tag, role=roles.VISION, model=model, max_tokens=4096 + (reasoning.budget if reasoning.enabled else 0),
-                               reasoning=reasoning)
+                               reasoning=reasoning, **({"fallback": choice.fallback} if choice.fallback else {}))
         if result.get("error"):
             return {"error": f"Errore dal modello multimodale: {result['error']}"}
 

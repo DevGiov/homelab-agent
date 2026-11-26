@@ -600,3 +600,52 @@ def test_old_metrics_databases_get_the_fallback_column():
     store.init_metrics_db()
     store.insert_llm_call({"provider": "p", "duration_ms": 1, "fallback": "label"})
     assert rows()[0]["fallback"] == "label"
+
+
+# --- Le chiamate dirette al provider passano dalla stessa scelta ---------------------------------------
+
+def test_the_router_falls_back_like_every_other_call(two_providers):
+    from app.agent import mode_router
+    mode_router._ask_router_model("sys", "user", None, PRIVATE_TAG)
+    mode_router._ask_router_model("sys", "user", None, PUBLIC_TAG)
+    assert len(two_providers.local_calls.calls) == 1 and len(two_providers.remote_calls.calls) == 1
+    assert [r["fallback"] for r in rows()] == ["label", None]
+    assert [r["role"] for r in rows()] == ["route", "route"]
+
+
+def test_the_title_falls_back_like_every_other_call(two_providers, monkeypatch):
+    from app.memory import thread_store
+    monkeypatch.setattr(thread_store, "set_thread_title", lambda *a, **k: None)
+    thread_store.generate_and_save_title("t-1", "una richiesta", tag=PRIVATE_TAG)
+    assert len(two_providers.local_calls.calls) == 1 and two_providers.remote_calls.calls == []
+    assert rows()[-1]["fallback"] == "label" and rows()[-1]["provider"] == "llamacpp"
+
+
+def test_the_spending_ceiling_stops_the_title_too(two_providers, monkeypatch):
+    from app.memory import thread_store
+    monkeypatch.setattr(thread_store, "set_thread_title", lambda *a, **k: None)
+    monkeypatch.setattr(costs, "ceiling_reached", lambda name: "total")
+    thread_store.generate_and_save_title("t-1", "una richiesta", tag=PUBLIC_TAG)
+    assert len(two_providers.local_calls.calls) == 1 and rows()[-1]["fallback"] == "budget"
+
+
+def test_the_image_inspection_falls_back_like_every_other_call(two_providers):
+    import io
+
+    from PIL import Image
+
+    from app.registry.vision import VisionRegistry
+    from app.security import flows
+    Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
+    image = Path(settings.uploads_dir) / "test-ripiego-rosso.png"
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), "red").save(buf, format="PNG")
+    image.write_bytes(buf.getvalue())
+    try:
+        res = flows.run_with_call_tag(PRIVATE_TAG, VisionRegistry().execute_tool, "inspect_image",
+                                      {"image_path_or_url": image.name, "prompt": "cosa c'è?"})
+    finally:
+        image.unlink(missing_ok=True)
+    assert res.get("success"), res
+    assert len(two_providers.local_calls.calls) == 1 and two_providers.remote_calls.calls == []
+    assert rows()[-1]["fallback"] == "label" and rows()[-1]["role"] == "vision"

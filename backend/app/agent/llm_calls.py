@@ -36,7 +36,7 @@ class ProviderChoice:
     origin: Optional[str] = None  # il nome del provider da cui si è ripiegato
 
 
-def choose_provider(model: Optional[str], tag: Tag) -> ProviderChoice:
+def choose_provider(model: Optional[str], tag: Tag, provider: Optional[LLMProvider] = None) -> ProviderChoice:
     """Il provider di una chiamata (docs/providers/PROVIDERS_DESIGN.md, 5.5). Si parte dal provider attivo e dal modello
     scelti dall'utente; si passa al provider locale, col suo modello predefinito, se:
 
@@ -44,8 +44,12 @@ def choose_provider(model: Optional[str], tag: Tag) -> ProviderChoice:
     2. altrimenti, la spesa del mese ha raggiunto il tetto del provider o quello totale: motivo `budget`.
 
     Se il provider attivo è già quello locale non cambia nulla: l'etichetta troppo alta per lui resta un `FlowDenied` di
-    `LLMProvider.chat`, l'ultima guardia."""
-    provider = get_provider()
+    `LLMProvider.chat`, l'ultima guardia.
+
+    `provider`: il provider già scelto da chi chiama direttamente `LLMProvider.chat` (router, titolo, ispezione delle
+    immagini); senza, quello attivo. Anche quelle chiamate passano di qui: altrimenti con un provider cloud attivo non
+    avrebbero né il ripiego per l'etichetta né il tetto di spesa."""
+    provider = provider if provider is not None else get_provider()
     # Solo i provider veri: un'altra cosa passata al posto di un provider (nei test) non ha nome né livello
     if not isinstance(provider, LLMProvider) or provider.name == LOCAL_PROVIDER:
         return ProviderChoice(provider, model)

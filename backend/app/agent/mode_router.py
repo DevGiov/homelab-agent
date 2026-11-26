@@ -304,11 +304,14 @@ def _ask_router_model(system_prompt: str, user_prompt: str, model: Optional[str]
     """Classificazione via provider LLM attivo (JSON mode, senza thinking). None se il modello non risponde.
 
     `tag`: il router vede solo la richiesta e gli ultimi messaggi, non la memoria: il suo tag è quello di questi."""
-    res = get_provider().chat(
+    from app.agent.llm_calls import choose_provider
+    choice = choose_provider(model, tag, get_provider())
+    res = choice.provider.chat(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         tag=tag,
         role=roles.ROUTE,
-        model=model,
+        model=choice.model,
+        **({"fallback": choice.fallback} if choice.fallback else {}),
         max_tokens=256,
         temperature=0.0,
         json_mode=True,
