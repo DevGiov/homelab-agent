@@ -136,13 +136,12 @@ def optimize_image_bytes(
 
 
 def normalize_image_data_url(data_url: str, max_dimension: int = 1920) -> str:
-    """
-    Intercetta una stringa data URL (es. 'data:image/webp;base64,...' o 'data:image/heic;base64,...').
-    Garantisce compatibilità con llama.cpp (stb_image.h):
-    - WebP e HEIC vengono SEMPRE convertiti in JPEG standard.
-    - Immagini con payload > 1.5MB vengono ridimensionate e compresse in JPEG.
-    - Preserva l'orientamento EXIF reale.
-    Ritorna la stringa data:image/jpeg;base64,... normalizzata.
+    """Ridimensiona ogni data URL prima dell'invio al modello.
+
+    WebP e HEIC diventano JPEG, perché stb_image non li legge. Ogni altra immagine
+    passa dallo stesso passaggio: il lato più lungo non supera `max_dimension` e
+    l'orientamento EXIF è applicato. Un file più piccolo non libera il buffer
+    dell'encoder sulla GPU, che resta grande anche per un'immagine piccola.
     """
     if not data_url or not isinstance(data_url, str):
         return data_url
@@ -154,25 +153,14 @@ def normalize_image_data_url(data_url: str, max_dimension: int = 1920) -> str:
         parts = data_url.split(",", 1)
         if len(parts) != 2:
             return data_url
-        header, b64_payload = parts
-
-        header_lower = header.lower()
-        is_heic = "heic" in header_lower or "heif" in header_lower
-        is_webp = "webp" in header_lower
-        is_generic_or_empty = header_lower in ("data:;base64", "data:application/octet-stream;base64")
-        # llama.cpp stb_image crasha con HTTP 400 su WebP e HEIC! Forziamo sempre la conversione a JPEG.
-        needs_optimization = is_heic or is_webp or is_generic_or_empty or len(b64_payload) > 1_500_000
-
-        if not needs_optimization:
-            # È già un JPEG o PNG leggero conforme
-            return data_url
+        _header, b64_payload = parts
 
         raw_bytes = base64.b64decode(b64_payload)
         opt_bytes, mime, w, h = optimize_image_bytes(
             raw_bytes,
             max_dimension=max_dimension,
             quality=85,
-            force_jpeg=True,
+            force_jpeg=False,
         )
         new_b64 = base64.b64encode(opt_bytes).decode("utf-8")
         logger.info(f"Normalizzata immagine {w}x{h} ({len(raw_bytes)} bytes -> {len(opt_bytes)} bytes) a {mime}")
