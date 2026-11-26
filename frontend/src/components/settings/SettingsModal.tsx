@@ -1,13 +1,14 @@
 import React, { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
+import { Boxes, Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
 import { GeneralTab } from './GeneralTab';
 import { McpTab } from './mcp/McpTab';
+import { ProvidersTab } from './providers/ProvidersTab';
 import { SecurityTab } from './SecurityTab';
 import { useModalFocus } from '../../hooks/useModalFocus';
 
-type SettingsTab = 'general' | 'appearance' | 'security' | 'mcp';
+type SettingsTab = 'general' | 'providers' | 'appearance' | 'security' | 'mcp';
 
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -18,6 +19,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
     { id: 'general', label: 'Generale', icon: Cpu },
+    { id: 'providers', label: 'Provider', icon: Boxes, iconColor: 'text-emerald-400' },
     { id: 'appearance', label: 'Aspetto', icon: Palette },
     { id: 'security', label: 'Sicurezza', icon: Shield, iconColor: 'text-amber-400' },
     { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },
@@ -58,6 +60,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
         <div className="flex-1 overflow-y-auto stack-y-4 pr-1 custom-scrollbar">
           {activeTab === 'general' && <GeneralTab onSaved={onClose} />}
+          {activeTab === 'providers' && <ProvidersTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'security' && <SecurityTab />}
           {activeTab === 'mcp' && <McpTab />}
