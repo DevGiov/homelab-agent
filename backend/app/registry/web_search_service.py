@@ -22,6 +22,9 @@ from app.registry.search_content import (
     get_tldr,
 )
 from app.registry.search_providers import (
+    FAILURE_CAPTCHA,
+    FAILURE_ENGINE,
+    FAILURE_SUSPENDED,
     search_ddgs_library,
     search_duckduckgo_api,
     search_duckduckgo_html,
@@ -68,30 +71,78 @@ def deduplicate_by_url(results: List[Dict[str, str]]) -> List[Dict[str, str]]:
     return unique
 
 
+class SearchOutcome(tuple):
+    """(results, provider) più i modi di fallimento. Si spacchetta ancora come coppia."""
+
+    failures: frozenset
+
+    def __new__(cls, results, provider: str, failures=()):
+        self = super().__new__(cls, (list(results), provider))
+        self.failures = frozenset(failures or ())
+        return self
+
+
+def _modes_of(results) -> set:
+    return set(getattr(results, "failures", ()) or ())
+
+
+_MODE_ORDER = (FAILURE_ENGINE, FAILURE_SUSPENDED, FAILURE_CAPTCHA)
+_MODE_PHRASE = {
+    FAILURE_ENGINE: "errore motore",
+    FAILURE_SUSPENDED: "sospeso",
+    FAILURE_CAPTCHA: "captcha",
+}
+
+
+def degradation_notice(modes: set, query: str, *, empty: bool) -> str:
+    """Testo per il modello quando la ricerca è degradata, con i modi di fallimento in termini generici.
+
+    Un elenco vuoto o parziale, senza questo avviso, si legge come «nessuna pagina su questo prodotto».
+    """
+    labels = [_MODE_PHRASE[mode] for mode in _MODE_ORDER if mode in modes]
+    if not labels:
+        return ""
+    listed = ", ".join(labels)
+    if empty:
+        return (
+            f"Ricerca degradata ({listed}): nessun risultato per '{query}', ma alcuni motori non hanno risposto. "
+            "L'elenco vuoto non vuol dire che il prodotto non esista sul web: non concluderlo."
+        )
+    return (
+        f"Ricerca degradata ({listed}): alcuni motori non hanno risposto. "
+        "Un prodotto assente da questi risultati può esistere comunque: non concludere che non esista."
+    )
+
+
 def search_with_fallback(
     query: str,
     count: int = 8,
     time_filter: Optional[str] = None,
     event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
-) -> tuple[List[Dict[str, str]], str]:
+) -> SearchOutcome:
     """Execute multi-tier search with fallback and provider tracking.
 
     Returns:
-        (results, provider_name)
+        (results, provider_name), con `.failures` (errore motore, sospeso, captcha).
     """
     accumulated: List[Dict[str, str]] = []
     provider_used = "None"
+    failures: set = set()
     primary_lang, fallback_lang = settings.search_primary_lang, settings.search_fallback_lang
+
+    def take(results) -> List[Dict[str, str]]:
+        failures.update(_modes_of(results))
+        return list(results or [])
 
     # 1. Primary SearXNG
     if event_callback:
         event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({primary_lang})", "query": query})
     logger.info(f"Trying SearXNG ({primary_lang}) for: {query}")
-    results = search_searxng_api(query, count=count, time_filter=time_filter, language=primary_lang)
+    results = take(search_searxng_api(query, count=count, time_filter=time_filter, language=primary_lang))
     if results:
         relevant = filter_irrelevant_results(query, results)
         if len(relevant) >= _MIN_SATISFACTORY_RESULTS:
-            return relevant, f"SearXNG ({primary_lang})"
+            return SearchOutcome(relevant, f"SearXNG ({primary_lang})", failures)
         accumulated.extend(relevant)
         provider_used = f"SearXNG ({primary_lang})"
 
@@ -99,13 +150,13 @@ def search_with_fallback(
     unquoted_q = " ".join(query.replace('"', ' ').replace("'", ' ').split())
     if unquoted_q != query and len(accumulated) < _MIN_SATISFACTORY_RESULTS:
         logger.info(f"Retrying SearXNG ({primary_lang}) without restrictive quotes: {unquoted_q}")
-        unquoted_results = search_searxng_api(unquoted_q, count=count, time_filter=time_filter, language=primary_lang)
+        unquoted_results = take(search_searxng_api(unquoted_q, count=count, time_filter=time_filter, language=primary_lang))
         if unquoted_results:
             relevant = filter_irrelevant_results(unquoted_q, unquoted_results)
             accumulated.extend(relevant)
             accumulated = deduplicate_by_url(accumulated)
             if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
-                return accumulated, f"SearXNG ({primary_lang} unquoted)"
+                return SearchOutcome(accumulated, f"SearXNG ({primary_lang} unquoted)", failures)
             provider_used = f"SearXNG ({primary_lang} unquoted)"
 
     # 2. Retry SearXNG fallback language
@@ -114,27 +165,27 @@ def search_with_fallback(
         if event_callback:
             event_callback("web_prefetch.provider_attempt", {"provider": f"SearXNG ({fallback_lang})", "query": query})
         logger.info(f"Trying SearXNG ({fallback_lang}) for: {query}")
-        results = search_searxng_api(query, count=count, time_filter=time_filter, language=fallback_lang)
+        results = take(search_searxng_api(query, count=count, time_filter=time_filter, language=fallback_lang))
         if results:
             relevant = filter_irrelevant_results(query, results)
             accumulated.extend(relevant)
             accumulated = deduplicate_by_url(accumulated)
             if len(accumulated) >= _MIN_SATISFACTORY_RESULTS:
-                return accumulated, f"SearXNG ({fallback_lang})"
+                return SearchOutcome(accumulated, f"SearXNG ({fallback_lang})", failures)
             provider_used = f"SearXNG ({primary_lang}+{fallback_lang})"
 
     # 3. Fallback DDGS library
     if event_callback:
         event_callback("web_prefetch.provider_attempt", {"provider": "DuckDuckGo (DDGS)", "query": query})
     logger.info(f"Trying DDGS library for: {query}")
-    ddgs_results = search_ddgs_library(query, count=count, time_filter=time_filter)
+    ddgs_results = take(search_ddgs_library(query, count=count, time_filter=time_filter))
     if ddgs_results:
         relevant = filter_irrelevant_results(query, ddgs_results)
         chosen = relevant if relevant else ddgs_results
         accumulated.extend(chosen)
         accumulated = deduplicate_by_url(accumulated)
         if accumulated:
-            return accumulated, "DuckDuckGo (DDGS)"
+            return SearchOutcome(accumulated, "DuckDuckGo (DDGS)", failures)
 
     # 4. Fallback DDG HTML scraping
     if not accumulated:
@@ -142,7 +193,7 @@ def search_with_fallback(
         if event_callback:
             event_callback("web_prefetch.provider_attempt", {"provider": "DuckDuckGo (HTML)", "query": query})
         logger.info("Trying DDG HTML fallback")
-        html_results = search_duckduckgo_html(query, count=count)
+        html_results = take(search_duckduckgo_html(query, count=count))
         if html_results:
             relevant = filter_irrelevant_results(query, html_results)
             accumulated.extend(relevant if relevant else html_results)
@@ -153,12 +204,12 @@ def search_with_fallback(
         if event_callback:
             event_callback("web_prefetch.provider_attempt", {"provider": "DuckDuckGo (Instant API)", "query": query})
         logger.info("Trying DDG Instant Answer API")
-        api_results = search_duckduckgo_api(query)
+        api_results = take(search_duckduckgo_api(query))
         if api_results:
             accumulated.extend(api_results)
             provider_used = "DuckDuckGo (Instant API)"
 
-    return deduplicate_by_url(accumulated), provider_used
+    return SearchOutcome(deduplicate_by_url(accumulated), provider_used, failures)
 
 
 def execute_search(
@@ -186,7 +237,9 @@ def execute_search(
 
     start_time = time.time()
     try:
-        raw_results, provider = search_with_fallback(clean_query, count=count, event_callback=event_callback)
+        outcome = search_with_fallback(clean_query, count=count, event_callback=event_callback)
+        raw_results, provider = outcome
+        failures = set(_modes_of(outcome))
     except Exception as e:
         logger.warning(f"Errore provider search per '{clean_query}': {e}", exc_info=True)
         return {
@@ -194,18 +247,24 @@ def execute_search(
             "success": False,
             "provider_used": "Error",
             "sources": [],
-            "summary_text": "Ricerca web temporaneamente non disponibile.",
+            "summary_text": "Ricerca degradata: errore motore. Ricerca web temporaneamente non disponibile.",
             "error": "search_unavailable",
+            "degraded": True,
         }
 
     if not raw_results:
+        if failures:
+            summary = degradation_notice(failures, clean_query, empty=True)
+        else:
+            summary = f"Nessun risultato trovato per '{clean_query}'."
         return {
             "query": clean_query,
             "success": False,
             "provider_used": provider,
             "sources": [],
-            "summary_text": f"Nessun risultato trovato per '{clean_query}'.",
+            "summary_text": summary,
             "error": None,
+            "degraded": bool(failures),
         }
 
     # Rank results
@@ -251,7 +310,11 @@ def execute_search(
         logger.info(f"Pagine scaricate con successo: {len(fetched_content)}/{len(urls_to_fetch)}")
 
     # Format text output for LLM context with total character budget enforcement
-    output_parts = [
+    output_parts = []
+    notice = degradation_notice(failures, clean_query, empty=False)
+    if notice:
+        output_parts.append(notice)
+    output_parts.extend([
         "=" * 60,
         "WEB SEARCH RESULTS AND FETCHED CONTENT",
         f"Query: {clean_query}",
@@ -259,7 +322,7 @@ def execute_search(
         "=" * 60,
         "\nRIASSUNTO RISULTATI DI RICERCA:",
         "-" * 40,
-    ]
+    ])
 
     for i, r in enumerate(sources[:8], 1):
         output_parts.append(f"\n[{i}] {r['title']}")
@@ -332,4 +395,5 @@ def execute_search(
         "fetched_content": fetched_content,
         "latency_ms": elapsed_ms,
         "error": None,
+        "degraded": bool(failures),
     }

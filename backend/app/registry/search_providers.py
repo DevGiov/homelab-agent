@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import parse_qs, quote, urljoin, urlparse
 
 import requests
@@ -14,6 +14,62 @@ _USER_AGENT = (
 )
 _SEARCH_TIMEOUT = 12
 
+# Modi di fallimento generici. Il testo per il modello usa solo questi, mai il nome del motore.
+FAILURE_ENGINE = "engine_error"
+FAILURE_SUSPENDED = "suspended"
+FAILURE_CAPTCHA = "captcha"
+
+
+class ProviderResults(list):
+    """Risultati di un provider, con i modi di fallimento dei motori."""
+
+    def __init__(self, items: Optional[List[Dict[str, str]]] = None, failures: Optional[Iterable[str]] = None):
+        super().__init__(items or [])
+        self.failures = frozenset(failures or ())
+
+
+def classify_engine_failure(item: Any) -> Optional[str]:
+    """Riduce un motore non responsivo a errore motore, sospeso o captcha.
+
+    Il nome del motore non entra nella classificazione: non deve finire nel testo per il modello.
+    """
+    if item is None:
+        return None
+    suspended_flag = False
+    if isinstance(item, dict):
+        suspended_flag = bool(item.get("suspended"))
+        text = " ".join(
+            str(item.get(key) or "")
+            for key in ("error_type", "error", "message", "reason", "status")
+        )
+    elif isinstance(item, (list, tuple)):
+        parts = list(item)
+        if parts and isinstance(parts[-1], bool):
+            suspended_flag = bool(parts.pop())
+        detail = parts[1:] if len(parts) > 1 else []
+        text = " ".join(str(part) for part in detail if not isinstance(part, bool))
+    else:
+        text = str(item)
+    low = text.lower()
+    if any(token in low for token in ("captcha", "recaptcha", "hcaptcha")):
+        return FAILURE_CAPTCHA
+    if suspended_flag or any(token in low for token in ("suspend", "too many", "rate limit", "rate-limit")):
+        return FAILURE_SUSPENDED
+    if low.strip():
+        return FAILURE_ENGINE
+    if suspended_flag:
+        return FAILURE_SUSPENDED
+    return None
+
+
+def _failure_modes(unresponsive: Any) -> frozenset:
+    modes = set()
+    for item in unresponsive or []:
+        mode = classify_engine_failure(item)
+        if mode:
+            modes.add(mode)
+    return frozenset(modes)
+
 def get_searxng_url() -> Optional[str]:
     """URL di SearXNG dalle settings; vuoto = provider disabilitato."""
     url = settings.searxng_url
@@ -24,7 +80,7 @@ def search_searxng_api(
     count: int = 8,
     time_filter: Optional[str] = None,
     language: Optional[str] = None,
-) -> List[Dict[str, str]]:
+) -> ProviderResults:
     """Search using SearXNG JSON API.
 
     Args:
@@ -35,7 +91,7 @@ def search_searxng_api(
     """
     url = get_searxng_url()
     if not url:
-        return []
+        return ProviderResults()
 
     params: Dict[str, str] = {
         "q": query,
@@ -63,7 +119,7 @@ def search_searxng_api(
         )
         if res.status_code != 200:
             logger.warning(f"SearXNG returned {res.status_code}")
-            return []
+            return ProviderResults([], {FAILURE_ENGINE})
 
         data = res.json()
         results = []
@@ -79,14 +135,15 @@ def search_searxng_api(
                 "age": item.get("publishedDate", None),
                 "engine": item.get("engine", ""),
             })
+        modes = _failure_modes(data.get("unresponsive_engines"))
         logger.info(f"SearXNG returned {len(results)} results for: {query}")
-        return results
+        return ProviderResults(results, modes)
     except Exception as e:
         logger.warning(f"SearXNG search failed: {e}")
-        return []
+        return ProviderResults([], {FAILURE_ENGINE})
 
 
-def search_ddgs_library(query: str, count: int = 8, time_filter: Optional[str] = None) -> List[Dict[str, str]]:
+def search_ddgs_library(query: str, count: int = 8, time_filter: Optional[str] = None) -> ProviderResults:
     """Search using the ddgs library (duckduckgo fallback).
 
     Supports both the new 'ddgs' package name and the legacy 'duckduckgo_search' name.
@@ -99,7 +156,7 @@ def search_ddgs_library(query: str, count: int = 8, time_filter: Optional[str] =
             from duckduckgo_search import DDGS
         except ImportError:
             logger.warning("Neither 'ddgs' nor 'duckduckgo_search' package installed; skipping DDGS provider")
-            return []
+            return ProviderResults()
 
     timelimit = None
     if time_filter:
@@ -120,10 +177,10 @@ def search_ddgs_library(query: str, count: int = 8, time_filter: Optional[str] =
                 "snippet": item.get("body", "") or item.get("excerpt", ""),
             })
         logger.info(f"DDGS library returned {len(results)} results for: {query}")
-        return results
+        return ProviderResults(results)
     except Exception as e:
         logger.warning(f"DDGS library search failed: {e}")
-        return []
+        return ProviderResults([], {FAILURE_ENGINE})
 
 def _resolve_ddg_redirect(raw_url: str) -> str:
     """Resolve DDG /l/?uddg=... redirect URLs to actual destinations."""
@@ -145,7 +202,7 @@ def _resolve_ddg_redirect(raw_url: str) -> str:
         pass
     return resolved
 
-def search_duckduckgo_html(query: str, count: int = 8) -> List[Dict[str, str]]:
+def search_duckduckgo_html(query: str, count: int = 8) -> ProviderResults:
     """Fallback: Search DuckDuckGo HTML lite."""
     from bs4 import BeautifulSoup
     headers = {"User-Agent": _USER_AGENT}
@@ -159,12 +216,12 @@ def search_duckduckgo_html(query: str, count: int = 8) -> List[Dict[str, str]]:
             timeout=_SEARCH_TIMEOUT,
         )
         if res.status_code not in (200, 202):
-            return results
+            return ProviderResults([], {FAILURE_ENGINE})
 
         text = res.text
         if "anomaly-modal" in text or "Select all squares" in text:
             logger.warning("DDG HTML returned CAPTCHA page")
-            return results
+            return ProviderResults([], {FAILURE_CAPTCHA})
 
         soup = BeautifulSoup(text, "html.parser")
         for result in soup.select(".result")[:count * 2]:
@@ -181,28 +238,30 @@ def search_duckduckgo_html(query: str, count: int = 8) -> List[Dict[str, str]]:
                 "snippet": snippet_el.get_text(" ", strip=True) if snippet_el else "",
             })
         logger.info(f"DDG HTML returned {len(results)} results")
+        return ProviderResults(results)
     except Exception as e:
         logger.warning(f"DDG HTML search error: {e}")
-    return results
+        return ProviderResults([], {FAILURE_ENGINE})
 
-def search_duckduckgo_api(query: str) -> List[Dict[str, str]]:
+def search_duckduckgo_api(query: str) -> ProviderResults:
     """DuckDuckGo Instant Answer API for quick facts."""
     headers = {"User-Agent": _USER_AGENT}
     results = []
     try:
         url_api = f"https://api.duckduckgo.com/?q={quote(query)}&format=json&no_html=1&skip_disambig=1"
         res = requests.get(url_api, headers=headers, timeout=_SEARCH_TIMEOUT)
-        if res.status_code in (200, 202):
-            data = res.json()
-            abstract = data.get("AbstractText", "")
-            heading = data.get("Heading", "")
-            abstract_url = data.get("AbstractURL", "")
-            if abstract and len(abstract) > 30:
-                results.append({
-                    "title": heading or "DuckDuckGo Abstract",
-                    "url": abstract_url or "",
-                    "snippet": abstract[:500],
-                })
+        if res.status_code not in (200, 202):
+            return ProviderResults([], {FAILURE_ENGINE})
+        data = res.json()
+        abstract = data.get("AbstractText", "")
+        heading = data.get("Heading", "")
+        abstract_url = data.get("AbstractURL", "")
+        if abstract and len(abstract) > 30:
+            results.append({
+                "title": heading or "DuckDuckGo Abstract",
+                "url": abstract_url or "",
+                "snippet": abstract[:500],
+            })
+        return ProviderResults(results)
     except Exception:
-        pass
-    return results
+        return ProviderResults([], {FAILURE_ENGINE})
