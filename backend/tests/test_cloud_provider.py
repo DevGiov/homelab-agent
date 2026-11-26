@@ -374,6 +374,15 @@ def test_http_errors_are_a_failed_result_with_a_reason_and_no_retry(monkeypatch,
     assert row["error"] == result["error"] and row["provider"] == "bedrock"
 
 
+def test_a_502_with_an_image_is_not_a_gpu_memory_failure_on_the_cloud(monkeypatch):
+    # La frase sulla VRAM vale per il server locale: una GPU nostra non c'entra con un 502 di Bedrock
+    Endpoint(monkeypatch, lambda r: httpx.Response(502, json={"message": "Bad gateway"}))
+    image = {"role": "user", "content": [{"type": "text", "text": "descrivi"},
+                                         {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}]}
+    result = cloud(api_key="k").chat([image], tag=PUBLIC_TAG, role="answer")
+    assert result["error"].startswith("HTTP 502") and result["error"] != providers.GPU_MEMORY_REASON
+
+
 def test_the_error_message_of_the_openai_format_is_used_and_a_non_json_body_is_ignored(monkeypatch):
     endpoint = Endpoint(monkeypatch)
     provider = cloud(api_key="k")
