@@ -51,6 +51,14 @@ def _failed(reason: str) -> Dict[str, Any]:
 GPU_MEMORY_REASON = "gpu-memory"
 
 
+def _carries_image(messages: List[Dict[str, Any]]) -> bool:
+    """La richiesta contiene un'immagine (parte `image_url` di un messaggio multimodale)."""
+    return any(
+        isinstance(m.get("content"), list) and any(isinstance(p, dict) and p.get("type") == "image_url" for p in m["content"])
+        for m in messages
+    )
+
+
 def server_root(base_url: str) -> str:
     """URL del server senza il suffisso /v1 dell'API OpenAI."""
     return re.sub(r'/v1/?$', '', base_url.rstrip('/'))
@@ -233,6 +241,9 @@ def _extract_think_blocks(content: str) -> tuple[str, str]:
 class OpenAICompatProvider(LLMProvider):
     """Adapter generico per endpoint OpenAI-compatible (llama.cpp server, vLLM, LM Studio)."""
 
+    # Il server gira su una GPU che il processo condivide col modello: un 502 durante un'immagine è la VRAM esaurita
+    local_gpu = True
+
     def __init__(self, base_url: str, default_model: str, name: str = "openai-compat", timeout: float = 120.0):
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
@@ -364,6 +375,7 @@ class OpenAICompatProvider(LLMProvider):
             return {"content": "", "reasoning_content": "", "metrics": {}}
 
         start_t = time.time()
+        has_image = _carries_image(messages)
         for attempt in range(1, CONNECT_ATTEMPTS + 1):
             try:
                 with httpx.Client(timeout=self.timeout) as client:
@@ -371,6 +383,10 @@ class OpenAICompatProvider(LLMProvider):
                         if res.status_code != 200:
                             res.read()
                             logger.warning(f"[{self.name}] LLM status {res.status_code}: {res.text[:300]}")
+                            if res.status_code == 502 and has_image and self.local_gpu:
+                                # llama-swap risponde 502 quando il processo muore a metà richiesta: con un'immagine è
+                                # il grafo dell'encoder che non entra nella VRAM (il corpo dell'errore non lo dice)
+                                return _failed(GPU_MEMORY_REASON)
                             return _failed(self._http_error_reason(res.status_code, res.text))
                         return self._consume_stream(res, stream_callback, sess, start_t)
             except (httpx.ConnectError, httpx.ConnectTimeout) as e:
@@ -555,6 +571,8 @@ class CloudOpenAIProvider(OpenAICompatProvider):
     """
 
     reasoning_controls = False
+    # Un 502 di un servizio cloud è un errore del servizio, non la memoria di una GPU nostra
+    local_gpu = False
     # Campionamento accettato da un endpoint OpenAI: top_k, min_p e repeat_penalty sono estensioni di llama.cpp
     _SAMPLING_PARAMS = ("temperature", "top_p", "presence_penalty")
     _HTTP_HINTS = {

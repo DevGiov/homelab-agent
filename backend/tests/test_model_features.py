@@ -208,6 +208,30 @@ def test_http_error_is_reported():
     assert res["error"] == "HTTP 503"
 
 
+_IMAGE_MESSAGE = {"role": "user", "content": [{"type": "text", "text": "descrivi"},
+                                              {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}]}
+
+
+def _chat_failing_with(status_code, messages):
+    provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="m")
+    with patch.object(provider, "ensure_model_loaded", return_value=True), \
+         patch("httpx.Client.stream", return_value=_sse([], status_code=status_code)):
+        return provider.chat(messages, tag=PUBLIC_TAG, role="answer")
+
+
+def test_a_502_on_a_request_with_an_image_is_a_gpu_memory_failure():
+    # Il corpo dell'errore di llama-swap non dice «memoria»: conta che il processo sia morto su una richiesta con immagine
+    assert _chat_failing_with(502, [_IMAGE_MESSAGE])["error"] == "gpu-memory"
+
+
+def test_a_502_without_an_image_stays_a_generic_http_error():
+    assert _chat_failing_with(502, [{"role": "user", "content": "hi"}])["error"] == "HTTP 502"
+
+
+def test_other_statuses_with_an_image_stay_generic():
+    assert _chat_failing_with(503, [_IMAGE_MESSAGE])["error"] == "HTTP 503"
+
+
 def test_openai_compat_chat_timings_stream():
     provider = OpenAICompatProvider("http://localhost:8080/v1", default_model="Gemma-4-26B-Q3")
 
