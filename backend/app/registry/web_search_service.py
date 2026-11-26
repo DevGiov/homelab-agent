@@ -21,6 +21,13 @@ from app.registry.search_content import (
     fetch_webpage_content,
     get_tldr,
 )
+from app.registry.search_entities import (
+    MAX_SEARCHES,
+    bare_name,
+    entity_queries,
+    interleave,
+    name_in_results,
+)
 from app.registry.search_providers import (
     FAILURE_CAPTCHA,
     FAILURE_ENGINE,
@@ -237,9 +244,41 @@ def execute_search(
 
     start_time = time.time()
     try:
-        outcome = search_with_fallback(clean_query, count=count, event_callback=event_callback)
-        raw_results, provider = outcome
-        failures = set(_modes_of(outcome))
+        failures: set = set()
+        providers: List[str] = []
+        searches: List[str] = []
+
+        def collect(text: str) -> List[Dict[str, str]]:
+            """Una ricerca sullo stesso percorso di sempre; mai due volte la stessa, mai oltre il tetto."""
+            text = " ".join(text.split())
+            if not text or len(searches) >= MAX_SEARCHES or text.casefold() in (q.casefold() for q in searches):
+                return []
+            searches.append(text)
+            outcome = search_with_fallback(text, count=count, event_callback=event_callback)
+            found, found_provider = outcome
+            failures.update(_modes_of(outcome))
+            if found_provider and found_provider != "None" and found_provider not in providers:
+                providers.append(found_provider)
+            return list(found)
+
+        plans = entity_queries(clean_query)
+        multi = bool(plans)
+        unanswered: List[str] = []
+        if multi:
+            groups = [rank_search_results(plan.query, collect(plan.query)) for plan in plans]
+            for index, plan in enumerate(plans):
+                if plan.query != plan.name and not name_in_results(plan.name, groups[index]):
+                    extra = collect(plan.name)
+                    if extra:
+                        groups[index] = rank_search_results(plan.name, deduplicate_by_url(groups[index] + extra))
+            unanswered = [plan.name for plan, group in zip(plans, groups, strict=True) if not name_in_results(plan.name, group)]
+            raw_results = interleave(groups)[:count]
+        else:
+            raw_results = collect(clean_query)
+            bare = bare_name(clean_query)
+            if bare and not name_in_results(bare, raw_results):
+                raw_results = deduplicate_by_url(raw_results + collect(bare))
+        provider = " + ".join(providers) or "None"
     except Exception as e:
         logger.warning(f"Errore provider search per '{clean_query}': {e}", exc_info=True)
         return {
@@ -257,6 +296,8 @@ def execute_search(
             summary = degradation_notice(failures, clean_query, empty=True)
         else:
             summary = f"Nessun risultato trovato per '{clean_query}'."
+        if len(searches) > 1:
+            summary += " Ricerche eseguite: " + "; ".join(searches) + "."
         return {
             "query": clean_query,
             "success": False,
@@ -267,12 +308,16 @@ def execute_search(
             "degraded": bool(failures),
         }
 
-    # Rank results
-    try:
-        ranked_results = rank_search_results(clean_query, raw_results)
-    except Exception as e:
-        logger.warning(f"Errore ranking per '{clean_query}': {e}")
+    # Con più prodotti i gruppi sono già ordinati e messi a turno: classificare tutto sulla query intera
+    # rimetterebbe in cima il primo marchio.
+    if multi:
         ranked_results = raw_results
+    else:
+        try:
+            ranked_results = rank_search_results(clean_query, raw_results)
+        except Exception as e:
+            logger.warning(f"Errore ranking per '{clean_query}': {e}")
+            ranked_results = raw_results
 
     # Build sources list with safe sanitized URLs
     sources = [
@@ -314,6 +359,12 @@ def execute_search(
     notice = degradation_notice(failures, clean_query, empty=False)
     if notice:
         output_parts.append(notice)
+    if unanswered:
+        output_parts.append(
+            "Nessuna fonte trovata per: " + ", ".join(unanswered) + ". Non vuol dire che non esistano."
+        )
+    if len(searches) > 1:
+        output_parts.append("Ricerche eseguite: " + "; ".join(searches))
     output_parts.extend([
         "=" * 60,
         "WEB SEARCH RESULTS AND FETCHED CONTENT",
