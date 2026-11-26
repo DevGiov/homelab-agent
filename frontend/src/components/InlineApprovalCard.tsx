@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -12,39 +12,10 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { resolveApproval, type ApprovalAction, type ResolveApprovalResponse } from '../api/approvals';
-import { ApiError } from '../api/http';
+import { closedFromError, closedMessage, formatApprovalDeadline, type ClosedApproval } from '../utils/approvalCard';
 import { formatApiError } from '../utils/error';
 import { describeDestination, parseFlowCapability } from '../utils/sensitivity';
 import { SensitivityChip } from './sensitivity/SensitivityChip';
-
-function detailCode(detail: unknown): string | null {
-  if (!detail || typeof detail !== 'object' || !('code' in detail)) return null;
-  const code = (detail as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-/** 404 se l'id non esiste, 409 se è già risolta, 410 se è scaduta. Un altro 409 (turno occupato) resta un errore. */
-function terminalApprovalMessage(err: unknown): string | null {
-  if (!(err instanceof ApiError)) return null;
-  if (err.status === 404) return err.message || 'Richiesta non trovata';
-  if (err.status === 410) return err.message || 'Richiesta scaduta';
-  if (err.status === 409 && detailCode(err.detail) === 'already_resolved') {
-    return err.message || 'Richiesta già risolta';
-  }
-  return null;
-}
-
-function formatApprovalDeadline(iso: string): string | null {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  const formatted = new Intl.DateTimeFormat('it-IT', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-  return `Scade il ${formatted}`;
-}
 
 export interface InlineApprovalCardProps {
   requestId: string;
@@ -53,7 +24,7 @@ export interface InlineApprovalCardProps {
   commandPreview?: string;
   commandPrefix?: string;
   riskReason?: string;
-  /** Scadenza ISO. La scheda la mostra così com'è stata registrata. */
+  /** Scadenza ISO della richiesta: la scheda la mostra e, passata, si chiude da sola. */
   expiresAt?: string | null;
   threadId?: string | null;
   isResolvedInitially?: boolean;
@@ -80,7 +51,9 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   const [resolvedAction, setResolvedAction] = useState<string | null>(resolvedActionInitially || null);
   const [resolvedResult, setResolvedResult] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [terminalMsg, setTerminalMsg] = useState<string | null>(null);
+  // Chiusa dal backend (404 / 409 già risolta / 410): i pulsanti restano visibili ma disabilitati
+  const [closedByServer, setClosedByServer] = useState<ClosedApproval | null>(null);
+  const [now, setNow] = useState<Date>(() => new Date());
   const [isArgsExpanded, setIsArgsExpanded] = useState<boolean>(false);
 
   const handleResolve = async (action: ApprovalAction) => {
@@ -96,10 +69,10 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
       }
       onResolved?.(action, res);
     } catch (err: any) {
-      const closed = terminalApprovalMessage(err);
+      const closed = closedFromError(err);
       if (closed) {
-        setTerminalMsg(closed);
-        setErrorMsg(null);
+        setClosedByServer(closed);
+        setNow(new Date());
         return;
       }
       const msg = formatApiError(err, 'Errore durante la risoluzione');
@@ -124,7 +97,18 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
   const netHost = isNetRequest ? commandPrefix!.slice(4).trim() : null;
   // Codice (es. python_interpreter fuori sandbox) invece di un comando shell
   const isCodePreview = !argumentsData?.command && !argumentsData?.cmd && typeof argumentsData?.code === 'string';
-  const deadlineLabel = expiresAt ? formatApprovalDeadline(expiresAt) : null;
+  const deadlineMs = expiresAt ? new Date(expiresAt).getTime() : NaN;
+  const deadline = expiresAt && !resolved ? formatApprovalDeadline(expiresAt, now) : null;
+  const closed: ClosedApproval | null = closedByServer ?? (deadline?.expired ? { code: 'expired', expiresAt } : null);
+
+  // La scheda passa a "scaduta" quando arriva la scadenza mentre è a schermo
+  useEffect(() => {
+    if (resolved || closedByServer || !Number.isFinite(deadlineMs)) return;
+    const delay = deadlineMs - Date.now();
+    if (delay < 0) return;
+    const timer = setTimeout(() => setNow(new Date()), Math.min(delay + 1, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [deadlineMs, resolved, closedByServer, now]);
 
   return (
     <div className="my-3 overflow-hidden rounded-xl border border-amber-500/40 bg-amber-950/20 backdrop-blur-md shadow-lg transition-all duration-200">
@@ -141,8 +125,8 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
             <div className="text-xs text-amber-300 font-mono">
               ID: {requestId}
             </div>
-            {deadlineLabel && (
-              <div className="text-xs text-amber-200">{deadlineLabel}</div>
+            {deadline && !closedByServer && (
+              <div className="text-xs text-amber-200">{deadline.label}</div>
             )}
           </div>
         </div>
@@ -218,12 +202,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
         )}
 
         {/* Resolved Status Banner */}
-        {terminalMsg ? (
-          <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-medium text-amber-100">
-            <AlertTriangle size={16} className="shrink-0 text-amber-300" />
-            <span>{terminalMsg}</span>
-          </div>
-        ) : resolved ? (
+        {resolved ? (
           <div role="status" className="pt-1">
             {resolvedAction === 'deny' && (
               <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-medium text-rose-300">
@@ -269,14 +248,21 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
         ) : (
           /* The 4 Action Buttons */
           <div className="stack-y-2 pt-1">
-            <div className="text-xs font-medium text-fg-muted">
-              Scegli come procedere per questo tool:
-            </div>
+            {closed ? (
+              <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-medium text-amber-200">
+                <AlertTriangle size={16} className="shrink-0 text-amber-300" />
+                <span>{closedMessage(closed, now, expiresAt)}</span>
+              </div>
+            ) : (
+              <div className="text-xs font-medium text-fg-muted">
+                Scegli come procedere per questo tool:
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {/* Option 1: No (Rifiuta) */}
               <button
                 onClick={() => handleResolve('deny')}
-                disabled={isLoading}
+                disabled={isLoading || closed !== null}
                 className="flex items-center justify-center gap-2 rounded-lg border border-rose-500/50 bg-rose-600/20 px-3 py-2.5 text-xs font-semibold text-rose-200 hover:bg-rose-600/30 hover:border-rose-500 transition disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 {isLoading && activeAction === 'deny' ? (
@@ -290,7 +276,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               {/* Option 2: Sì (Una volta) */}
               <button
                 onClick={() => handleResolve('approve')}
-                disabled={isLoading}
+                disabled={isLoading || closed !== null}
                 className="flex items-center justify-center gap-2 rounded-lg border border-border bg-panel-header/60 px-3 py-2.5 text-xs font-semibold text-fg hover:bg-panel-header hover:border-accent/40 transition disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 {isLoading && activeAction === 'approve' ? (
@@ -304,7 +290,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               {/* Option 3: Sì (In questa chat per &cmd) */}
               <button
                 onClick={() => handleResolve('approve_thread')}
-                disabled={isLoading}
+                disabled={isLoading || closed !== null}
                 className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/50 bg-sky-600/20 px-3 py-2.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/30 hover:border-sky-500 transition disabled:opacity-50 cursor-pointer shadow-xs text-center"
                 title="Consenti per tutti i turni di questa conversazione senza chiedere altre conferme"
               >
@@ -322,7 +308,7 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({
               {!isFlowRequest && (
               <button
                 onClick={() => handleResolve('approve_always')}
-                disabled={isLoading}
+                disabled={isLoading || closed !== null}
                 className="flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-3 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-600/30 hover:border-emerald-500 transition disabled:opacity-50 cursor-pointer shadow-xs text-center"
                 title={
                   isNetRequest
