@@ -42,7 +42,7 @@ from app.agent.tool_schemas import CleanArguments, ToolSelection, validate_tool_
 from app.core.config import settings
 from app.core.text_utils import clean_synthesis_content
 from app.llm import roles
-from app.llm.providers import LLMUnavailableError
+from app.llm.providers import GPU_MEMORY_REASON, LLMUnavailableError
 from app.registry.manager import get_registry_manager
 from app.registry.search_security import GUARD_CLOSE, GUARD_OPEN, escape_guard_delimiters, wrap_untrusted_web_evidence
 from app.security import approvals, detectors, flows, policy
@@ -160,6 +160,24 @@ def _content(res: Any) -> Tuple[str, str]:
     if isinstance(res, dict):
         return res.get("content", "") or "", res.get("reasoning_content", "") or ""
     return (res or ""), ""
+
+
+def user_message_for_llm_error(reason: str) -> str:
+    """Frase in chat quando il modello non completa la richiesta.
+
+    La memoria della GPU è un caso a parte: il modello non è troppo pesante per il testo,
+    è il grafo dell'immagine che non entra, e llama-swap chiude il processo.
+    """
+    if reason == GPU_MEMORY_REASON:
+        return "L'immagine non è entrata nella memoria della GPU e il modello è stato chiuso."
+    return (f"Il modello non ha completato la richiesta ({reason}). "
+            "Riprova tra poco o scegli un modello più leggero.")
+
+
+def _llm_error(res: Any) -> Optional[str]:
+    if isinstance(res, dict) and res.get("error"):
+        return str(res["error"])
+    return None
 
 
 # Ciò che il loop ha accumulato: si salva quando si sospende e si ripristina quando riprende
@@ -465,8 +483,7 @@ class AgentLoop:
         except LLMUnavailableError as e:
             # Nessun altro tentativo: il server è occupato o fermo e una nuova richiesta si accoderebbe
             logger.error(f"Agent loop interrotto: il modello non ha completato la richiesta ({e})")
-            return {**self._result(f"Il modello non ha completato la richiesta ({e}). Riprova tra poco o scegli un modello più leggero."),
-                    "llm_unavailable": True}
+            return {**self._result(user_message_for_llm_error(str(e))), "llm_unavailable": True}
 
     def _selection_system_prompt(self) -> str:
         return prompts.tool_selection_system_prompt(self.mode, format_catalog_for_prompt(self.available_tools))
@@ -527,6 +544,8 @@ class AgentLoop:
                 role=roles.ANSWER,
             )
             if res:
+                if err := _llm_error(res):
+                    return self._result(user_message_for_llm_error(err))
                 raw, reasoning = _content(res)
                 return {"final_response": clean_synthesis_content(raw) or raw, "execution_trace": [], "reasoning_content": reasoning,
                         "tag": self.tag.to_dict()}
@@ -545,6 +564,8 @@ class AgentLoop:
             tag=self.tag,
             role=roles.ANSWER,
         )
+        if err := _llm_error(res):
+            return self._result(user_message_for_llm_error(err))
         content, reasoning = _content(res)
         return {"final_response": content or "Richiesta completata.", "execution_trace": self.execution_trace,
                 "reasoning_content": reasoning, "tag": self.tag.to_dict()}

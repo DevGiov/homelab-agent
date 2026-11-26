@@ -47,6 +47,10 @@ def _failed(reason: str) -> Dict[str, Any]:
     return {"content": "", "reasoning_content": "", "metrics": {}, "error": reason}
 
 
+# Motivo distinto da «HTTP 502»: la chat lo traduce nella frase sulla memoria della GPU
+GPU_MEMORY_REASON = "gpu-memory"
+
+
 def server_root(base_url: str) -> str:
     """URL del server senza il suffisso /v1 dell'API OpenAI."""
     return re.sub(r'/v1/?$', '', base_url.rstrip('/'))

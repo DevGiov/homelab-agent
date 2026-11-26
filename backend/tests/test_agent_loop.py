@@ -169,9 +169,20 @@ def test_unavailable_model_ends_the_turn_without_more_requests(manager):
 
     res = run_agent_loop("elenca i container", "act", call_llm_fn=llm, call_llm_structured_fn=select)
 
-    assert "timeout" in res["final_response"]
+    assert res["final_response"] == ("Il modello non ha completato la richiesta (timeout). "
+                                      "Riprova tra poco o scegli un modello più leggero.")
     assert select.call_count == 1
     llm.assert_not_called()
+
+
+def test_gpu_memory_failure_says_the_image_closed_the_model(manager):
+    select = MagicMock(side_effect=LLMUnavailableError("gpu-memory"))
+
+    res = run_agent_loop("descrivi la foto", "act", call_llm_fn=_llm(), call_llm_structured_fn=select)
+
+    assert res["final_response"] == "L'immagine non è entrata nella memoria della GPU e il modello è stato chiuso."
+    assert "più leggero" not in res["final_response"]
+    assert res["llm_unavailable"] is True
 
 
 def test_tool_selection_omits_the_image_and_the_answer_keeps_it(manager, monkeypatch):

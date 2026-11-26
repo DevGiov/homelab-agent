@@ -1,5 +1,5 @@
 from app.agent import llm_calls
-from app.agent.agent_loop import is_tools_discovery_query
+from app.agent.agent_loop import is_tools_discovery_query, user_message_for_llm_error
 from app.agent.agent_prompts import current_time
 from app.agent.mode_policy import get_mode_policy
 from app.agent.state import AgentState
@@ -60,9 +60,14 @@ def chat_graph_node(state: AgentState) -> AgentState:
 
     ans_res = llm_calls.call_llm(user_prompt, system_prompt=system_prompt, max_tokens=4096, thinking=policy.thinking.answer, thinking_budget=state.get("reasoning_budget"), model=model, stream_mode="all", reasoning_phase="Elaborazione Risposta", images=state.get("images"),
                                 tag=flows.join(state.get("tag")), role=roles.ANSWER)
-    raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
-    reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
-    ans = clean_synthesis_content(raw_ans) or raw_ans
+    if isinstance(ans_res, dict) and ans_res.get("error"):
+        # Una richiesta solo visiva non passa dal loop: la stessa frase, altrimenti la chat resta vuota
+        ans = user_message_for_llm_error(str(ans_res["error"]))
+        reasoning = ans_res.get("reasoning_content", "") or ""
+    else:
+        raw_ans = ans_res.get("content", "") if isinstance(ans_res, dict) else (ans_res or "")
+        reasoning = ans_res.get("reasoning_content", "") if isinstance(ans_res, dict) else ""
+        ans = clean_synthesis_content(raw_ans) or raw_ans
 
     plan = {"mode": "chat", "tool_needed": False, "direct_answer": ans, "execution_log": []}
     return {
