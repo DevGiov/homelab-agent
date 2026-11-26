@@ -41,8 +41,8 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-35](#iss-35) | La Web UI ignora gli eventi `approval_required` e `status` | S4 | frontend | 🟡 Aperto |
 | [ISS-36](#iss-36) | Le sessioni di streaming finite restano in memoria | S3 | backend/streaming | 🟡 Aperto |
 | [ISS-37](#iss-37) | `POST /v1/chat/stop` su un turno già finito salva comunque "interrotta" | S4 | backend/api | 🟡 Aperto |
-| [ISS-38](#iss-38) | La ricerca web non porta nel contesto i prodotti che Bing non indicizza | S2 | ricerca web | 🟡 Aperto |
-| [ISS-39](#iss-39) | Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502 | S1 | vision / LLM | 🟡 Aperto |
+| [ISS-38](#iss-38) | La ricerca web non porta nel contesto i prodotti che Bing non indicizza | S2 | ricerca web | 🟢 Parte nel codice fatta (2026-11-26); resta un motore in più in SearXNG |
+| [ISS-39](#iss-39) | Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502 | S1 | vision / LLM | 🟢 Parte nel codice fatta (2026-11-26); resta il preset sull'host della GPU |
 | [ISS-40](#iss-40) | Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti | S1 | approvazioni | 🟡 Aperto |
 
 ---
@@ -370,14 +370,17 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 **La ricerca web non porta nel contesto i prodotti che Bing non indicizza** — S2
 
 - **Evidenza** (20/11/2026, uso reale con `PXQN-Qwen3.8-27B-OneCard-MTP`): nella chat `thread_1794673120151` il confronto dei display, tra gli altri di Brilliant Labs Halo, si chiude con «Non ho trovato informazioni specifiche sul display di questo modello nelle fonti recuperate». Il prefetch aveva una sola fonte, una pagina Amazon di un altro prodotto RayNeo. La scheda hardware di Halo è pubblica (`docs.brilliant.xyz`). Il 20/11 la stessa pipeline, rieseguita nel backend in esecuzione, non restituisce nulla sulle query puntate a Halo, mentre «RayNeo X2 specs» restituisce dieci pagine. Dettaglio, riproduzione e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md).
+- **Fatto il 26/11/2026** (`4ed4ae8`..`2825225`, su CT 125): quando un motore è sospeso, bloccato da un captcha o in errore, il testo dato al modello lo dice e chiede di non concludere che il prodotto non esista; una domanda che elenca più prodotti diventa una ricerca per prodotto (al massimo 8 per chiamata, nuovi tentativi compresi), e un nome che non compare nelle sue fonti viene cercato da solo; il filtro di rilevanza accetta il plurale semplice ("lab" e "labs"). Prova dal vivo con la domanda del 14/11: avviso di ricerca degradata, 8 ricerche, 8 fonti (prima 1).
+- **Resta**: un motore che indicizzi Halo in SearXNG (configurazione del servizio, non di questo repo); il budget di 3 pagine lette, che con 7 prodotti lascia ai restanti solo gli snippet; da osservare se 8 ricerche di fila fanno sospendere altri motori.
 
 ## ISS-39
 **Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502** — S1
 
 - **Evidenza** (7, 14 e 15/11/2026, `PXQN-Qwen3.8-27B-Vision`): ogni turno con un'immagine allegata finisce con «Il modello non ha completato la richiesta (HTTP 502)» e il modello sparisce dalla GPU. Il journal di llama-swap di quelle richieste è un `cudaMalloc` fallito (594 MiB per il grafo dell'immagine, pochi MiB liberi sulla scheda da 16 GB) seguito da «upstream process exited unexpectedly». Le chiamate di solo testo allo stesso modello, anche da decine di migliaia di token, vanno a buon fine. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md).
+- **Fatto il 26/11/2026** (`ccfce54`..`95cf311`, su CT 125): un 502 del server locale su una richiesta con un'immagine diventa «L'immagine non è entrata nella memoria della GPU e il modello è stato chiuso» (il provider cloud no); l'immagine va solo alle chiamate che la guardano (risposte, piano, query del prefetch visivo), non alla selezione dei tool né al titolo; ogni immagine viene ridimensionata (lato lungo al massimo 1920) prima dell'invio.
+- **Resta**: il preset del modello Vision sull'host della GPU (contesto più corto o `ubatch` più piccolo), che è ciò che libera i circa 594 MiB; il titolo che parte in parallelo alla risposta con immagine e produce un secondo 502 nel log quando il processo muore.
 
 ## ISS-40
 **Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti** — S1
 
 - **Evidenza** (18/11/2026): `apr_fdedb771433c` è `minecraft-rcon__mc_list_players`, una lettura. Creata alle 22:33:31Z con scadenza a 300 secondi, risulta `denied` alle 22:47:51Z, quattordici minuti dopo. In chat il messaggio è «Richiesta '…' non trovata o già risolta». La conferma non nasce dal guardrail di scrittura: `minecraft-rcon` e `minecraft-bot` non sono classificati, e il default li tratta come un'uscita pubblica, quindi ogni tool chiede conferma appena il turno ha richiamato memoria privata. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md). La scheda in sé arriva con l'evento `final`; [ISS-35](#iss-35) riguarda chi si riaggancia a un turno già in pausa.
-
