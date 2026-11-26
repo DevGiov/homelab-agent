@@ -176,6 +176,14 @@ def test_provider(name: str, req: Optional[PatchProviderRequest] = None):
     return _call(provider_config.test_connection, name, overrides)
 
 
+@router.post("/v1/providers/{name}/models/discover", dependencies=AUTH)
+def discover_provider_models(name: str, req: Optional[PatchProviderRequest] = None):
+    """Cerca i modelli di un provider cloud (`bedrock`, `openai_cloud`) con la configurazione salvata o con quella
+    inviata (senza salvarla): `{models, error}`. Sono candidati: non tutti rispondono all'API di inferenza."""
+    overrides = {"fields": req.fields, "secrets": req.secrets} if req else None
+    return _call(provider_config.discover_models, name, overrides)
+
+
 @router.get("/v1/providers/{name}/models", response_model=ProviderModelsResponse, dependencies=AUTH)
 def get_provider_models(name: str):
     """Elenca i modelli disponibili per il provider specificato con dettagli multimodali."""

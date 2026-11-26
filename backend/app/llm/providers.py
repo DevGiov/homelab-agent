@@ -13,7 +13,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional
 from urllib.parse import quote
 
 import httpx
@@ -598,6 +598,24 @@ class OpenAICompatProvider(LLMProvider):
         return [m["id"] for m in self.list_models_with_details()]
 
 
+def cloud_http_error_reason(status: int, body: str, hints: Mapping[int, str]) -> str:
+    """Il motivo breve di una risposta HTTP non riuscita di un servizio cloud: stato, suggerimento e, se il corpo ha
+    un campo `message`, quello tagliato a 200 caratteri. Mai altro del corpo."""
+    reason = f"HTTP {status}"
+    if status in hints:
+        reason += f": {hints[status]}"
+    elif status >= 500:
+        reason += ": errore del servizio"
+    try:
+        data = json.loads(body)
+    except ValueError:
+        data = None
+    # Bedrock: {"message": ...}; formato OpenAI: {"error": {"message": ...}}
+    error = data.get("error") if isinstance(data, dict) else None
+    message = error.get("message") if isinstance(error, dict) else (data.get("message") if isinstance(data, dict) else None)
+    return f"{reason} ({str(message)[:200]})" if message else reason
+
+
 class CloudOpenAIProvider(OpenAICompatProvider):
     """Endpoint OpenAI-compatible di un servizio cloud (primo: AWS Bedrock, `bedrock-runtime`).
 
@@ -643,19 +661,7 @@ class CloudOpenAIProvider(OpenAICompatProvider):
         return {"content": body, "headers": headers}
 
     def _http_error_reason(self, status: int, body: str) -> str:
-        reason = f"HTTP {status}"
-        if status in self._HTTP_HINTS:
-            reason += f": {self._HTTP_HINTS[status]}"
-        elif status >= 500:
-            reason += ": errore del servizio"
-        try:
-            data = json.loads(body)
-        except ValueError:
-            data = None
-        # Bedrock: {"message": ...}; formato OpenAI: {"error": {"message": ...}}
-        error = data.get("error") if isinstance(data, dict) else None
-        message = error.get("message") if isinstance(error, dict) else (data.get("message") if isinstance(data, dict) else None)
-        return f"{reason} ({str(message)[:200]})" if message else reason
+        return cloud_http_error_reason(status, body, self._HTTP_HINTS)
 
     def _server_model(self) -> str:
         return self.models[0]

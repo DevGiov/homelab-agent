@@ -498,7 +498,7 @@ def test_every_provider_route_requires_the_api_key(monkeypatch):
 
 
 AGENT_PACKAGES = ("agent", "registry", "mcp", "automations", "channels", "integrations", "memory", "calendar", "evals")
-ADMIN_CALLS = {"create", "patch", "delete", "reset", "set_clearance", "update_settings", "test_connection",
+ADMIN_CALLS = {"create", "patch", "delete", "reset", "set_clearance", "update_settings", "test_connection", "discover_models",
                "set_provider_settings", "replace_provider", "forget_provider", "register_provider"}
 
 

@@ -23,12 +23,20 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from urllib.parse import quote, urlencode
 
 import httpx
 
 from app.core.config import CLOUD_CLEARANCES, Settings, settings
-from app.llm import costs, providers
-from app.llm.providers import CloudOpenAIProvider, LLMProvider, OllamaProvider, OpenAICompatProvider
+from app.llm import costs, providers, sigv4
+from app.llm.providers import (
+    CloudOpenAIProvider,
+    LLMProvider,
+    OllamaProvider,
+    OpenAICompatProvider,
+    cloud_http_error_reason,
+    is_vision_model,
+)
 from app.security import secret_box
 from app.security.flows import USER_LEVELS, Label
 
@@ -761,17 +769,182 @@ def test_connection(name: str, overrides: Optional[Mapping[str, Any]] = None) ->
     return {"ok": ok, "latency_ms": int((time.monotonic() - start) * 1000), "models_count": count, "error": error}
 
 
+def _bedrock_control_get(client: httpx.Client, r: Resolved, path: str, query: Mapping[str, Any]) -> httpx.Response:
+    """GET su un'API di controllo di Bedrock (`bedrock.{regione}.amazonaws.com`, servizio `bedrock`): firmata con
+    SigV4, oppure con `Authorization: Bearer` se c'è la chiave API (stessa precedenza di CloudOpenAIProvider).
+    L'indirizzo si costruisce solo dalla regione, che ha la forma di una regione AWS."""
+    region = str(r.value("region"))
+    if not REGION_RE.match(region):
+        raise ValueError("regione non valida")
+    url = f"https://bedrock.{region}.amazonaws.com{path}?{urlencode(query, quote_via=quote)}"
+    api_key = r.secret("api_key")
+    if api_key:
+        headers = {"authorization": f"Bearer {api_key}"}
+    else:
+        headers = sigv4.sign_request(
+            method="GET", url=url, headers={}, body=b"", access_key=r.secret("access_key_id"),
+            secret_key=r.secret("secret_access_key"), session_token=r.secret("session_token") or None,
+            region=region, service="bedrock", timestamp=datetime.now(timezone.utc))
+    return client.get(url, headers=headers)
+
+
 def _probe(r: Resolved, provider: LLMProvider) -> Tuple[bool, Optional[int], Optional[str]]:
     with httpx.Client(timeout=5.0) as client:
         if r.kind == "ollama":
             res = client.get(f"{provider.base_url}/api/tags")
             count = len(res.json().get("models", [])) if res.status_code == 200 else None
         elif r.kind == "bedrock":
-            # L'endpoint non ha un elenco gratuito (GET /models risponde 404): si prova solo che risponde
-            res = client.get(provider.base_url)
-            ok = res.status_code < 500
-            return ok, len(r.value("models")), None if ok else f"HTTP {res.status_code}"
+            # L'endpoint di inferenza non ha un elenco gratuito: la prova firma una lettura dell'API di controllo
+            # (ListFoundationModels), che dimostra le credenziali senza costare nulla
+            res = _bedrock_control_get(client, r, "/foundation-models", {"byOutputModality": "TEXT"})
+            count = len(r.value("models"))
+            if res.status_code in (401, 403) and r.secret("api_key"):
+                # Una chiave API può valere per l'inferenza anche se non elenca i modelli: si prova solo che risponde
+                res = client.get(provider.base_url)
+                ok = res.status_code < 500
+                return ok, count, None if ok else f"HTTP {res.status_code}"
+            if res.status_code == 200:
+                return True, count, None
+            return False, count, cloud_http_error_reason(res.status_code, res.text, CloudOpenAIProvider._HTTP_HINTS)
         else:
             res = client.get(f"{provider.base_url}/models", **provider._get_kwargs())
             count = len(res.json().get("data", [])) if res.status_code == 200 else None
     return res.status_code == 200, count, None if res.status_code == 200 else f"HTTP {res.status_code}"
+
+
+# --- Ricerca dei modelli -----------------------------------------------------------------------------
+
+DISCOVER_TIMEOUT = 10.0
+_MAX_PROFILE_PAGES = 20  # una guardia: ogni pagina ha fino a 1000 profili
+_BEDROCK_DENIED = "accesso negato: servono bedrock:ListFoundationModels e bedrock:ListInferenceProfiles"
+_BEDROCK_KEY_DENIED = "la chiave API non permette di elencare i modelli: usa le credenziali AWS o scrivi i modelli a mano"
+_MODEL_ARN_RE = re.compile(r"foundation-model/(.+)$")
+
+
+class _DiscoveryFailed(Exception):
+    """La ricerca non è riuscita: `reason` è già il testo breve per l'utente, senza corpi né credenziali."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _discovery_result(models: List[Dict[str, Any]], error: Optional[str] = None) -> Dict[str, Any]:
+    return {"models": models, "error": error}
+
+
+def _bedrock_get_json(client: httpx.Client, r: Resolved, path: str, query: Mapping[str, Any]) -> Dict[str, Any]:
+    res = _bedrock_control_get(client, r, path, query)
+    if res.status_code != 200:
+        if res.status_code in (401, 403) and r.secret("api_key"):
+            raise _DiscoveryFailed(_BEDROCK_KEY_DENIED)
+        hints = {**CloudOpenAIProvider._HTTP_HINTS, 403: _BEDROCK_DENIED}
+        raise _DiscoveryFailed(cloud_http_error_reason(res.status_code, res.text, hints))
+    try:
+        data = res.json()
+    except ValueError:
+        raise _DiscoveryFailed("risposta non valida") from None
+    if not isinstance(data, dict):
+        raise _DiscoveryFailed("risposta non valida")
+    return data
+
+
+def _profile_scope(profile_id: str) -> str:
+    return "global" if profile_id.startswith("global.") else "geo"
+
+
+def _discover_bedrock(client: httpx.Client, r: Resolved) -> List[Dict[str, Any]]:
+    """ListFoundationModels + ListInferenceProfiles: i candidati che `bedrock-runtime` potrebbe servire. Non tutti
+    rispondono all'API compatibile OpenAI: l'utente sceglie."""
+    foundation = _bedrock_get_json(client, r, "/foundation-models", {"byOutputModality": "TEXT"})
+    text_models: Dict[str, Dict[str, Any]] = {}
+    for m in foundation.get("modelSummaries") or []:
+        if isinstance(m, dict) and isinstance(m.get("modelId"), str) and "TEXT" in (m.get("outputModalities") or []):
+            text_models[m["modelId"]] = m
+    found: List[Dict[str, Any]] = []
+    for model_id, m in text_models.items():
+        status = (m.get("modelLifecycle") or {}).get("status")
+        if status == "ACTIVE" and "ON_DEMAND" in (m.get("inferenceTypesSupported") or []):
+            found.append({"id": model_id, "name": m.get("modelName") or model_id, "vendor": m.get("providerName"),
+                          "kind": "model", "scope": "region", "vision": "IMAGE" in (m.get("inputModalities") or [])})
+    token: Optional[str] = None
+    for _ in range(_MAX_PROFILE_PAGES):
+        query: Dict[str, Any] = {"typeEquals": "SYSTEM_DEFINED", "maxResults": 1000}
+        if token:
+            query["nextToken"] = token
+        page = _bedrock_get_json(client, r, "/inference-profiles", query)
+        for p in page.get("inferenceProfileSummaries") or []:
+            if not isinstance(p, dict) or p.get("status") != "ACTIVE" or not isinstance(p.get("inferenceProfileId"), str):
+                continue
+            underlying = []
+            for ref in p.get("models") or []:
+                match = _MODEL_ARN_RE.search(str(ref.get("modelArn", ""))) if isinstance(ref, dict) else None
+                if match and match.group(1) in text_models:
+                    underlying.append(text_models[match.group(1)])
+            if not underlying:
+                continue  # un profilo di embedding o di immagini: non è un modello di testo
+            first = underlying[0]
+            found.append({"id": p["inferenceProfileId"], "name": p.get("inferenceProfileName") or p["inferenceProfileId"],
+                          "vendor": first.get("providerName"), "kind": "profile", "scope": _profile_scope(p["inferenceProfileId"]),
+                          "vision": "IMAGE" in (first.get("inputModalities") or [])})
+        token = page.get("nextToken") if isinstance(page.get("nextToken"), str) else None
+        if not token:
+            break
+    return found
+
+
+def _discover_openai_cloud(client: httpx.Client, r: Resolved) -> List[Dict[str, Any]]:
+    res = client.get(f"{str(r.value('base_url')).rstrip('/')}/models", headers={"authorization": f"Bearer {r.secret('api_key')}"})
+    if res.status_code != 200:
+        raise _DiscoveryFailed(cloud_http_error_reason(res.status_code, res.text, CloudOpenAIProvider._HTTP_HINTS))
+    try:
+        data = res.json().get("data")
+    except (ValueError, AttributeError):
+        raise _DiscoveryFailed("risposta non valida") from None
+    found = []
+    for m in data if isinstance(data, list) else []:
+        if isinstance(m, dict) and isinstance(m.get("id"), str) and m["id"]:
+            owner = m.get("owned_by")
+            found.append({"id": m["id"], "name": m["id"], "vendor": owner if isinstance(owner, str) and owner else None,
+                          "kind": "model", "scope": None, "vision": is_vision_model(m["id"])})
+    return found
+
+
+def discover_models(name: str, overrides: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """I modelli che un provider cloud offre, con la configurazione salvata o con quella inviata (senza salvarla).
+
+    Basta la regione (o l'indirizzo) e la credenziale: non servono modelli già scelti. Ogni voce è
+    `{id, name, vendor, kind: model|profile, scope: region|geo|global|None, vision, configured}`, con i modelli già
+    configurati per primi. Un fallimento è una risposta `{models: [], error}`, con un motivo breve e mai il corpo
+    della risposta né una credenziale. Gli altri tipi elencano già i modelli dal vivo: 422."""
+    overrides = overrides or {}
+    with _connect() as conn:
+        row = _read_row(conn, name)
+        base = resolve(name, row)
+    if base.kind not in ("bedrock", "openai_cloud"):
+        raise _invalid("La ricerca dei modelli vale per i provider Bedrock e OpenAI-compatibili cloud: gli altri "
+                       "elencano già i loro modelli.")
+    new, _ = _apply(row or Row(kind=base.kind), base.spec, overrides.get("fields"), overrides.get("secrets"))
+    r = resolve(name, replace(new, enabled=True))
+    if r.secrets_unreadable:
+        return _discovery_result([], f"Il provider '{name}' {providers.UNREADABLE}")
+    has_credentials = bool(r.secret("api_key")) if r.kind == "openai_cloud" else bool(
+        r.secret("api_key") or (r.secret("access_key_id") and r.secret("secret_access_key")))
+    address = r.value("region") if r.kind == "bedrock" else r.value("base_url")
+    if not address or not has_credentials:
+        what = "la regione" if r.kind == "bedrock" else "l'indirizzo"
+        return _discovery_result([], f"Servono {what} e le credenziali.")
+    try:
+        with httpx.Client(timeout=DISCOVER_TIMEOUT) as client:
+            found = _discover_bedrock(client, r) if r.kind == "bedrock" else _discover_openai_cloud(client, r)
+    except _DiscoveryFailed as e:
+        return _discovery_result([], e.reason)
+    except httpx.TimeoutException:
+        return _discovery_result([], "timeout")
+    except Exception:
+        return _discovery_result([], "connessione fallita")
+    configured = set(r.value("models"))
+    for m in found:
+        m["configured"] = m["id"] in configured
+    found.sort(key=lambda m: (not m["configured"], (m["vendor"] or "").casefold(), m["name"].casefold()))
+    return _discovery_result(found)
