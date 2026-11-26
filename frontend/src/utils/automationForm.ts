@@ -1,5 +1,5 @@
 // Conversione tra la definizione di un'automazione e lo stato del form di modifica.
-import { choiceFromModel, modelFromChoice } from './modelChoice';
+import { choiceFromStored, storedFromChoice, type ModelChoice } from './modelChoice';
 
 export type StepType = 'deterministic_action' | 'agentic_task' | 'approval_gate' | string;
 
@@ -29,8 +29,8 @@ export interface AutomationFormState {
   description: string;
   enabled: boolean;
   retentionDays: number | '';
-  /** Modello degli step agentici, come scelta del form (utils/modelChoice). */
-  model: string;
+  /** Modello degli step agentici: la coppia (provider, modello) del form (utils/modelChoice). */
+  model: ModelChoice;
   budget: Budget;
   allowedHosts: string;
 }
@@ -65,7 +65,7 @@ export function formFromAutomation(automation: any): AutomationFormState {
     description: automation.description || '',
     enabled: automation.enabled ?? true,
     retentionDays: automation.retention_days ?? 14,
-    model: choiceFromModel(automation.model),
+    model: choiceFromStored(automation.provider, automation.model),
     budget: Object.fromEntries(
       Object.entries(DEFAULT_BUDGET).map(([key, fallback]) => [key, budget[key] || fallback])
     ) as unknown as Budget,
@@ -122,7 +122,7 @@ export function buildAutomation(automation: any, form: AutomationFormState, step
     description: form.description,
     enabled: form.enabled,
     retention_days: form.retentionDays === '' ? null : Number(form.retentionDays),
-    model: modelFromChoice(form.model),
+    ...storedFromChoice(form.model),
     version: (automation.version || 1) + 1,
     workflow: {
       ...automation.workflow,

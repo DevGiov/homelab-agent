@@ -6,7 +6,7 @@ import {
   type ConsolidationSettings,
   type ConsolidationStatus,
 } from '../api/memory';
-import { describeModelChoice } from '../utils/modelChoice';
+import { describeModelChoice, storedFromChoice, type ModelChoice } from '../utils/modelChoice';
 import { formatApiError } from '../utils/error';
 import type { Notify } from './useFeedback';
 
@@ -38,10 +38,10 @@ export function useConsolidation(notify: Notify, onDone: () => void) {
     return () => clearInterval(timer);
   }, [status?.running, load]);
 
-  const start = async (model: string | null) => {
+  const start = async (choice: ModelChoice) => {
     try {
-      await startConsolidation(model);
-      notify('success', `Consolidamento avviato con il ${describeModelChoice(model)}: può richiedere qualche minuto.`);
+      await startConsolidation(storedFromChoice(choice));
+      notify('success', `Consolidamento avviato con il ${describeModelChoice(choice)}: può richiedere qualche minuto.`);
       await load();
     } catch (err) {
       notify('error', formatApiError(err));

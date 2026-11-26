@@ -10,14 +10,16 @@ interface FieldsProps {
   onChange: (patch: Partial<AutomationFormState>) => void;
 }
 
-/** Modello degli step agentici: default, quello caricato quando lo step parte, o un modello preciso. */
+/** Modello degli step agentici: default, quello caricato quando lo step parte, o un modello preciso di un provider. */
 const ModelField: React.FC<FieldsProps> = ({ form, onChange }) => (
   <div className="pt-2 border-t border-border/50">
     <label className={labelClass}>Modello LLM degli step agentici</label>
-    <ModelChoiceSelect value={form.model} onChange={(model) => onChange({ model })} className={`${inputClass} py-1.5`} />
+    <ModelChoiceSelect value={form.model} onChange={(model) => onChange({ model })} className={`${inputClass} py-1.5`} aria-label="Modello LLM degli step agentici" />
     <p className="text-xs text-fg-muted mt-1">
       Con il modello caricato, ogni step usa quello presente in VRAM quando parte, senza far caricare altri modelli; se
-      nessuno è caricato usa il default. Un modello preciso viene caricato se serve.
+      nessuno è caricato (o il provider è un servizio cloud) usa il default. Un modello preciso viene caricato se serve. Il
+      provider scelto vale per tutte le chiamate dell'automazione: se non esiste più o è disattivato la run fallisce, senza
+      ripiegare su un altro.
     </p>
   </div>
 );

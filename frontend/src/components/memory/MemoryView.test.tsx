@@ -55,7 +55,7 @@ function setup() {
           last_run: '2026-10-29T03:00:05+00:00',
           last_result: { trigger: 'schedule', messages: 12, added: 3, updated: 1, invalidated: 0, deduplicated: 0, seconds: 40 },
           pending: { messages: 6, threads: 2 },
-          settings: { enabled: true, time: '03:00', timezone: 'Europe/Rome', model: 'loaded' },
+          settings: { enabled: true, time: '03:00', timezone: 'Europe/Rome', provider: null, model: 'loaded' },
           next_run: '2026-10-30T03:00+01:00',
         }),
       'POST /v1/memory/consolidation': () => jsonResponse({ started: true }, 202),
@@ -274,7 +274,7 @@ describe('MemoryView', () => {
     fireEvent.change(within(bar).getByLabelText('Modello per consolidare ora'), { target: { value: '' } });
     fireEvent.click(within(bar).getByRole('button', { name: /Consolida ora/ }));
     await waitFor(
-      () => expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')?.body).toEqual({ model: null }),
+      () => expect(requests.find((r) => r.method === 'POST' && r.path === '/v1/memory/consolidation')?.body).toEqual({ provider: null, model: null }),
       SLOW
     );
 
@@ -286,6 +286,7 @@ describe('MemoryView', () => {
         expect(requests.find((r) => r.method === 'PUT' && r.path === '/v1/memory/consolidation/settings')?.body).toMatchObject({
           enabled: true,
           time: '22:30',
+          provider: null,
           model: 'loaded',
         }),
       SLOW

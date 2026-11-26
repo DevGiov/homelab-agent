@@ -233,7 +233,8 @@ export function deleteProcedure(id: number): Promise<void> {
 
 export interface ConsolidationResult {
   trigger: string;
-  /** Modello usato: quello scelto, o quello caricato quando l'esecuzione è partita. */
+  /** Provider e modello usati: quelli scelti, o il modello caricato quando l'esecuzione è partita. */
+  provider?: string;
   model?: string;
   messages?: number;
   added?: number;
@@ -244,11 +245,15 @@ export interface ConsolidationResult {
   seconds: number;
 }
 
-/** Consolidamento giornaliero: orario nel fuso indicato e modello (null = default, 'loaded' = quello caricato). */
+/**
+ * Consolidamento giornaliero: orario nel fuso indicato e modello come coppia (provider, modello): provider null = il
+ * predefinito; modello null = il suo default, 'loaded' = quello caricato.
+ */
 export interface ConsolidationSettings {
   enabled: boolean;
   time: string;
   timezone: string;
+  provider: string | null;
   model: string | null;
 }
 
@@ -268,9 +273,9 @@ export function getConsolidation(): Promise<ConsolidationStatus> {
   return http.get('/memory/consolidation');
 }
 
-/** Senza `model` vale quello delle impostazioni. */
-export function startConsolidation(model?: string | null): Promise<{ started: boolean }> {
-  return http.post('/memory/consolidation', model === undefined ? {} : { model });
+/** Senza scelta vale quella delle impostazioni. */
+export function startConsolidation(choice?: { provider: string | null; model: string | null }): Promise<{ started: boolean }> {
+  return http.post('/memory/consolidation', choice ?? {});
 }
 
 export function updateConsolidationSettings(settings: ConsolidationSettings): Promise<ConsolidationSettings> {

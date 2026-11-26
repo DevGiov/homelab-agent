@@ -35,13 +35,17 @@ describe('automationForm', () => {
     expect(saved.budget).toEqual({ max_duration_seconds: 300, max_tokens: 1000, max_llm_calls: 10, max_tool_calls: 25, max_retries_per_step: 2 });
   });
 
-  it('il modello: vuoto è il default (null), poi il modello caricato o uno preciso', () => {
+  it('il modello è la coppia (provider, modello): vuoto è il default (null), poi il modello caricato o uno preciso', () => {
     const steps = stepsFromAutomation(automation);
-    expect(formFromAutomation(automation).model).toBe('');
-    expect(buildAutomation(automation, formFromAutomation(automation), steps).model).toBeNull();
-    const loaded = { ...formFromAutomation(automation), model: LOADED_MODEL };
-    expect(buildAutomation(automation, loaded, steps).model).toBe('loaded');
-    expect(formFromAutomation({ ...automation, model: 'Qwen3.6-35B' }).model).toBe('Qwen3.6-35B');
+    expect(formFromAutomation(automation).model).toEqual({ provider: null, model: '' });
+    expect(buildAutomation(automation, formFromAutomation(automation), steps)).toMatchObject({ provider: null, model: null });
+    const loaded = { ...formFromAutomation(automation), model: { provider: null, model: LOADED_MODEL } };
+    expect(buildAutomation(automation, loaded, steps)).toMatchObject({ provider: null, model: 'loaded' });
+    // Un'automazione salvata prima dei provider ha il modello e nessun provider
+    expect(formFromAutomation({ ...automation, model: 'Qwen3.6-35B' }).model).toEqual({ provider: null, model: 'Qwen3.6-35B' });
+    const pair = formFromAutomation({ ...automation, provider: 'bedrock', model: 'claude-sonnet' });
+    expect(pair.model).toEqual({ provider: 'bedrock', model: 'claude-sonnet' });
+    expect(buildAutomation(automation, pair, steps)).toMatchObject({ provider: 'bedrock', model: 'claude-sonnet' });
   });
 
   it('i tool di uno step agentico: null = tutti, [] = nessuno, le azioni non ne hanno', () => {

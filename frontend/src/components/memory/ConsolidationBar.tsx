@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Clock, Layers, Loader2 } from 'lucide-react';
 import type { ConsolidationResult, ConsolidationSettings, ConsolidationStatus } from '../../api/memory';
 import { formatDateTime } from '../../utils/metricsFormat';
-import { choiceFromModel, describeModelChoice, modelFromChoice } from '../../utils/modelChoice';
+import { choiceFromStored, describeModelChoice, storedFromChoice, type ModelChoice } from '../../utils/modelChoice';
 import { ModelChoiceSelect } from '../ModelChoiceSelect';
 import { Toggle } from '../Toggle';
 
@@ -14,15 +14,15 @@ const summary = (r: ConsolidationResult) =>
     : `${r.messages ?? 0} messaggi: ${r.added ?? 0} fatti nuovi, ${r.updated ?? 0} aggiornati, ${r.invalidated ?? 0} non più validi, ${r.deduplicated ?? 0} doppioni`;
 
 const schedule = (s: ConsolidationSettings) =>
-  s.enabled ? `ogni giorno alle ${s.time} (${s.timezone}) con il ${describeModelChoice(s.model)}` : 'solo su richiesta';
+  s.enabled ? `ogni giorno alle ${s.time} (${s.timezone}) con il ${describeModelChoice(choiceFromStored(s.provider, s.model))}` : 'solo su richiesta';
 
 /** Il fuso del browser: l'orario si sceglie nell'ora locale di chi lo imposta. */
 const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
 
 interface ConsolidationBarProps {
   status: ConsolidationStatus;
-  /** `model`: la scelta per questa esecuzione (null = default, 'loaded' = il modello caricato). */
-  onStart: (model: string | null) => void;
+  /** La scelta (provider, modello) per questa esecuzione. */
+  onStart: (choice: ModelChoice) => void;
   onSaveSettings: (settings: ConsolidationSettings) => void;
 }
 
@@ -32,12 +32,12 @@ interface ConsolidationBarProps {
  */
 export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onStart, onSaveSettings }) => {
   const saved = status.settings;
-  const [runChoice, setRunChoice] = useState(choiceFromModel(saved.model));
+  const [runChoice, setRunChoice] = useState(choiceFromStored(saved.provider, saved.model));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(saved);
 
   // Dopo un salvataggio la scelta per l'esecuzione manuale riparte da quella programmata
-  useEffect(() => setRunChoice(choiceFromModel(saved.model)), [saved.model]);
+  useEffect(() => setRunChoice(choiceFromStored(saved.provider, saved.model)), [saved.provider, saved.model]);
 
   const openSettings = () => {
     setDraft(saved);
@@ -66,14 +66,14 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
           {status.last_run && status.last_result && (
             <p className={status.last_result.error ? 'text-rose-400' : ''}>
               Ultimo: {formatDateTime(status.last_run)}
-              {status.last_result.model ? ` (${status.last_result.model})` : ''} · {summary(status.last_result)}
+              {status.last_result.model ? ` (${[status.last_result.provider, status.last_result.model].filter(Boolean).join(' · ')})` : ''} · {summary(status.last_result)}
             </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5 shrink-0">
           <ModelChoiceSelect value={runChoice} onChange={setRunChoice} className={selectClass} aria-label="Modello per consolidare ora" />
           <button
-            onClick={() => onStart(modelFromChoice(runChoice))}
+            onClick={() => onStart(runChoice)}
             disabled={status.running || status.pending.messages === 0}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-contrast text-xs font-semibold disabled:opacity-40 cursor-pointer"
           >
@@ -111,8 +111,8 @@ export const ConsolidationBar: React.FC<ConsolidationBarProps> = ({ status, onSt
           <label className="flex items-center gap-1.5">
             con
             <ModelChoiceSelect
-              value={choiceFromModel(draft.model)}
-              onChange={(choice) => setDraft((d) => ({ ...d, model: modelFromChoice(choice) }))}
+              value={choiceFromStored(draft.provider, draft.model)}
+              onChange={(choice) => setDraft((d) => ({ ...d, ...storedFromChoice(choice) }))}
               className={selectClass}
               aria-label="Modello del consolidamento programmato"
             />
