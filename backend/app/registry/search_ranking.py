@@ -64,8 +64,21 @@ def _domain(url: str) -> str:
     except Exception:
         return ""
 
+def _word_forms(term: str) -> List[str]:
+    """The term and its simple plural or singular ("lab"/"labs"); never for codes with digits."""
+    forms = [term]
+    if term.isalpha() and len(term) >= 3:
+        if term.endswith("s"):
+            if len(term) > 3 and not term.endswith("ss"):
+                forms.append(term[:-1])
+        else:
+            forms.append(term + "s")
+    return forms
+
+
 def _has_word(text: str, term: str) -> bool:
-    return re.search(rf"\b{re.escape(term)}\b", text) is not None
+    alternatives = "|".join(re.escape(form) for form in _word_forms(term))
+    return re.search(rf"\b(?:{alternatives})\b", text) is not None
 
 def _content_query_terms(query: str) -> List[str]:
     """Extract meaningful query terms, filtering out common stopwords."""
