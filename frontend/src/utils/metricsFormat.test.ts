@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCompact, formatDuration, formatPct, formatRate, niceScale } from './metricsFormat';
+import { formatCompact, formatDuration, formatMoney, formatPct, formatRate, niceScale } from './metricsFormat';
 
 describe('metricsFormat', () => {
   it('formatta le durate per ordine di grandezza', () => {
@@ -17,6 +17,16 @@ describe('metricsFormat', () => {
     expect(formatRate(42.25)).toBe('42,3 tok/s');
     expect(formatRate(1834.4)).toBe('1834 tok/s');
     expect(formatPct(99.5)).toBe('99,5%');
+  });
+
+  it('formatta i dollari con più decimali sotto 1 $', () => {
+    expect(formatMoney(null)).toBe('—');
+    expect(formatMoney(0)).toBe('$0');
+    expect(formatMoney(0.00001)).toBe('<$0,0001');
+    expect(formatMoney(0.0042)).toBe('$0,0042');
+    expect(formatMoney(0.5)).toBe('$0,5000');
+    expect(formatMoney(12.346)).toBe('$12,35');
+    expect(formatMoney(12345.6)).toBe('$12.345,60');
   });
 
   it('sceglie tick a passo pulito che coprono il massimo', () => {

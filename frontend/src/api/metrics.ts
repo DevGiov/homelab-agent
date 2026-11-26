@@ -11,12 +11,31 @@ export interface LlmSpeeds {
 export type TurnStatus = 'ok' | 'error' | 'stopped';
 export type TurnSource = 'chat' | 'automation';
 
+/** Chiamate andate al modello locale invece che al provider scelto, per motivo: `label` (dati non ammessi) o `budget` (tetto di spesa). */
+export type FallbackCounts = Partial<Record<'label' | 'budget', number>>;
+
 export interface ModelStats extends LlmSpeeds {
+  /** "?" per le chiamate registrate prima dei provider. */
+  provider: string;
   model: string;
   calls: number;
   errors: number;
   p50_ms: number | null;
   completion_tokens: number;
+  cost_usd: number;
+}
+
+export interface RoleStats {
+  /** Scopo della chiamata (backend: app/llm/roles.py); "?" se non registrato. */
+  role: string;
+  calls: number;
+  errors: number;
+  prompt_tokens: number;
+  cached_tokens: number;
+  completion_tokens: number;
+  p50_ms: number | null;
+  cost_usd: number;
+  fallbacks: FallbackCounts;
 }
 
 export interface ToolStats {
@@ -56,8 +75,11 @@ export interface MetricsSummary {
     prompt_tokens: number;
     cached_tokens: number;
     completion_tokens: number;
+    cost_usd: number;
+    fallbacks: FallbackCounts;
   };
   models: ModelStats[];
+  roles: RoleStats[];
   tools: ToolStats[];
   health: ServiceHealth[];
 }
@@ -70,6 +92,7 @@ export interface MetricsPoint extends LlmSpeeds {
   p50_ms: number | null;
   tool_errors: number;
   llm_calls: number;
+  cost_usd: number;
 }
 
 export interface HealthPoint {

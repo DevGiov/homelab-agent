@@ -1,6 +1,7 @@
 import React from 'react';
-import type { ModelStats, ToolStats, TurnRecord } from '../../api/metrics';
-import { formatCompact, formatDateTime, formatDuration, formatPct, formatRate } from '../../utils/metricsFormat';
+import type { ModelStats, RoleStats, ToolStats, TurnRecord } from '../../api/metrics';
+import { fallbackSummary } from './fallbacks';
+import { formatCompact, formatDateTime, formatDuration, formatMoney, formatPct, formatRate } from '../../utils/metricsFormat';
 
 interface Column<T> {
   label: string;
@@ -56,16 +57,44 @@ export const ModelsTable: React.FC<{ models: ModelStats[] }> = ({ models }) => (
   <Table
     title="Modelli"
     rows={models}
-    rowKey={(m) => m.model}
+    rowKey={(m) => `${m.provider}/${m.model}`}
     empty="Nessuna chiamata LLM nella finestra."
     columns={[
+      { label: 'Provider', render: (m) => <span className="text-fg-muted">{m.provider}</span> },
       { label: 'Modello', render: (m) => <span className="font-medium">{m.model}</span> },
       { label: 'Chiamate', numeric: true, render: (m) => formatCompact(m.calls) },
       { label: 'Errori', numeric: true, render: (m) => errorsCell(m.errors) },
       { label: 'Durata p50', numeric: true, render: (m) => formatDuration(m.p50_ms) },
+      { label: 'Costo', numeric: true, render: (m) => formatMoney(m.cost_usd) },
       { label: 'Generazione', numeric: true, render: (m) => formatRate(m.gen_tok_s) },
       { label: 'Prompt', numeric: true, render: (m) => formatRate(m.prompt_tok_s) },
       { label: 'Cache', numeric: true, render: (m) => formatPct(m.cache_hit_pct) },
+    ]}
+  />
+);
+
+export const RolesTable: React.FC<{ roles: RoleStats[] }> = ({ roles }) => (
+  <Table
+    title="Ruoli"
+    rows={roles}
+    rowKey={(r) => r.role}
+    empty="Nessuna chiamata LLM nella finestra."
+    columns={[
+      { label: 'Ruolo', render: (r) => <code className="text-xs">{r.role}</code> },
+      { label: 'Chiamate', numeric: true, render: (r) => formatCompact(r.calls) },
+      { label: 'Errori', numeric: true, render: (r) => errorsCell(r.errors) },
+      { label: 'Prompt', numeric: true, render: (r) => formatCompact(r.prompt_tokens) },
+      { label: 'Cache', numeric: true, render: (r) => formatCompact(r.cached_tokens) },
+      { label: 'Generati', numeric: true, render: (r) => formatCompact(r.completion_tokens) },
+      { label: 'Durata p50', numeric: true, render: (r) => formatDuration(r.p50_ms) },
+      { label: 'Costo', numeric: true, render: (r) => formatMoney(r.cost_usd) },
+      {
+        label: 'Ripieghi',
+        render: (r) => {
+          const text = fallbackSummary(r.fallbacks);
+          return text ? <span className="text-amber-400">{text}</span> : <span className="text-fg-muted">—</span>;
+        },
+      },
     ]}
   />
 );

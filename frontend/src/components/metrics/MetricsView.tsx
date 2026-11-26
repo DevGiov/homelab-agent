@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Activity, Loader2, Menu, RefreshCw } from 'lucide-react';
 import { METRICS_WINDOWS, useMetrics } from '../../hooks/useMetrics';
-import { formatDuration, formatRate } from '../../utils/metricsFormat';
+import { formatDuration, formatMoney, formatRate } from '../../utils/metricsFormat';
 import { HealthPanel } from './HealthPanel';
-import { ModelsTable, ToolsTable, TurnsTable } from './MetricsTables';
+import { ModelsTable, RolesTable, ToolsTable, TurnsTable } from './MetricsTables';
 import { StatTiles } from './StatTiles';
 import { TimeChart } from './TimeChart';
 
@@ -15,7 +15,7 @@ const TURN_SERIES = [
 
 const count = (v: number) => String(Math.round(v));
 
-/** Osservabilità dell'agente: turni di chat e automazioni, velocità dei modelli, tool e salute dei servizi. */
+/** Osservabilità dell'agente: turni di chat e automazioni, costi, velocità dei modelli, tool e salute dei servizi. */
 export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ onOpenMobileSidebar }) => {
   const [range, setRange] = useState(METRICS_WINDOWS[1]);
   const { summary, series, turns, error, isLoading, reload } = useMetrics(range);
@@ -26,6 +26,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
     values: { ok: p.turns - p.errors - p.stopped, stopped: p.stopped, error: p.errors },
   }));
   const durationPoints = points.map((p) => ({ start: p.start, values: { p50: p.p50_ms } }));
+  const costPoints = points.map((p) => ({ start: p.start, values: { cost: p.cost_usd } }));
   const speedPoints = points.map((p) => ({ start: p.start, values: { gen: p.gen_tok_s } }));
 
   return (
@@ -47,7 +48,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
           <div className="min-w-0">
             <h2 className="font-semibold text-xs sm:text-sm sm:leading-5 text-fg leading-tight truncate">Metriche</h2>
             <p className="text-xs text-fg-muted mt-0.5 hidden md:block">
-              Turni, velocità dei modelli, tool e salute dei servizi
+              Turni, costi, velocità dei modelli, tool e salute dei servizi
             </p>
           </div>
         </div>
@@ -92,7 +93,7 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
         ) : (
           <>
             <StatTiles summary={summary} />
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-3">
               <TimeChart title="Turni per intervallo" kind="columns" series={TURN_SERIES} points={turnPoints} windowHours={range.hours} formatValue={count} />
               <TimeChart
                 title="Durata mediana del turno"
@@ -110,12 +111,21 @@ export const MetricsView: React.FC<{ onOpenMobileSidebar?: () => void }> = ({ on
                 windowHours={range.hours}
                 formatValue={(v) => formatRate(v).replace(' tok/s', '')}
               />
+              <TimeChart
+                title="Costo per intervallo"
+                kind="columns"
+                series={[{ key: 'cost', label: 'Costo', color: 'var(--chart-1)' }]}
+                points={costPoints}
+                windowHours={range.hours}
+                formatValue={formatMoney}
+              />
             </div>
             <HealthPanel services={summary.health} history={series.health} points={points} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
               <ModelsTable models={summary.models} />
-              <ToolsTable tools={summary.tools} />
+              <RolesTable roles={summary.roles} />
             </div>
+            <ToolsTable tools={summary.tools} />
             <TurnsTable turns={turns} />
           </>
         )}

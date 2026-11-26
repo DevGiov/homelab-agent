@@ -24,6 +24,15 @@ export function formatPct(pct: number | null | undefined): string {
   return pct == null ? '—' : `${pct.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%`;
 }
 
+/** Dollari: 4 decimali sotto 1 $ (le chiamate costano frazioni di centesimo), 2 sopra; zero è "$0". */
+export function formatMoney(usd: number | null | undefined): string {
+  if (usd == null) return '—';
+  if (usd === 0) return '$0';
+  if (usd < 0.0001) return '<$0,0001';
+  const digits = usd < 1 ? 4 : 2;
+  return `$${usd.toLocaleString('it-IT', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
 /** Orario dell'asse: solo ora per finestre fino a un giorno, giorno e ora oltre. */
 export function formatTick(iso: string, windowHours: number): string {
   const d = new Date(iso);

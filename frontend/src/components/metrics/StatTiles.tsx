@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MetricsSummary } from '../../api/metrics';
-import { formatCompact, formatDuration, formatPct, formatRate } from '../../utils/metricsFormat';
+import { fallbackSummary } from './fallbacks';
+import { formatCompact, formatDuration, formatMoney, formatPct, formatRate } from '../../utils/metricsFormat';
 
 const Tile: React.FC<{ label: string; value: string; detail: string; alert?: boolean }> = ({ label, value, detail, alert }) => (
   <div className="rounded-2xl border border-border bg-panel/60 px-3 py-2.5 min-w-0">
@@ -12,13 +13,14 @@ const Tile: React.FC<{ label: string; value: string; detail: string; alert?: boo
   </div>
 );
 
-/** Riepilogo della finestra: volume e esito dei turni, durata, velocità del modello e cache del prompt. */
+/** Riepilogo della finestra: volume e esito dei turni, durata, velocità del modello, cache del prompt e costo. */
 export const StatTiles: React.FC<{ summary: MetricsSummary }> = ({ summary }) => {
   const { turns, llm } = summary;
   const errors = turns.by_status.error ?? 0;
   const stopped = turns.by_status.stopped ?? 0;
+  const fallbackCalls = Object.values(llm.fallbacks).reduce((sum, n) => sum + (n ?? 0), 0);
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-7 gap-2">
       <Tile
         label="Turni"
         value={formatCompact(turns.total)}
@@ -36,6 +38,12 @@ export const StatTiles: React.FC<{ summary: MetricsSummary }> = ({ summary }) =>
         label="Prompt dalla cache"
         value={formatPct(llm.cache_hit_pct)}
         detail={`${formatCompact(llm.cached_tokens)} di ${formatCompact(llm.prompt_tokens)} token`}
+      />
+      <Tile
+        label="Costo"
+        value={formatMoney(llm.cost_usd)}
+        detail={fallbackCalls ? `${fallbackCalls} ${fallbackCalls === 1 ? 'chiamata' : 'chiamate'} al modello locale: ${fallbackSummary(llm.fallbacks)}` : 'nessun ripiego al modello locale'}
+        alert={fallbackCalls > 0}
       />
       <Tile
         label="Chiamate a tool"
