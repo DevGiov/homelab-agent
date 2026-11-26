@@ -1,7 +1,7 @@
 # Provider di modelli e ruoli: design
 
 **Data:** 14 novembre 2026
-**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) costruita il 15/11/2026; P1 (costo, prezzi, tetti) costruita il 15/11/2026 nel backend; P2 (Bedrock e ripieghi) costruita, rivista e installata il 26/11/2026. L'interfaccia di P1 è assorbita da PU, i provider gestiti dalla Web UI ([sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)): backend di PU1 e PU2 costruito il 26/11/2026 (5.8.6.1).
+**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) e P1 (costo, prezzi, tetti) costruite il 15/11/2026; P2 (Bedrock e ripieghi) rivista e installata il 26/11/2026; PU (provider gestiti dalla Web UI, [sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)) costruita e installata il 26/11/2026. Restano dell'interfaccia di P1: costo e ruoli nelle Metriche.
 **Contesto:** oggi ogni chiamata a un modello va a un server in casa. L'obiettivo è aggiungere provider cloud (prima AWS Bedrock, poi OpenRouter), sapere quanto costa ogni chiamata, fermarsi a un tetto di spesa e scegliere il provider chiamata per chiamata, senza far uscire dati che la destinazione non può ricevere ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), fase S4).
 
 ---
