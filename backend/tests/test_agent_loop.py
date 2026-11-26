@@ -125,6 +125,27 @@ def test_chat_mode_never_selects_tools(manager):
     select.assert_not_called()
 
 
+_GPU_SENTENCE = "L'immagine non è entrata nella memoria della GPU e il modello è stato chiuso."
+
+
+@pytest.mark.parametrize("mode, structured", [("chat", MagicMock()), ("act", None)])
+def test_a_gpu_memory_failure_on_a_direct_answer_says_so(manager, mode, structured):
+    # chat non ha tool; act senza LLM strutturato risponde in una sola chiamata
+    llm = MagicMock(return_value={"content": "", "reasoning_content": "", "error": "gpu-memory"})
+
+    res = run_agent_loop("descrivi la foto", mode, call_llm_fn=llm, call_llm_structured_fn=structured)
+
+    assert res["final_response"] == _GPU_SENTENCE
+
+
+def test_another_failure_on_a_direct_answer_keeps_the_generic_sentence(manager):
+    llm = MagicMock(return_value={"content": "", "reasoning_content": "", "error": "HTTP 503"})
+
+    res = run_agent_loop("ciao", "chat", call_llm_fn=llm, call_llm_structured_fn=None)
+
+    assert res["final_response"].startswith("Il modello non ha completato la richiesta (HTTP 503)")
+
+
 def test_null_arguments_mean_no_arguments():
     # LFM2.5 scrive `"arguments": null` per i tool senza parametri: prima la selezione veniva scartata
     selection = ToolSelection.model_validate({"tool_needed": True, "tool_name": "list_containers", "arguments": None, "reasoning": None})
