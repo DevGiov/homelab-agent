@@ -32,6 +32,7 @@ def test_ranking_counts_the_plural_title():
 
 def test_relevance_score_sees_the_plural():
     assert compute_relevance("Nimbus Lab", "Nimbus Labs", "") == 1.0
+    assert compute_relevance("Nimbus Labs", "Nimbus Lab", "") == 1.0
 
 
 def test_no_stemming_beyond_a_plain_s():
