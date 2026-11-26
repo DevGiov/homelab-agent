@@ -1,7 +1,7 @@
 # Provider di modelli e ruoli: design
 
 **Data:** 14 novembre 2026
-**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) e P1 (costo, prezzi, tetti) costruite il 15/11/2026; P2 (Bedrock e ripieghi) rivista e installata il 26/11/2026; PU (provider gestiti dalla Web UI, [sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)) costruita e installata il 26/11/2026. Restano dell'interfaccia di P1: costo e ruoli nelle Metriche.
+**Stato:** decisioni del maintainer prese il 14/11/2026 e il 26/11/2026 ([sezione 3](#3-decisioni)). P0 (ruoli) e P1 (costo, prezzi, tetti) costruite il 15/11/2026; P2 (Bedrock e ripieghi) rivista e installata il 26/11/2026; PU (provider gestiti dalla Web UI, [sezione 5.8](#58-provider-gestiti-dalla-web-ui-pu)) costruita e installata il 26/11/2026; l'interfaccia di P1 (costo e ruoli nelle Metriche, avviso di ripiego nel turno) e la ricerca dei modelli dei provider cloud lo stesso giorno ([5.8.8](#588-ricerca-dei-modelli-dei-provider-cloud)).
 **Contesto:** oggi ogni chiamata a un modello va a un server in casa. L'obiettivo è aggiungere provider cloud (prima AWS Bedrock, poi OpenRouter), sapere quanto costa ogni chiamata, fermarsi a un tetto di spesa e scegliere il provider chiamata per chiamata, senza far uscire dati che la destinazione non può ricevere ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md), fase S4).
 
 ---
@@ -138,10 +138,10 @@ Dopo il turno intero su un provider (5.5) e solo se i numeri lo giustificano: un
 
 ### 5.7 Interfaccia
 
-Sostituita dalla [sezione 5.8.7](#587-interfaccia). Restano da qui:
+Sostituita dalla [sezione 5.8.7](#587-interfaccia). Restavano da qui, costruite il 26/11/2026:
 
-- **Metriche:** costo nel riepilogo e per modello, e una tabella per ruolo.
-- **Turno:** un avviso quando una chiamata è andata al modello locale per l'etichetta o per il tetto.
+- **Metriche:** riquadro "Costo" con il numero di ripieghi e i motivi, colonne Provider e Costo nella tabella dei modelli (raggruppati per la coppia provider e modello), tabella "Ruoli" (chiamate, errori, token, p50, costo, ripieghi), grafico del costo per intervallo. Il riepilogo ha `fallbacks` (motivo → chiamate) nel blocco `llm` e in ogni ruolo.
+- **Turno:** l'evento `provider_fallback` diventa un avviso sul messaggio, uno per (da, a, motivo): "Tetto di spesa raggiunto: risposta da <a> invece di <da>." oppure "Dati non ammessi su <da>: questo passo è andato a <a>." Gli avvisi si salvano con il messaggio (`thread_messages.fallbacks_json`) e tornano con la conversazione; un client che si ricollega li riceve nello snapshot.
 
 ### 5.8 Provider gestiti dalla Web UI (PU)
 
@@ -206,6 +206,7 @@ Decisioni 6–10. Oggi i provider nascono all'avvio dal `.env`, uno solo è "att
 | `POST /v1/providers/{name}/reset` | Provider del `.env`: toglie tutte le modifiche della UI |
 | `PUT /v1/providers/{name}/clearance` | `{level, confirm}`: alzare senza `confirm` risponde 409 |
 | `POST /v1/providers/{name}/test` | Prova la connessione, con la configurazione salvata o con quella inviata |
+| `POST /v1/providers/{name}/models/discover` | Provider `bedrock` e `openai_cloud`: i modelli che il servizio offre, con la configurazione salvata o con quella inviata ([5.8.8](#588-ricerca-dei-modelli-dei-provider-cloud)) |
 | `PUT /v1/providers/settings` | Provider predefinito e provider di ripiego |
 | `GET /v1/models` | Il catalogo per il selettore: i provider attivi, ciascuno con nome, tipo, locale o cloud, livello effettivo, raggiungibile, e i suoi modelli con i dettagli di oggi (visione, caricato) |
 
@@ -293,6 +294,18 @@ Restano quelle di P1 per prezzi, tetti e spesa (`/v1/providers/costs`, `.../pric
   Sotto: "Aggiungi provider", il tetto totale, il provider predefinito e quello di ripiego.
 - **Selettore dei modelli:** i modelli di tutti i provider attivi, raggruppati sotto il nome del provider, con un'indicazione locale o cloud e il livello. Un provider non raggiungibile resta nell'elenco, segnato. La scelta è per conversazione.
 - **Turno:** l'avviso di ripiego (5.7) dice anche verso quale provider.
+
+#### 5.8.8 Ricerca dei modelli dei provider cloud
+
+`bedrock-runtime` non ha `GET /models`: AWS indica le API di controllo ListFoundationModels e ListInferenceProfiles su `bedrock.{regione}.amazonaws.com` (servizio SigV4 `bedrock`), che non costano nulla.
+
+- **API:** `POST /v1/providers/{name}/models/discover`, corpo facoltativo come PATCH (cerca senza salvare). Bastano la regione (o l'indirizzo) e la credenziale. Risposta `{"models": [{"id", "name", "vendor", "kind": "model"|"profile", "scope": "region"|"geo"|"global"|null, "vision", "configured"}], "error": null | "<motivo breve>"}`; un fallimento è un 200 con `models: []` e il motivo, mai il corpo della risposta né una credenziale. Altri tipi: 422 `invalid`.
+- **Bedrock:** modelli di testo `ACTIVE` con `ON_DEMAND`, più i profili di sistema `ACTIVE` che puntano a un modello di testo. `global.` è `global`, gli altri prefissi dei profili (`eu.`, `us.`, ...) sono `geo`. Con la chiave API di Bedrock queste API possono rispondere 401 o 403: il motivo lo dice e i modelli si scrivono a mano.
+- **`openai_cloud`:** `GET {base_url}/models` con la chiave.
+- **Sono candidati:** non tutti i modelli elencati rispondono all'API compatibile OpenAI di `bedrock-runtime` (AWS rimanda alla scheda di ogni modello). L'interfaccia lo dice e non prova i modelli uno per uno, perché ogni prova è una chiamata pagata.
+- **Prova connessione di Bedrock:** fa la stessa lettura firmata di ListFoundationModels, quindi prova le credenziali. Con una chiave API che non può elencare, torna al solo controllo che l'endpoint risponda.
+- **Interfaccia:** "Cerca modelli" sotto il campo dei modelli; elenco con filtro, raggruppato per ambito ("Solo questa regione", "Area geografica", "Globale" con l'avviso che quei profili possono instradare la richiesta in qualunque regione), produttore e segno "visione". "Usa i selezionati" cambia solo la bozza; i modelli già configurati che la ricerca non trova restano in un gruppo a parte, spuntati.
+- **Permessi IAM** per un utente dedicato: `bedrock:InvokeModel` e `bedrock:InvokeModelWithResponseStream` sui modelli e sui profili ammessi (per un profilo tra regioni, sul profilo e sul modello in ogni regione di destinazione), più `bedrock:ListFoundationModels` e `bedrock:ListInferenceProfiles` su `*` per la ricerca. Con la chiave API serve anche `bedrock:CallWithBearerToken`.
 
 ## 6. Ordine di costruzione
 
