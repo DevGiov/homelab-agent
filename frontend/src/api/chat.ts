@@ -103,6 +103,13 @@ export interface StreamMetrics {
   tok_per_s?: number;
 }
 
+/** Una chiamata del turno è andata al modello locale invece che al provider scelto (`budget`: tetto di spesa, `label`: dati non ammessi). */
+export interface ProviderFallback {
+  from: string;
+  to: string;
+  reason: 'label' | 'budget';
+}
+
 export interface ChatResponse {
   thread_id: string | null;
   mode: AgentMode | string;
@@ -130,6 +137,7 @@ export interface ChatResponse {
   security_mode?: SecurityMode;
   /** Sensibilità del turno: etichetta, non attendibilità e motivi. */
   sensitivity?: SensitivityTag;
+  fallbacks?: ProviderFallback[] | null;
 }
 
 export interface MessageVersion {
@@ -162,6 +170,8 @@ export interface MessageVersion {
   approval_action?: string;
   security_mode?: SecurityMode;
   sensitivity?: SensitivityTag;
+  /** Senza ripetizioni: una per (da, a, motivo). */
+  fallbacks?: ProviderFallback[] | null;
 }
 
 export interface FormattedMessage extends MessageVersion {
@@ -182,6 +192,7 @@ export interface StreamSnapshot {
   plan_structure?: PlanStructure;
   is_paused?: boolean;
   metrics?: StreamMetrics;
+  fallbacks?: ProviderFallback[];
 }
 
 export interface StreamHandlers {
@@ -191,6 +202,7 @@ export interface StreamHandlers {
   onRetrieval?: (event: string, data: any) => void;
   onMetrics?: (metrics: StreamMetrics) => void;
   onSync?: (snapshot: StreamSnapshot) => void;
+  onFallback?: (fallback: ProviderFallback) => void;
 }
 
 async function consumeStream(response: Response, handlers: StreamHandlers): Promise<void> {
@@ -213,6 +225,9 @@ async function consumeStream(response: Response, handlers: StreamHandlers): Prom
         break;
       case 'metrics':
         handlers.onMetrics?.(event.metrics);
+        break;
+      case 'provider_fallback':
+        handlers.onFallback?.({ from: event.from, to: event.to, reason: event.reason });
         break;
       case 'final':
         handlers.onFinal?.(event.response);

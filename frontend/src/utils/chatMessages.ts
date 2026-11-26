@@ -5,6 +5,7 @@ import type {
   FormattedMessage,
   MessageVersion,
   PlanStructure,
+  ProviderFallback,
   RollbackAction,
   StreamSnapshot,
   WebPrefetchData,
@@ -76,7 +77,22 @@ export function applySnapshot(msg: FormattedMessage, snapshot: StreamSnapshot): 
     plan_structure: snapshot.plan_structure || msg.plan_structure,
     execution_trace: snapshot.execution_trace || msg.execution_trace,
     metrics: snapshot.metrics || msg.metrics,
+    fallbacks: snapshot.fallbacks?.length ? snapshot.fallbacks : msg.fallbacks,
   };
+}
+
+/** Aggiunge un ripiego al modello locale al messaggio, una sola volta per (da, a, motivo). */
+export function withFallback(msg: FormattedMessage, note: ProviderFallback): FormattedMessage {
+  const current = msg.fallbacks ?? [];
+  const known = current.some((f) => f.from === note.from && f.to === note.to && f.reason === note.reason);
+  return known ? msg : { ...msg, fallbacks: [...current, note] };
+}
+
+/** Avviso sotto la risposta per un ripiego al modello locale. */
+export function fallbackNotice(note: ProviderFallback): string {
+  return note.reason === 'budget'
+    ? `Tetto di spesa raggiunto: risposta da ${note.to} invece di ${note.from}.`
+    : `Dati non ammessi su ${note.from}: questo passo è andato a ${note.to}.`;
 }
 
 /** Copia contenuto e reasoning nella versione `index`, così il carosello mostra la rigenerazione in corso. */

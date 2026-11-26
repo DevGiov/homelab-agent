@@ -48,5 +48,6 @@ export function adaptChatResponseToMessage(
     expires_at: response.expires_at,
     security_mode: response.security_mode,
     sensitivity: response.sensitivity,
+    fallbacks: response.fallbacks,
   };
 }

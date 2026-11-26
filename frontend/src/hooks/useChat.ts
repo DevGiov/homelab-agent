@@ -25,6 +25,7 @@ import {
   mirrorToVersion,
   nowTime,
   webPrefetchFromEvent,
+  withFallback,
   type ChatDiagnostics,
 } from '../utils/chatMessages';
 import type { ModelRef } from '../api/providers';
@@ -92,6 +93,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
       onReasoning: (delta) => update((m) => ({ ...m, reasoning_content: (m.reasoning_content || '') + delta })),
       onContent: (delta) => update((m) => ({ ...m, content: (m.content || '') + delta })),
       onMetrics: (metrics) => update((m) => ({ ...m, metrics })),
+      onFallback: (note) => update((m) => withFallback(m, note)),
       onSync: (snapshot) => {
         update((m) => applySnapshot(m, snapshot));
         if (snapshot.is_paused !== undefined) setIsPaused(Boolean(snapshot.is_paused));
@@ -312,6 +314,7 @@ export function useChat(currentThreadId: string | null, onThreadCreated?: (id: s
         plan_steps: undefined,
         plan_structure: undefined,
         metrics: undefined,
+        fallbacks: undefined,
         isError: false,
         versionIndex,
         versions,

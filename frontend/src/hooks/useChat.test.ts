@@ -191,6 +191,65 @@ describe('useChat — turni in corso', () => {
     });
   });
 
+  it('un ripiego al modello locale durante il turno finisce nel messaggio, una volta per (da, a, motivo)', async () => {
+    const note = { type: 'provider_fallback', from: 'cloud', to: 'local', reason: 'budget' };
+    mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () =>
+        jsonResponse({
+          thread_id: THREAD,
+          is_active: true,
+          messages: [
+            { id: 'u1', sender: 'user', content: 'domanda', timestamp: '10:00' },
+            { id: 'a1', sender: 'assistant', content: '', timestamp: '10:00' },
+          ],
+        }),
+      [`GET /v1/threads/${THREAD}/stream`]: () =>
+        sseResponse([note, { ...note }, { ...note, from: 'cloud2', reason: 'label' }, { type: 'content', delta: 'ok' }]),
+    });
+    const { result } = renderHook(() => useChat(THREAD));
+
+    await waitFor(() => expect(result.current.isLoadingChat).toBe(false));
+    expect(result.current.currentMessages[1].fallbacks).toEqual([
+      { from: 'cloud', to: 'local', reason: 'budget' },
+      { from: 'cloud2', to: 'local', reason: 'label' },
+    ]);
+  });
+
+  it('la risposta finale porta i ripieghi del turno nel messaggio', async () => {
+    mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () => jsonResponse({ thread_id: THREAD, messages: [] }),
+      'POST /v1/invoke_stream': () =>
+        sseResponse([
+          { type: 'provider_fallback', from: 'cloud', to: 'local', reason: 'label' },
+          finalEvent('Risposta', { fallbacks: [{ from: 'cloud', to: 'local', reason: 'label' }] }),
+          '[DONE]',
+        ]),
+    });
+    const { result } = await renderChat();
+
+    await act(() => result.current.handleSendMessage('ciao', { mode: 'chat', execute: false }));
+    const last = result.current.currentMessages.at(-1);
+    expect(last?.content).toBe('Risposta');
+    expect(last?.fallbacks).toEqual([{ from: 'cloud', to: 'local', reason: 'label' }]);
+  });
+
+  it('dallo storico un messaggio con ripieghi li conserva', async () => {
+    const fallbacks = [{ from: 'cloud', to: 'local', reason: 'budget' }];
+    mockBackend({
+      [`GET /v1/threads/${THREAD}`]: () =>
+        jsonResponse({
+          thread_id: THREAD,
+          messages: [
+            { id: 'u1', sender: 'user', content: 'domanda', timestamp: '10:00' },
+            { id: 'a1', sender: 'assistant', content: 'risposta', timestamp: '10:00', fallbacks },
+          ],
+        }),
+    });
+    const { result } = await renderChat();
+    await waitFor(() => expect(result.current.currentMessages).toHaveLength(2));
+    expect(result.current.currentMessages[1].fallbacks).toEqual(fallbacks);
+  });
+
   it('lo stop annulla la richiesta e lo segnala al backend', async () => {
     const { requests } = mockBackend({
       [`GET /v1/threads/${THREAD}`]: () => jsonResponse({ thread_id: THREAD, messages: [] }),
