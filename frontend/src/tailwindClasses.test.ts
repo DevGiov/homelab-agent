@@ -25,8 +25,8 @@ describe('classi di Tailwind 3 da non usare in Tailwind 4', () => {
 
   it('ombre, angoli e sfocature: shadow-xs, rounded-sm… hanno i nomi nuovi', () => {
     // Senza suffisso (`shadow`, `rounded`) sono le taglie di Tailwind 3 rinominate: si scrive la taglia (`shadow-sm`,
-    // `rounded-sm`), e `drop-shadow-soft` per l'ombra dell'icona. `shadow-sm` di 3 è `shadow-xs`, `rounded-sm` è `rounded-xs`
-    expect(offenders(/^(shadow|rounded|drop-shadow|backdrop-blur)$/)).toEqual([]);
+    // `rounded-sm`), e `drop-shadow-soft` per l'ombra dell'icona. `shadow-sm` di 3 è `shadow-xs`, `rounded-sm` è `rounded-xs`, `ring` è `ring-3`
+    expect(offenders(/^(shadow|rounded|drop-shadow|backdrop-blur|ring)$/)).toEqual([]);
   });
 
   it('gradienti: bg-linear-to-*/srgb, che interpola come Tailwind 3 (bg-gradient-to-* in 4 interpola in oklab)', () => {
