@@ -38,6 +38,8 @@ class StreamSession:
         self.execution_trace: Optional[List[Dict[str, Any]]] = None
         self.final_response: Optional[Dict[str, Any]] = None
         self.error: Optional[str] = None
+        # Chiamate andate al modello locale invece che al provider scelto: una per (da, a, motivo)
+        self.fallbacks: List[Dict[str, str]] = []
 
         self.subscribers: List[queue.Queue] = []
         self._lock = threading.Lock()
@@ -125,6 +127,10 @@ class StreamSession:
                 raw_m = event.get("metrics")
                 self.record_metrics(raw_m)
                 event = {"type": "metrics", "metrics": self.get_metrics()}
+            elif ev_type == "provider_fallback":
+                note = {k: event.get(k) for k in ("from", "to", "reason")}
+                if note not in self.fallbacks:
+                    self.fallbacks.append(note)
             elif ev_type == "final":
                 self.status = "completed"
                 self.completed_time = time.time()
@@ -177,6 +183,7 @@ class StreamSession:
             "plan_structure": self.plan_structure,
             "is_paused": self.is_paused(),
             "metrics": self.get_metrics(),
+            "fallbacks": list(self.fallbacks),
         }
 
 

@@ -4,7 +4,7 @@ import json
 import time
 from unittest.mock import patch
 
-from app.agent.stream_session import get_session, remove_session
+from app.agent.stream_session import current_session_var, get_session, remove_session
 from app.api import agent_runner
 from app.memory import thread_store
 
@@ -19,6 +19,16 @@ class _Graph:
         if self.fail:
             raise RuntimeError(self.fail)
         return {"final_response": self.answer, "mode": "chat", "tag": {"label": self.label, "untrusted": False, "reasons": []}}
+
+
+class _FallbackGraph(_Graph):
+    """Un grafo in cui due chiamate (la stessa coppia due volte) e una terza vanno al modello locale."""
+
+    def invoke(self, state, config=None):
+        sess = current_session_var.get()
+        for reason, to in (("label", "local"), ("label", "local"), ("budget", "local2")):
+            sess.put({"type": "provider_fallback", "from": "cloud", "to": to, "reason": reason})
+        return super().invoke(state, config)
 
 
 def _collect(response) -> list:
@@ -53,6 +63,25 @@ def test_stream_saves_the_message_and_ends_with_final_and_done():
     assert graph.states[0]["thread_id"] == thread
     assert graph.states[0]["security_mode"] == "normal"
     assert "channel" not in graph.states[0] or graph.states[0]["channel"] is None
+    remove_session(thread)
+
+
+def test_stream_reports_and_saves_the_fallbacks_once_per_distinct_note():
+    thread = f"t-stream-fb-{time.time_ns()}"
+    events = _stream(_FallbackGraph(), thread)
+    expected = [{"from": "cloud", "to": "local", "reason": "label"}, {"from": "cloud", "to": "local2", "reason": "budget"}]
+    final = [e for e in events if isinstance(e, dict) and e["type"] == "final"][0]
+    assert final["response"]["fallbacks"] == expected
+    assert thread_store.get_thread_messages(thread)[-1]["fallbacks"] == expected
+    remove_session(thread)
+
+
+def test_stream_without_fallbacks_saves_none():
+    thread = f"t-stream-nofb-{time.time_ns()}"
+    events = _stream(_Graph(), thread)
+    final = [e for e in events if isinstance(e, dict) and e["type"] == "final"][0]
+    assert final["response"]["fallbacks"] is None
+    assert thread_store.get_thread_messages(thread)[-1]["fallbacks"] is None
     remove_session(thread)
 
 

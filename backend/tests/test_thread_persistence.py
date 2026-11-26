@@ -130,5 +130,17 @@ class TestThreadPersistence(unittest.TestCase):
         self.assertEqual(len(ast_msg["web_prefetch"]["sources"]), 1)
         self.assertEqual(ast_msg["web_prefetch"]["sources"][0]["url"], "https://example.com/astra")
 
+    def test_fallbacks_persistence(self):
+        thread_id = "test_thread_fallbacks_persisted"
+        thread_store.save_user_message(thread_id, "ciao")
+        notes = [{"from": "cloud", "to": "local", "reason": "label"}, {"from": "cloud", "to": "local", "reason": "budget"}]
+        thread_store.save_assistant_message(thread_id, {"response": "uno", "mode": "chat", "fallbacks": notes}, ast_msg_id="a1")
+        thread_store.save_assistant_message(thread_id, {"response": "due", "mode": "chat"}, ast_msg_id="a2")
+
+        messages = thread_store.get_thread_messages(thread_id)
+        self.assertEqual(messages[1]["fallbacks"], notes)
+        self.assertIsNone(messages[2]["fallbacks"])
+        self.assertIsNone(messages[0]["fallbacks"])
+
 if __name__ == "__main__":
     unittest.main()

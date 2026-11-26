@@ -125,5 +125,17 @@ class TestStreamSession(unittest.TestCase):
         self.assertEqual(final_metrics["llm_duration_s"], 5.3)
         self.assertEqual(final_metrics["tok_per_s"], 35.1)
 
+    def test_provider_fallbacks_are_collected_once_per_distinct_note(self):
+        sub = self.sess.subscribe()
+        note = {"type": "provider_fallback", "from": "cloud", "to": "local", "reason": "label"}
+        self.sess.put(note)
+        self.sess.put(dict(note))
+        self.sess.put({**note, "reason": "budget"})
+        self.assertEqual(sub.get_nowait()["type"], "provider_fallback")  # l'evento è inoltrato ogni volta
+        self.assertEqual(
+            self.sess.get_snapshot()["fallbacks"],
+            [{"from": "cloud", "to": "local", "reason": "label"}, {"from": "cloud", "to": "local", "reason": "budget"}],
+        )
+
 if __name__ == '__main__':
     unittest.main()

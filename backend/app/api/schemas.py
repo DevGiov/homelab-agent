@@ -46,6 +46,8 @@ class ChatResponse(BaseModel):
     thread_title: Optional[str] = None
     # Sensibilità del turno: {"label", "untrusted", "reasons"} (app.security.flows.Tag)
     sensitivity: Optional[Dict[str, Any]] = None
+    # Chiamate del turno andate al modello locale: [{"from", "to", "reason": "label" | "budget"}], senza ripetizioni
+    fallbacks: Optional[List[Dict[str, str]]] = None
     approval_required: Optional[bool] = None
     request_id: Optional[str] = None
     approval_prompt: Optional[str] = None

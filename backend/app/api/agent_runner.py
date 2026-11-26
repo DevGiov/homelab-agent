@@ -89,6 +89,7 @@ def _chat_response(final_state: dict, thread_id: str, force_mode: Optional[str],
         expires_at=final_state.get("expires_at"),
         security_mode=final_state.get("security_mode", security_mode),
         sensitivity=flows.join(final_state.get("tag")).to_dict(),
+        fallbacks=list(sess.fallbacks) or None,
     )
 
 
@@ -374,7 +375,7 @@ def run_agent_flow_stream(task: str, thread_id: Optional[str], force_mode: Optio
         sub_q = sess.subscribe()
         try:
             # Se la sessione ha già prodotto reasoning o token, invia uno snapshot di sync iniziale
-            if sess.reasoning_content or sess.partial_content or sess.is_paused():
+            if sess.reasoning_content or sess.partial_content or sess.fallbacks or sess.is_paused():
                 yield f"data: {json.dumps(sess.get_snapshot(), ensure_ascii=False)}\n\n"
 
             while True:
