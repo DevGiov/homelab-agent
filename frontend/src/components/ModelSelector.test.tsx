@@ -68,6 +68,12 @@ describe('ModelSelector: gruppi per provider', () => {
     expect(within(local).getByText('In VRAM')).toBeTruthy();
   });
 
+  it('un modello cloud non è mai "In VRAM", anche se il server lo desse caricato', () => {
+    open({ providers: [LOCAL, { ...CLOUD, models: [{ ...CLOUD.models[0], is_loaded: true }] }] });
+    expect(within(screen.getByRole('group', { name: 'AWS Bedrock' })).queryByText('In VRAM')).toBeNull();
+    expect(within(screen.getByRole('group', { name: 'llama-swap' })).getByText('In VRAM')).toBeTruthy();
+  });
+
   it('scegliere un modello dà la coppia (provider, modello)', () => {
     const { onSelect } = open();
     fireEvent.click(within(screen.getByRole('group', { name: 'AWS Bedrock' })).getByText('claude-sonnet'));

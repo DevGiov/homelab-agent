@@ -147,7 +147,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // La scelta punta a un provider che il catalogo non ha più: va detto, non cambiato di nascosto
   const isProviderGone = Boolean(selected && !selectedProvider);
   const currentDetail = selectedProvider?.models.find((m) => m.id === selectedModel);
-  const isCurrentLoaded = Boolean(currentDetail?.is_loaded);
+  // La VRAM esiste solo per i provider locali: un modello cloud non è mai "caricato"
+  const isCurrentLoaded = Boolean(selectedProvider && !selectedProvider.cloud && currentDetail?.is_loaded);
   const isCurrentLoading = Boolean(currentDetail?.is_loading || (selectedModel && loadingModels.includes(selectedModel)));
   const isCurrentBlocked = currentDetail?.available === false;
   const selectedLabel = selected ? (providers.length > 1 || isProviderGone ? `${selectedProvider?.display_name ?? selected.provider} · ${selected.model}` : selected.model) : null;
@@ -317,7 +318,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   function renderModelRow(provider: CatalogProvider, m: ModelDetail, showProvider = false) {
     const isSelected = selected?.provider === provider.name && selectedModel === m.id;
     const isFav = favorites.includes(m.id);
-    const inVram = Boolean(m.is_loaded);
+    const inVram = !provider.cloud && Boolean(m.is_loaded);
     const isLoading = Boolean(m.is_loading || loadingModels.includes(m.id));
     const isBlocked = m.available === false;
 

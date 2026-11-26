@@ -194,6 +194,12 @@ def test_models_come_from_the_configuration_without_asking_the_server(monkeypatc
     assert endpoint.requests == []
 
 
+def test_a_cloud_model_is_remote_never_loaded_in_vram(monkeypatch):
+    Endpoint(monkeypatch)
+    details = cloud(api_key="k").list_models_with_details()
+    assert {(m["status"], m["is_loaded"], m["is_loading"]) for m in details} == {("remote", False, False)}
+
+
 def test_a_cloud_provider_without_models_is_refused():
     with pytest.raises(ValueError):
         CloudOpenAIProvider(BASE_URL, [], "bedrock")

@@ -677,12 +677,13 @@ class CloudOpenAIProvider(OpenAICompatProvider):
         return True
 
     def list_models_with_details(self) -> List[Dict[str, Any]]:
+        # Un modello cloud non sta nella VRAM del homelab: `remote`, mai "caricato" (il badge "In VRAM" è dei locali)
         return [{
             "id": m,
             "is_vision": is_vision_model(m),
             "input_modalities": ["text", "image"] if is_vision_model(m) else ["text"],
-            "status": "loaded",
-            "is_loaded": True,
+            "status": "remote",
+            "is_loaded": False,
             "is_loading": False,
         } for m in self.models]
 
