@@ -43,7 +43,7 @@ Assessment del 2026-10-26. Severità: **S1** bug attivo in produzione · **S2** 
 | [ISS-37](#iss-37) | `POST /v1/chat/stop` su un turno già finito salva comunque "interrotta" | S4 | backend/api | 🟡 Aperto |
 | [ISS-38](#iss-38) | La ricerca web non porta nel contesto i prodotti che Bing non indicizza | S2 | ricerca web | 🟢 Parte nel codice fatta (2026-11-26); resta un motore in più in SearXNG |
 | [ISS-39](#iss-39) | Un'immagine sul modello Vision esaurisce la VRAM, chiude il modello e in chat compare HTTP 502 | S1 | vision / LLM | 🟢 Parte nel codice fatta (2026-11-26); resta il preset sull'host della GPU |
-| [ISS-40](#iss-40) | Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti | S1 | approvazioni | 🟡 Aperto |
+| [ISS-40](#iss-40) | Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti | S1 | approvazioni | 🟢 Fatto nel codice (2026-11-26); resta la classificazione dei server Minecraft sull'istanza |
 
 ---
 
@@ -385,3 +385,8 @@ La divisione di `normalize_proposal` (G3) non ha cambiato il comportamento: i te
 **Un'approvazione di chat scaduta risponde 404, oppure viene accettata dopo i 5 minuti** — S1
 
 - **Evidenza** (18/11/2026): `apr_fdedb771433c` è `minecraft-rcon__mc_list_players`, una lettura. Creata alle 22:33:31Z con scadenza a 300 secondi, risulta `denied` alle 22:47:51Z, quattordici minuti dopo. In chat il messaggio è «Richiesta '…' non trovata o già risolta». La conferma non nasce dal guardrail di scrittura: `minecraft-rcon` e `minecraft-bot` non sono classificati, e il default li tratta come un'uscita pubblica, quindi ogni tool chiede conferma appena il turno ha richiamato memoria privata. Dettaglio e piano: [05-USAGE-2026-11-20.md](05-USAGE-2026-11-20.md). La scheda in sé arriva con l'evento `final`; [ISS-35](#iss-35) riguarda chi si riaggancia a un turno già in pausa.
+- **Fatto il 26/11/2026** (`c5a68e5`..`ef97269`, su CT 125): il ripristino dal database usa la scadenza vera della riga; ogni percorso di risoluzione (chat, run, route delle automazioni) risponde con lo stesso contratto: 404 `not_found`, 409 `already_resolved` (con l'azione registrata), 410 `expired`; nessuna decisione viene registrata dopo `expires_at` (prima un click tardivo finiva salvato come rifiuto); la pulizia in memoria scrive `expired` anche sul database; la scadenza di chat passa da 5 a 30 minuti e la scheda la mostra ("Scade alle …"), si chiude da sola alla scadenza e, se chiusa, disabilita i pulsanti e dice perché. Verifica dal vivo: `apr_fdedb771433c` risponde 409, `apr_88fd0cd1ae11` 410 e la scheda si chiude con "Richiesta scaduta il 16 nov alle 02:38".
+- **Limite noto**: le schede salvate prima del 26/11 non hanno la scadenza, quindi mostrano i pulsanti attivi finché un click non riceve 410.
+- **Resta, al maintainer**: classificare `minecraft-rcon` e `minecraft-bot` in Impostazioni > MCP > "Sensibilità dei dati per server" (risultati `internal`, può ricevere `private`, come `proxmox-mcp`). È una scelta sul livello dei dati, quindi non la fa un agente.
+- **Proposta, non fatta**: quando la destinazione è un server MCP non classificato, il motivo della conferma lo dica ("non è classificato: vale come un'uscita pubblica, classificalo in Impostazioni > MCP").
+
