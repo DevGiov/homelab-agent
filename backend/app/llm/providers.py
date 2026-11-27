@@ -13,7 +13,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 from urllib.parse import quote
 
 import httpx
@@ -237,16 +237,71 @@ def is_vision_model(model_name: Optional[str]) -> bool:
     return bool(_VISION_VL_RE.search(m))
 
 
+# Ragionamento scritto dentro il testo: <think> (Ollama, llama.cpp senza parser) e <reasoning> (Bedrock, gpt-oss e altri)
+_INLINE_REASONING_TAGS = ("think", "reasoning")
+_INLINE_REASONING_RE = re.compile(r"<(think|reasoning)>(.*?)(?:</\1>|$)", flags=re.DOTALL | re.IGNORECASE)
+
+
 def _extract_think_blocks(content: str) -> tuple[str, str]:
-    """Estrae blocchi <think>...</think> dal content (fallback Ollama/llama.cpp)."""
+    """Estrae i blocchi <think>...</think> o <reasoning>...</reasoning> dal content: (testo, ragionamento)."""
     if not content:
         return "", ""
-    match = re.search(r"<think>(.*?)(?:</think>|$)", content, flags=re.DOTALL | re.IGNORECASE)
-    if match:
-        reasoning = match.group(1).strip()
-        content = re.sub(r"<think>.*?(?:</think>|$)", "", content, flags=re.DOTALL | re.IGNORECASE).strip()
-        return content, reasoning
-    return content, ""
+    parts = [m.group(2).strip() for m in _INLINE_REASONING_RE.finditer(content)]
+    if not parts:
+        return content, ""
+    return _INLINE_REASONING_RE.sub("", content).strip(), "\n\n".join(p for p in parts if p)
+
+
+class _InlineReasoningSplitter:
+    """Durante lo streaming separa un blocco di ragionamento all'inizio del testo (`<think>` o `<reasoning>`): le sue
+    parti escono come `reasoning`, il resto come `content`. Trattiene solo i pochi caratteri che potrebbero essere
+    l'inizio di un tag spezzato tra due chunk."""
+
+    def __init__(self):
+        self.state = "start"  # start: prima del testo; inside: nel blocco; after: testo normale
+        self.buf = ""
+        self.close = ""
+
+    def feed(self, text: str) -> List[Tuple[str, str]]:
+        self.buf += text
+        out: List[Tuple[str, str]] = []
+        while self.buf:
+            if self.state == "start":
+                stripped = self.buf.lstrip()
+                if not stripped:
+                    return out
+                match = re.match(r"<(think|reasoning)>", stripped, flags=re.IGNORECASE)
+                if match:
+                    self.state, self.close = "inside", f"</{match.group(1).lower()}>"
+                    self.buf = stripped[match.end():]
+                    continue
+                if any(f"<{t}>".startswith(stripped.lower()) for t in _INLINE_REASONING_TAGS):
+                    return out  # forse l'inizio del tag: aspetta il chunk dopo
+                self.state = "after"
+            elif self.state == "inside":
+                idx = self.buf.lower().find(self.close)
+                if idx >= 0:
+                    if idx:
+                        out.append(("reasoning", self.buf[:idx]))
+                    self.buf = self.buf[idx + len(self.close):].lstrip()
+                    self.state = "after"
+                    continue
+                keep = len(self.close) - 1
+                ready, self.buf = (self.buf[:-keep], self.buf[-keep:]) if len(self.buf) > keep else ("", self.buf)
+                if ready:
+                    out.append(("reasoning", ready))
+                return out
+            else:
+                out.append(("content", self.buf))
+                self.buf = ""
+        return out
+
+    def flush(self) -> List[Tuple[str, str]]:
+        """A fine stream: quello che era trattenuto."""
+        rest, self.buf = self.buf, ""
+        if not rest:
+            return []
+        return [("reasoning" if self.state == "inside" else "content", rest)]
 
 
 class OpenAICompatProvider(LLMProvider):
@@ -442,6 +497,22 @@ class OpenAICompatProvider(LLMProvider):
 
     def _consume_stream(self, res, stream_callback: Optional[StreamCallback], sess, start_t: float) -> Dict[str, Any]:
         content_acc, reasoning_acc = "", ""
+        # Usato solo se il server non manda `reasoning_content`: il ragionamento arriva dentro il testo
+        splitter = _InlineReasoningSplitter()
+        inline_reasoning = ""
+
+        def emit_content(c_part: str) -> None:
+            nonlocal content_acc, inline_reasoning
+            pieces = [("content", c_part)] if reasoning_acc else splitter.feed(c_part)
+            for kind, text in pieces:
+                if kind == "reasoning":
+                    inline_reasoning += text
+                    if stream_callback:
+                        stream_callback({"type": "reasoning", "delta": text})
+                else:
+                    content_acc += text
+                    if stream_callback:
+                        stream_callback({"type": "content", "delta": text})
         raw_usage = None
         timings = None
         first_token_time = None
@@ -475,14 +546,25 @@ class OpenAICompatProvider(LLMProvider):
                     if c_part:
                         if first_token_time is None:
                             first_token_time = time.time()
-                        content_acc += c_part
-                        if stream_callback:
-                            stream_callback({"type": "content", "delta": c_part})
+                        emit_content(c_part)
             except Exception as e:
                 logger.warning(f"[{self.name}] SSE parse error: {e}")
 
+        for kind, text in splitter.flush():
+            if kind == "reasoning":
+                inline_reasoning += text
+                if stream_callback:
+                    stream_callback({"type": "reasoning", "delta": text})
+            else:
+                content_acc += text
+                if stream_callback:
+                    stream_callback({"type": "content", "delta": text})
         if not reasoning_acc:
-            content_acc, reasoning_acc = _extract_think_blocks(content_acc)
+            reasoning_acc = inline_reasoning
+            # Un blocco non all'inizio del testo, o più di uno: il controllo di sempre sul testo intero
+            content_acc, extracted = _extract_think_blocks(content_acc)
+            if extracted:
+                reasoning_acc = f"{reasoning_acc}\n\n{extracted}".strip()
 
         duration_s = round(time.time() - start_t, 2)
         if timings and timings.get("predicted_per_second"):
@@ -613,6 +695,9 @@ def cloud_http_error_reason(status: int, body: str, hints: Mapping[int, str]) ->
     # Bedrock: {"message": ...}; formato OpenAI: {"error": {"message": ...}}
     error = data.get("error") if isinstance(data, dict) else None
     message = error.get("message") if isinstance(error, dict) else (data.get("message") if isinstance(data, dict) else None)
+    if message and status in (401, 403) and re.search(r"not authorized to perform|AccessDenied", str(message), re.I):
+        # Bedrock risponde 401 anche quando la credenziale è buona ma manca un permesso IAM (per esempio un profilo global.*)
+        reason = f"HTTP {status}: permesso IAM mancante per questo modello"
     return f"{reason} ({str(message)[:200]})" if message else reason
 
 

@@ -387,6 +387,49 @@ def test_http_errors_are_a_failed_result_with_a_reason_and_no_retry(monkeypatch,
     assert row["error"] == result["error"] and row["provider"] == "bedrock"
 
 
+def test_a_missing_iam_permission_is_not_called_bad_credentials(monkeypatch):
+    # Bedrock risponde 401 anche con credenziali buone quando manca il permesso sul modello (es. un profilo global.*)
+    denied = ("User: arn:aws:iam::123:user/Agent is not authorized to perform: bedrock:InvokeModel on resource: "
+              "arn:aws:bedrock:eu-central-1:123:inference-profile/global.x")
+    Endpoint(monkeypatch, lambda r: httpx.Response(401, json={"error": {"message": denied}}))
+    result = cloud(api_key="k").chat(MESSAGES, tag=PUBLIC_TAG, role="answer")
+    assert result["error"].startswith("HTTP 401: permesso IAM mancante") and "non valide" not in result["error"]
+
+
+# --- Ragionamento dentro il testo ---------------------------------------------------------------------
+
+@pytest.mark.parametrize("chunks", [
+    ["<reasoning>The user asks. Answer 5.</reasoning>5"],
+    ["<reas", "oning>The user ", "asks. Answer 5.</reas", "oning>", "5"],
+    ["  <reasoning>", "The user asks. Answer 5.", "</reasoning>\n\n", "5"],
+    ["<think>The user asks. Answer 5.</think>5"],
+])
+def test_inline_reasoning_is_split_from_the_text_while_streaming(monkeypatch, chunks):
+    Endpoint(monkeypatch, lambda r: sse(*[delta(c) for c in chunks], usage(10, 5)))
+    events = []
+    result = cloud(api_key="k").chat(MESSAGES, tag=PUBLIC_TAG, role="answer", stream_callback=events.append)
+    assert result["content"] == "5"
+    assert result["reasoning_content"] == "The user asks. Answer 5."
+    streamed = {kind: "".join(e["delta"] for e in events if e["type"] == kind) for kind in ("content", "reasoning")}
+    assert streamed["content"].strip() == "5" and "<" not in streamed["content"]
+    assert streamed["reasoning"] == "The user asks. Answer 5."
+
+
+def test_text_that_only_looks_like_a_tag_stays_text(monkeypatch):
+    Endpoint(monkeypatch, lambda r: sse(delta("<"), delta("b>grassetto</b> e <reasoning> dentro il testo"), usage(1, 1)))
+    events = []
+    result = cloud(api_key="k").chat(MESSAGES, tag=PUBLIC_TAG, role="answer", stream_callback=events.append)
+    assert "".join(e["delta"] for e in events if e["type"] == "content").startswith("<b>grassetto</b>")
+    assert result["content"].startswith("<b>grassetto</b>")
+
+
+def test_an_unclosed_reasoning_block_is_all_reasoning(monkeypatch):
+    # Risposta tagliata da max_tokens a metà del ragionamento: nessun testo, niente tag nel testo
+    Endpoint(monkeypatch, lambda r: sse(delta("<reasoning>The user says: Rep"), usage(10, 16)))
+    result = cloud(api_key="k").chat(MESSAGES, tag=PUBLIC_TAG, role="answer", stream_callback=lambda e: None)
+    assert result["content"] == "" and result["reasoning_content"] == "The user says: Rep"
+
+
 def test_a_502_with_an_image_is_not_a_gpu_memory_failure_on_the_cloud(monkeypatch):
     # La frase sulla VRAM vale per il server locale: una GPU nostra non c'entra con un 502 di Bedrock
     Endpoint(monkeypatch, lambda r: httpx.Response(502, json={"message": "Bad gateway"}))
