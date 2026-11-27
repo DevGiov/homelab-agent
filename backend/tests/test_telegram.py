@@ -234,8 +234,9 @@ def test_only_allowed_users_in_private_chats_reach_the_agent(tg, caplog):
     tg.take(message(2, tg.alice, "testo nel gruppo", chat=-100123, chat_type="group"))
     tg.take(message(3, tg.alice, "chat di un altro", chat=tg.bob))
     tg.take({"update_id": 4, "message": {"message_id": 4, "chat": {"id": tg.alice, "type": "private"}, "text": "senza mittente"}})
+    tg.take(message(7, tg.alice, "chat non privata con l'id giusto", chat_type="supergroup"))
     assert tg.graph.states == [] and tg.api.of("sendMessage") == []
-    assert tg.channel.ignored["message"] == 4
+    assert tg.channel.ignored["message"] == 5
     assert "sconosciuto" not in caplog.text and "nel gruppo" not in caplog.text  # il testo non si salva
     assert str(tg.eve) in caplog.text  # l'id sì: serve a chi configura TELEGRAM_ALLOWED_USERS
     tg.take(message(5, tg.alice, "ciao"))
@@ -274,6 +275,12 @@ def test_start_greets_and_lists_the_commands(tg):
     assert tg.api.texts() == [render.literal(telegram.START_TEXT, tg.channel.capabilities)] * 2
     assert all(c in telegram.START_TEXT for c in ("/nuova", "/stop", "/link"))
     assert tg.graph.states == []
+
+
+def test_the_fixed_texts_of_the_hub_are_escaped_for_html(tg, monkeypatch):
+    monkeypatch.setattr(settings, "web_ui_url", "https://agent.example.test/app?a=1&b=<2>")
+    tg.take(message(1, tg.alice, "/link"))
+    assert tg.api.texts() == [f"https://agent.example.test/app?a=1&amp;b=&lt;2&gt;/c/{tg.thread()}"]
 
 
 def test_nuova_stop_and_link(tg):
@@ -499,6 +506,21 @@ def test_the_token_is_only_in_the_path_sent_to_telegram(tg, caplog):
     assert tg.api.paths == [f"/bot{TOKEN}/sendMessage"]
     assert "HTTP Request: POST https://api.telegram.org/sendMessage" in caplog.text  # il log di httpx, senza token
     assert TOKEN not in caplog.text and TOKEN.split(":")[1] not in caplog.text
+
+
+def test_while_running_the_log_lines_of_the_channel_and_of_httpx_are_redacted(tg, caplog):
+    caplog.set_level(logging.DEBUG)
+    tg.channel._client = None
+    tg.channel.start()
+    try:
+        logging.getLogger("httpx").info(f"riga con /bot{TOKEN}/getUpdates")
+        logging.getLogger("channels.telegram").warning("token %s negli argomenti", TOKEN)
+    finally:
+        tg.channel.stop()
+    assert TOKEN not in caplog.text and caplog.text.count(telegram.REDACTED) == 2
+    caplog.clear()
+    logging.getLogger("httpx").info(f"dopo lo stop {TOKEN}")
+    assert TOKEN in caplog.text  # il filtro se ne va con il canale
 
 
 def test_transport_errors_never_carry_the_token(tg, caplog):
