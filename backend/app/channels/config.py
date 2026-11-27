@@ -97,7 +97,7 @@ def _confirm_telegram(before: rs.Resolved, after: rs.Resolved) -> Optional[str]:
         who = ", ".join(map(str, added))
         reasons.append(f"L'utente {who} potrà dare comandi all'agente." if len(added) == 1
                        else f"Gli utenti {who} potranno dare comandi all'agente.")
-    return " ".join(reasons) + " Serve la conferma." if reasons else None
+    return " ".join(reasons) if reasons else None  # la UI aggiunge "Confermi?"
 
 
 def _apply_telegram() -> None:
