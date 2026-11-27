@@ -334,6 +334,12 @@ body:not(.dark) {
     outline-offset: 2px;
   }
 
+  /* Dentro il fumetto dell'utente (modifica del messaggio) l'accento è vicino al fondo del fumetto (da 1.3:1 a 2.4:1):
+     l'anello prende il colore del testo del fumetto, che ogni tema tiene ad almeno 4.5:1 sul suo fondo. */
+  .in-user-bubble :focus-visible {
+    outline-color: var(--user-bubble-fg);
+  }
+
   /* Segnaposto nel colore del testo attenuato, che ogni tema tiene ad almeno 4.5:1 sulle sue superfici
      (themes.test.ts); il preflight usa un grigio fisso, illeggibile sui temi chiari. Le classi `placeholder:` non servono. */
   input::placeholder,

@@ -35,7 +35,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ message, defaults, m
   };
 
   return (
-    <div className="flex flex-col gap-2 min-w-[260px] sm:min-w-[340px] text-fg">
+    <div className="in-user-bubble flex flex-col gap-2 min-w-[260px] sm:min-w-[340px] text-fg">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
