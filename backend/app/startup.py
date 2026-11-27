@@ -13,6 +13,7 @@ from app.automations.db.schema import init_automations_db
 from app.automations.scheduler import get_scheduler
 from app.calendar.db import init_calendar_db
 from app.channels import hub as channel_hub
+from app.channels import telegram as telegram_channel
 from app.channels import threads as channel_threads
 from app.core.config import settings
 from app.llm import costs, provider_config
@@ -67,7 +68,10 @@ def start() -> None:
         get_scheduler().start()
     health.start_sampler()
     memory_consolidation.start_scheduler()
-    channel_hub.get_hub().start()
+    hub = channel_hub.get_hub()
+    # I canali configurati nel .env (senza credenziali non si registrano e non partono)
+    telegram_channel.register_configured(hub)
+    hub.start()
 
 
 def stop() -> None:
