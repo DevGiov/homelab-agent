@@ -290,7 +290,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                             {param.name}
                           </span>
                           <span
-                            className={`px-1.5 py-0.2 rounded-sm text-xs font-mono border ${getTypeBadgeClass(
+                            className={`px-1.5 py-px rounded-sm text-xs font-mono border ${getTypeBadgeClass(
                               param.type
                             )}`}
                           >

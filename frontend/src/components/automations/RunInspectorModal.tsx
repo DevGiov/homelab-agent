@@ -181,7 +181,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
           >
             Report & Artefatti
             {run.artifacts?.length ? (
-              <span className="px-1.5 py-0.2 rounded-full text-xs bg-accent/20 text-accent-text">
+              <span className="px-1.5 py-px rounded-full text-xs bg-accent/20 text-accent-text">
                 {run.artifacts.length}
               </span>
             ) : null}

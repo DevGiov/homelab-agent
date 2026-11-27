@@ -62,7 +62,7 @@ export const AutomationCardDetails: React.FC<AutomationCardDetailsProps> = ({ au
                   <span className="font-medium text-fg truncate block">{st.name}</span>
                   <span className="text-xs text-fg-muted font-mono truncate block">{st.action_or_tool || st.type}</span>
                 </div>
-                <span className="px-1.5 py-0.2 rounded-sm text-xs font-mono bg-panel-header text-fg-muted border border-border">
+                <span className="px-1.5 py-px rounded-sm text-xs font-mono bg-panel-header text-fg-muted border border-border">
                   {st.type}
                 </span>
               </div>

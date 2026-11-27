@@ -108,7 +108,7 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({ initialArtifactId,
 
   const remove = async (art: AutomationArtifact) => {
     if (art.is_preserved) {
-      alert('Questo report è protetto da cancellazione (bloccato con lucchetto). Sbloccalo prima di eliminarlo.');
+      notify('error', 'Questo report è protetto da cancellazione (bloccato con lucchetto). Sbloccalo prima di eliminarlo.');
       return;
     }
     if (!(await confirm({ message: 'Sei sicuro di voler eliminare definitivamente questo artefatto/report?' }))) return;

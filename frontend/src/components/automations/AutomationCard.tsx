@@ -87,18 +87,18 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
       }`}
     >
       <div>
-        <div className="flex items-start justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
             <h4 className="text-sm font-bold text-fg flex items-center gap-2">
               {auto.name}
-              <span className="text-xs px-2 py-0.2 rounded-full bg-accent/15 text-accent-text border border-accent/30 tabular-nums">
+              <span className="text-xs px-2 py-px rounded-full bg-accent/15 text-accent-text border border-accent/30 tabular-nums">
                 v{auto.version}
               </span>
             </h4>
-            <span className="text-xs font-mono text-fg-muted mt-0.5 block">{auto.id}</span>
+            <span className="text-xs font-mono text-fg-muted mt-0.5 block break-all">{auto.id}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isRunning ? (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent-text border border-accent/40 flex items-center gap-1.5 animate-tint-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> In Esecuzione
@@ -113,7 +113,7 @@ export const AutomationCard: React.FC<AutomationCardProps> = ({ automation: auto
               </span>
             ) : null}
 
-            <div className="flex items-center gap-2 bg-panel-header/60 px-2.5 py-1 rounded-xl border border-border/60">
+            <div className="flex shrink-0 items-center gap-2 bg-panel-header/60 px-2.5 py-1 rounded-xl border border-border/60">
               <span className={`text-xs font-semibold transition ${auto.enabled ? 'text-emerald-400' : 'text-fg-muted'}`}>
                 {auto.enabled ? 'Attiva' : 'Inattiva'}
               </span>
