@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Boxes, Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
@@ -13,8 +13,10 @@ type SettingsTab = 'general' | 'providers' | 'appearance' | 'security' | 'mcp';
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const titleId = useId();
+  const baseId = useId();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const dialogRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   useModalFocus(dialogRef, { onClose });
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: LucideIcon; iconColor?: string }> = [
@@ -25,11 +27,29 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },
   ];
 
+  const tabId = (id: SettingsTab) => `${baseId}-tab-${id}`;
+  const panelId = `${baseId}-panel`;
+
+  // Schede secondo il modello WAI-ARIA: frecce, Home e Fine spostano il focus e attivano la scheda (attivazione automatica)
+  const onTabKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const current = tabs.findIndex((t) => t.id === activeTab);
+    const next =
+      e.key === 'ArrowRight' ? (current + 1) % tabs.length
+      : e.key === 'ArrowLeft' ? (current - 1 + tabs.length) % tabs.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? tabs.length - 1
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setActiveTab(tabs[next].id);
+    tabRefs.current[next]?.focus();
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-bg/80 backdrop-blur-md transition-opacity" />
 
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-5 stack-y-4 text-fg max-h-[90vh] flex flex-col z-10">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative glass-panel border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-4 sm:p-5 stack-y-4 text-fg max-h-[90vh] flex flex-col z-10">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-fg">
             <SettingsIcon size={16} className="text-accent-text" />
@@ -40,25 +60,35 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           </button>
         </div>
 
-        <div className="flex gap-1 bg-panel/80 rounded-xl p-1 border border-border shrink-0">
-          {tabs.map(({ id, label, icon: Icon, iconColor }) => {
+        {/* Sotto sm una griglia a 3 colonne (icona sopra, etichetta sotto): 5-6 schede stanno anche a 320 px senza scorrere; da sm una riga sola */}
+        <div role="tablist" aria-label="Sezioni delle impostazioni" onKeyDown={onTabKeyDown} className="grid grid-cols-3 gap-1 sm:flex bg-panel/80 rounded-xl p-1 border border-border shrink-0">
+          {tabs.map(({ id, label, icon: Icon, iconColor }, i) => {
             const isActive = activeTab === id;
             return (
               <button
                 key={id}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
+                type="button"
+                role="tab"
+                id={tabId(id)}
+                aria-selected={isActive}
+                aria-controls={panelId}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                className={`min-w-0 sm:flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-1.5 rounded-lg text-[11px] sm:text-xs leading-tight font-semibold transition cursor-pointer ${
                   isActive ? 'bg-accent text-accent-contrast shadow-xs shadow-accent/25' : 'text-fg-muted hover:text-fg'
                 }`}
               >
-                <Icon size={13} className={isActive ? 'text-accent-contrast' : iconColor} />
-                {label}
+                <Icon size={13} className={`shrink-0 ${isActive ? 'text-accent-contrast' : iconColor ?? ''}`} />
+                <span className="max-w-full truncate">{label}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="flex-1 overflow-y-auto stack-y-4 pr-1 custom-scrollbar">
+        <div role="tabpanel" id={panelId} aria-labelledby={tabId(activeTab)} className="flex-1 overflow-y-auto stack-y-4 pr-1 custom-scrollbar">
           {activeTab === 'general' && <GeneralTab onSaved={onClose} />}
           {activeTab === 'providers' && <ProvidersTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
