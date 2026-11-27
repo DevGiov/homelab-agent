@@ -214,12 +214,12 @@ export const EventModal: React.FC<EventModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-panel-header/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
+        <div className="px-4 sm:px-6 py-4 border-b border-border/50 flex items-center justify-between gap-2 bg-panel-header/50">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
               <CalIcon size={18} />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 id={titleId} className="font-semibold text-base text-fg">
                 {eventToEdit ? 'Modifica Evento' : 'Nuovo Evento'}
               </h2>
@@ -230,7 +230,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel-hover rounded-lg transition"
+            className="p-1.5 shrink-0 text-fg-muted hover:text-fg hover:bg-panel-hover rounded-lg transition"
             title="Chiudi"
           >
             <X size={18} />
@@ -238,7 +238,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         </div>
 
         {/* Modal Body / Form */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto stack-y-4 flex-1">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto stack-y-4 flex-1">
           {error && (
             <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-xl flex items-start gap-2.5 text-xs text-rose-300">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
@@ -270,7 +270,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Calendario & Categoria */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 *:min-w-0">
             <div>
               <label htmlFor={`${fieldId}-calendar`} className="block text-xs font-medium text-fg/90 mb-1.5">
                 Calendario
@@ -325,7 +325,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Date & Orari */}
           <div className="p-3.5 bg-panel-header/40 border border-border/60 rounded-xl stack-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 *:min-w-0">
               <div>
                 <label htmlFor={`${fieldId}-start`} className="block text-xs font-medium text-fg/90 mb-1 flex items-center gap-1">
                   <Clock size={12} /> {allDay ? 'Data' : 'Inizio'}
@@ -337,7 +337,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   onChange={e => setDtstart(e.target.value)}
                   required
                   style={{ colorScheme: 'dark' }}
-                  className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:border-accent transition"
+                  className="w-full min-w-0 px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:border-accent transition"
                 />
               </div>
 
@@ -379,7 +379,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                       value={dtend}
                       onChange={e => setDtend(e.target.value)}
                       style={{ colorScheme: 'dark' }}
-                      className="w-full px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:border-accent transition"
+                      className="w-full min-w-0 px-3 py-2 bg-input-bg text-fg border border-input-border rounded-lg text-xs focus:border-accent transition"
                     />
                   )}
                 </div>
@@ -418,7 +418,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-2 border-t border-border/40 flex items-center justify-between gap-2">
+          <div className="pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-2">
             {eventToEdit ? (
               <button
                 type="button"

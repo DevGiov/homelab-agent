@@ -385,7 +385,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, canStoreSe
             <SpendCeiling scope={provider.name} label="Tetto mensile ($)" costs={costs} onChanged={onChanged} notify={notify} />
           </div>
 
-          <div className="flex justify-end border-t border-border pt-3">
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
             {provider.origin === 'ui' ? (
               <button
                 type="button"

@@ -99,19 +99,19 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-bg/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full max-w-4xl max-h-[90vh] bg-panel border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg">
         {/* Header */}
-        <div className="p-5 border-b border-border flex items-center justify-between bg-panel-header/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-text">
+        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-2 bg-panel-header/50">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-text">
               <Layers size={20} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 id={titleId} className="text-base font-semibold text-fg">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 id={titleId} className="text-base font-semibold text-fg break-all">
                   Run: <span className="font-mono">{run.run_id}</span>
                 </h2>
                 {getStatusBadge(run.status, run.is_dry_run)}
               </div>
-              <p className="text-xs text-fg-muted mt-0.5">
+              <p className="text-xs text-fg-muted mt-0.5 break-words">
                 Automazione: <span className="font-semibold text-fg">{run.automation_id}</span> • Trigger:{' '}
                 <span>{triggerLabel(run.trigger_type)}</span>
               </p>
@@ -121,14 +121,14 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="p-2 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
+            className="p-2 shrink-0 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Quick Stats Bar */}
-        <div className="grid grid-cols-4 gap-2 p-4 bg-bg/40 border-b border-border text-center text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 sm:p-4 bg-bg/40 border-b border-border text-center text-xs">
           <div className="p-2 rounded-lg bg-panel border border-border/50">
             <span className="text-fg-muted block mb-1">Stato</span>
             <span className="font-semibold text-fg uppercase">{run.status}</span>
@@ -160,10 +160,10 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-border px-5 bg-panel-header/30">
+        <div className="flex border-b border-border px-2 sm:px-5 bg-panel-header/30">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`py-2.5 px-4 text-xs font-medium border-b-2 transition ${
+            className={`flex-1 sm:flex-none py-2.5 px-2 sm:px-4 text-xs font-medium border-b-2 transition ${
               activeTab === 'timeline'
                 ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
@@ -173,7 +173,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('artifacts')}
-            className={`py-2.5 px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
+            className={`flex-1 sm:flex-none justify-center py-2.5 px-2 sm:px-4 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'artifacts'
                 ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
@@ -188,7 +188,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('raw')}
-            className={`py-2.5 px-4 text-xs font-medium border-b-2 transition ${
+            className={`flex-1 sm:flex-none py-2.5 px-2 sm:px-4 text-xs font-medium border-b-2 transition ${
               activeTab === 'raw'
                 ? 'border-accent text-accent-text'
                 : 'border-transparent text-fg-muted hover:text-fg'
@@ -199,7 +199,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
         </div>
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-5 stack-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 stack-y-4">
           {/* TAB 1: Step Timeline */}
           {activeTab === 'timeline' && (
             <div className="stack-y-3">
@@ -217,17 +217,17 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                     >
                       <div
                         onClick={() => toggleStep(sr.step_run_id)}
-                        className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-panel/60 select-none"
+                        className="p-3.5 flex items-center justify-between gap-2 cursor-pointer hover:bg-panel/60 select-none"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-full bg-accent/15 text-accent-text text-xs flex items-center justify-center font-bold">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-6 h-6 shrink-0 rounded-full bg-accent/15 text-accent-text text-xs flex items-center justify-center font-bold">
                             {idx + 1}
                           </span>
-                          <div>
-                            <h3 className="text-xs font-semibold text-fg">
+                          <div className="min-w-0">
+                            <h3 className="text-xs font-semibold text-fg break-words">
                               Step: {sr.step_id}
                             </h3>
-                            <span className="text-xs text-fg-muted flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-fg-muted flex flex-wrap items-center gap-x-2 mt-0.5">
                               <span>Tentativo {sr.attempt}</span>
                               {sr.tokens_consumed > 0 && (
                                 <span>• {sr.tokens_consumed} token</span>
@@ -236,7 +236,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                           {getStatusBadge(sr.status, false)}
                           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         </div>
@@ -246,7 +246,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                       {isExpanded && (
                         <div className="p-4 border-t border-border bg-panel/30 stack-y-3 text-xs">
                           {sr.error_message && (
-                            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300">
+                            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300 break-words">
                               <span className="font-semibold block mb-1">Errore:</span>
                               {sr.error_message}
                             </div>
@@ -309,17 +309,17 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                     key={art.artifact_id}
                     className="border border-border rounded-xl bg-bg/40 p-4 stack-y-3"
                   >
-                    <div className="flex items-center justify-between pb-2 border-b border-border/60">
-                      <div className="flex items-center gap-2">
-                        <FileText size={16} className="text-accent-text" />
-                        <h3 className="text-xs font-semibold text-fg">{art.title}</h3>
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <FileText size={16} className="text-accent-text shrink-0" />
+                        <h3 className="text-xs font-semibold text-fg break-words min-w-0">{art.title}</h3>
                         <span className="text-xs px-2 py-0.5 rounded-sm bg-panel border border-border text-fg-muted uppercase">
                           {art.type}
                         </span>
                       </div>
                       <button
                         onClick={() => copyToClipboard(art.content || '', art.artifact_id)}
-                        className="px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-panel rounded-sm flex items-center gap-1 transition"
+                        className="px-2 py-1 shrink-0 text-xs text-fg-muted hover:text-fg hover:bg-panel rounded-sm flex items-center gap-1 transition"
                         title="Copia Markdown"
                       >
                         {copiedArtifactId === art.artifact_id ? (
@@ -334,7 +334,7 @@ export const RunInspectorModal: React.FC<RunInspectorModalProps> = ({
                       </button>
                     </div>
 
-                    <div className="prose prose-invert prose-xs max-w-none bg-panel/40 p-4 rounded-lg border border-border/50 max-h-96 overflow-y-auto">
+                    <div className="prose prose-invert prose-xs max-w-none bg-panel/40 p-3 sm:p-4 rounded-lg border border-border/50 max-h-96 overflow-y-auto">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {art.content || '(Nessun contenuto disponibile)'}
                       </ReactMarkdown>

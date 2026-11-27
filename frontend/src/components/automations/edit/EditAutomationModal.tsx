@@ -97,15 +97,15 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-panel border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel-header/40 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 border border-accent/20 rounded-xl text-accent-text">
+        <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-2 bg-panel-header/40 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 shrink-0 bg-accent/10 border border-accent/20 rounded-xl text-accent-text">
               <Sliders size={20} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h2 id={titleId} className="text-base font-bold text-fg">Modifica Automazione</h2>
-                <span className="font-mono text-xs px-2 py-0.5 bg-panel border border-border rounded-md text-fg-muted">{automation.id}</span>
+                <span className="font-mono text-xs px-2 py-0.5 bg-panel border border-border rounded-md text-fg-muted break-all">{automation.id}</span>
                 <span className="text-xs font-semibold px-2 py-0.5 bg-accent/15 text-accent-text rounded-full border border-accent/30">
                   v{automation.version || 1}
                 </span>
@@ -113,12 +113,12 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
               <p className="text-xs text-fg-muted mt-0.5">Modifica descrizione, step della pipeline e budget per aggiornare il comportamento del workflow.</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Chiudi" className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="p-1.5 shrink-0 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition cursor-pointer">
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-6 pt-2 border-b border-border flex items-center gap-2 bg-panel-header/20 overflow-x-auto shrink-0">
+        <div className="px-4 sm:px-6 pt-2 border-b border-border flex flex-wrap items-center gap-x-2 bg-panel-header/20 shrink-0">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -132,7 +132,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
           ))}
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 stack-y-5">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 stack-y-5">
           {errorMsg && (
             <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
               <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-400" />
@@ -160,7 +160,7 @@ export const EditAutomationModal: React.FC<EditAutomationModalProps> = ({ automa
           )}
         </div>
 
-        <div className="px-6 py-3.5 border-t border-border flex items-center justify-end gap-2.5 bg-panel-header/40 shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 border-t border-border flex items-center justify-end gap-2.5 bg-panel-header/40 shrink-0">
           <button
             type="button"
             onClick={onClose}

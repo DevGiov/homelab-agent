@@ -225,19 +225,19 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-200">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-xl bg-panel border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="p-4 border-b border-border bg-panel-header/50 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
+        <div className="p-4 border-b border-border bg-panel-header/50 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-text">
               <Sliders size={16} />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 id={titleId} className="text-sm font-bold text-fg">
                   {mode === 'run' ? 'Esegui con Parametri' : 'Configura Parametri'}
                 </h2>
                 {isLoading && <RefreshCw size={12} className="animate-spin text-accent-text" />}
               </div>
-              <p className="text-xs text-fg-muted">{automation.name} (<span className="font-mono">{automation.id}</span>)</p>
+              <p className="text-xs text-fg-muted break-words">{automation.name} (<span className="font-mono break-all">{automation.id}</span>)</p>
             </div>
           </div>
 
@@ -245,14 +245,14 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="p-1.5 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
+            className="p-1.5 shrink-0 text-fg-muted hover:text-fg hover:bg-panel rounded-lg transition"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto stack-y-5 text-xs">
+        <div className="p-4 sm:p-5 overflow-y-auto stack-y-5 text-xs">
           <div className="p-3 rounded-xl bg-bg/50 border border-border/60 flex items-start gap-2 text-xs text-fg-muted">
             <Info size={14} className="text-accent-text shrink-0 mt-0.5" />
             <span>
@@ -265,7 +265,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
           {/* Section 1: Detected Parameters from Introspection */}
           {detectedParamsList.length > 0 && (
             <div className="stack-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
                 <label className="text-xs font-semibold text-fg flex items-center gap-1.5">
                   <Code2 size={13} className="text-accent-text" />
                   Parametri Rilevati dal Workflow ({detectedParamsList.length})
@@ -284,9 +284,9 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                       key={param.name}
                       className="p-3 rounded-xl bg-bg border border-border/80 stack-y-1.5 hover:border-accent/30 transition"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-accent-text font-semibold">
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <span className="font-mono text-xs text-accent-text font-semibold break-all">
                             {param.name}
                           </span>
                           <span
@@ -298,7 +298,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                           </span>
                         </div>
                         {param.default !== undefined && param.default !== null && (
-                          <span className="text-xs text-fg-muted font-mono">
+                          <span className="text-xs text-fg-muted font-mono break-all">
                             predefinito: {String(param.default)}
                           </span>
                         )}
@@ -391,7 +391,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                         {item.key}
                       </span>
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <input
                         type="text"
                         value={item.value}
@@ -402,7 +402,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     </div>
                     <button
                       onClick={() => handleRemoveParam(idx)}
-                      className="p-1 text-fg-muted hover:text-rose-400 rounded-lg transition"
+                      className="p-1 shrink-0 text-fg-muted hover:text-rose-400 rounded-lg transition"
                       title="Rimuovi parametro"
                     >
                       <Trash2 size={13} />
@@ -413,20 +413,20 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             )}
 
             {/* Add parameter row */}
-            <div className="pt-2 flex items-center gap-2">
+            <div className="pt-2 flex flex-wrap items-center gap-2">
               <input
                 type="text"
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder="Nuova chiave (es. query)"
-                className="w-1/3 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
+                className="w-full sm:w-1/3 min-w-0 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
               />
               <input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 placeholder="Valore..."
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
+                className="flex-1 basis-32 min-w-0 px-2.5 py-1.5 rounded-lg bg-bg border border-border text-fg text-xs font-mono focus:border-accent"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddParam();
                 }}
@@ -435,7 +435,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="button"
                 onClick={handleAddParam}
                 disabled={!newKey.trim()}
-                className="px-3 py-1.5 bg-panel border border-border hover:border-accent/50 text-fg rounded-lg text-xs font-medium flex items-center gap-1 transition disabled:opacity-50"
+                className="px-3 py-1.5 shrink-0 bg-panel border border-border hover:border-accent/50 text-fg rounded-lg text-xs font-medium flex items-center gap-1 transition disabled:opacity-50"
               >
                 <Plus size={13} /> Aggiungi
               </button>
@@ -444,9 +444,9 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
 
           {/* Mode-specific Run Options */}
           {mode === 'run' && (
-            <div className="p-3 rounded-xl bg-panel border border-border/80 flex items-center justify-between mt-4">
-              <div className="flex items-center gap-2">
-                <Shield size={16} className="text-purple-400" />
+            <div className="p-3 rounded-xl bg-panel border border-border/80 flex items-center justify-between gap-3 mt-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Shield size={16} className="text-purple-400 shrink-0" />
                 <div>
                   <span className="text-xs font-medium text-fg block">Esegui in modalità Dry-Run</span>
                   <span className="text-xs text-fg-muted">Simula i passaggi senza apportare modifiche o side effect</span>
@@ -457,14 +457,14 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 type="checkbox"
                 checked={isDryRun}
                 onChange={(e) => setIsDryRun(e.target.checked)}
-                className="rounded-sm border-border cursor-pointer w-4 h-4"
+                className="rounded-sm border-border cursor-pointer w-4 h-4 shrink-0"
               />
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border bg-panel-header/30 flex items-center justify-between">
+        <div className="p-4 border-t border-border bg-panel-header/30 flex flex-wrap items-center justify-between gap-2">
           <button
             onClick={onClose}
             className="px-3 py-1.5 text-xs text-fg-muted hover:text-fg transition"

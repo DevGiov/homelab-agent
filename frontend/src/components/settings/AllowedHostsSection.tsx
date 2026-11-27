@@ -105,7 +105,7 @@ export const AllowedHostsSection: React.FC = () => {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
         <div className="flex items-center gap-2">
           <Globe size={15} className="text-accent-text" />
           <h3 className="text-xs font-semibold text-fg">Host ammessi per le richieste web</h3>
@@ -164,7 +164,7 @@ export const AllowedHostsSection: React.FC = () => {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs font-semibold text-fg">{item.host}</span>
+                    <span className="font-mono text-xs font-semibold text-fg break-all">{item.host}</span>
                     <span
                       className={`px-1.5 py-0.5 rounded-sm text-xs font-medium border ${
                         ORIGIN_BADGES[item.origin] || 'bg-bg/60 border-border text-fg-muted'

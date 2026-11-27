@@ -144,7 +144,7 @@ export const ModelDiscovery: React.FC<Props> = ({ provider, kind, getDraft, curr
                     <li key={m.id}>
                       <label className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg cursor-pointer">
                         <input type="checkbox" checked={checked.has(m.id)} onChange={() => toggle(m.id)} aria-label={m.id} className="accent-accent" />
-                        <span className="font-mono">{m.id}</span>
+                        <span className="font-mono break-all">{m.id}</span>
                         {m.name !== m.id && <span className="text-fg-muted">{m.name}</span>}
                         {m.vendor && <span className="text-fg-muted">· {m.vendor}</span>}
                         {m.vision && (

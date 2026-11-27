@@ -149,7 +149,7 @@ export const ModelPrices: React.FC<PricesProps> = ({ provider, models, costs, on
         const valid = PRICE_FIELDS.every(({ key }, i) => draft[key].trim() !== '' && Number.isFinite(numbers[i]) && numbers[i] >= 0);
         return (
           <div key={model} className="flex flex-wrap items-end gap-2 p-2 rounded-lg border border-border bg-bg/40" role="group" aria-label={`Prezzo di ${model}`}>
-            <span className="font-mono text-xs text-fg min-w-[8rem] self-center">{model}</span>
+            <span className="font-mono text-xs text-fg min-w-[8rem] break-all self-center">{model}</span>
             {PRICE_FIELDS.map(({ key, label }) => (
               <label key={key} className="text-xs text-fg-muted">
                 {label}

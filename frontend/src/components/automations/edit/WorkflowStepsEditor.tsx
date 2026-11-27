@@ -99,21 +99,21 @@ export const WorkflowStepsEditor: React.FC<WorkflowStepsEditorProps> = ({ steps,
 
       <div className="stack-y-3">
         {steps.map((step, idx) => (
-          <div key={step.step_id} className="p-4 bg-panel-header/20 border border-border/70 rounded-xl stack-y-3">
-            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-accent/15 text-accent-text text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+          <div key={step.step_id} className="p-3 sm:p-4 bg-panel-header/20 border border-border/70 rounded-xl stack-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-accent/15 text-accent-text text-xs font-bold flex items-center justify-center">{idx + 1}</span>
                 <input
                   type="text"
                   value={step.name}
                   onChange={(e) => update(idx, { ...step, name: e.target.value })}
-                  className="font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent px-1 py-0.5"
+                  className="min-w-0 flex-1 basis-32 font-semibold text-xs text-fg bg-transparent border-b border-dashed border-border hover:border-accent focus:border-accent px-1 py-0.5"
                   placeholder="Nome dello step"
                 />
-                <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded-sm border border-border">{step.step_id}</span>
+                <span className="text-xs font-mono text-fg-muted bg-panel px-1.5 py-0.5 rounded-sm border border-border break-all">{step.step_id}</span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="p-1 text-fg-muted hover:text-fg disabled:opacity-30 rounded-sm hover:bg-panel" title="Sposta in alto">
                   <ChevronUp size={13} />
                 </button>

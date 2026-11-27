@@ -136,7 +136,7 @@ export const SecurityTab: React.FC = () => {
       )}
 
       <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex items-center gap-2">
             <Shield size={15} className="text-accent-text" />
             <h3 className="text-xs font-semibold text-fg">Modalità di rischio e conferme umane</h3>
@@ -174,7 +174,7 @@ export const SecurityTab: React.FC = () => {
       </div>
 
       <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex items-center gap-2">
             <ShieldAlert size={15} className="text-rose-400" />
             <h3 className="text-xs font-semibold text-fg">Livello 1: guardrail deterministici (automatici)</h3>
@@ -202,12 +202,12 @@ export const SecurityTab: React.FC = () => {
       <DataExitsSection />
 
       <div className="stack-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-emerald-400" />
             <h3 className="text-xs font-semibold text-fg">Livello 2: permessi accordati ai tool (conferma umana)</h3>
           </div>
-          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna permessi">
+          <button onClick={load} disabled={loading} className="p-1 shrink-0 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna permessi">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>

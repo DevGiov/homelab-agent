@@ -103,7 +103,7 @@ export const McpFlowsSection: React.FC<{ tools: MCPTool[]; notify: Notify }> = (
       <div className="stack-y-1.5">
         {scopes.map((scope) => (
           <div key={scope} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2 rounded-lg border border-border bg-bg/40">
-            <span className="font-mono text-xs text-fg min-w-[8rem]">{scope}</span>
+            <span className="font-mono text-xs text-fg min-w-[8rem] break-all">{scope}</span>
             {loaded && !saved[scope] && <span className="text-xs text-amber-300">non classificato</span>}
             <label className="flex items-center gap-1 text-xs text-fg-muted">
               Risultati {levelSelect(scope, 'result_label', 'Etichetta dei risultati')}
