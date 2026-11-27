@@ -22,8 +22,9 @@ const badge = 'px-1.5 py-0.5 rounded-sm text-xs font-medium border flex items-ce
 /** Perché il canale è fermo, in ordine: la scelta dell'utente, poi quello che manca. `null` se non c'è un motivo da dire. */
 function stoppedReason(settings: ChannelSettings): string | null {
   const t = settings.telegram;
-  if (!t.enabled.value) return 'disattivato';
+  // Senza token l'interruttore resta spento da solo: il motivo vero è il token
   if (!t.secrets.bot_token.set) return 'manca il token';
+  if (!t.enabled.value) return 'disattivato';
   if (t.allowed_users.value.length === 0) return 'nessun utente ammesso';
   return null;
 }

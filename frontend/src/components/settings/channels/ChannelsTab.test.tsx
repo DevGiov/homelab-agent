@@ -115,6 +115,12 @@ describe('scheda Canali: stato di Telegram', () => {
     expect(status()).toBe('fermo: manca il token');
   });
 
+  it('senza token dice il token anche se l\'interruttore è spento', async () => {
+    setup({ settings: variant({ telegram: { enabled: { value: false, source: 'default' }, secrets: { bot_token: { set: false, source: null } }, status: stopped } }) });
+    await ready();
+    expect(status()).toBe('fermo: manca il token');
+  });
+
   it('fermo: disattivato', async () => {
     setup({ settings: variant({ telegram: { enabled: { value: false, source: 'ui' }, status: stopped } }) });
     await ready();
