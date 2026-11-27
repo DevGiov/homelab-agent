@@ -3,6 +3,7 @@
 ## Development Status & Code Principles
 - **Active 'Dev' Stage**: We are in active development on the `dev` branch; `main` receives the releases. The maintainer runs one live instance of `dev`, which acts as the real test environment (see "This repository and the installation").
 - **Clean Architecture & No Legacy Code**: Focus on high-quality, modern, well-structured code. **Avoid legacy code or backward-compatibility layers when they are not strictly necessary**. Do not accumulate obsolete shims or technical debt.
+- **Settings changeable from the Web UI** (maintainer, 2026-11-27): when possible, a setting is changed from the Web UI while the service runs, with `backend/.env` as the base value field by field; settings that need a restart say so in the UI. Only bootstrap and protection settings stay `.env`-only (API key, CORS, paths). A new setting is classified in [docs/settings/RUNTIME_SETTINGS_DESIGN.md](docs/settings/RUNTIME_SETTINGS_DESIGN.md#2-inventario) when it is added.
 - **Breaking Changes Allowed**: Breaking changes are completely permitted whenever they improve code quality, simplicity, or system architecture. You are free to modify contracts, re-deploy services, rebuild containers, and completely wipe/reset legacy databases (e.g. SQLite databases) without hesitation in Dev.
 
 ## This repository and the installation

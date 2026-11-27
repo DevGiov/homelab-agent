@@ -142,6 +142,17 @@ Provider cloud (prima AWS Bedrock, poi OpenRouter), costo di ogni chiamata, tett
 | P5 | **Preferenza per ruolo** (il cloud pianifica, il locale legge) | Solo se P3 lo giustifica |
 
 
+## Fase R — Impostazioni dalla Web UI
+
+Le impostazioni si cambiano dalla Web UI mentre il servizio gira, con il `.env` come valore di base (decisione del maintainer del 27/11/2026). Design: [RUNTIME_SETTINGS_DESIGN.md](../settings/RUNTIME_SETTINGS_DESIGN.md).
+
+| # | Passo | Note |
+| :--- | :--- | :--- |
+| R1 | **Canali**: modulo generico, Telegram dalla UI (token, utenti ammessi, livello, prova del bot), riavvio a caldo del canale, scheda "Canali" | In costruzione dal 27/11 |
+| R2 | **Ricerca web, limiti dell'agente, watchdog, Firecracker, metriche, scheduler** | |
+| R3 | **MetaMCP** con riconnessione | |
+
+
 ## Fase C — Canali di interazione
 
 Raggiungere l'agente fuori dalla Web UI (Telegram per primo) e permettergli di scrivere per primo, con la regola di sensibilità su tutto ciò che esce verso un canale. Design e decisioni: [CHANNELS_DESIGN.md](../channels/CHANNELS_DESIGN.md).
