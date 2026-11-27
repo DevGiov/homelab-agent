@@ -24,6 +24,18 @@ const FLOW_TEXT: Record<string, string> = {
   lowered: 'livello abbassato',
 };
 
+type ExitCountKey = 'allow' | 'clean' | 'ask' | 'approved' | 'deny';
+
+const EXIT_COLUMNS: Array<{ key: ExitCountKey; label: string; accent?: boolean }> = [
+  { key: 'allow', label: 'Consentite' },
+  { key: 'clean', label: 'Riscritte' },
+  { key: 'ask', label: 'Conferme', accent: true },
+  { key: 'approved', label: 'Autorizzate' },
+  { key: 'deny', label: 'Bloccate' },
+];
+
+const exitCount = (d: DataExitSummary['destinations'][number], key: ExitCountKey) => d[key] ?? 0;
+
 /** Quanto spesso il controllo delle uscite di dati interviene: per destinazione, e le ultime richieste di conferma. */
 export const DataExitsSection: React.FC = () => {
   const [hours, setHours] = useState(168);
@@ -110,7 +122,23 @@ export const DataExitsSection: React.FC = () => {
             <span className="text-amber-300">{totals.ask} conferme chieste</span> · {totals.approved} autorizzate dopo una conferma ·{' '}
             {totals.deny} bloccate
           </div>
-          <div className="overflow-x-auto">
+          {/* Sotto sm ogni destinazione è una scheda impilata (la tabella a sei colonne scorrerebbe in orizzontale); da sm la tabella */}
+          <ul aria-label="Uscite per destinazione" className="stack-y-1.5 sm:hidden">
+            {destinations.map((d) => (
+              <li key={d.destination} className="rounded-lg border border-border/60 bg-bg/40 px-2.5 py-1.5" title={d.destination}>
+                <div className="text-xs font-medium text-fg break-words">{describeDestination(d.destination)}</div>
+                <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                  {EXIT_COLUMNS.map(({ key, label, accent }) => (
+                    <div key={key} className="flex items-baseline justify-between gap-2">
+                      <dt className="text-fg-muted">{label}</dt>
+                      <dd className={`tabular-nums ${accent ? 'text-amber-300' : 'text-fg'}`}>{exitCount(d, key)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-fg-muted text-left">
@@ -154,7 +182,7 @@ export const DataExitsSection: React.FC = () => {
                 <span className="text-fg-muted">{describeDestination(e.destination)}</span>
               )}
               {isLevel(e.label) && (e.flow === 'lowered' ? <span>a {LABEL_NAMES[e.label].toLowerCase()}</span> : <SensitivityChip tag={{ label: e.label }} always />)}
-              {e.summary && <span className="font-mono text-fg-muted truncate max-w-[20rem]" title={e.summary}>{e.summary}</span>}
+              {e.summary && <span className="font-mono text-fg-muted truncate max-w-full sm:max-w-[20rem]" title={e.summary}>{e.summary}</span>}
             </div>
           ))}
         </div>

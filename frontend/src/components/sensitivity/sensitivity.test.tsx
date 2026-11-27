@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsonResponse, mockBackend } from '../../test/backend';
 import { InlineApprovalCard } from '../InlineApprovalCard';
@@ -243,6 +243,36 @@ describe('uscite di dati', () => {
     expect(screen.getByText('livello abbassato')).toBeTruthy();
     expect(screen.getByText('fatto')).toBeTruthy();
     expect(screen.getByText('fatto #206: private → public')).toBeTruthy();
+  });
+});
+
+describe('uscite di dati su telefono', () => {
+  it('sotto sm ogni destinazione è una scheda con coppie etichetta-valore; la tabella resta da sm', async () => {
+    const { DataExitsSection } = await import('../settings/DataExitsSection');
+    mockBackend({
+      'GET /v1/security/flows': () =>
+        jsonResponse({
+          hours: 168,
+          destinations: [
+            { destination: 'search:web', allow: 7, clean: 3, ask: 2, approved: 1, deny: 4, lowered: 0, labels: { public: 10 } },
+            { destination: 'thread', allow: 0, ask: 0, approved: 0, deny: 0, lowered: 1, labels: { public: 1 } },
+          ],
+          recent: [],
+        }),
+    });
+    render(<DataExitsSection />);
+    const list = await screen.findByRole('list', { name: 'Uscite per destinazione' });
+    expect(list.className.split(/\s+/)).toContain('sm:hidden');
+    const cards = within(list).getAllByRole('listitem');
+    expect(cards).toHaveLength(1);
+    const card = within(cards[0]);
+    expect(card.getByText('la ricerca web (motori pubblici)')).toBeTruthy();
+    const pairs = Array.from(cards[0].querySelectorAll('dt')).map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]);
+    expect(pairs).toEqual([['Consentite', '7'], ['Riscritte', '3'], ['Conferme', '2'], ['Autorizzate', '1'], ['Bloccate', '4']]);
+
+    const table = screen.getByRole('table');
+    expect(table.parentElement?.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'sm:block']));
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Destinazione', 'Consentite', 'Riscritte', 'Conferme', 'Autorizzate', 'Bloccate']);
   });
 });
 
