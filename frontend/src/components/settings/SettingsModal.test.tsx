@@ -7,12 +7,13 @@ vi.mock('./providers/ProvidersTab', () => ({ ProvidersTab: () => <div>contenuto 
 vi.mock('./AppearanceTab', () => ({ AppearanceTab: () => <div>contenuto aspetto</div> }));
 vi.mock('./SecurityTab', () => ({ SecurityTab: () => <div>contenuto sicurezza</div> }));
 vi.mock('./mcp/McpTab', () => ({ McpTab: () => <div>contenuto mcp</div> }));
+vi.mock('./channels/ChannelsTab', () => ({ ChannelsTab: () => <div>contenuto canali</div> }));
 
 import { SettingsModal } from './SettingsModal';
 
 afterEach(cleanup);
 
-const NAMES = ['Generale', 'Provider', 'Aspetto', 'Sicurezza', 'Server MCP'];
+const NAMES = ['Generale', 'Provider', 'Aspetto', 'Sicurezza', 'Server MCP', 'Canali'];
 
 describe('schede delle impostazioni', () => {
   it('sono una tablist con nome; la scheda attiva è selezionata e collegata al pannello', () => {
@@ -21,8 +22,8 @@ describe('schede delle impostazioni', () => {
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => t.textContent)).toEqual(NAMES);
     expect(list.contains(tabs[0])).toBe(true);
-    expect(tabs.map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false']);
-    expect(tabs.map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    expect(tabs.map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false']);
+    expect(tabs.map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
 
     const panel = screen.getByRole('tabpanel');
     expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0].id);
@@ -40,6 +41,13 @@ describe('schede delle impostazioni', () => {
     expect(screen.queryByText('contenuto generale')).toBeNull();
   });
 
+  it('la scheda Canali mostra il suo contenuto', () => {
+    render(<SettingsModal onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Canali' }));
+    expect(screen.getByText('contenuto canali')).toBeTruthy();
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(screen.getByRole('tab', { name: 'Canali' }).id);
+  });
+
   it('frecce, Home e Fine spostano focus e scheda, con ritorno al capo opposto', () => {
     render(<SettingsModal onClose={() => {}} />);
     const tab = (name: string) => screen.getByRole('tab', { name });
@@ -54,14 +62,14 @@ describe('schede delle impostazioni', () => {
     expect(screen.getByText('contenuto provider')).toBeTruthy();
 
     press('End');
-    expect(document.activeElement).toBe(tab('Server MCP'));
-    expect(screen.getByText('contenuto mcp')).toBeTruthy();
+    expect(document.activeElement).toBe(tab('Canali'));
+    expect(screen.getByText('contenuto canali')).toBeTruthy();
 
     press('ArrowRight');
     expect(document.activeElement).toBe(tab('Generale'));
 
     press('ArrowLeft');
-    expect(document.activeElement).toBe(tab('Server MCP'));
+    expect(document.activeElement).toBe(tab('Canali'));
 
     press('Home');
     expect(document.activeElement).toBe(tab('Generale'));

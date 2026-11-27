@@ -1,14 +1,15 @@
 import React, { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Boxes, Cpu, Palette, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
+import { Boxes, Cpu, Palette, Send, Server, Settings as SettingsIcon, Shield, X, type LucideIcon } from 'lucide-react';
 import { AppearanceTab } from './AppearanceTab';
+import { ChannelsTab } from './channels/ChannelsTab';
 import { GeneralTab } from './GeneralTab';
 import { McpTab } from './mcp/McpTab';
 import { ProvidersTab } from './providers/ProvidersTab';
 import { SecurityTab } from './SecurityTab';
 import { useModalFocus } from '../../hooks/useModalFocus';
 
-type SettingsTab = 'general' | 'providers' | 'appearance' | 'security' | 'mcp';
+type SettingsTab = 'general' | 'providers' | 'appearance' | 'security' | 'mcp' | 'channels';
 
 /** Modale delle impostazioni; ogni scheda carica i propri dati quando viene aperta. */
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -25,6 +26,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     { id: 'appearance', label: 'Aspetto', icon: Palette },
     { id: 'security', label: 'Sicurezza', icon: Shield, iconColor: 'text-amber-400' },
     { id: 'mcp', label: 'Server MCP', icon: Server, iconColor: 'text-sky-400' },
+    { id: 'channels', label: 'Canali', icon: Send, iconColor: 'text-indigo-400' },
   ];
 
   const tabId = (id: SettingsTab) => `${baseId}-tab-${id}`;
@@ -94,6 +96,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'security' && <SecurityTab />}
           {activeTab === 'mcp' && <McpTab />}
+          {activeTab === 'channels' && <ChannelsTab />}
         </div>
       </div>
     </div>,
