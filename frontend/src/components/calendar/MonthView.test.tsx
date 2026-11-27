@@ -98,7 +98,7 @@ describe('MonthView', () => {
     fireEvent.click(day);
     expect(day.getAttribute('aria-expanded')).toBe('true');
     const detail = document.getElementById(day.getAttribute('aria-controls')!)!;
-    expect(within(detail).getByText('Eventi del 2026-11-14')).toBeTruthy();
+    expect(within(detail).getByText('Eventi: sabato 14 novembre 2026')).toBeTruthy();
     expect(onNewEvent).not.toHaveBeenCalled();
 
     fireEvent.click(within(detail).getByRole('button', { name: /Riunione di prova/ }));
@@ -106,12 +106,12 @@ describe('MonthView', () => {
 
     act(() => within(detail).getByRole('button', { name: 'Chiudi' }).focus());
     fireEvent.click(within(detail).getByRole('button', { name: 'Chiudi' }));
-    expect(screen.queryByText('Eventi del 2026-11-14')).toBeNull();
+    expect(screen.queryByText('Eventi: sabato 14 novembre 2026')).toBeNull();
     expect(day.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(day);
 
     fireEvent.click(day);
     fireEvent.click(day);
-    expect(screen.queryByText('Eventi del 2026-11-14')).toBeNull();
+    expect(screen.queryByText('Eventi: sabato 14 novembre 2026')).toBeNull();
   });
 });

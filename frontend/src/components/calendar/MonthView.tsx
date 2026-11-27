@@ -2,7 +2,7 @@ import React, { useId, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { CalendarEventItem } from '../../api/calendar';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { buildMonthGrid, DAY_NAMES_SHORT, dayLabel, DEFAULT_CALENDAR_COLOR, eventStartTime } from '../../utils/calendarDates';
+import { buildMonthGrid, DAY_NAMES_SHORT, dayLabel, DEFAULT_CALENDAR_COLOR, eventStartTime, longDate } from '../../utils/calendarDates';
 
 interface MonthViewProps {
   currentDate: Date;
@@ -141,7 +141,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ currentDate, eventsByDate,
       {mobileSelectedDate && (
         <div id={detailId} className="sm:hidden border-t border-border/70 p-3 bg-panel/95 stack-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-fg">Eventi del {mobileSelectedDate}</span>
+            <span className="text-xs font-semibold text-fg">Eventi: {longDate(mobileSelectedDate)}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"

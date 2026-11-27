@@ -76,6 +76,12 @@ export function dayLabel(dateStr: string, eventCount: number): string {
   return `${day} ${MONTH_NAMES[month - 1].toLowerCase()}, ${count}`;
 }
 
+/** Data estesa in italiano per i titoli ("sabato 14 novembre 2026"), la stessa forma dell'"Oggi" dell'elenco. */
+export function longDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export function groupByDate(events: CalendarEventItem[]): Map<string, CalendarEventItem[]> {
   const map = new Map<string, CalendarEventItem[]>();
   for (const ev of events) {

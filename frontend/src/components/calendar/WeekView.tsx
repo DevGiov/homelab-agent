@@ -3,6 +3,7 @@ import { Clock, MapPin } from 'lucide-react';
 import type { CalendarEventItem } from '../../api/calendar';
 import {
   DAY_NAMES_SHORT,
+  dayLabel,
   DEFAULT_CALENDAR_COLOR,
   eventEndTime,
   eventStartTime,
@@ -43,9 +44,20 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isToday ? 'bg-accent text-accent-contrast' : 'bg-input-bg text-fg'}`}>
+                  {/* Da tastiera il giorno è un pulsante, come nella vista mensile: fa quello che fa il clic sulla scheda */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNewEvent(dateStr);
+                    }}
+                    aria-label={dayLabel(dateStr, dayEvents.length)}
+                    aria-current={isToday ? 'date' : undefined}
+                    title="Aggiungi evento qui"
+                    className={`text-xs font-bold px-2 py-0.5 rounded-lg cursor-pointer ${isToday ? 'bg-accent text-accent-contrast' : 'bg-input-bg text-fg'}`}
+                  >
                     {DAY_NAMES_SHORT[idx]} {day.getDate()} {MONTH_NAMES[day.getMonth()].substring(0, 3)}
-                  </span>
+                  </button>
                   {isToday && <span className="text-xs text-accent-text font-semibold uppercase tracking-wider">Oggi</span>}
                 </div>
                 <span className="text-xs text-fg-muted">{dayEvents.length} eventi</span>
@@ -56,13 +68,14 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {dayEvents.map((ev) => (
-                    <div
+                    <button
+                      type="button"
                       key={ev.uid || ev.id}
                       onClick={(e) => {
                         e.stopPropagation();
                         onOpenEvent(ev);
                       }}
-                      className="p-2.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex items-start justify-between gap-2 shadow-xs transition"
+                      className="text-left cursor-pointer p-2.5 rounded-xl border border-border/60 bg-panel hover:bg-panel-hover flex items-start justify-between gap-2 shadow-xs transition"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 mb-1">
@@ -81,7 +94,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ currentDate, eventsByDate, o
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
