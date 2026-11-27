@@ -149,7 +149,7 @@ Raggiungere l'agente fuori dalla Web UI (Telegram per primo) e permettergli di s
 | # | Passo | Note |
 | :--- | :--- | :--- |
 | C0 | ~~**Interfaccia**: `start_turn` estratto dalla route di streaming, pacchetto `channels`, tabella `channel_threads`, destinazione `channel:*`, un canale finto nei test~~ ✅ 2026-11-15 ([7](../channels/CHANNELS_DESIGN.md#7-c0-come-è-stata-costruita)) | |
-| C1 | **Telegram, testo**: long polling, utenti ammessi, controllo della risposta con il pulsante per `private`, `/nuova`, `/stop`, `/link` | La prova vera chiede il token e l'id utente del maintainer |
+| C1 | ~~**Telegram, testo**: long polling, utenti ammessi, controllo della risposta con il pulsante per `private`, `/nuova`, `/stop`, `/link`~~ ✅ costruita 2026-11-27 ([8](../channels/CHANNELS_DESIGN.md#8-c1-come-è-stata-costruita)) | Non ancora provata dal vivo: la prova vera chiede il token e l'id utente del maintainer |
 | C2 | **Approvazioni** con i pulsanti, scadenza del canale | |
 | C3 | **Notifiche**: `NotificationPolicy` letta dal runner delle automazioni | |
 | C4 | **Foto e note vocali** (Whisper) | |

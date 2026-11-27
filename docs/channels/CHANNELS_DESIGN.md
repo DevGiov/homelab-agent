@@ -1,7 +1,7 @@
 # Canali di interazione: design
 
 **Data:** 15 novembre 2026
-**Stato:** decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). C0 (interfaccia) costruita il 15/11/2026 ([sezione 7](#7-c0-come-è-stata-costruita)).
+**Stato:** decisioni del maintainer prese il 14/11/2026 ([sezione 3](#3-decisioni)). C0 (interfaccia) costruita il 15/11/2026 ([sezione 7](#7-c0-come-è-stata-costruita)); C1 (Telegram, testo) costruita il 27/11/2026, non ancora provata con un bot vero ([sezione 8](#8-c1-come-è-stata-costruita)).
 **Contesto:** oggi l'agente si raggiunge solo dalla Web UI e risponde solo quando gli si scrive. L'obiettivo è un'interfaccia unica per i canali (Telegram per primo, poi notifiche, voce, schermi, occhiali), con la regola di sensibilità applicata a tutto ciò che esce verso un canale ([SENSITIVITY_DESIGN.md](../sensitivity/SENSITIVITY_DESIGN.md)).
 
 ---
@@ -136,3 +136,34 @@ Il 15/11/2026, su `dev`.
 - **Avvio**: l'hub parte e si ferma con l'applicazione; senza canali registrati non fa nulla (così è oggi su CT 125).
 - **Verifica**: 55 test con un canale finto; 26 mutazioni colte su 26. Non provato con un turno vero (i test sul modello locale sono sospesi).
 
+## 8. C1 come è stata costruita
+
+Il 27/11/2026, sul ramo `feat/c1-telegram` (da `dev`). Non ancora provata con un bot vero: servono il token e l'id utente del maintainer.
+
+- **Canale [`telegram.py`](../../backend/app/channels/telegram.py)**: un thread chiama `getUpdates` in attesa lunga (25 s, solo `message` e `callback_query`), nessun webhook e nessuna porta aperta. L'offset avanza a ogni update, anche a uno che non si riesce a gestire (non torna all'infinito). Un errore aspetta 1, 2, 4... fino a 60 s, o quanto chiede Telegram con un 429; per 401 (token rifiutato) e 409 (un'altra istanza o un webhook sul bot) il log dice cosa controllare. `stop` manda una `getUpdates` con `timeout=0`, che conferma gli update già gestiti e chiude l'attesa in corso; un lotto arrivato durante lo stop non si gestisce e non si conferma, quindi Telegram lo ridà al prossimo avvio. Client HTTP: httpx, nessuna dipendenza nuova.
+- **Chi può scrivere**: solo gli id di `TELEGRAM_ALLOWED_USERS`, solo nella chat privata con il bot (tipo `private` e id della chat uguale all'id dell'utente). Gli altri messaggi e i pulsanti premuti da altri si contano (`ignored`) e si scartano; il testo non va nei log, l'id sì, una volta per id, perché serve a chi configura la variabile. I messaggi inoltrati (`forward_origin` e i campi `forward_*` più vecchi) entrano come non attendibili e non sono mai comandi. Un messaggio senza testo (foto, voce) riceve "Per ora leggo solo messaggi di testo." (C4).
+- **Comandi**: `/nuova`, `/stop` e `/link` restano nel hub; `/start` (e `/help`) li gestisce il canale con un saluto e l'elenco dei comandi, senza turno.
+- **Uscita**: `render.to_telegram_html` porta il Markdown nell'HTML di Telegram. Ogni carattere del testo passa dall'escape e i tag li scrive solo il codice: blocchi di codice in `<pre>` (con `class="language-x"` se la lingua è un nome semplice), tabelle in un `<pre>` con le colonne allineate, citazioni in `<blockquote>`, titoli in grassetto, elenchi con il pallino, link solo `http(s)`, `tg:` e `mailto:`. Una riga i cui tag non sarebbero bilanciati (segni incrociati come `**a *b** c*`) esce come testo semplice con l'escape. La divisione usa `split_markdown` di C0 e poi controlla la lunghezza che Telegram conta (testo visibile, in unità UTF-16: un'emoji vale due); un pezzo che sfora si ridivide. Anteprime dei link spente. Mentre il turno gira il canale manda "sta scrivendo" ogni 4 s (il primo dopo mezzo secondo, così un comando non lo mostra).
+- **Ripiego**: se Telegram rifiuta un messaggio (400: HTML non accettato, o un URL del pulsante che non gli piace) lo si rimanda una volta come testo semplice, con il link in chiaro al posto del pulsante "Apri nell'app". Un 429 con un'attesa fino a 30 s si ritenta una volta.
+- **`private`**: arriva l'avviso del hub con i pulsanti **Mostra qui** (`callback_data` `reveal:<token>`) e **Apri nell'app** (pulsante URL verso `WEB_UI_URL/c/<thread>`). Una callback vale solo se viene da un utente ammesso, dalla sua chat privata e dal messaggio di quella chat: il canale passa al hub la chat del messaggio, e il hub consegna solo se il token era per quella chat (un secondo utente ammesso non apre le risposte del primo). Ogni callback valida riceve `answerCallbackQuery`, con "Non più disponibile: apri l'app." se il token non vale più; quelle di altri non ricevono risposta.
+- **Approvazioni** (C2): come in C0, "Serve un'approvazione: apri l'app." con il pulsante verso la conversazione; nessun argomento del tool esce.
+- **Il token**: sta solo in `TELEGRAM_BOT_TOKEN` (`repr=False`). La Bot API lo vuole nel percorso dell'URL, quindi lo aggiunge solo il trasporto del canale (`_BotTransport`), dopo che httpx ha costruito la richiesta: la riga `HTTP Request: ...` di httpx e la richiesta allegata alle eccezioni non lo contengono. Gli errori del trasporto si rilanciano con il messaggio ripulito e senza la catena dell'eccezione originale; ogni `TelegramError` passa da `redact` (il token dato e qualunque cosa abbia la forma `<id>:<segreto>`); mentre il canale gira, un filtro ripulisce anche le righe dei logger `channels.telegram` e `httpx`.
+- **Configurazione** ([config.py](../../backend/app/core/config.py), `.env.example`): token vuoto = canale spento. Con il token, `TELEGRAM_ALLOWED_USERS` vuota o con un valore che non è un id positivo: il canale non si registra e il log dice perché. `TELEGRAM_CLEARANCE` accetta `public` o `internal` (default `internal`); ogni altro valore, `private` compreso, si rifiuta nel log e vale `public`, come `BEDROCK_CLEARANCE`. `confirm_up_to` è sempre `private`: con `public`, anche `internal` chiede "Mostra qui".
+- **Avvio**: `startup.start` registra il canale nel hub se è configurato (una volta sola), poi il hub parte con il lifespan.
+
+Cambiamenti a C0:
+
+- `Capabilities.max_messages`: oltre quel numero di messaggi (5 per Telegram, circa 20.000 caratteri) arrivano l'inizio della risposta e "La risposta continua nell'app." con il pulsante; è la "soglia" del punto 4.3.
+- `render.literal`: i testi fissi del hub (avvisi, risposte ai comandi, il link di `/link`) passano dall'escape per un canale HTML; prima un `&` in `WEB_UI_URL` avrebbe fatto rifiutare il messaggio.
+- `render_chunks` con `text_format="html"` ora rende l'HTML di Telegram invece di sollevare `NotImplementedError`.
+
+Limiti noti:
+
+- Gli update arrivati mentre il backend è spento (Telegram li tiene 24 ore) si gestiscono al riavvio: un messaggio di ore prima avvia un turno.
+- Le risposte trattenute per "Mostra qui" restano in memoria (C0): un riavvio le perde. I pulsanti restano sotto il messaggio anche dopo l'uso; un secondo tocco risponde "Non più disponibile".
+- Tabelle riconosciute solo con le barre ai lati (`| a | b |`). Fuori dai backtick `__init__` diventa grassetto, come in `strip_markdown`.
+- Se l'attesa lunga in corso non si chiude entro 5 s dallo stop, il thread resta (daemon) e finisce da solo.
+- Il canale non rimuove un webhook impostato sul bot: lo segnala con il 409.
+- L'avviso per `private` dice "La risposta contiene dati private." (testo del hub di C0, con il nome dell'etichetta).
+
+Verifica: 50 test nuovi in `tests/test_telegram.py`, con la Bot API finta (`httpx.MockTransport`) e il hub e il turno veri; 25 mutazioni sulle righe chiave (utente ammesso, tipo e id della chat, controllo della callback e della chat nel hub, redazione del token e catena delle eccezioni, filtro dei log, escape, `href`, bilanciamento dei tag, schemi dei link, testi fissi, lunghezza UTF-16, inoltrati, offset, conferma allo stop, limite dei messaggi, livello rifiutato, utenti ammessi vuoti, "sta scrivendo") colte tutte, tre dopo aver aggiunto i test.
