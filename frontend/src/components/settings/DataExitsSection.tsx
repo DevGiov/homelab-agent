@@ -74,16 +74,16 @@ export const DataExitsSection: React.FC = () => {
 
   return (
     <div className="bg-panel/70 border border-border rounded-xl p-3.5 stack-y-2.5" data-testid="data-exits">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ArrowUpRight size={15} className="text-amber-400" />
           <h3 className="text-xs font-semibold text-fg">Uscite di dati</h3>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           <select
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
-            className="bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg cursor-pointer"
+            className="min-w-0 bg-bg/60 border border-border rounded-md px-1.5 py-0.5 text-xs text-fg cursor-pointer"
             aria-label="Periodo"
           >
             {PERIODS.map((p) => (
@@ -92,7 +92,7 @@ export const DataExitsSection: React.FC = () => {
               </option>
             ))}
           </select>
-          <button onClick={load} disabled={loading} className="p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna">
+          <button onClick={load} disabled={loading} className="shrink-0 p-1 text-fg-muted hover:text-fg transition rounded-sm cursor-pointer" title="Aggiorna" aria-label="Aggiorna">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
