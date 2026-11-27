@@ -52,6 +52,10 @@ START_TEXT = ("Ciao! Scrivimi e ti risponde l'agente.\n"
               "/link dà il link alla conversazione nell'app")
 TEXT_ONLY = "Per ora leggo solo messaggi di testo."
 REVEAL_GONE = "Non più disponibile: apri l'app."
+# Un messaggio rimasto in coda da Telegram mentre il backend era fermo (fino a 24 h) non avvia un turno da solo
+STALE_MESSAGE_SECONDS = 600
+STALE_TEXT = ("Questo messaggio è arrivato {minutes} minuti fa, mentre il servizio era fermo: non l'ho eseguito. "
+              "Se serve ancora, rimandalo.")
 
 _START = re.compile(r"^/(start|help)(?:@\w+)?(?:\s.*)?$", re.DOTALL)
 _TOKEN_SHAPE = re.compile(r"\d{3,}:[A-Za-z0-9_-]{20,}")
@@ -354,6 +358,11 @@ class TelegramChannel(Channel):
             self._ignore("message", user_id)
             return None
         chat_id = str(chat["id"])
+        sent = message.get("date")
+        age = time.time() - sent if isinstance(sent, (int, float)) else 0
+        if age > STALE_MESSAGE_SECONDS:
+            self.ignored["stale"] += 1
+            return self._spawn(self._reply, chat_id, STALE_TEXT.format(minutes=int(age // 60)))
         text = message.get("text")
         if not isinstance(text, str):
             return self._spawn(self._reply, chat_id, TEXT_ONLY)

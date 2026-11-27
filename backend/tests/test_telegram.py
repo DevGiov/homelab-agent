@@ -109,7 +109,7 @@ class FakeGraph:
 
 
 def message(update_id, user, text=None, chat=None, chat_type="private", **extra):
-    body = {"message_id": update_id, "date": 0, "from": {"id": user, "is_bot": False, "first_name": "Utente"},
+    body = {"message_id": update_id, "date": int(time.time()), "from": {"id": user, "is_bot": False, "first_name": "Utente"},
             "chat": {"id": user if chat is None else chat, "type": chat_type}}
     if text is not None:
         body["text"] = text
@@ -260,6 +260,15 @@ def test_a_forwarded_message_enters_as_untrusted_and_is_not_a_command(tg):
     tags = [s["tag"] for s in tg.graph.states]
     assert [s["task"] for s in tg.graph.states] == ["scritto da altri", "/nuova", "scritto da me"]
     assert tags[0]["untrusted"] is True and tags[1]["untrusted"] is True and tags[2]["untrusted"] is False
+
+
+def test_a_message_queued_while_the_backend_was_down_does_not_start_a_turn(tg):
+    # Telegram tiene gli update fino a 24 ore: uno vecchio non deve eseguire nulla da solo
+    tg.take(message(1, tg.alice, "spegni il server", date=int(time.time()) - 3 * 3600))
+    tg.take(message(2, tg.alice, "ciao", date=int(time.time()) - 60))
+    assert [s["task"] for s in tg.graph.states] == ["ciao"]
+    [stale] = [t for t in tg.api.texts() if "non l'ho eseguito" in t]
+    assert "180 minuti fa" in stale and tg.channel.ignored["stale"] == 1
 
 
 def test_a_message_without_text_gets_a_short_reply(tg):
@@ -438,7 +447,7 @@ def test_a_private_answer_offers_the_buttons_and_reveal_shows_it_once(tg):
     tg.graph = FakeGraph(answer="Il codice del cancello è 4321", label="private")
     tg.take(message(1, tg.alice, "codice?"))
     notice = tg.api.of("sendMessage")[-1]
-    assert notice["text"] == "La risposta contiene dati private."
+    assert notice["text"] == "La risposta contiene dati privati."
     data = tg.reveal_token()
     assert notice["reply_markup"] == {"inline_keyboard": [[
         {"text": "Mostra qui", "callback_data": data},

@@ -36,6 +36,10 @@ _COMMAND = re.compile(r"^/(nuova|stop|link)(?:@\w+)?$")
 BUSY_TEXT = "c'è già un turno in corso: /stop per fermarlo"
 
 
+# Il livello come aggettivo di "dati", per gli avvisi
+_PLURAL = {Label.PUBLIC: "pubblici", Label.INTERNAL: "interni", Label.PRIVATE: "privati"}
+
+
 @dataclass
 class _Pending:
     """Una risposta trattenuta: sta solo in memoria (C0). Un riavvio del backend la perde e l'utente la apre nell'app."""
@@ -162,11 +166,11 @@ class ChannelHub:
             if link:
                 actions.append(Action("open", "Apri nell'app", token))
             self._record(channel, thread_id, tag.label, ASK, text)
-            notice = render.literal(f"La risposta contiene dati {tag.label.key}.", channel.capabilities)
+            notice = render.literal(f"La risposta contiene dati {_PLURAL.get(tag.label, tag.label.key)}.", channel.capabilities)
             self._deliver(channel, chat_id, OutgoingMessage([notice], actions, link))
         else:
             self._record(channel, thread_id, tag.label, DENY, text)
-            what = "un segreto" if tag.label == Label.SECRET else f"dati {tag.label.key}"
+            what = "un segreto" if tag.label == Label.SECRET else f"dati {_PLURAL.get(tag.label, tag.label.key)}"
             self._notice(channel, chat_id, f"La risposta contiene {what} e non la mostro qui.", thread_id)
 
     def _confirmable(self, channel: Channel, label: Label) -> bool:

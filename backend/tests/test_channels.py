@@ -270,7 +270,7 @@ def test_a_private_answer_gives_a_notice_and_reveal_delivers_it_once(env):
     env.graph(answer="Dati riservati", label="private")
     env.say("ciao")
     chat, notice = env.channel.sent[-1]
-    assert notice.chunks == ["La risposta contiene dati private."]
+    assert notice.chunks == ["La risposta contiene dati privati."]
     assert [a.label for a in notice.actions] == ["Mostra qui", "Apri nell'app"]
     assert notice.link == f"{LINK_BASE}/c/{env.thread()}"
     assert "Dati riservati" not in " ".join(env.channel.texts())
@@ -322,11 +322,12 @@ def test_a_secret_answer_gives_the_notice_and_the_link_only(env):
 
 def test_above_the_confirmation_level_gives_the_notice_and_the_link_only(env):
     env.channel._caps = Capabilities(max_message_length=200, buttons=True, clearance=Label.INTERNAL, confirm_up_to=Label.INTERNAL)
-    env.graph(answer="dati privati", label="private")
+    env.graph(answer="il codice del cancello è 4711", label="private")
     env.say("ciao")
     message = env.channel.sent[-1][1]
     assert [a.kind for a in message.actions] == ["open"] and message.link
-    assert "dati privati" not in " ".join(env.channel.texts())
+    assert "4711" not in " ".join(env.channel.texts())
+    assert "La risposta contiene dati privati e non la mostro qui." in " ".join(env.channel.texts())
     assert env.exits() == [("channel:fake", "private", "deny")]
 
 

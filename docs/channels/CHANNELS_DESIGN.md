@@ -159,11 +159,11 @@ Cambiamenti a C0:
 
 Limiti noti:
 
-- Gli update arrivati mentre il backend è spento (Telegram li tiene 24 ore) si gestiscono al riavvio: un messaggio di ore prima avvia un turno.
+- Gli update arrivati mentre il backend è spento (Telegram li tiene 24 ore) si leggono al riavvio, ma un messaggio di più di 10 minuti prima non avvia un turno: il bot risponde che non l'ha eseguito e di rimandarlo se serve (aggiunto in integrazione).
 - Le risposte trattenute per "Mostra qui" restano in memoria (C0): un riavvio le perde. I pulsanti restano sotto il messaggio anche dopo l'uso; un secondo tocco risponde "Non più disponibile".
 - Tabelle riconosciute solo con le barre ai lati (`| a | b |`). Fuori dai backtick `__init__` diventa grassetto, come in `strip_markdown`.
 - Se l'attesa lunga in corso non si chiude entro 5 s dallo stop, il thread resta (daemon) e finisce da solo.
 - Il canale non rimuove un webhook impostato sul bot: lo segnala con il 409.
-- L'avviso per `private` dice "La risposta contiene dati private." (testo del hub di C0, con il nome dell'etichetta).
+- Gli avvisi dicono il livello in italiano ("La risposta contiene dati privati."); prima il hub di C0 usava il nome dell'etichetta.
 
 Verifica: 50 test nuovi in `tests/test_telegram.py`, con la Bot API finta (`httpx.MockTransport`) e il hub e il turno veri; 25 mutazioni sulle righe chiave (utente ammesso, tipo e id della chat, controllo della callback e della chat nel hub, redazione del token e catena delle eccezioni, filtro dei log, escape, `href`, bilanciamento dei tag, schemi dei link, testi fissi, lunghezza UTF-16, inoltrati, offset, conferma allo stop, limite dei messaggi, livello rifiutato, utenti ammessi vuoti, "sta scrivendo") colte tutte, tre dopo aver aggiunto i test.
