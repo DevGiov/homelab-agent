@@ -595,27 +595,55 @@ ADMIN_CALLS = {"create", "patch", "delete", "reset", "set_clearance", "update_se
                "set_provider_settings", "replace_provider", "forget_provider", "register_provider"}
 
 
+# Le impostazioni della UI (app.core.runtime_settings, /v1/settings): il codice dell'agente legge (`get`, `snapshot`)
+# e dichiara le sezioni, ma non cambia nulla e non costruisce la vista delle API
+SETTINGS_ADMIN_CALLS = {"update", "reset", "view", "validate_secret", "init_db", "_write", "_connect", "_LOCK",
+                        "_apply_all", "_sealed"}
+
+
+def _settings_aliases(tree: ast.AST) -> set:
+    """I nomi con cui un modulo vede app.core.runtime_settings (`import ... as rs`, `from app.core import ...`)."""
+    aliases = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "app.core":
+            aliases |= {a.asname or a.name for a in node.names if a.name == "runtime_settings"}
+        if isinstance(node, ast.Import):
+            aliases |= {a.asname for a in node.names if a.name == "app.core.runtime_settings" and a.asname}
+    return aliases
+
+
 def test_no_agent_tool_can_reach_the_provider_settings():
     """Nessun modulo che l'agente esegue (tool, loop, automazioni, canali) importa la configurazione dei provider o
-    chiama le funzioni che la cambiano; e le API stesse non sono un indirizzo che un tool di rete può raggiungere."""
+    chiama le funzioni che la cambiano, né quelle che cambiano le impostazioni della UI (`/v1/settings`); e le API
+    stesse non sono un indirizzo che un tool di rete può raggiungere."""
     app_dir = Path(__file__).resolve().parents[1] / "app"
     offenders = []
     for package in AGENT_PACKAGES:
         for path in (app_dir / package).rglob("*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"))
+            settings_names = _settings_aliases(tree)
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Import, ast.ImportFrom)):
                     names = [a.name for a in node.names] + ([node.module] if isinstance(node, ast.ImportFrom) else [])
-                    if any(n and "provider_config" in n for n in names):
+                    if any(n and ("provider_config" in n or "app.api.routes" in n) for n in names):
                         offenders.append(f"{path.name}: import")
+                    if isinstance(node, ast.ImportFrom) and node.module == "app.core.runtime_settings" and \
+                            {a.name for a in node.names} & SETTINGS_ADMIN_CALLS:
+                        offenders.append(f"{path.name}: import da runtime_settings")
                 if isinstance(node, ast.Attribute) and node.attr in ADMIN_CALLS and isinstance(node.value, ast.Name) \
                         and node.value.id in ("providers", "provider_config"):
                     offenders.append(f"{path.name}: {node.attr}")
+                if isinstance(node, ast.Attribute) and node.attr in SETTINGS_ADMIN_CALLS \
+                        and isinstance(node.value, ast.Name) and node.value.id in settings_names:
+                    offenders.append(f"{path.name}: runtime_settings.{node.attr}")
     assert offenders == []
+    # Il controllo vede davvero chi usa le impostazioni: il hub e il canale le leggono
+    assert _settings_aliases(ast.parse((app_dir / "channels" / "hub.py").read_text(encoding="utf-8")))
     # Il backend stesso (le sue API su localhost) non è un host che http_get o un altro tool di rete raggiunge
-    for url in ("http://localhost:8090/v1/providers", "http://127.0.0.1:8090/v1/providers/settings"):
+    for url in ("http://localhost:8090/v1/providers", "http://127.0.0.1:8090/v1/providers/settings",
+                "http://localhost:8090/v1/settings/channels", "http://127.0.0.1:8090/v1/settings/channels/telegram/test"):
         with pytest.raises(network.NetworkBlocked):
             network.check_url(url)
     # E nessun tool del catalogo porta il nome di queste API
     from app.security.flows import _TOOL_FLOWS
-    assert not [t for t in _TOOL_FLOWS if "provider" in t]
+    assert not [t for t in _TOOL_FLOWS if "provider" in t or "settings" in t]
