@@ -11,6 +11,10 @@ logger = logging.getLogger("config")
 # (docs/providers/PROVIDERS_DESIGN.md, decisione 5), mai da una variabile
 CLOUD_CLEARANCES = ("public", "internal")
 
+# Livelli che un canale su un servizio di terzi può ricevere senza conferma (docs/channels/CHANNELS_DESIGN.md,
+# decisione 2): `private` solo dopo che l'utente l'ha chiesto dalla chat
+CHANNEL_CLEARANCES = ("public", "internal")
+
 # Radice del backend (contiene app/, sdk/ e .env)
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -65,6 +69,12 @@ class Settings(BaseSettings):
     web_ui_url: str = Field(default="", alias="WEB_UI_URL")
     # Quanto un canale aspetta la fine del turno prima di dire che la risposta sarà nell'app (il turno continua)
     channel_reply_timeout_seconds: int = Field(default=300, alias="CHANNEL_REPLY_TIMEOUT_SECONDS")
+    # Telegram (app.channels.telegram, long polling). Token vuoto = canale spento. Con il token servono gli id numerici
+    # degli utenti ammessi, separati da virgola: senza, il canale non parte. Il token non va mai in log, errori o risposte
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN", repr=False)
+    telegram_allowed_users: str = Field(default="", alias="TELEGRAM_ALLOWED_USERS")
+    # Livello consegnato senza conferma: public o internal. `private` passa solo con il pulsante "Mostra qui"
+    telegram_clearance: str = Field(default="internal", alias="TELEGRAM_CLEARANCE")
 
     # --- Storage ---
     # Unica directory dei dati persistenti (database, memoria, artefatti, upload, knowledge base).
@@ -104,6 +114,16 @@ class Settings(BaseSettings):
             return value
         logger.error(f"BEDROCK_CLEARANCE={v!r} rifiutato: un provider cloud ammette solo {' o '.join(CLOUD_CLEARANCES)} "
                      f"(`private` si concede a mano, non da .env). Resta `public`.")
+        return "public"
+
+    @field_validator("telegram_clearance", mode="after")
+    @classmethod
+    def _telegram_clearance(cls, v):
+        value = str(v).strip().lower()
+        if value in CHANNEL_CLEARANCES:
+            return value
+        logger.error(f"TELEGRAM_CLEARANCE={v!r} rifiutato: Telegram ammette solo {' o '.join(CHANNEL_CLEARANCES)} "
+                     f"(`private` passa solo con la conferma nella chat). Resta `public`.")
         return "public"
 
     @property
