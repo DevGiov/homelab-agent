@@ -154,7 +154,7 @@ class ChannelHub:
         tag = Tag.from_dict(raw_tag) if raw_tag else flows.tag_of(Label.PRIVATE, "sensibilità non indicata")
         if flows.can_flow(tag, channel.destination()).allowed:
             self._record(channel, thread_id, tag.label, ALLOW, text)
-            self._send_text(channel, chat_id, text)
+            self._send_text(channel, chat_id, thread_id, text)
         elif self._confirmable(channel, tag.label):
             token = self._hold(channel.id, chat_id, thread_id, text, tag.label)
             link = self.thread_link(thread_id)
@@ -162,7 +162,8 @@ class ChannelHub:
             if link:
                 actions.append(Action("open", "Apri nell'app", token))
             self._record(channel, thread_id, tag.label, ASK, text)
-            self._deliver(channel, chat_id, OutgoingMessage([f"La risposta contiene dati {tag.label.key}."], actions, link))
+            notice = render.literal(f"La risposta contiene dati {tag.label.key}.", channel.capabilities)
+            self._deliver(channel, chat_id, OutgoingMessage([notice], actions, link))
         else:
             self._record(channel, thread_id, tag.label, DENY, text)
             what = "un segreto" if tag.label == Label.SECRET else f"dati {tag.label.key}"
@@ -193,7 +194,7 @@ class ChannelHub:
             self._notice(channel, pending.chat_id, "Questa risposta non si può mostrare qui: apri l'app.", pending.thread_id)
             return False
         self._record(channel, pending.thread_id, pending.label, APPROVED, pending.text)
-        self._send_text(channel, pending.chat_id, pending.text)
+        self._send_text(channel, pending.chat_id, pending.thread_id, pending.text)
         return True
 
     def _hold(self, channel_id: str, chat_id: str, thread_id: str, text: str, label: Label) -> str:
@@ -220,18 +221,28 @@ class ChannelHub:
             thread_id=thread_id, registry="channel", result={"outcome": outcome},
             flow={"label": label.key, "destination": channel.destination().id, "flow": outcome})
 
-    def _send_text(self, channel: Channel, chat_id: str, text: str) -> None:
-        chunks: List[str] = render.render_chunks(text, channel.capabilities) or ["(risposta vuota)"]
-        self._deliver(channel, chat_id, OutgoingMessage(chunks))
+    def _send_text(self, channel: Channel, chat_id: str, thread_id: str, text: str) -> None:
+        caps = channel.capabilities
+        chunks: List[str] = render.render_chunks(text, caps) or [render.literal("(risposta vuota)", caps)]
+        if caps.max_messages is None or len(chunks) <= caps.max_messages:
+            self._deliver(channel, chat_id, OutgoingMessage(chunks))
+            return
+        # Troppo lunga per la chat (design 4.3): l'inizio, poi l'avviso con il link alla conversazione
+        link = self.thread_link(thread_id)
+        rest = "La risposta continua nell'app." if link else "La risposta continua nell'app (nessun link configurato)."
+        self._deliver(channel, chat_id, OutgoingMessage(
+            chunks[:caps.max_messages - 1] + [render.literal(rest, caps)],
+            [Action("open", "Apri nell'app")] if link else [], link))
 
     def _notice(self, channel: Channel, chat_id: str, text: str, thread_id: str) -> None:
         """Un avviso con il link alla conversazione (o senza, se WEB_UI_URL è vuoto: lo dice)."""
         link = self.thread_link(thread_id)
-        self._deliver(channel, chat_id, OutgoingMessage([text if link else f"{text} (nessun link configurato)"],
+        text = render.literal(text if link else f"{text} (nessun link configurato)", channel.capabilities)
+        self._deliver(channel, chat_id, OutgoingMessage([text],
                                                        [Action("open", "Apri nell'app")] if link and channel.capabilities.buttons else [], link))
 
     def _reply(self, channel: Channel, chat_id: str, text: str) -> None:
-        self._deliver(channel, chat_id, OutgoingMessage([text]))
+        self._deliver(channel, chat_id, OutgoingMessage([render.literal(text, channel.capabilities)]))
 
     def _deliver(self, channel: Channel, chat_id: str, message: OutgoingMessage) -> None:
         if not channel.capabilities.buttons:
@@ -272,7 +283,7 @@ _hub_lock = threading.Lock()
 
 
 def get_hub() -> ChannelHub:
-    """Il hub dell'applicazione. I canali configurati si registrano qui prima di `startup.start` (nessuno in C0)."""
+    """Il hub dell'applicazione. I canali configurati si registrano in `startup.start`, prima che il hub parta."""
     global _hub
     with _hub_lock:
         if _hub is None:

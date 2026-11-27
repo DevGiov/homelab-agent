@@ -595,8 +595,7 @@ def test_render_chunks_follows_the_capabilities():
     md = Capabilities(max_message_length=30, text_format="markdown")
     assert render.render_chunks("**ciao** `x`", md) == ["**ciao** `x`"]
     assert render.render_chunks("", md) == []
-    with pytest.raises(NotImplementedError):
-        render.render_chunks("x", Capabilities(max_message_length=30, text_format="html"))
+    assert render.render_chunks("**ciao** <x>", Capabilities(max_message_length=30, text_format="html")) == ["<b>ciao</b> &lt;x&gt;"]
 
 
 def test_a_long_answer_is_delivered_in_several_chunks_within_the_limit(env):

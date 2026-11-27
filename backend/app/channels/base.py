@@ -16,7 +16,8 @@ class Capabilities:
     """Cosa sa fare un canale. L'agente adatta la risposta (`style_hint`) e il hub decide cosa può consegnare.
 
     `clearance`: l'etichetta più alta consegnata senza chiedere. `confirm_up_to`: la più alta consegnata dopo che
-    l'utente ha confermato (richiede `buttons`), None se oltre `clearance` non si consegna mai. `secret` non esce comunque."""
+    l'utente ha confermato (richiede `buttons`), None se oltre `clearance` non si consegna mai. `secret` non esce comunque.
+    `max_messages`: quanti messaggi al massimo per una risposta; oltre, l'inizio e il link all'app (None = nessun limite)."""
     max_message_length: int
     text_format: str = "plain"
     buttons: bool = False
@@ -24,10 +25,13 @@ class Capabilities:
     style_hint: str = ""
     clearance: Label = Label.INTERNAL
     confirm_up_to: Optional[Label] = None
+    max_messages: Optional[int] = None
 
     def __post_init__(self):
         if self.max_message_length < 1:
             raise ValueError("max_message_length deve essere almeno 1")
+        if self.max_messages is not None and self.max_messages < 2:
+            raise ValueError("max_messages deve essere almeno 2 (l'inizio della risposta e l'avviso)")
         if self.text_format not in TEXT_FORMATS:
             raise ValueError(f"text_format non valido: {self.text_format!r} ({', '.join(TEXT_FORMATS)})")
         if self.clearance >= Label.SECRET or (self.confirm_up_to is not None and self.confirm_up_to >= Label.SECRET):
