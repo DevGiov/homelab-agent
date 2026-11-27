@@ -30,7 +30,7 @@ def test_init_storage_creates_every_schema_on_empty_data_dir(fresh_data_dir):
             "vec_memory", "vec_memory_idx"} <= _tables(fresh_data_dir / "checkpoints.db")
     assert {"automation_definitions", "automation_runs", "automation_approvals"} <= _tables(fresh_data_dir / "automations.db")
     assert "calendars" in _tables(fresh_data_dir / "calendar.db")
-    assert {"mcp_flow_settings", "model_prices", "spend_ceilings"} <= _tables(fresh_data_dir / "mcp.db")
+    assert {"mcp_flow_settings", "model_prices", "spend_ceilings", "runtime_settings"} <= _tables(fresh_data_dir / "mcp.db")
     assert {"artifacts", "uploads", "knowledge_base"} <= {p.name for p in fresh_data_dir.iterdir()}
 
 

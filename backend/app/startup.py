@@ -15,6 +15,7 @@ from app.calendar.db import init_calendar_db
 from app.channels import hub as channel_hub
 from app.channels import telegram as telegram_channel
 from app.channels import threads as channel_threads
+from app.core import runtime_settings
 from app.core.config import settings
 from app.llm import costs, provider_config
 from app.memory import facts, hybrid_search, procedures, profile, thread_store, vector_store
@@ -48,6 +49,7 @@ def init_storage() -> None:
     flows.init_flows_db()
     costs.init_costs_db()
     provider_config.init_provider_db()
+    runtime_settings.init_db()
     vector_store.init_vector_db()
     facts.init_facts_db()
     hybrid_search.init_search_indexes()
@@ -69,7 +71,7 @@ def start() -> None:
     health.start_sampler()
     memory_consolidation.start_scheduler()
     hub = channel_hub.get_hub()
-    # I canali configurati nel .env (senza credenziali non si registrano e non partono)
+    # I canali configurati (UI, altrimenti .env; senza credenziali non si registrano e non partono)
     telegram_channel.register_configured(hub)
     hub.start()
 
