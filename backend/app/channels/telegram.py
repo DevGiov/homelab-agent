@@ -24,7 +24,7 @@ import httpx
 from app.channels import render
 from app.channels.base import Capabilities, Channel, InboundMessage, OutgoingMessage
 from app.channels.hub import ChannelHub
-from app.core.config import settings
+from app.core import runtime_settings
 from app.security.flows import Label
 
 logger = logging.getLogger("channels.telegram")
@@ -122,6 +122,39 @@ class _BotTransport(httpx.BaseTransport):
         self._inner.close()
 
 
+def _bot_transport() -> httpx.BaseTransport:
+    """Il trasporto verso la Bot API (i test lo sostituiscono con una Bot API finta)."""
+    return httpx.HTTPTransport()
+
+
+def _make_bot_client(token: str, transport: Optional[httpx.BaseTransport] = None,
+                     timeout: float = 15.0) -> httpx.Client:
+    return httpx.Client(base_url=API_BASE, timeout=httpx.Timeout(timeout),
+                        transport=_BotTransport(token, transport or _bot_transport()))
+
+
+def _api_call(client: httpx.Client, token: str, method: str, params: Dict[str, Any],
+              read_timeout: Optional[float] = None) -> Any:
+    """Una chiamata alla Bot API: il risultato, o TelegramError con il messaggio già ripulito dal token."""
+    timeout = httpx.Timeout(15.0, read=read_timeout) if read_timeout else httpx.USE_CLIENT_DEFAULT
+    try:
+        response = client.post(f"/{method}", json=params, timeout=timeout)
+    except httpx.HTTPError as e:
+        raise TelegramError(redact(f"{method}: {type(e).__name__}: {e}", token)) from None
+    try:
+        body = response.json()
+    except ValueError:
+        raise TelegramError(f"{method}: risposta non JSON (HTTP {response.status_code})",
+                            code=response.status_code) from None
+    if not isinstance(body, dict) or not body.get("ok"):
+        body = body if isinstance(body, dict) else {}
+        code = body.get("error_code") or response.status_code
+        retry_after = (body.get("parameters") or {}).get("retry_after")
+        raise TelegramError(redact(f"{method}: {code} {body.get('description', '')}".strip(), token),
+                            code=code, retry_after=retry_after)
+    return body.get("result")
+
+
 def parse_allowed_users(raw: str) -> FrozenSet[int]:
     """`TELEGRAM_ALLOWED_USERS`: id numerici separati da virgola. Un valore che non è un id positivo è un errore."""
     ids = set()
@@ -158,6 +191,7 @@ class TelegramChannel(Channel):
         self._acked: Optional[int] = None  # l'offset che Telegram ha già ricevuto (update precedenti confermati)
         self._filter = _RedactFilter(token)
         self.ignored: Counter = Counter()  # messaggi e pulsanti scartati, per tipo
+        self.last_error: Optional[str] = None  # l'ultimo errore della Bot API (già ripulito); None dopo una lettura riuscita
         self._ignored_users: set = set()
         self._sleep: Callable[[float], None] = time.sleep
 
@@ -170,6 +204,12 @@ class TelegramChannel(Channel):
     @property
     def capabilities(self) -> Capabilities:
         return self._caps
+
+    @property
+    def running(self) -> bool:
+        """Il ciclo di polling è attivo."""
+        thread = self._thread
+        return thread is not None and thread.is_alive() and not self._stopping.is_set()
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -198,8 +238,7 @@ class TelegramChannel(Channel):
             logging.getLogger(name).removeFilter(self._filter)
 
     def _make_client(self) -> httpx.Client:
-        return httpx.Client(base_url=API_BASE, timeout=httpx.Timeout(15.0),
-                            transport=_BotTransport(self._token, self._transport or httpx.HTTPTransport()))
+        return _make_bot_client(self._token, self._transport)
 
     def deliver(self, chat_id: str, message: OutgoingMessage) -> None:
         chunks = [c for c in message.chunks if render.html_to_text(c).strip()] or [render.literal("(vuoto)", self._caps)]
@@ -214,23 +253,11 @@ class TelegramChannel(Channel):
         client = self._client
         if client is None:
             raise TelegramError(f"{method}: canale fermo")
-        timeout = httpx.Timeout(15.0, read=read_timeout) if read_timeout else httpx.USE_CLIENT_DEFAULT
         try:
-            response = client.post(f"/{method}", json=params, timeout=timeout)
-        except httpx.HTTPError as e:
-            raise TelegramError(redact(f"{method}: {type(e).__name__}: {e}", self._token)) from None
-        try:
-            body = response.json()
-        except ValueError:
-            raise TelegramError(f"{method}: risposta non JSON (HTTP {response.status_code})",
-                                code=response.status_code) from None
-        if not isinstance(body, dict) or not body.get("ok"):
-            body = body if isinstance(body, dict) else {}
-            code = body.get("error_code") or response.status_code
-            retry_after = (body.get("parameters") or {}).get("retry_after")
-            raise TelegramError(redact(f"{method}: {code} {body.get('description', '')}".strip(), self._token),
-                                code=code, retry_after=retry_after)
-        return body.get("result")
+            return _api_call(client, self._token, method, params, read_timeout)
+        except TelegramError as e:
+            self.last_error = str(e)
+            raise
 
     def _call_sending(self, method: str, params: Dict[str, Any]) -> Any:
         """Un invio: con un 429 si aspetta quanto chiede Telegram (se è poco) e si ritenta una volta."""
@@ -300,6 +327,7 @@ class TelegramChannel(Channel):
                 stopping.wait(delay)
                 continue
             failures = 0
+            self.last_error = None
             with self._lock:
                 if offset is not None:
                     self._acked = offset
@@ -432,7 +460,7 @@ def _backoff(failures: int, retry_after: Optional[float]) -> float:
 
 def _hint(error: TelegramError) -> str:
     if error.code == 401:
-        return ": il token è stato rifiutato, controlla TELEGRAM_BOT_TOKEN"
+        return ": il token è stato rifiutato, controlla il token del bot (Impostazioni > Canali o TELEGRAM_BOT_TOKEN)"
     if error.code == 409:
         return ": un'altra istanza legge lo stesso bot, oppure il bot ha un webhook (questo canale usa il long polling)"
     return ""
@@ -440,23 +468,73 @@ def _hint(error: TelegramError) -> str:
 
 # --- configurazione ---------------------------------------------------------------------------------
 
+def config_problem(r: runtime_settings.Resolved) -> Optional[str]:
+    """Perché il canale non si costruisce, quando la UI non lo vede dai campi (token illeggibile, utenti del `.env` non
+    validi); None se manca solo il token, è spento o non ha utenti: quello si legge dai campi."""
+    if r.secrets_unreadable:
+        return "Il token salvato non si legge (API_SECRET_KEY è cambiata?): inseriscilo di nuovo."
+    if not r.secret("bot_token").strip():
+        return None
+    if "allowed_users" in r.env_errors and r.values["allowed_users"][1] != "ui":
+        return r.env_errors["allowed_users"]
+    return None
+
+
 def from_settings(hub: ChannelHub, transport: Optional[httpx.BaseTransport] = None) -> Optional[TelegramChannel]:
-    """Il canale dalle impostazioni, o None (con il motivo nel log) se è spento o configurato a metà."""
-    token = (settings.telegram_bot_token or "").strip()
+    """Il canale dai valori effettivi (UI, altrimenti `.env`), o None (con il motivo nel log) se è spento o
+    configurato a metà."""
+    r = runtime_settings.snapshot("telegram")
+    token = r.secret("bot_token").strip()
+    problem = config_problem(r)
+    if problem:
+        logger.error(f"Canale Telegram non avviato: {problem}")
+        return None
     if not token:
-        logger.debug("Canale Telegram spento: TELEGRAM_BOT_TOKEN è vuoto")
+        logger.debug("Canale Telegram spento: nessun token del bot")
         return None
-    try:
-        allowed = parse_allowed_users(settings.telegram_allowed_users)
-    except ValueError as e:
-        logger.error(f"Canale Telegram non avviato: {e}")
+    if not r.value("enabled"):
+        logger.info("Canale Telegram spento dalle impostazioni")
         return None
+    allowed = frozenset(r.value("allowed_users"))
     if not allowed:
-        logger.error("Canale Telegram non avviato: con TELEGRAM_BOT_TOKEN serve TELEGRAM_ALLOWED_USERS (id numerici degli "
-                     "utenti ammessi, separati da virgola)")
+        logger.error("Canale Telegram non avviato: con il token servono gli utenti ammessi (TELEGRAM_ALLOWED_USERS, id "
+                     "numerici separati da virgola, oppure Impostazioni > Canali)")
         return None
-    clearance = Label.parse(settings.telegram_clearance, Label.PUBLIC)
+    clearance = Label.parse(r.value("clearance"), Label.PUBLIC)
     return TelegramChannel(token, allowed, hub, clearance=clearance, transport=transport)
+
+
+def apply_settings(hub: Optional[ChannelHub] = None) -> Optional[TelegramChannel]:
+    """Dopo un salvataggio delle impostazioni: il canale nuovo prende il posto del vecchio (che si ferma), oppure il
+    vecchio si ferma e basta se ora è spento o incompleto. Nessun riavvio del backend."""
+    from app.channels.hub import get_hub
+    hub = hub or get_hub()
+    channel = from_settings(hub)
+    if channel is None:
+        if hub.unregister(CHANNEL_ID) is not None:
+            logger.info("Canale Telegram fermato dalle impostazioni")
+        return None
+    hub.replace(channel)
+    logger.info(f"Canale Telegram riconfigurato: {len(channel._allowed)} utenti ammessi, livello "
+                f"{channel.capabilities.clearance.key} senza conferma")
+    return channel
+
+
+def probe(token: str) -> Dict[str, Any]:
+    """"Prova il bot": `getMe` con il token dato. Solo `{ok, bot_username, error}`: mai il token, nemmeno nell'errore."""
+    log_filter = _RedactFilter(token)
+    for name in _FILTERED_LOGGERS:
+        logging.getLogger(name).addFilter(log_filter)
+    try:
+        with _make_bot_client(token, timeout=10.0) as client:
+            me = _api_call(client, token, "getMe", {})
+    except TelegramError as e:
+        return {"ok": False, "bot_username": None, "error": redact(f"{e}{_hint(e)}", token)}
+    finally:
+        for name in _FILTERED_LOGGERS:
+            logging.getLogger(name).removeFilter(log_filter)
+    username = me.get("username") if isinstance(me, dict) else None
+    return {"ok": True, "bot_username": username if isinstance(username, str) else None, "error": None}
 
 
 def register_configured(hub: ChannelHub) -> Optional[TelegramChannel]:

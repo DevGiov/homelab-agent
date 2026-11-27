@@ -17,7 +17,7 @@ from app.agent.stream_session import StreamSession
 from app.api import agent_runner
 from app.channels import render, threads
 from app.channels.base import Action, Channel, InboundMessage, OutgoingMessage
-from app.core.config import settings
+from app.core import runtime_settings
 from app.security import audit_log, flows
 from app.security.flows import Label, Tag
 
@@ -55,33 +55,68 @@ class ChannelHub:
     def __init__(self) -> None:
         self._channels: Dict[str, Channel] = {}
         self._pending: Dict[str, _Pending] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # risposte trattenute
+        self._lifecycle = threading.RLock()
+        self._started = False
 
     # --- registrazione e ciclo di vita ----------------------------------------------------------
+    # Registrare, togliere, sostituire, avviare e fermare passano da `_lifecycle`: due salvataggi delle impostazioni
+    # simultanei non lasciano due canali con lo stesso id in esecuzione. Chi legge (`get`, i messaggi in arrivo) non
+    # prende il lock: vede il canale di prima o quello di dopo, mai uno a metà.
 
     def register(self, channel: Channel) -> None:
-        if channel.id in self._channels:
-            raise ValueError(f"Canale già registrato: {channel.id}")
-        self._channels[channel.id] = channel
+        with self._lifecycle:
+            if channel.id in self._channels:
+                raise ValueError(f"Canale già registrato: {channel.id}")
+            self._channels[channel.id] = channel
 
     def get(self, channel_id: str) -> Optional[Channel]:
         return self._channels.get(channel_id)
 
+    def unregister(self, channel_id: str) -> Optional[Channel]:
+        """Ferma il canale e lo toglie; None se non c'era."""
+        with self._lifecycle:
+            channel = self._channels.pop(channel_id, None)
+            if channel is not None:
+                self._stop_one(channel)
+            return channel
+
+    def replace(self, channel: Channel) -> None:
+        """Mette `channel` al posto di quello con lo stesso id: ferma il vecchio (se c'è), poi avvia il nuovo se il hub è
+        già partito (altrimenti parte con il hub). Le impostazioni cambiate dalla UI arrivano così, senza riavvio."""
+        with self._lifecycle:
+            old = self._channels.get(channel.id)
+            if old is not None and old is not channel:
+                self._stop_one(old)
+            self._channels[channel.id] = channel
+            if self._started:
+                self._start_one(channel)
+
     def start(self) -> None:
         """Avvia i canali registrati; senza canali non parte nulla. Un canale che non parte non ferma gli altri."""
-        for channel in self._channels.values():
-            try:
-                channel.start()
-                logger.info(f"Canale '{channel.id}' avviato")
-            except Exception as e:
-                logger.error(f"Canale '{channel.id}' non avviato: {e}", exc_info=True)
+        with self._lifecycle:
+            self._started = True
+            for channel in list(self._channels.values()):
+                self._start_one(channel)
 
     def stop(self) -> None:
-        for channel in reversed(list(self._channels.values())):
-            try:
-                channel.stop()
-            except Exception as e:
-                logger.error(f"Canale '{channel.id}' non fermato: {e}", exc_info=True)
+        with self._lifecycle:
+            self._started = False
+            for channel in reversed(list(self._channels.values())):
+                self._stop_one(channel)
+
+    def _start_one(self, channel: Channel) -> None:
+        try:
+            channel.start()
+            logger.info(f"Canale '{channel.id}' avviato")
+        except Exception as e:
+            logger.error(f"Canale '{channel.id}' non avviato: {e}", exc_info=True)
+
+    def _stop_one(self, channel: Channel) -> None:
+        try:
+            channel.stop()
+        except Exception as e:
+            logger.error(f"Canale '{channel.id}' non fermato: {e}", exc_info=True)
 
     # --- messaggi in arrivo --------------------------------------------------------------------
 
@@ -124,7 +159,14 @@ class ChannelHub:
         sess = agent_runner.start_turn(
             message.text, thread_id, images=list(message.images) or None, channel=channel.id, extra_tag=extra_tag,
             style_hint=channel.capabilities.style_hint)
-        outcome, payload = _wait(sess, settings.channel_reply_timeout_seconds)
+        outcome, payload = _wait(sess, runtime_settings.get("channels", "reply_timeout_seconds"))
+        # Le impostazioni possono aver sostituito il canale mentre il turno girava: si risponde con quello di adesso,
+        # e con il suo livello; se il canale non c'è più, la risposta resta nell'app
+        current = self._channels.get(channel.id)
+        if current is None:
+            logger.info(f"Canale '{channel.id}' tolto durante il turno: la risposta resta nell'app")
+            return
+        channel = current
         if outcome == "final":
             self._deliver_answer(channel, chat_id, thread_id, payload)
         elif outcome == "timeout":
@@ -143,7 +185,7 @@ class ChannelHub:
             self._reply(channel, chat_id, "Turno fermato." if stopped else "Nessun turno in corso.")
         else:  # link
             link = self.thread_link(threads.current_thread(channel.id, chat_id))
-            self._reply(channel, chat_id, link or "Nessun link configurato: imposta WEB_UI_URL nel .env del backend.")
+            self._reply(channel, chat_id, link or "Nessun link configurato: imposta l'indirizzo della Web UI in Impostazioni > Canali (o WEB_UI_URL nel .env).")
 
     # --- consegna: il controllo di sensibilità --------------------------------------------------
 
@@ -215,7 +257,7 @@ class ChannelHub:
     # --- invio ----------------------------------------------------------------------------------
 
     def thread_link(self, thread_id: str) -> Optional[str]:
-        base = (settings.web_ui_url or "").strip().rstrip("/")
+        base = (runtime_settings.get("channels", "web_ui_url") or "").strip().rstrip("/")
         return f"{base}/c/{thread_id}" if base else None
 
     def _record(self, channel: Channel, thread_id: str, label: Label, outcome: str, text: str) -> None:
