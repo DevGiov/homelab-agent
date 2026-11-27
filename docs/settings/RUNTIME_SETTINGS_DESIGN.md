@@ -1,7 +1,7 @@
 # Impostazioni modificabili dalla Web UI: design
 
 **Data:** 27 novembre 2026
-**Stato:** principio deciso dal maintainer il 27/11/2026; R1 (canali e Telegram) in costruzione.
+**Stato:** principio deciso dal maintainer il 27/11/2026; R1 (canali e Telegram): backend costruito il 27/11/2026 sul ramo `feat/r1-settings-backend` ([sezione 8](#8-r1-come-è-stato-costruito)), interfaccia in costruzione; non ancora provato dal vivo.
 **Contesto:** oggi il backend legge 39 impostazioni dal `.env` all'avvio. Solo i provider di modelli si gestiscono dalla Web UI ([PROVIDERS_DESIGN.md, 5.8](../providers/PROVIDERS_DESIGN.md#58-provider-gestiti-dalla-web-ui-pu)). Cambiare il resto vuol dire entrare nel container, scrivere il file e ricreare il backend.
 
 ---
@@ -93,3 +93,26 @@ Una scheda "Canali" nelle impostazioni:
 | **R1** | Modulo generico, sezione `channels` con Telegram, scheda "Canali", riavvio a caldo del canale |
 | **R2** | Ricerca web, limiti dell'agente, watchdog, Firecracker, metriche, scheduler |
 | **R3** | MetaMCP con riconnessione |
+
+## 8. R1 come è stato costruito
+
+Il backend, il 27/11/2026, sul ramo `feat/r1-settings-backend` (da `dev`). Non provato con un bot vero.
+
+- **Modulo [`runtime_settings.py`](../../backend/app/core/runtime_settings.py)**: `Section` e `Field` come in 3. Le sezioni stanno nei moduli di `SECTION_MODULES` (oggi [`channels/config.py`](../../backend/app/channels/config.py)): R2 e R3 ne aggiungono uno. `channels` e `telegram` sono due sezioni; `telegram` è una *parte* di `channels` (le API la mostrano dentro, non ha route sue). Lettura con `get(sezione, campo)` o `snapshot(sezione)`; scrittura solo da `update` e `reset`, sotto un lock, con `apply()` della sezione dentro il lock.
+- **Tabella** `runtime_settings` in `mcp.db`, creata da `startup.init_storage`. La riga `(sezione, "__secrets__")` contiene `{"names", "sealed"}`: i nomi in chiaro servono a dire `{set: true}` quando la credenziale non si legge più (come `secret_names` dei provider).
+- **Il hub** legge `web_ui_url` e `reply_timeout_seconds` effettivi a ogni messaggio; `telegram.from_settings` legge token, `enabled`, utenti e livello effettivi. `TELEGRAM_CLEARANCE` del `.env` segue la regola di prima (public o internal, il resto vale public); dalla UI `private` è un 422.
+- **A caldo**: `ChannelHub.unregister(id)` e `replace(canale)`, serializzate da un lock del hub; `replace` ferma il vecchio canale e avvia il nuovo solo se il hub è già partito (altrimenti parte con il hub). Dopo un salvataggio o un ripristino di `telegram`, `telegram.apply_settings()` costruisce il canale dai valori effettivi e lo sostituisce, o toglie quello che c'era se ora è spento, senza token o senza utenti.
+- **Un turno in corso durante il cambio** risponde con il canale registrato al momento della consegna, e con il suo livello; se il canale è stato tolto, la risposta resta nell'app.
+- **Stato**: `TelegramChannel.running` e `last_error` (l'ultimo errore della Bot API, già ripulito; torna `null` dopo una `getUpdates` riuscita). "Prova il bot" chiama `getMe` con il trasporto che aggiunge il token solo al percorso e restituisce l'errore ripulito.
+- **Verifica**: 65 test in `tests/test_runtime_settings_api.py` con una Bot API finta, più il controllo esteso in `test_provider_config_api.py` (nessun modulo dell'agente chiama `update`, `reset` o `view`, né importa le route). 18 mutazioni delle righe chiave: 16 colte; restano la redazione ripetuta in "Prova il bot" (l'errore è già ripulito dalla chiamata alla Bot API) e una variante di `running` equivalente dopo lo stop.
+
+Precisazioni rispetto a 5 (le forme delle risposte non cambiano):
+
+- **Percorsi**: `GET`, `PATCH` e `POST .../reset` sono `/v1/settings/{section}`; in R1 esiste solo `channels`, ogni altro nome (anche `telegram`) è 404 `not_found`. `POST /v1/settings/channels/telegram/test` è fisso.
+- **422**: `{"detail": {"code": "invalid", "message"}}`, con un messaggio che non ripete il valore. Un corpo che non è un oggetto JSON riceve il 422 standard di FastAPI. Chiavi sconosciute (un campo, una parte, una credenziale) sono 422.
+- **Tutto o niente**: una `PATCH` con un valore non valido, una conferma mancante o un token senza `API_SECRET_KEY` non salva nemmeno gli altri campi della richiesta.
+- **Conferme** sul valore effettivo prima e dopo: anche un `null` che riporta al `.env` un livello più alto o utenti in più chiede `confirm`. Il **ripristino** non chiede conferme: rimette il `.env`, che scrive chi gestisce l'istanza.
+- **`last_error`** dice anche perché il canale non si costruisce quando la UI non può dedurlo dai campi: token salvato illeggibile (`API_SECRET_KEY` cambiata), `TELEGRAM_ALLOWED_USERS` del `.env` non valida (allora `allowed_users` vale `[]` con origine `env`). Spento, senza token o senza utenti: `last_error` è `null` e la UI lo legge dai campi.
+- **Valori**: il token deve avere la forma `<id>:<segreto>` (422 altrimenti, anche nella bozza di "Prova il bot"); `allowed_users` torna ordinata e senza ripetizioni, al massimo 100 id; `reply_timeout_seconds` è un intero; `web_ui_url` perde la barra finale, e `""` dalla UI vuol dire "nessun link" (diverso da `null`, che torna al `.env`). `enabled` ha origine `default` finché la UI non lo imposta.
+- **`restart`** esiste in `Field` ma non è nelle risposte: nessun campo di R1 vuole un riavvio. R2 lo aggiunge al contratto quando serve.
+
