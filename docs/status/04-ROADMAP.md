@@ -148,7 +148,7 @@ Le impostazioni si cambiano dalla Web UI mentre il servizio gira, con il `.env` 
 
 | # | Passo | Note |
 | :--- | :--- | :--- |
-| R1 | **Canali**: modulo generico, Telegram dalla UI (token, utenti ammessi, livello, prova del bot), riavvio a caldo del canale, scheda "Canali" | In costruzione dal 27/11 |
+| R1 | ~~**Canali**: modulo generico, Telegram dalla UI (token, utenti ammessi, livello, prova del bot), riavvio a caldo del canale, scheda "Canali"~~ ✅ 2026-11-27 (installato su CT 125; scheda provata nel browser a 1280 e 320 px, axe 0 violazioni; utente ammesso e indirizzo della Web UI impostati dalla UI con la conferma) | La prova con il bot vero aspetta il token, che il maintainer inserisce dalla scheda |
 | R2 | **Ricerca web, limiti dell'agente, watchdog, Firecracker, metriche, scheduler** | |
 | R3 | **MetaMCP** con riconnessione | |
 
